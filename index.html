@@ -102,6 +102,27 @@
       height: 100%;
     }
 
+    /* Vignette : léger flou sur le pourtour de l'écran, netteté intacte au
+       centre (demandé explicitement : « léger blur partout autour de
+       l'écran en mode vignette »). Fait en CSS (`backdrop-filter` + masque
+       radial) plutôt qu'en canvas : composité par le GPU, zéro coût dans la
+       boucle de rendu, et bien supporté par Safari iOS. `mask-image` limite
+       le flou aux bords — le centre (55 % du rayon) n'est pas touché.
+       Au-dessus du canvas (z-index > auto) mais sous tous les contrôles/
+       overlays DOM (20+) : purement décoratif, jamais au-dessus de ce qui
+       doit rester net et lisible. `pointer-events: none` le rend invisible
+       aux gestes — les swipes traversent jusqu'au canvas normalement. */
+    #vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
+    }
+
     /* --- Écrans hors-jeu (démarrage / fin) ---------------------------------
        Un seul conteneur, réutilisé pour les deux : mêmes règles de placement,
        mêmes fondus, rien à recentrer d'un écran à l'autre. Il est en DOM et
@@ -973,6 +994,7 @@
   <div id="app">
     <canvas id="game-canvas"></canvas>
   </div>
+  <div id="vignette" aria-hidden="true"></div>
 
   <div id="overlay">
     <h1 id="menu-title" class="fade">La ville est belle</h1>

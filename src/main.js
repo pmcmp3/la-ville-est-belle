@@ -39,6 +39,13 @@ const LANE_TWEEN = 7;
 const CAMERA_FOLLOW = 0.55;
 const LATERAL_SPEED = 5.5;  // référence de vitesse latérale pour l'inclinaison du sprite
 const MAX_LEAN = 0.16;      // inclinaison max du sprite dans les virages, en radians
+// Flou de mouvement très léger pendant le glissé de changement de voie
+// (demandé explicitement). Même référence de vitesse que le lean
+// (LATERAL_SPEED) : le sprite est déjà à peu près à l'inclinaison max dès le
+// début d'un changement de voie (vx dépasse largement LATERAL_SPEED sur un
+// glissé de 2 unités), donc le flou suit le même profil — présent tout du
+// long du glissé (~0,2 s), qui retombe à zéro une fois la voie atteinte.
+const LANE_BLUR_MAX = 1.6; // px, à l'échelle écran — volontairement discret
 const PEDAL_BOB = 0.05;     // amplitude du rebond de pédalage, en unités-monde
 // Calé pour ~0,125 s par frame du cycle de pédalage (4 frames, player.js) à
 // la vitesse de départ (BASE_SPEED × vitesseBase = 11 u/s) — 2x plus rapide
@@ -1071,8 +1078,16 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
     if (!on) alpha *= 0.15;
   }
   ctx.globalAlpha = alpha;
+  // Flou de mouvement : proportionnel à la vitesse latérale courante (même
+  // référence que le lean, voir LANE_BLUR_MAX), donc actif pendant un
+  // changement de voie et nul une fois la voie atteinte. `ctx.filter` reste
+  // bon marché ici : il ne s'applique qu'au sprite (26×34 mis à l'échelle),
+  // jamais à toute la scène.
+  const blurPx = Math.min(LANE_BLUR_MAX, (Math.abs(playerState.vx) / LATERAL_SPEED) * LANE_BLUR_MAX);
+  if (blurPx > 0.05) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   player.renderPickupGlow(ctx, p.x, p.y - hop - bob, p.scale, pickupFlash);
   player.render(ctx, p.x, p.y - hop - bob, p.scale, renderLean, renderPedalPhase);
+  if (blurPx > 0.05) ctx.filter = "none";
   ctx.globalAlpha = wasAlpha;
 }
 
