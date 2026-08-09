@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+.netlify/
+.claude/settings.local.json
+
+# Dossier sans rapport avec le jeu (outil reels, autre projet) — présent
+# incidemment dans ce répertoire, pas suivi ici.
+reels/

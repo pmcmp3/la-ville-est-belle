@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0d0d10" />
+  <title>La ville est belle</title>
+  <style>
+    /* Polices de la charte PMC, fournies par l'artiste.
+       - Flawsome : police d'affichage, réservée au titre du jeu.
+       - Stage Grotesk : interface. Deux graisses seulement (Black pour les
+         boutons/chiffres, Medium pour le texte courant) pour tenir le poids
+         sur data mobile — les 7 graisses pesaient ~520 ko, on est à 216 ko
+         tout compris. `font-display: block` parce que hud.js peint aussi du
+         texte dans le canvas : mieux vaut une brève attente qu'un rendu en
+         police système figé ensuite. */
+    @font-face {
+      font-family: "Flawsome";
+      src: url("/fonts/Flawsome-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: block;
+    }
+
+    @font-face {
+      font-family: "Stage Grotesk";
+      src: url("/fonts/StageGrotesk-Medium.otf") format("opentype");
+      font-weight: 500;
+      font-style: normal;
+      font-display: block;
+    }
+
+    @font-face {
+      font-family: "Stage Grotesk";
+      src: url("/fonts/StageGrotesk-Black.otf") format("opentype");
+      font-weight: 900;
+      font-style: normal;
+      font-display: block;
+    }
+
+    :root {
+      --rouge: #e13e26;   /* rouge de la charte (dossier DA « ROUGE - #E13E26 ») */
+      --rouge-clair: #ff6a4a; /* reflet haut des boutons/panneaux "pressables" */
+      --rouge-fonce: #8f2415; /* tranche basse des boutons/panneaux "pressables" */
+      --blanc: #ffffff;
+      --noir: #0d0d10;
+      --panneau-fond: linear-gradient(180deg, #211d29 0%, #131019 100%);
+      --panneau-bord: rgba(255, 255, 255, 0.14);
+      --police: "Stage Grotesk", system-ui, sans-serif;
+      --titre: "Flawsome", "Stage Grotesk", system-ui, sans-serif;
+
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      /* Barre d'onglets/adresse de Safari iOS : PAS comptée dans safe-area-
+         inset-bottom (qui ne couvre que le home indicator matériel), mais
+         recouvre quand même le bas de l'écran en navigateur. Mise à jour en
+         JS via window.visualViewport (voir main.js) — 0 par défaut/ailleurs. */
+      --browser-chrome-bottom: 0px;
+
+      /* Hauteur libre sous les contrôles. Le plancher de 64px est le point
+         important : sur iOS, window.innerHeight exclut DÉJÀ la barre d'outils
+         de Safari, donc --browser-chrome-bottom y vaut ~0 et ne rattrape
+         rien — les contrôles finissaient derrière la barre, invisibles
+         (remonté au playtest iPhone). On garde quand même la mesure
+         dynamique : elle sert là où le chrome recouvre vraiment la page. */
+      --controls-bottom: max(
+        64px,
+        calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom))
+      );
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--noir);
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* --- Écrans hors-jeu (démarrage / fin) ---------------------------------
+       Un seul conteneur, réutilisé pour les deux : mêmes règles de placement,
+       mêmes fondus, rien à recentrer d'un écran à l'autre. Il est en DOM et
+       non plus dessiné dans le canvas — ce sont donc de vrais boutons, donc
+       de vraies cibles tactiles (≥44px, recommandation iOS), et les fondus
+       sont de simples transitions CSS gérées par le compositeur. */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: calc(24px + var(--safe-top)) 24px calc(72px + var(--safe-bottom));
+      box-sizing: border-box;
+      background: linear-gradient(
+        180deg,
+        rgba(13, 13, 16, 0.3) 0%,
+        rgba(13, 13, 16, 0.7) 55%,
+        rgba(13, 13, 16, 0.92) 100%
+      );
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.45s ease, visibility 0s linear 0.45s;
+    }
+
+    #overlay.visible {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.45s ease, visibility 0s;
+    }
+
+    /* Chaque bloc monte légèrement en apparaissant, en décalé : l'écran se
+       compose au lieu de surgir d'un seul tenant. */
+    #overlay .fade {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    #overlay.visible .fade {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #overlay.visible .fade:nth-child(1) { transition-delay: 0.05s; }
+    #overlay.visible .fade:nth-child(2) { transition-delay: 0.13s; }
+    #overlay.visible .fade:nth-child(3) { transition-delay: 0.21s; }
+    #overlay.visible .fade:nth-child(4) { transition-delay: 0.29s; }
+    #overlay.visible .fade:nth-child(5) { transition-delay: 0.37s; }
+
+    #menu-title {
+      margin: 0 0 10px;
+      font: 400 48px/0.95 var(--titre);
+      color: var(--blanc);
+      text-align: center;
+      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+    }
+
+    /* --- Écran de fin (refonte v3) -----------------------------------------
+       Playtest : « il faut revoir l'écran de game over entièrement pour qu'il
+       soit cohérent avec l'UX et l'UI du design system du premier écran ».
+       La v2 était une mise en page éditoriale alignée à gauche, SANS carte —
+       délibérément en rupture avec le menu. C'est exactement ce qui posait
+       problème : deux langages visuels dans le même jeu. La v3 repasse donc
+       l'écran de fin sur le MÊME composant que les étapes du menu : carte
+       .panel + bandeau .panel-header rouge + .panel-body centré, et le bouton
+       principal est le .btn/.btn-primary standard, sans surcharge locale.
+       Le titre "La ville est belle" reste centré comme sur le menu (plus de
+       surcharge :has() qui l'alignait à gauche ici seulement) ; le résultat
+       de la partie est porté par l'eyebrow du bandeau, à la place exacte où
+       le menu affiche "Étape 1/2 — Ton pseudo". */
+    #end-screen.active {
+      width: 100%;
+      align-items: center;
+    }
+
+    /* « Il faut que ce soit calme, l'écran de fin. » Il y avait quatre aplats
+       rouges qui se disputaient l'attention : le bandeau, le score géant, la
+       1re place et le bouton REJOUER — plus la ligne surlignée. Le rouge est
+       donc ramené à trois emplois qui ont chacun une raison d'être : le
+       bandeau (composant du design system), la ligne du joueur (l'info qu'il
+       cherche) et REJOUER (l'action). Le score et la 1re place repassent en
+       blanc : la hiérarchie se fait à la taille, pas à la couleur. */
+    #end-hero {
+      text-align: center;
+      margin: 4px 0 22px;
+    }
+
+    #score-label {
+      font: 500 11px/1 var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+      margin: 0 0 8px;
+    }
+
+    #score-num {
+      font: 900 58px/0.9 var(--police);
+      color: var(--blanc);
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      display: block;
+    }
+
+    /* Statut concours : une ligne, centrée comme le reste de la carte. Puce à
+       gauche = fermé (gris) / ouvert (rouge). */
+    #contest-pill {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 0;
+      font: 500 12px var(--police);
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.5);
+      background: none;
+      border: none;
+    }
+
+    #contest-pill::before {
+      content: "";
+      display: block;
+      flex: 0 0 auto;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    #contest-pill.open {
+      color: var(--blanc);
+    }
+
+    #contest-pill.open::before {
+      background: var(--rouge);
+    }
+
+    /* Classement (étape 7, Supabase) : filet fin entre les lignes, chiffres
+       tabulaires. Le rouge reste réservé à la 1re place et au score courant. */
+    #leaderboard {
+      width: 100%;
+      margin: 0 0 22px;
+    }
+
+    #leaderboard.hidden {
+      display: none;
+    }
+
+    .board-title {
+      margin: 0 0 8px;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+      text-align: center;
+    }
+
+    #end-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #leaderboard-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      /* Hauteur = 5 lignes pile. C'est ce qui permet de CENTRER la ligne du
+         joueur dans la fenêtre de scroll (demandé explicitement) : il faut
+         un nombre impair de lignes visibles pour qu'il y ait un vrai milieu.
+         Voir scrollCurrentScoreIntoView() dans main.js. */
+      max-height: 185px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    #leaderboard-list li {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      align-items: baseline;
+      gap: 10px;
+      box-sizing: border-box;
+      height: 37px;              /* fixe : indispensable au centrage au scroll */
+      padding: 9px 6px;
+      font: 500 14px var(--police);
+      color: var(--blanc);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #leaderboard-list li:first-child {
+      border-top: none;
+    }
+
+    #leaderboard-list .rank {
+      font: 500 11px var(--police);
+      letter-spacing: 0.06em;
+      color: rgba(255, 255, 255, 0.45);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    #leaderboard-list .pseudo {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    #leaderboard-list .points {
+      font: 900 15px var(--police);
+      font-variant-numeric: tabular-nums;
+      color: var(--blanc);
+      letter-spacing: -0.01em;
+    }
+
+    /* Première place : distinguée par la graisse seulement, plus par le rouge
+       (voir la note "écran calme" plus haut) — sinon deux lignes rouges se
+       disputent l'œil avec celle du joueur. */
+    #leaderboard-list li:first-child .rank {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    #leaderboard-list li:first-child .points {
+      color: var(--blanc);
+    }
+
+    /* Score du joueur surligné : demandé explicitement (« je veux que mon
+       score arrive au milieu de mon écran et que ce soit surligné »). Aplat
+       rouge de charte plein — pas une teinte à 15 % qu'on cherche encore. */
+    #leaderboard-list li.current-score {
+      background: var(--rouge);
+      border-top-color: var(--rouge);
+      color: var(--blanc);
+      font-weight: 900;
+    }
+
+    #leaderboard-list li.current-score .rank,
+    #leaderboard-list li.current-score .points,
+    #leaderboard-list li.current-score .pseudo {
+      color: var(--blanc);
+    }
+
+    /* Le joueur est aussi 1er : le rouge du surlignage l'emporte, on remet
+       les chiffres en blanc (règle ci-dessus) — rien à faire de plus, mais la
+       spécificité doit rester supérieure, d'où l'ordre de ces deux blocs. */
+
+    /* --- Vues de l'overlay --------------------------------------------------
+       #overlay a 3 vues mutuellement exclusives : l'accueil en 3 étapes
+       (#onboarding), le décompte avant course (#countdown) et l'écran de fin
+       (#end-screen). Une seule ".active" à la fois (voir setView() dans
+       main.js). Chaque vue/étape rejoue sa propre petite entrée en animation
+       à chaque activation — indépendant du fondu d'ouverture/fermeture de
+       #overlay lui-même, qui ne joue qu'à l'apparition/disparition globale. */
+    .view, .menu-step {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .view.active, .menu-step.active {
+      display: flex;
+      animation: view-in 0.4s ease both;
+    }
+
+    @keyframes view-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #onboarding.active {
+      width: 100%;
+    }
+
+    /* --- Panneau "arcade" ---------------------------------------------------
+       Repris de la référence DA envoyée par l'artiste (popup de jeu mobile :
+       carte à bordure nette, bandeau d'en-tête coloré, action principale à
+       fort contraste) — traduit dans la charte du projet (rouge #E13E26 /
+       noir / blanc, StageGrotesk) plutôt que les couleurs de l'exemple
+       (bleu/or), qui appartiennent à un autre jeu. Un seul composant, réutilisé
+       pour chaque étape du menu et l'écran de fin — pas pour le décompte
+       (voir plus bas : il doit au contraire laisser voir le cycliste). */
+    .panel {
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+      border-radius: 22px;
+      border: 3px solid var(--panneau-bord);
+      background: var(--panneau-fond);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 13px 20px;
+      background: linear-gradient(180deg, var(--rouge-clair) 0%, var(--rouge) 45%, #c9351f 100%);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.28);
+      text-align: center;
+    }
+
+    .panel-body {
+      padding: 24px 22px 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-eyebrow {
+      margin: 0;
+      font: 900 11px var(--police);
+      letter-spacing: 0.17em;
+      text-transform: uppercase;
+      color: var(--blanc);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+
+    .menu-step [data-next] {
+      margin-top: 22px;
+    }
+
+    /* --- Décompte avant course ---------------------------------------------
+       Entre le tap sur JOUER et le vrai début : le geste iOS a déjà débloqué
+       l'audio (audio.unlock(), voir main.js), la lecture réelle (audio.play())
+       n'est déclenchée qu'à la fin du décompte — le contexte est déjà prêt à
+       ce moment-là, plus besoin d'un geste. */
+    /* Voile allégé plus bas (.countdown-view) : le texte doit maintenant se
+       détacher tout seul d'un fond clair (ciel/route), pas juste d'un fond
+       sombre — vraie ombre de contraste en plus du halo rouge de charte. */
+    #countdown-num {
+      font: 900 88px/1 var(--police);
+      color: var(--blanc);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Titre masqué pendant le décompte : redondant avec le numéro géant et
+       la légende, et ça encombrait l'écran (retour direct : "il faut que tu
+       revoies [ça]"). Reste affiché sur le menu et l'écran de fin. */
+    #overlay.countdown-view #menu-title {
+      display: none;
+    }
+
+    /* Légende du décompte : UNE phrase à la fois (hype → tuto du contrôle
+       tactile → rappel son), alternées en fondu par main.js plutôt que les
+       3 empilées d'un coup — demandé explicitement après un premier test où
+       c'était illisible/encombré, superposé au personnage. Fond translucide
+       propre (comme les autres panneaux du HUD) : garantit la lisibilité
+       quel que soit ce qu'il y a derrière (ciel clair, façades...), l'ombre
+       de texte seule ne suffisait pas sur les zones les plus claires. */
+    #countdown-caption {
+      margin: 18px 0 0;
+      max-width: 280px;
+      padding: 10px 18px;
+      border-radius: 14px;
+      background: rgba(13, 13, 16, 0.55);
+      text-align: center;
+      font: 900 14px/1.4 var(--police);
+      color: var(--blanc);
+      opacity: 1;
+      transition: opacity 0.35s ease;
+    }
+
+    #countdown-caption.hidden {
+      opacity: 0;
+    }
+
+    /* Voile allégé pendant le décompte : le fond sombre standard de #overlay
+       (jusqu'à 92% de noir en bas) masquait le cycliste juste au moment où on
+       veut au contraire bien le montrer, prêt à partir (demandé explicitement
+       : "garde le bonhomme visible tant que le décompte n'est pas fini"). */
+    #overlay.countdown-view {
+      background: linear-gradient(
+        180deg,
+        rgba(13, 13, 16, 0.05) 0%,
+        rgba(13, 13, 16, 0.15) 55%,
+        rgba(13, 13, 16, 0.55) 100%
+      );
+      /* Le décompte sert de TUTORIEL : la bande de pilotage et le saut doivent
+         vraiment répondre pendant qu'il tourne. Or #overlay (z-index 20)
+         recouvre le canvas et les contrôles (z-index 10) — il avalait donc
+         tous les touchers, et le tutoriel n'était qu'une image. Le décompte
+         n'ayant plus aucun élément interactif (le bouton « Passer » a été
+         retiré), on lui retire les événements pointeur : la bande, le bouton
+         SAUT et le tap-pour-sauter deviennent utilisables dès le décompte.
+         La bascule son reste tapable (z-index 30, au-dessus de l'overlay). */
+      pointer-events: none;
+    }
+
+    /* --- Chargement : barre + pourcentage ---------------------------------
+       Le morceau pèse ~10 Mo : sur data mobile l'attente est réelle. Un
+       pourcentage qui monte dit que ça avance, là où « Chargement… » laisse
+       croire que c'est bloqué. */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 200px;
+      margin-bottom: 28px;
+    }
+
+    #loading.done {
+      display: none;
+    }
+
+    #loading-track {
+      width: 100%;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+      overflow: hidden;
+    }
+
+    #loading-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--blanc);
+      transition: width 0.25s linear;
+    }
+
+    #loading-label {
+      font: 500 13px var(--police);
+      color: rgba(255, 255, 255, 0.72);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* --- Boutons ----------------------------------------------------------
+       Hauteur ≥ 48px et largeur fixe : cibles confortables au pouce, et une
+       hiérarchie nette — un seul bouton plein (l'action principale), le
+       reste en contour. Pas d'ombre portée (retour direct au premier
+       playtest : "trop moche") — le retour tactile passe par un
+       assombrissement + tassement au tap, pas par un bevel à ombre. */
+    .btn {
+      display: block;
+      width: 240px;
+      min-height: 54px;
+      margin: 0;
+      padding: 15px 24px;
+      border-radius: 16px;
+      border: 2px solid transparent;
+      font: 900 17px var(--police);
+      letter-spacing: 0.02em;
+      text-align: center;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--rouge);
+      color: var(--blanc);
+      border-color: var(--rouge-fonce);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.96);
+      filter: brightness(0.85);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      transform: none;
+      filter: none;
+    }
+
+    /* Note sous les champs du menu (pseudo/insta) : c'est elle qui porte la
+       promesse de confidentialité — « seul ton pseudo apparaît au classement ».
+       Sans elle, demander un insta juste avant un classement public est
+       légitimement inquiétant. */
+    .field-note {
+      width: 240px;
+      margin: 2px 0 20px;
+      font: 500 11.5px/1.45 var(--police);
+      color: rgba(255, 255, 255, 0.62);
+      text-align: left;
+    }
+
+    .field-note strong { color: rgba(255, 255, 255, 0.92); font-weight: 900; }
+
+    /* Rappel son de l'étape 2/2 (demandé : « il faut mettre une notification
+       qui dit aux gens de monter le son, sinon ils ne sont pas au courant que
+       la musique existe »). Encadré, pas une petite ligne grise : c'est le
+       cœur du projet. */
+    #sound-notice {
+      width: 240px;
+      box-sizing: border-box;
+      margin: 0 0 22px;
+      padding: 12px 14px;
+      border: 2px solid rgba(225, 62, 38, 0.55);
+      border-radius: 12px;
+      background: rgba(225, 62, 38, 0.12);
+      font: 900 15px var(--police);
+      color: var(--blanc);
+      text-align: left;
+    }
+
+    #sound-notice span {
+      display: block;
+      margin-top: 5px;
+      font: 500 11.5px/1.45 var(--police);
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    /* Playtest 3 : "le slider est beaucoup trop grand". Le range natif
+       iOS Safari a un thumb ~32 px, disproportionné avec la ligne fine du
+       track — on repasse en styling explicite (webkit + moz) pour un
+       curseur compact rouge charte sur une barre 3 px.
+       Classe partagée (au lieu d'un id) : réutilisée par le curseur du menu
+       dépliant (#volume-slider) ET par celui du menu pause
+       (#pause-volume-slider) — même rendu, deux emplacements. */
+    #volume-slider { flex: 1; }
+    #pause-volume-slider { width: 100%; }
+    .volume-range {
+      height: 18px;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    .volume-range::-webkit-slider-runnable-track {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 2px;
+    }
+    .volume-range::-moz-range-track {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 2px;
+    }
+    .volume-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin-top: -6.5px;    /* centre le thumb sur le track de 3 px */
+      border-radius: 50%;
+      background: var(--rouge);
+      border: 1.5px solid #fff;
+    }
+    .volume-range::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--rouge);
+      border: 1.5px solid #fff;
+    }
+
+    /* --- Pseudo Instagram (étape 7, classement du concours) ---------------
+       Identifiant = pseudo Insta, jamais un email (décision verrouillée,
+       PLAN-ACTION.md §6). Volontairement facultatif et jamais bloquant : sans
+       pseudo, la partie reste jouable, seul l'envoi du score au classement
+       est sauté (voir postScoreIfEligible() dans main.js). Persisté en
+       localStorage pour ne pas le retaper à chaque partie. */
+    #pseudo-row, #insta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 240px;
+      margin-top: 14px;
+    }
+
+    #pseudo-row .icon, #insta-row .icon {
+      font: 500 13px var(--police);
+      color: rgba(255, 255, 255, 0.72);
+      white-space: nowrap;
+      /* Largeur fixe : les deux libellés ("Pseudo", "Insta") n'ont pas la
+         même longueur, sans ça les deux champs ne commenceraient pas au même
+         x et la carte partirait en escalier. */
+      width: 48px;
+    }
+
+    #pseudo-input, #insta-input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.35);
+      color: var(--blanc);
+      font: 500 14px var(--police);
+      padding: 4px 2px;
+      -webkit-appearance: none;
+    }
+
+    #pseudo-input::placeholder, #insta-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    #pseudo-input:focus {
+      outline: none;
+      border-bottom-color: var(--rouge);
+    }
+
+    /* Lien secondaire ancré en bas : présent, mais sans disputer la place au
+       bouton JOUER (demandé : « le morceau, on va le mettre autre part »).
+       En bouton contour par défaut (menu + « parcours terminé » — l'objectif
+       du jeu mérite mieux qu'un lien sous-titré) ; réduit à un simple lien
+       via .cta-minimal sur Game Over, où l'enjeu est de relancer vite plutôt
+       que de retenir l'attention (voir endGame() dans main.js). */
+    #cta-link {
+      position: absolute;
+      left: 50%;
+      bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 240px;
+      box-sizing: border-box;
+      padding: 13px 22px;
+      border: 2px solid rgba(255, 255, 255, 0.55);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--blanc);
+      font: 900 14px var(--police);
+      letter-spacing: 0.01em;
+      text-align: center;
+      text-decoration: none;
+      white-space: nowrap;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, opacity 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Icône « ouvrir dans un nouvel onglet » : annonce que le jeu ne sera pas
+       perdu (playtest : « si je clique sur Écouter le morceau, ça enlève la
+       page ? donc je vais jamais cliquer là-dessus »). Légèrement atténuée —
+       elle informe, elle n'appelle pas au clic à la place du libellé. */
+    #cta-link svg {
+      flex: none;
+      opacity: 0.75;
+    }
+
+    #cta-link:active {
+      transform: translateX(-50%) scale(0.96);
+      filter: brightness(0.85);
+    }
+
+    #cta-link.cta-minimal {
+      width: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.72);
+      font: 500 14px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    #cta-link.cta-minimal:active {
+      transform: translateX(-50%);
+    }
+
+    /* Lien secondaire générique (même recette visuelle que .cta-minimal,
+       mais sans le positionnement absolu propre à #cta-link) : bouton
+       "Recommencer" du menu pause, ou tout futur second choix discret à
+       côté d'un .btn-primary. */
+    .link-minimal {
+      display: inline-block;
+      padding: 0;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.62);
+      font: 500 13px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s ease;
+    }
+
+    .link-minimal:active {
+      opacity: 0.6;
+    }
+
+    /* --- Menu pause ---------------------------------------------------------
+       Demandé : « mets un menu pause avec le volume ». Bouton dédié (visible
+       uniquement en cours de course, voir main.js) plutôt qu'un tap-écran —
+       même règle que partout ailleurs dans le jeu, une action = un bouton
+       visible. Le rendu du jeu continue d'afficher la dernière frame derrière
+       (la simulation, elle, s'arrête complètement — voir main.js) : le voile
+       sombre standard suffit, pas besoin du traitement allégé du décompte.
+       Retour : « le bouton Pause, il faut le mettre à la place du bouton
+       Volume ». Il prend donc exactement l'emplacement de #sound-control
+       (haut gauche) plutôt que le bas droit — les deux occupent le MÊME coin
+       et ne sont jamais visibles en même temps : la bascule son y reste sur
+       les écrans hors-jeu (menu/décompte/fin), Pause la remplace pendant la
+       course (voir showPauseButton()/hidePauseButton() dans main.js, qui
+       masquent aussi #sound-control). Le menu pause contient déjà le
+       volume — plus besoin d'un second contrôle pendant la course. */
+    #pause-button {
+      position: fixed;
+      left: calc(14px + var(--safe-left));
+      top: calc(14px + var(--safe-top));
+      z-index: 30;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      background: rgba(13, 13, 16, 0.7);
+      color: var(--blanc);
+      font: 900 14px var(--police);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, opacity 0.2s ease;
+    }
+
+    #pause-button[hidden] { display: none; }
+
+    #pause-button:active {
+      transform: scale(0.92);
+      filter: brightness(0.85);
+    }
+
+    #pause-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 25; /* au-dessus de #overlay (20), sous la bascule son (30) */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+      background: rgba(13, 13, 16, 0.82);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+    }
+
+    #pause-screen.visible {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.25s ease, visibility 0s;
+    }
+
+    #pause-volume-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 240px;
+      margin: 2px 0 22px;
+    }
+
+    #pause-volume-row .icon {
+      flex: none;
+      font-size: 18px;
+    }
+
+    #pause-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* --- Contrôles en jeu -------------------------------------------------
+       Il n'y en a plus. Tout se joue au geste (swipe gauche/droite = voie,
+       swipe haut = saut, voir input.js) : la bande de pilotage et le bouton
+       SAUT ont été retirés à la demande du playtest — ils mangeaient le bas
+       de l'écran et obligeaient à jouer à deux mains. Ne reste que le
+       réglage du son, ci-dessous. */
+
+    /* Son : bouton en haut à gauche qui DÉPLIE un curseur de volume
+       (demandé : « une fois que c'est lancé, à la place du bouton volume, il
+       faut un petit menu dépliant »). Le curseur a quitté le menu d'avant-
+       partie : on règle le son quand on l'entend, pas avant.
+       Playtest iPhone 16 : le panneau s'ouvrait vers la DROITE, et chevauchait
+       le panneau HUD (score/vies/énergie, ancré en haut à droite, largeur
+       variable) sur la largeur d'un iPhone. Il se déroule maintenant vers le
+       BAS (flex-direction: column) — les deux panneaux ne se rencontrent plus
+       jamais, quelle que soit la largeur de l'écran. */
+    #sound-control {
+      position: fixed;
+      left: calc(14px + var(--safe-left));
+      top: calc(14px + var(--safe-top));
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* Spécificité ID (#sound-control) > sélecteur d'attribut ([hidden] de la
+       feuille de style par défaut du navigateur) : sans cette règle propre,
+       poser l'attribut `hidden` (voir showPauseButton() dans main.js) ne
+       masquerait rien — même piège déjà traité pour #pause-button. */
+    #sound-control[hidden] { display: none; }
+
+    #sound-panel {
+      display: flex;
+      align-items: center;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 22px;
+      border: 2px solid rgba(255, 255, 255, 0.28);
+      background: rgba(13, 13, 16, 0.82);
+      animation: sound-panel-in 0.22s ease;
+    }
+
+    #sound-panel[hidden] { display: none; }
+
+    @keyframes sound-panel-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #sound-panel input[type="range"] {
+      width: 128px;
+      accent-color: var(--rouge);
+      background: transparent;
+    }
+
+    /* Bouton son : déplacé en haut à gauche (la zone libérée par l'ancien
+       indicateur giro, retiré avec le gyroscope) — hors de l'axe de lecture
+       de la route ET hors de la nouvelle bande de pilotage en bas.
+       Affiché sur TOUS les écrans (demandé explicitement) : menu, décompte,
+       course, écran de fin. Le morceau tourne en fond dès l'étape 2 du menu
+       et ne s'arrête jamais entre deux parties — il doit donc être coupable
+       à tout instant, pas seulement pendant la course.
+       z-index 30 = au-dessus de #overlay (20), sinon il passerait derrière le
+       voile des écrans hors-jeu et deviendrait intappable. */
+    #mute-button {
+      display: block;
+      flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      background: rgba(13, 13, 16, 0.7);
+      color: var(--blanc);
+      font: 500 16px var(--police);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 30;
+      opacity: 1;
+      transition: opacity 0.4s ease, transform 0.08s ease, filter 0.08s ease;
+    }
+
+    #mute-button:active {
+      transform: scale(0.92);
+      filter: brightness(0.85);
+    }
+
+    #mute-button.muted {
+      color: rgba(255, 255, 255, 0.4);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #overlay, #overlay .fade, .btn, #mute-button, #loading-fill, #countdown-caption {
+        transition-duration: 0.01s;
+      }
+      .view.active, .menu-step.active {
+        animation-duration: 0.01s;
+      }
+      #overlay.countdown-view #steer-thumb {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <div id="overlay">
+    <h1 id="menu-title" class="fade">La ville est belle</h1>
+
+    <!-- Accueil en 2 étapes : pseudo → volume/JOUER. Une seule action par
+         écran (voir §"Ne jamais faire du tap n'importe où" dans
+         PLAN-ACTION.md) — ici une seule DÉCISION par écran. L'étape
+         "inclinaison" a été retirée avec le gyroscope (demandé explicitement) ;
+         le tutoriel du contrôle tactile se fait pendant le décompte plus bas. -->
+    <div id="onboarding" class="view active">
+      <div class="menu-step active" data-step="pseudo">
+        <div class="panel">
+          <div class="panel-header"><p class="step-eyebrow">Étape 1/2 — Ton pseudo</p></div>
+          <div class="panel-body">
+            <div id="pseudo-row">
+              <span class="icon">Pseudo</span>
+              <input
+                type="text"
+                id="pseudo-input"
+                placeholder="ton pseudo de joueur"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="24"
+              />
+            </div>
+            <div id="insta-row">
+              <span class="icon">Insta</span>
+              <input
+                type="text"
+                id="insta-input"
+                placeholder="@ton_insta (optionnel)"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="40"
+              />
+            </div>
+            <p class="field-note">Seul ton <strong>pseudo</strong> apparaît au classement. Ton insta n'est visible que par PMC, pour te contacter si tu gagnes.</p>
+            <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-step" data-step="play">
+        <div class="panel">
+          <div class="panel-header"><p class="step-eyebrow">Étape 2/2 — C'est parti</p></div>
+          <div class="panel-body">
+            <div id="loading">
+              <div id="loading-track"><div id="loading-fill"></div></div>
+              <span id="loading-label">0 %</span>
+            </div>
+            <p id="sound-notice">🔊 Monte le son<span>Le jeu est calé sur le morceau — sans son, il en manque la moitié. Sur iPhone, vérifie aussi l'interrupteur sonnerie.</span></p>
+            <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Décompte avant course, entre le tap JOUER et le vrai début. Sert
+         aussi de tutoriel : la bande de pilotage tout en bas est déjà active
+         et utilisable, message dédié pour expliquer comment s'en servir.
+         Volontairement SANS carte ".panel" pleine : la carte à fond plein
+         masquerait le cycliste, alors que la décision prise plus tôt était
+         justement de le garder visible pendant le décompte (voir
+         PLAN-ACTION.md, "Personnage gardé visible pendant le décompte"). -->
+    <div id="countdown" class="view">
+      <div id="countdown-num">10</div>
+      <p id="countdown-caption"></p>
+    </div>
+
+    <!-- Écran de fin : MÊME carte .panel que les étapes du menu (demandé —
+         « il faut revoir l'écran de game over entièrement pour qu'il soit
+         cohérent avec l'UX et l'UI du design system du premier écran »).
+         Le résultat de la partie ("Game Over" / "Parcours terminé") est porté
+         par l'eyebrow du bandeau, exactement là où le menu affiche
+         "Étape 1/2 — Ton pseudo" ; #menu-title garde donc le titre du jeu,
+         centré comme sur le menu. -->
+    <div id="end-screen" class="view">
+      <div class="panel">
+        <div class="panel-header"><p class="step-eyebrow" id="end-eyebrow">Game Over</p></div>
+        <div class="panel-body">
+          <div id="end-hero">
+            <div id="score-label">Score</div>
+            <div id="score-num"></div>
+            <p id="contest-pill"></p>
+          </div>
+          <div id="leaderboard" class="hidden">
+            <p class="board-title">Meilleurs scores</p>
+            <ol id="leaderboard-list"></ol>
+          </div>
+          <div id="end-actions">
+            <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- target="_blank" : le jeu ne doit JAMAIS être perdu en allant écouter
+         le morceau. L'icône « ouvrir dans un nouvel onglet » l'annonce avant
+         le clic (demandé : « il faut que tu mettes une icône à droite, à
+         l'intérieur du bouton »). -->
+    <a id="cta-link" href="#" target="_blank" rel="noopener noreferrer">
+      <span>Écouter le morceau</span>
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+        <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </div>
+
+  <!-- Plus AUCUN contrôle à l'écran : tout se joue au geste (swipe
+       gauche/droite = changer de voie, swipe haut = sauter — voir input.js).
+       Demandé au playtest : « on oublie le slider présent en bas et on oublie
+       le bouton de saut », le jeu doit se tenir à un pouce comme une Game Boy
+       verticale. Ne reste que le son, en haut à gauche, hors de l'axe de
+       lecture de la route. -->
+  <div id="sound-control">
+    <button id="mute-button" type="button" aria-label="Réglage du son" aria-expanded="false">♪</button>
+    <div id="sound-panel" hidden>
+      <input type="range" id="volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+    </div>
+  </div>
+
+  <!-- Bouton pause : visible uniquement en cours de course (affiché/masqué
+       en JS, voir main.js). En bas à droite — le bas de l'écran est libre
+       depuis le passage aux contrôles 100% swipe. -->
+  <button id="pause-button" type="button" aria-label="Pause" hidden>❚❚</button>
+
+  <!-- Menu pause : la simulation s'arrête complètement (voir main.js), le
+       rendu garde la dernière frame à l'écran derrière le voile. Même
+       composant .panel que le reste du jeu. -->
+  <div id="pause-screen">
+    <div class="panel">
+      <div class="panel-header"><p class="step-eyebrow">Pause</p></div>
+      <div class="panel-body">
+        <div id="pause-volume-row">
+          <span class="icon">🔊</span>
+          <input type="range" id="pause-volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+        </div>
+        <div id="pause-actions">
+          <button id="resume-button" class="btn btn-primary" type="button">REPRENDRE</button>
+          <button id="pause-replay-button" type="button" class="link-minimal">Recommencer la course</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

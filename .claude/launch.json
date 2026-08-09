@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "pmc-publisher",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/pmc/Code/pmc-publisher", "run", "dev"],
+      "port": 1420
+    }
+  ]
+}
