@@ -75,7 +75,6 @@ const SPEED_DOUBLING_TIME = 57;
 // Démarrage progressif (retour explicite : « on part de 0 km/h et on va à 5,
 // puis 7, puis 10... puis vitesse constante » — vitesseBase démarrait déjà
 // lancé, sans montée en régime perceptible). Voir update().
-const START_RAMP_DURATION = 4;
 const EDGE_WIDTH = 0.25;    // largeur des bords de chaussée, en unités-monde
 const CENTER_LINE_WIDTH = 0.12;
 const MAX_ROWS = 160;       // plafond de bandes dessinées par frame (budget perf mobile)
@@ -252,21 +251,9 @@ export function update(dt, elapsedSeconds) {
   const { vitesseBase, vitesseMax } = window.CONFIG;
   const t = Math.max(0, elapsedSeconds);
   const vitesse = Math.min(vitesseMax, vitesseBase * Math.pow(2, t / SPEED_DOUBLING_TIME));
-  // currentSpeed suit la courbe exponentielle SANS la rampe de démarrage.
-  // entities.js positionne chaque bonus/obstacle à partir de cette vitesse
-  // (temps restant × vitesse, pas de position propre stockée) — si la rampe
-  // s'y appliquait, les créneaux LEAD_IN verraient la vitesse chuter à 0,
-  // ce qui compresse toutes les entités à la position du joueur d'un coup
-  // (signalé au playtest : « étoiles qui apparaissent n'importe comment,
-  // gens qui reculent »). La rampe n'affecte que le défilement visuel de la
-  // route (distanceScrolled), pas la vitesse logique vue par les entités.
   const targetSpeed = BASE_SPEED * vitesse;
   currentSpeed += (targetSpeed - currentSpeed) * Math.min(1, SPEED_SMOOTHING * dt);
-  // Démarrage progressif : le bitume part de 0 et rejoint la vitesse
-  // logique en douceur (smoothstep sur START_RAMP_DURATION secondes).
-  const rampT = Math.min(1, t / START_RAMP_DURATION);
-  const ramp = rampT * rampT * (3 - 2 * rampT);
-  distanceScrolled += currentSpeed * ramp * dt;
+  distanceScrolled += currentSpeed * dt;
 }
 
 export function render(ctx, width, height, distance) {
