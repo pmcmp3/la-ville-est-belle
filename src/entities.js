@@ -148,11 +148,29 @@ const BONUS_TYPES = [
 // prennent plusieurs voies, je préfère que tu mettes plusieurs voitures ») —
 // son rôle "force à changer de voie" est repris par les rangées de voitures
 // multi-voies ci-dessous.
+// cycliste : 4e type d'obstacle, ajouté quand les cyclistes en sens inverse
+// sont passés de décor à vrai danger (« on fait en sorte que les cyclistes
+// deviennent tous des obstacles »). Il remplace l'ancien générateur NPC
+// séparé qui vivait en bas de ce fichier — voir la note sur OBSTACLE_KINDS
+// plus bas pour la raison. Son poids est pris SUR celui des trois autres, pas
+// ajouté par-dessus : TOTAL_OBSTACLES reste à 100, donc la difficulté globale
+// du parcours et le quota exact de 200 étoiles ne bougent pas d'un pouce.
+// La voiture reste largement dominante (retour playtest : « multiplie par
+// trois le nombre de voitures présentes partout »).
 const OBSTACLE_WEIGHTS = [
-  { kind: "voiture", weight: 0.6 },
-  { kind: "pieton", weight: 0.2 },
-  { kind: "cone", weight: 0.2 },
+  { kind: "voiture", weight: 0.5 },
+  { kind: "cycliste", weight: 0.2 },
+  { kind: "pieton", weight: 0.15 },
+  { kind: "cone", weight: 0.15 },
 ];
+
+// Obstacles INFRANCHISSABLES AU SAUT : ils se contournent latéralement, point.
+// Le piéton est un « mur humain plein » (décision de playtest ancienne) ; le
+// cycliste suit la même règle — sauter par-dessus quelqu'un qui arrive en
+// face n'a pas de sens, et ça garde les deux obstacles "humains" cohérents
+// entre eux. La voiture (survolable, atterrissage sur le toit) et le cône
+// (sautable) restent les deux seuls que le saut permet de franchir.
+const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste"]);
 
 // Bonus AÉRIENS : ramassables uniquement en sautant. Playtest : « il faut des
 // objets spéciaux en l'air » — il n'y en avait qu'un seul type (`guitare`,
@@ -316,33 +334,50 @@ function rawSlotContent(slotIndex) {
 // même piège) — la voiture/le cône, eux, restent volontairement autorisés à
 // partager une voie avec un bonus proche : sauter les évite sans sacrifier
 // l'étoile.
+// ⚠️ La garde s'applique désormais à TOUT obstacle infranchissable au saut
+// (UNJUMPABLE_KINDS), pas au seul piéton : le cycliste vient d'hériter
+// exactement de la même contrainte, donc du même piège potentiel. L'oublier
+// aurait recréé le bug déjà corrigé une fois, mais avec l'autre type.
 const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à la cadence par défaut
-const PIETON_FALLBACK = [
-  { kind: "voiture", weight: 0.75 },
-  { kind: "cone", weight: 0.25 },
-];
 
+// ⚠️ La garde DÉPLACE l'obstacle de voie ; elle ne change plus son type.
+// Avant, un piéton en conflit était remplacé par une voiture ou un cône. Ça
+// marchait tant que le piéton était le seul type concerné (~21 créneaux sur
+// 100), mais dès que le cycliste a rejoint UNJUMPABLE_KINDS, la garde s'est
+// mise à se déclencher sur 39 créneaux et à en convertir **51 %** : mesuré,
+// 18 cyclistes tirés ne survivaient que 8 fois, le premier n'arrivant qu'à
+// 67 s de course. Le type se vidait de lui-même, en silence.
+// Le conflit est de toute façon un conflit de VOIE, pas de type : le résoudre
+// dans l'espace des voies supprime exactement le même piège (l'obstacle
+// infranchissable n'est plus dans la voie du bonus voisin) sans toucher à la
+// distribution des types, qui redevient donc celle qu'annoncent les poids.
 function slotContent(slotIndex) {
   const raw = rawSlotContent(slotIndex);
-  if (raw.isBonus || raw.kind !== "pieton") return raw;
+  if (raw.isBonus || !UNJUMPABLE_KINDS.has(raw.kind)) return raw;
 
-  const pietonLane = slotLanes(slotIndex, raw)[0];
+  // Voies rendues interdites par un bonus voisin immédiat.
+  const blocked = new Set();
   for (let d = -PIETON_BONUS_GUARD_SLOTS; d <= PIETON_BONUS_GUARD_SLOTS; d++) {
     if (d === 0) continue;
     const n = slotIndex + d;
     if (n < 0) continue;
     const neighbor = rawSlotContent(n);
     if (!neighbor.isBonus) continue;
-    if (slotLanes(n, neighbor)[0] !== pietonLane) continue;
-
-    const altKind = pickWeighted(PIETON_FALLBACK, hash(slotIndex * 3 + 97));
-    if (altKind === "voiture") {
-      const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
-      return { isBonus: false, kind: "voiture", carCount };
-    }
-    return { isBonus: false, kind: altKind };
+    blocked.add(slotLanes(n, neighbor)[0]);
   }
-  return raw;
+
+  const lane = slotLanes(slotIndex, raw)[0];
+  if (!blocked.has(lane)) return raw;
+
+  // Première voie libre, parcourue depuis un décalage tiré au hash : sans ce
+  // décalage tous les obstacles déplacés atterriraient sur "voie + 1" et on
+  // verrait apparaître un motif régulier.
+  const start = 1 + Math.floor(hash(slotIndex * 3 + 97) * (road.LANE_COUNT - 1));
+  for (let i = 0; i < road.LANE_COUNT; i++) {
+    const alt = (lane + start + i) % road.LANE_COUNT;
+    if (!blocked.has(alt)) return { ...raw, laneOverride: alt };
+  }
+  return raw; // inatteignable à 4 voies pour 2 voisins, mais on ne renvoie jamais undefined
 }
 
 // Voies occupées par le contenu d'un créneau. Renvoie toujours un TABLEAU :
@@ -351,6 +386,9 @@ function slotContent(slotIndex) {
 function slotLanes(slotIndex, content) {
   const override = debugOverrides.get(slotIndex);
   if (override) return [override.lane];
+  // Voie imposée par la garde anti-piège (voir slotContent) : elle prime sur
+  // le tirage au hash, c'est tout l'intérêt du déplacement.
+  if (content && content.laneOverride != null) return [content.laneOverride];
   if (content && isCarSlot(content)) {
     return pickLanes(slotIndex, content.carCount || 1);
   }
@@ -461,8 +499,11 @@ export function update(playerLane, inAir) {
         consumed.add(e.slotIndex);
       }
     } else {
-      // Piéton : mur humain plein — collision fatale même en l'air. Ne se
-      // saute pas, se contourne latéralement uniquement.
+      // Piéton et cycliste : murs humains pleins — la collision compte même
+      // en l'air (voir UNJUMPABLE_KINDS). Ne se sautent pas, se contournent
+      // latéralement uniquement. Le cycliste est arrivé ici en devenant un
+      // vrai obstacle : il ne demande AUCUN cas particulier, il tombe
+      // simplement dans la même branche que le piéton.
       if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
       if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
       if (sameLane(e)) {
@@ -856,97 +897,16 @@ function fillPoly(ctx, pts, color) {
   ctx.fill();
 }
 
-// --- Cyclistes NPC en sens inverse -----------------------------------------
-// Playtest iPhone 16 : « des cyclistes en sens inverse sur certaines voies ».
-// Entièrement DÉCORATIFS — pas de collision, pas de resolved/consumed, aucun
-// des 3 obstacles verrouillés au brief n'est touché. Générateur indépendant
-// du reste du module (créneaux/hash/cadence propres) pour ne jamais perturber
-// les probabilités bonus/obstacle déjà réglées.
-// Voies extérieures uniquement (0 et 3, les bords de chaussée) : ça se lit
-// comme une bande cyclable plutôt que de se mêler au trafic des voies
-// centrales, où se joue le vrai gameplay.
-const NPC_CADENCE = CADENCE * 4;   // créneaux bien plus espacés que bonus/obstacles : rare, pas envahissant
-const NPC_LOOKAHEAD = 6;
-const NPC_SPAWN_CHANCE = 0.35;     // fraction des créneaux NPC qui contiennent vraiment un cycliste
-const NPC_LANES = [0, road.LANE_COUNT - 1];
-// Vitesse de rapprochement AJOUTÉE à celle de la route (contrairement aux
-// bonus/obstacles, immobiles dans le monde — seul le défilement de la route
-// les rapproche) : c'est ce qui donne la sensation "vient vers moi", pas
-// juste "posé sur le trajet". ~2× la vitesse d'un piéton, cohérent avec un
-// vélo roulant en sens inverse.
-const NPC_CLOSING_EXTRA = 7;
-
-function npcHash(slotIndex) {
-  return hash(slotIndex * 53 + 991); // multiplicateurs distincts des autres hash() du module : pas de corrélation avec bonus/obstacles
-}
-
-// --- Anti-collision NPC / entités ------------------------------------------
-// Playtest : « il y a des étoiles qui rentrent en collision avec des gens en
-// vélo, je ne peux pas l'attraper » / « des cyclistes qui sont derrière des
-// voitures ». Les cyclistes NPC sont un générateur entièrement indépendant
-// (cadence propre, vitesse de rapprochement propre — voir NPC_CLOSING_EXTRA)
-// des bonus/obstacles/voitures : rien n'empêchait qu'un cycliste et une
-// étoile/voiture occupent la même voie à la même profondeur au même instant.
-// Un cycliste est purement décoratif : en cas de conflit, c'est TOUJOURS lui
-// qui s'efface, jamais l'inverse — score et vies ne doivent jamais dépendre
-// de la présence d'un élément de décor.
-// Fenêtre un peu plus large que la plus grande icône/voiture (ICON_WORLD
-// 2.04, profondeur voiture 2×CAR_HALF_L ≈ 2.55) pour une vraie marge visuelle
-// autour de l'objet, pas juste éviter la superposition pixel exacte.
-const NPC_CONFLICT_WINDOW = 2.6;
-function laneOccupiedByEntity(lane, z, now, speed) {
-  for (const e of slotsFor(now, speed)) {
-    if (consumed.has(e.slotIndex)) continue; // déjà ramassé/percuté : ne bloque plus rien
-    if (!e.lanes.includes(lane)) continue;
-    if (Math.abs(e.z - z) < NPC_CONFLICT_WINDOW) return true;
-  }
-  return false;
-}
-
-function npcAllowed(slotIndex, lane, z, now, speed) {
-  return !laneOccupiedByEntity(lane, z, now, speed);
-}
-
-function npcContentAt(slotIndex) {
-  if (npcHash(slotIndex) > NPC_SPAWN_CHANCE) return null;
-  const lane = NPC_LANES[Math.floor(hash(slotIndex * 29 + 17) * NPC_LANES.length) % NPC_LANES.length];
-  const outfitIndex = Math.floor(hash(slotIndex * 71 + 3) * cyclists.OUTFIT_COUNT) % cyclists.OUTFIT_COUNT;
-  return { lane, outfitIndex };
-}
-
-function* visibleNpcs(now, speed) {
-  const currentSlot = Math.floor(clock.beatIndexAt(now) / NPC_CADENCE);
-  for (let n = Math.max(0, currentSlot - 1); n <= currentSlot + NPC_LOOKAHEAD; n++) {
-    const content = npcContentAt(n);
-    if (!content) continue;
-    const beatN = n * NPC_CADENCE;
-    const deltaT = clock.timeOfBeat(beatN) - now;
-    const z = road.PLAYER_NEAR_Z + deltaT * (speed + NPC_CLOSING_EXTRA);
-    if (z < 1 || z > road.HORIZON_Z) continue;
-    if (!npcAllowed(n, content.lane, z, now, speed)) continue;
-    yield { z, x: road.laneX(content.lane), outfitIndex: content.outfitIndex };
-  }
-}
-
-function renderNpcCyclists(ctx, width, height, now, speed) {
-  const npcs = [];
-  for (const n of visibleNpcs(now, speed)) npcs.push(n);
-  npcs.sort((a, b) => b.z - a.z); // du plus loin au plus près, même algorithme du peintre que le reste
-  for (const n of npcs) {
-    const p = road.project(n.x, n.z, width, height);
-    cyclists.render(ctx, n.outfitIndex, p.x, p.y, p.scale, now);
-  }
-}
-
 export function render(ctx, width, height) {
   const now = clock.now();
   const speed = road.getSpeed();
   ctx.imageSmoothingEnabled = false;
 
-  // Cyclistes NPC en sens inverse (décor) : peints EN PREMIER, sous les vrais
-  // bonus/obstacles — un élément purement décoratif ne doit jamais recouvrir
-  // ce qui compte pour le score/les vies.
-  renderNpcCyclists(ctx, width, height, now, speed);
+  // Plus de passe de rendu séparée pour les cyclistes : ils sont maintenant
+  // des obstacles ordinaires de la grille, donc peints dans la même boucle
+  // que les autres, à leur profondeur, par l'algorithme du peintre ci-dessous.
+  // C'est aussi ce qui règle « des cyclistes qui passent par-dessus des
+  // étoiles » — il n'existe plus deux générateurs capables de se chevaucher.
 
   // Un objet raté (dans `resolved` mais pas `consumed`) continue sa
   // trajectoire à l'écran jusqu'à sortir du champ de vision (voir
@@ -979,6 +939,16 @@ export function render(ctx, width, height) {
         const lit = carLitFor(e.slotIndex, i);
         renderCar3D(ctx, road.laneX(e.lanes[i]), e.z, width, height, color, lit);
       }
+      continue;
+    }
+
+    // Cyclistes en sens inverse : même traitement que le piéton (projeté au
+    // sol, variante déterministe tirée du slot pour qu'elle ne change jamais
+    // en cours d'approche). `now` pilote l'animation de pédalage.
+    if (!e.isBonus && e.kind === "cycliste") {
+      const p = road.project(e.x, e.z, width, height);
+      const outfitIndex = Math.abs(hash(e.slotIndex * 71 + 3) * cyclists.OUTFIT_COUNT) % cyclists.OUTFIT_COUNT;
+      cyclists.render(ctx, Math.floor(outfitIndex), p.x, p.y, p.scale, now);
       continue;
     }
 

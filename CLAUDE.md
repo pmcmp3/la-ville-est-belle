@@ -16,7 +16,8 @@ Runner mobile **type Subway Surfers** (caméra derrière le cycliste), **coucher
 ## Décisions verrouillées
 - Contrôle : **bande de pilotage tactile en bas d'écran** (revenu en arrière sur le gyroscope, retiré — demandé explicitement après plusieurs sessions à en fiabiliser la permission iOS) + **bouton saut** (réintroduit visible : nécessaire aux bonus aériens, voir ci-dessous).
 - Parcours **fini** = durée du morceau (~257,9 s). **120 BPM**, offset ~0,01 s.
-- **3 vies**, **3 obstacles**, **5 bonus** (clémentine, clavier, sourire, collier de perles, étoile).
+- **3 vies**, **4 obstacles**, **5 bonus** (clémentine, clavier, sourire, collier de perles, étoile).
+  - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle (demandé explicitement — « on fait en sorte que les cyclistes deviennent tous des obstacles »). Les 4 sont : voiture, cycliste, piéton, cône. Voiture et cône se franchissent au saut ; cycliste et piéton se contournent latéralement uniquement (`UNJUMPABLE_KINDS` dans `entities.js`).
 - Backend **Supabase**, identifiant = **pseudo Instagram**, **aucun anti-triche**.
 - Image de partage **1080×1920 pixel art borne arcade 80s**.
 - CTA → **https://linktr.ee/pmc.mp3**
