@@ -252,20 +252,21 @@ export function update(dt, elapsedSeconds) {
   const { vitesseBase, vitesseMax } = window.CONFIG;
   const t = Math.max(0, elapsedSeconds);
   const vitesse = Math.min(vitesseMax, vitesseBase * Math.pow(2, t / SPEED_DOUBLING_TIME));
-  // Démarrage progressif superposé à la courbe ci-dessus (pas à sa place) :
-  // à t=0 la cible part de 0, remonte en douceur (smoothstep, plus agréable
-  // qu'une simple rampe linéaire) jusqu'à sa valeur normale vers
-  // START_RAMP_DURATION, après quoi ce facteur vaut 1 et n'a plus d'effet.
+  // currentSpeed suit la courbe exponentielle SANS la rampe de démarrage.
+  // entities.js positionne chaque bonus/obstacle à partir de cette vitesse
+  // (temps restant × vitesse, pas de position propre stockée) — si la rampe
+  // s'y appliquait, les créneaux LEAD_IN verraient la vitesse chuter à 0,
+  // ce qui compresse toutes les entités à la position du joueur d'un coup
+  // (signalé au playtest : « étoiles qui apparaissent n'importe comment,
+  // gens qui reculent »). La rampe n'affecte que le défilement visuel de la
+  // route (distanceScrolled), pas la vitesse logique vue par les entités.
+  const targetSpeed = BASE_SPEED * vitesse;
+  currentSpeed += (targetSpeed - currentSpeed) * Math.min(1, SPEED_SMOOTHING * dt);
+  // Démarrage progressif : le bitume part de 0 et rejoint la vitesse
+  // logique en douceur (smoothstep sur START_RAMP_DURATION secondes).
   const rampT = Math.min(1, t / START_RAMP_DURATION);
   const ramp = rampT * rampT * (3 - 2 * rampT);
-  const targetSpeed = BASE_SPEED * vitesse * ramp;
-  // Lissé plutôt que recopié tel quel : entities.js positionne chaque bonus/
-  // obstacle pas encore arrivé à partir de la vitesse *courante* (temps
-  // restant × vitesse, pas de position propre stockée) — un saut brutal de
-  // currentSpeed décalerait visiblement d'un coup tous les objets pas encore
-  // arrivés.
-  currentSpeed += (targetSpeed - currentSpeed) * Math.min(1, SPEED_SMOOTHING * dt);
-  distanceScrolled += currentSpeed * dt;
+  distanceScrolled += currentSpeed * ramp * dt;
 }
 
 export function render(ctx, width, height, distance) {
