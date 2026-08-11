@@ -1,5 +1,14 @@
 # La ville est belle — Jeu de campagne · Plan d'action (handoff)
 
+> ⚠️ **Ce fichier est un JOURNAL DE BORD chronologique — ce n'est plus le point d'entrée du
+> projet.** Pour comprendre comment le jeu marche, lis **`ARCHITECTURE.md`** : modules,
+> invariants, pièges connus, bugs ouverts, méthodes de test. C'est le seul fichier obligatoire
+> en début de session.
+>
+> Ce document-ci sert à retrouver **pourquoi** une décision a été prise et à garder la trace des
+> retours de playtest dans l'ordre où ils sont arrivés. On y ajoute en fin de session ; on ne le
+> lit pas en entier.
+
 > Document autonome destiné à être exécuté par un autre modèle, session par session.
 > Objectif produit : **donner envie d'aller écouter le morceau "La ville est belle" de PMC.**
 > Cible : **navigateur mobile** (Safari iOS en priorité absolue, puis Chrome & Firefox iOS/Android). Portrait natif.
