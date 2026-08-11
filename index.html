@@ -104,18 +104,23 @@
     }
 
     /* Dernier cœur : alternance couleur/N&B plutôt qu'un N&B statique lourd
-       (retour explicite après test : « c'est trop en noir et blanc, j'aimerais
-       que ça alterne entre images saturées normales et noires et blanches,
-       toutes les une seconde, qu'on comprenne que c'est difficile »). Classe
-       posée/retirée par updateHealthFilterIfChanged() (main.js) selon
+       (retour explicite après un premier test : « c'est trop en noir et blanc,
+       j'aimerais que ça alterne entre images saturées normales et noires et
+       blanches, toutes les une seconde, qu'on comprenne que c'est difficile »).
+       Repassé à un cycle de 4s après un test réel (Antoine) : en continu
+       toutes les 1s, c'était « beaucoup trop stressant et trop intense » sur
+       la durée d'une vraie course. Le principe reste le même (un flash N&B
+       = rappel du danger) mais il ne se déclenche plus qu'UNE fois toutes les
+       4s (bref aller-retour en tout début de cycle) plutôt qu'en continu.
+       Classe posée/retirée par updateHealthFilterIfChanged() (main.js) selon
        game.lives — jamais en même temps que .game-over-bw ci-dessous. */
     #game-canvas.heart-warning {
-      animation: canvas-heart-warning 1s ease-in-out infinite;
+      animation: canvas-heart-warning 4s ease-in-out infinite;
     }
 
     @keyframes canvas-heart-warning {
-      0%, 100% { filter: grayscale(0); }
-      50% { filter: grayscale(1); }
+      0%, 15%, 100% { filter: grayscale(0); }
+      7.5% { filter: grayscale(1); }
     }
 
     /* Game over : N&B total et statique (pas d'alternance ici, contrairement
@@ -225,6 +230,19 @@
       align-items: center;
     }
 
+    /* Fenêtre un peu plus petite (demandé explicitement, après un premier
+       test) : la carte de l'écran de fin partage .panel/.panel-body avec le
+       menu, mais n'a plus besoin d'autant d'air une fois le statut concours
+       retiré — réduit spécifiquement ICI (pas sur .panel-body en général,
+       qui doit garder sa taille pour le champ pseudo de l'onboarding). */
+    #end-screen .panel {
+      max-width: 270px;
+    }
+
+    #end-screen .panel-body {
+      padding: 20px 20px 22px;
+    }
+
     /* « Il faut que ce soit calme, l'écran de fin. » Il y avait quatre aplats
        rouges qui se disputaient l'attention : le bandeau, le score géant, la
        1re place et le bouton REJOUER — plus la ligne surlignée. Le rouge est
@@ -234,57 +252,38 @@
        blanc : la hiérarchie se fait à la taille, pas à la couleur. */
     #end-hero {
       text-align: center;
-      margin: 4px 0 22px;
+      margin: 4px 0 18px;
     }
 
     #score-label {
-      font: 500 11px/1 var(--police);
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.45);
+      font: 500 11px/1.3 var(--police);
+      letter-spacing: 0.1em;
+      text-transform: none;
+      /* Bug trouvé au passage : encore en blanc, reliquat de l'ancien fond
+         sombre d'avant la refonte "borne arcade claire" — invisible sur le
+         panneau clair actuel. */
+      color: rgba(0, 0, 0, 0.45);
       margin: 0 0 8px;
     }
 
     #score-num {
-      font: 900 58px/0.9 var(--police);
+      font: 900 52px/0.9 var(--police);
       color: var(--noir);
       letter-spacing: -0.03em;
       font-variant-numeric: tabular-nums;
       display: block;
     }
 
-    /* Statut concours : une ligne, centrée comme le reste de la carte. Puce à
-       gauche = fermé (gris) / ouvert (rouge). */
-    #contest-pill {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+    /* Rappel du concours, à la place du statut technique "Score valable pour
+       le concours" (retiré — confus pour un joueur qui découvre le jeu,
+       signalé au playtest). Simple ligne muette, cohérente avec le vocabulaire
+       déjà utilisé pendant le décompte ("gagne le vinyl de l'EP"). */
+    #end-note {
       margin: 12px 0 0;
-      padding: 0;
       font: 500 12px var(--police);
-      letter-spacing: 0.04em;
-      color: rgba(0, 0, 0, 0.5);
-      background: none;
-      border: none;
-    }
-
-    #contest-pill::before {
-      content: "";
-      display: block;
-      flex: 0 0 auto;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.25);
-    }
-
-    #contest-pill.open {
-      color: var(--noir);
-    }
-
-    #contest-pill.open::before {
-      background: var(--rouge);
+      letter-spacing: 0.01em;
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
     }
 
     /* Classement (étape 7, Supabase) : filet fin entre les lignes, chiffres
@@ -505,8 +504,13 @@
     /* Voile allégé plus bas (.countdown-view) : le texte doit maintenant se
        détacher tout seul d'un fond clair (ciel/route), pas juste d'un fond
        sombre — vraie ombre de contraste en plus du halo rouge de charte. */
+    /* Remonté en haut de l'écran (demandé explicitement : « laisse le 20
+       écrit en haut en énorme ») — auparavant centré verticalement avec la
+       légende, ce qui le mettait pile au milieu de l'écran, en concurrence
+       avec le personnage. Le repositionnement se fait sur #overlay.countdown-
+       view (justify-content: flex-start) plus bas, pas ici. */
     #countdown-num {
-      font: 900 88px/1 var(--police);
+      font: 900 104px/1 var(--police);
       color: var(--blanc);
       font-variant-numeric: tabular-nums;
       text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
@@ -529,15 +533,18 @@
        de texte seule ne suffisait pas sur les zones les plus claires. */
     #countdown-caption {
       margin: 18px 0 0;
-      max-width: 300px;
-      padding: 12px 20px;
+      max-width: 320px;
+      padding: 14px 22px;
       border-radius: 14px;
       background: rgba(13, 13, 16, 0.55);
       text-align: center;
-      /* 14px → 18px (retour explicite : « je veux le texte plus gros pour les
-         indications ») — décompte allongé à 15s (voir COUNTDOWN_START,
-         main.js) pour laisser le temps de lire chaque message. */
-      font: 900 18px/1.4 var(--police);
+      /* 14px → 18px → 22px (retours explicites successifs : « je veux le
+         texte plus gros », puis « un peu plus gros, avec des icônes, des
+         flèches » après le test avec Antoine) — décompte allongé en même
+         temps (15s → 20s, COUNTDOWN_START dans main.js) pour laisser le
+         temps de lire. Les flèches/icônes vivent directement dans le texte
+         des messages (COUNTDOWN_MESSAGES, main.js), pas en HTML séparé. */
+      font: 900 22px/1.5 var(--police);
       color: var(--blanc);
       opacity: 1;
       transition: opacity 0.35s ease;
@@ -552,6 +559,11 @@
        veut au contraire bien le montrer, prêt à partir (demandé explicitement
        : "garde le bonhomme visible tant que le décompte n'est pas fini"). */
     #overlay.countdown-view {
+      /* Groupe (numéro + légende) remonté en haut plutôt que centré au milieu
+         de l'écran (demandé explicitement) — laisse aussi plus d'air au
+         personnage juste en dessous, qui doit rester bien visible. */
+      justify-content: flex-start;
+      padding-top: calc(48px + var(--safe-top));
       background: linear-gradient(
         180deg,
         rgba(13, 13, 16, 0.05) 0%,
@@ -1116,14 +1128,14 @@
               <input
                 type="text"
                 id="insta-input"
-                placeholder="ton_insta (optionnel)"
+                placeholder="ton_insta"
                 autocomplete="off"
                 autocapitalize="none"
                 spellcheck="false"
                 maxlength="40"
               />
             </div>
-            <p class="field-note">Seul ton <strong>pseudo</strong> apparaît au classement. Ton insta n'est visible que par PMC, pour te contacter si tu gagnes.</p>
+            <p class="field-note">Seul ton <strong>pseudo</strong> apparaît au classement. Ton insta est <strong>obligatoire</strong> : sans lui, PMC ne peut pas te contacter si tu gagnes — il n'est visible que par lui.</p>
             <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant →</button>
           </div>
         </div>
@@ -1157,7 +1169,7 @@
          justement de le garder visible pendant le décompte (voir
          PLAN-ACTION.md, "Personnage gardé visible pendant le décompte"). -->
     <div id="countdown" class="view">
-      <div id="countdown-num">10</div>
+      <div id="countdown-num">20</div>
       <p id="countdown-caption"></p>
     </div>
 
@@ -1173,9 +1185,9 @@
         <div class="panel-header"><p class="step-eyebrow" id="end-eyebrow">Game Over</p></div>
         <div class="panel-body">
           <div id="end-hero">
-            <div id="score-label">Score</div>
+            <div id="score-label">Voici votre score</div>
             <div id="score-num"></div>
-            <p id="contest-pill"></p>
+            <p id="end-note">Meilleur score = un vinyl de l'EP à gagner</p>
           </div>
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>

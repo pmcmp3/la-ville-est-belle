@@ -62,6 +62,14 @@ const HUD_SHADOW_BLUR = 6;
 export function renderHud(ctx, width, height, game) {
   const livesTotal = window.CONFIG.viesDepart;
   const scoreText = `${game.score}`;
+  // Game over (mort, pas "parcours terminé") : toujours 0 cœur affiché,
+  // même si `game.lives` ne valait pas exactement 0 pile au moment de la
+  // mort. Défensif — signalé au playtest : « il reste un cœur qui clignote
+  // alors qu'il y a marqué game over », pas de cause certaine trouvée à la
+  // relecture, donc on force l'affichage plutôt que de compter sur le calcul
+  // amont. N'affecte pas "Parcours terminé", où il reste correct de montrer
+  // les vies restantes.
+  const displayLives = game.ended && game.endReason === "gameover" ? 0 : game.lives;
 
   ctx.textBaseline = "top";
   ctx.shadowColor = HUD_SHADOW;
@@ -80,7 +88,7 @@ export function renderHud(ctx, width, height, game) {
   const heartY = PAD + (SCORE_SIZE * 1.15 - HEART_SIZE) / 2;
   let hx = width - PAD - heartsRowW;
   for (let i = 0; i < livesTotal; i++) {
-    ctx.fillStyle = i < game.lives ? ROUGE : "rgba(255,255,255,0.25)";
+    ctx.fillStyle = i < displayLives ? ROUGE : "rgba(255,255,255,0.25)";
     heartPath(ctx, hx, heartY, HEART_SIZE);
     ctx.fill();
     hx += HEART_SIZE + HEART_GAP;

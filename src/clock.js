@@ -26,11 +26,15 @@ export const clock = {
     startTime = timeSource() - elapsed;
   },
 
-  // DEBUG uniquement : avance l'horloge de jeu de `seconds` sans toucher à
-  // la lecture audio, qui continue depuis sa position réelle — pratique
-  // pour atteindre un état (fin de parcours, spawn tardif...) sans
-  // attendre. Audio et simulation se désynchronisent pendant un saut ;
-  // compromis assumé pour un outil de dev, pas pour la boucle normale.
+  // Avance (ou recule, avec un `seconds` négatif) l'horloge de jeu sans
+  // toucher à la lecture audio, qui continue depuis sa position réelle.
+  // Deux usages : DEBUG, pour atteindre un état (fin de parcours, spawn
+  // tardif...) sans attendre — audio et simulation se désynchronisent
+  // pendant un saut, compromis assumé pour un outil de dev. Et un usage non-
+  // debug, dans la boucle normale : main.js recule l'horloge de
+  // `entities.LEAD_IN` au tout début d'une course pour que le premier lot de
+  // créneaux glisse depuis l'horizon au lieu d'apparaître déjà à la position
+  // du joueur (voir le commentaire sur LEAD_IN dans entities.js).
   jumpBy(seconds) {
     startTime -= seconds;
   },

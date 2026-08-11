@@ -16,6 +16,23 @@ import * as cyclists from "./cyclists.js";
 const CADENCE = window.CONFIG.cadenceSpawnBeats; // un événement tous les N temps
 const LOOKAHEAD_SLOTS = 10;
 
+// Décalage à appliquer à l'horloge de jeu au tout début d'une course (voir
+// main.js, appelé juste après clock.setTimeSource) — corrige un vrai bug
+// visuel signalé au playtest : « animation bizarre au tout début, les
+// étoiles apparaissent et disparaissent, comme si tout était déjà chargé ».
+// Cause : clock.now() vaut exactement 0 à l'instant où gameStarted passe à
+// vrai, or le créneau 0 (premier temps du morceau) est censé arriver PILE à
+// cet instant — sans décalage, le tout premier lot de créneaux (la période
+// de grâce) se retrouve donc déjà À la position du joueur dès la toute
+// première frame au lieu d'avoir défilé depuis l'horizon comme n'importe
+// quel créneau plus tard dans la partie (seuls ceux-là "popent" au lieu de
+// glisser, parce qu'ils n'ont jamais eu de frame précédente pour approcher
+// progressivement). Décaler le départ de l'horloge de -LEAD_IN place le
+// créneau 0 exactement à la limite de visibilité (comme n'importe quel
+// créneau qui vient d'apparaître à LOOKAHEAD_SLOTS créneaux d'avance) : il
+// glisse alors normalement jusqu'au joueur, comme tous les suivants.
+export const LEAD_IN = LOOKAHEAD_SLOTS * CADENCE * clock.beatPeriod;
+
 // --- Ligne d'arrivée + quota exact d'étoiles -------------------------------
 // Demandé : la course se termine après un nombre fixe d'objets, pas au bout
 // du morceau. Le morceau lui, continue à jouer jusqu'à la fin — cohérent
@@ -269,7 +286,11 @@ function pickWeighted(list, h) {
 // normal, donc sans coût réel — juste un Map.get() de plus par créneau visible.
 const debugOverrides = new Map(); // slotIndex -> { isBonus, kind, x }
 
-function slotContent(slotIndex) {
+// Tirage brut, sans vérification des voisins — c'est CE tirage que
+// slotContent() consulte pour ses voisins (jamais slotContent() lui-même,
+// qui recréerait la même vérification en boucle et bouclerait à l'infini
+// dès que deux créneaux voisins tombent tous les deux sur "piéton").
+function rawSlotContent(slotIndex) {
   const override = debugOverrides.get(slotIndex);
   if (override) return { isBonus: override.isBonus, kind: override.kind };
   if (isBonusAt(slotIndex)) {
@@ -281,6 +302,46 @@ function slotContent(slotIndex) {
     return { isBonus: false, kind: "voiture", carCount };
   }
   return { isBonus: false, kind };
+}
+
+// Piéton = « mur humain plein », infranchissable même en sautant (voir
+// update() plus bas). Signalé au playtest : « conflits personne et étoiles,
+// ça doit jamais arriver » — si une étoile tombe dans la MÊME voie à un
+// créneau tout proche d'un piéton, le joueur n'a plus aucun moyen de la
+// ramasser sans risquer la collision, un piège injuste puisque rien d'autre
+// dans le jeu ne force ce choix. Un piéton dont un voisin immédiat est un
+// bonus dans sa voie est donc retiré du tirage et remplacé par un des deux
+// autres types d'obstacle (tous deux franchissables au saut, donc jamais le
+// même piège) — la voiture/le cône, eux, restent volontairement autorisés à
+// partager une voie avec un bonus proche : sauter les évite sans sacrifier
+// l'étoile.
+const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à la cadence par défaut
+const PIETON_FALLBACK = [
+  { kind: "voiture", weight: 0.75 },
+  { kind: "cone", weight: 0.25 },
+];
+
+function slotContent(slotIndex) {
+  const raw = rawSlotContent(slotIndex);
+  if (raw.isBonus || raw.kind !== "pieton") return raw;
+
+  const pietonLane = slotLanes(slotIndex, raw)[0];
+  for (let d = -PIETON_BONUS_GUARD_SLOTS; d <= PIETON_BONUS_GUARD_SLOTS; d++) {
+    if (d === 0) continue;
+    const n = slotIndex + d;
+    if (n < 0) continue;
+    const neighbor = rawSlotContent(n);
+    if (!neighbor.isBonus) continue;
+    if (slotLanes(n, neighbor)[0] !== pietonLane) continue;
+
+    const altKind = pickWeighted(PIETON_FALLBACK, hash(slotIndex * 3 + 97));
+    if (altKind === "voiture") {
+      const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
+      return { isBonus: false, kind: "voiture", carCount };
+    }
+    return { isBonus: false, kind: altKind };
+  }
+  return raw;
 }
 
 // Voies occupées par le contenu d'un créneau. Renvoie toujours un TABLEAU :

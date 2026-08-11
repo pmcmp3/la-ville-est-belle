@@ -189,7 +189,6 @@ const overlay = document.getElementById("overlay");
 // écrans — cohérence avec le design system du premier écran (demandé).
 const endEyebrow = document.getElementById("end-eyebrow");
 const scoreNum = document.getElementById("score-num");
-const contestPill = document.getElementById("contest-pill");
 const leaderboard = document.getElementById("leaderboard");
 const leaderboardList = document.getElementById("leaderboard-list");
 const playButton = document.getElementById("play-button");
@@ -282,27 +281,30 @@ function setView(view) {
 showStep(0);
 
 // --- Décompte avant course -----------------------------------------------
-// "Réalise le meilleur score, et gagne le vinyl de l'EP" pendant 15 → 1,
+// "Réalise le meilleur score, et gagne le vinyl de l'EP" pendant 20 → 1,
 // entre le tap JOUER et le vrai début (demandé explicitement, allongé de
-// 10s à 15s : « je veux le texte plus gros pour les indications, le jeu
-// démarre au bout de 15 secondes » — le temps de lire chaque message monté
-// en taille). Le geste iOS (déblocage audio) a déjà eu lieu au tap — voir
-// startGame() plus bas — donc ce décompte n'a besoin d'aucun geste
-// supplémentaire à la fin. Sert aussi de tutoriel : la bande de pilotage et
-// le bouton saut sont déjà affichés et utilisables pendant le compte à
-// rebours (voir CSS #steer-control, le personnage y répond en direct —
-// demandé explicitement, "garder le bonhomme visible tant que le décompte
-// n'est pas fini").
-const COUNTDOWN_START = 15;
+// 15s à 20s après un premier test réel avec un joueur externe — le temps de
+// bien lire chaque message). Le geste iOS (déblocage audio) a déjà eu lieu
+// au tap — voir startGame() plus bas — donc ce décompte n'a besoin d'aucun
+// geste supplémentaire à la fin. Sert aussi de tutoriel : la bande de
+// pilotage et le bouton saut sont déjà affichés et utilisables pendant le
+// compte à rebours (voir CSS #steer-control, le personnage y répond en
+// direct — demandé explicitement, "garder le bonhomme visible tant que le
+// décompte n'est pas fini").
+const COUNTDOWN_START = 20;
 let countdownTimer = null;
 
 // Légende du décompte : une phrase à la fois, en fondu, plutôt que les 3
 // empilées d'un coup (retour de test : illisible, ça débordait sur le
-// personnage). ~5s hype, ~5s tuto du contrôle tactile, ~5s rappel son.
+// personnage). ~7s hype, ~7s tuto du contrôle tactile, ~6s rappel son.
+// Icônes/flèches ajoutées explicitement après le premier vrai test (« les
+// instructions un peu plus grosses, avec des icônes, des flèches ») —
+// notamment sur le message de tuto, où les flèches remplacent une partie du
+// texte (plus rapide à lire d'un coup d'œil qu'une phrase).
 const COUNTDOWN_MESSAGES = [
-  "Réalise le meilleur score, et gagne le vinyl de l'EP",
-  "Swipe à gauche ou à droite pour changer de voie. Swipe vers le haut pour sauter",
-  "Un swipe = une voie. Attrape les étoiles, évite tout ce qui est rouge",
+  "🏆 Réalise le meilleur score, gagne le vinyl de l'EP",
+  "← → pour changer de voie   ↑ pour sauter",
+  "★ Attrape les étoiles, évite tout ce qui est rouge",
 ];
 const CAPTION_FADE_MS = 300;
 let captionTimeout = null;
@@ -318,8 +320,8 @@ function setCaption(text) {
 }
 
 function updateCaption(n) {
-  const elapsed = COUNTDOWN_START - n; // 0..14
-  const idx = elapsed < 5 ? 0 : elapsed < 10 ? 1 : 2;
+  const elapsed = COUNTDOWN_START - n; // 0..19
+  const idx = elapsed < 7 ? 0 : elapsed < 14 ? 1 : 2;
   if (idx === captionIndex) return;
   captionIndex = idx;
   setCaption(COUNTDOWN_MESSAGES[idx]);
@@ -537,9 +539,13 @@ function cleanPseudo() { return pseudoInput.value.trim(); }
 function cleanInsta() { return instaInput.value.trim().replace(/^@+/, ""); }
 
 function syncPseudoStep() {
-  // Pas de classement possible sans pseudo : on bloque l'étape plutôt que de
-  // laisser jouer puis de perdre le score en silence.
-  pseudoNext.disabled = cleanPseudo().length === 0;
+  // Les DEUX champs sont désormais obligatoires (retour de terrain : un
+  // joueur a rempli son pseudo mais pas son Insta — PMC n'a alors aucun
+  // moyen de le retrouver pour le contacter s'il gagne, un pseudo affiché
+  // seul au classement ne suffit pas). On bloque l'étape plutôt que de
+  // laisser jouer puis de découvrir un score orphelin au moment de remettre
+  // le lot.
+  pseudoNext.disabled = cleanPseudo().length === 0 || cleanInsta().length === 0;
 }
 syncPseudoStep();
 
@@ -549,6 +555,7 @@ pseudoInput.addEventListener("input", () => {
 });
 instaInput.addEventListener("input", () => {
   localStorage.setItem("pseudoInsta", cleanInsta());
+  syncPseudoStep();
 });
 // Empêche la frappe/le focus de fuiter vers les gestes de jeu (swipes),
 // même traitement que les autres contrôles superposés au canvas.
@@ -776,13 +783,15 @@ function endGame(reason) {
   game.endReason = reason;
   hidePauseButton();
 
+  // hud.contestStatus() ne pilote plus rien à l'écran (le statut technique
+  // "Score valable pour le concours" était confus pour un joueur qui découvre
+  // le jeu, retiré au playtest) — sert seulement à décider si le score part
+  // vraiment vers Supabase, juste plus bas.
   const contest = hud.contestStatus();
   const finished = reason === "finished";
 
   endEyebrow.textContent = finished ? "Parcours terminé" : "Game Over";
   scoreNum.textContent = `${game.score}`;
-  contestPill.textContent = contest.label;
-  contestPill.classList.toggle("open", contest.open);
 
   // CTA en vrai bouton sur un parcours terminé — c'est le joueur qui vient
   // d'entendre le morceau en entier, la meilleure fenêtre pour l'inviter à
@@ -835,6 +844,7 @@ function restartGame() {
   } else {
     useFallbackClock(false);
   }
+  clock.jumpBy(-entities.LEAD_IN); // voir entities.LEAD_IN — même correctif qu'au premier départ
 
   playerState.lane = START_LANE;
   playerState.x = road.laneX(START_LANE);
@@ -908,6 +918,10 @@ function step(dt) {
       useFallbackClock(false);
       gameStarted = true;
     }
+    // Voir entities.LEAD_IN : sans ce recul, le premier lot de créneaux (la
+    // période de grâce) apparaîtrait déjà à la position du joueur dès la
+    // première frame au lieu de glisser depuis l'horizon.
+    if (gameStarted) clock.jumpBy(-entities.LEAD_IN);
   }
 
   // Surveillance en cours de partie : si l'horloge audio cesse d'avancer, on
@@ -1078,6 +1092,20 @@ function step(dt) {
 // en continu.
 let lastFilterLives = null;
 function updateHealthFilterIfChanged() {
+  // Une fois la partie terminée, plus aucun retour en arrière possible : on
+  // fige sur le N&B statique une bonne fois pour toutes (sentinelle "ended"
+  // plutôt qu'une valeur de vies, pour ne plus jamais rebasculer même si
+  // `game.lives` bouge encore d'une façon inattendue). Défensif — signalé au
+  // playtest : « il reste un cœur qui clignote alors qu'il y a marqué game
+  // over ».
+  if (game.ended) {
+    if (lastFilterLives !== "ended") {
+      lastFilterLives = "ended";
+      canvas.classList.remove("heart-warning", "game-over-bw");
+      canvas.classList.add("game-over-bw");
+    }
+    return;
+  }
   if (game.lives === lastFilterLives) return;
   lastFilterLives = game.lives;
   canvas.classList.remove("heart-warning", "game-over-bw");
