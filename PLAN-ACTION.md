@@ -435,11 +435,36 @@
 
 **Reste à faire (prochaine session) :** retester avec Antoine (ou un autre joueur externe) tous les points ci-dessus, en particulier le pop-in corrigé et le clignotement throttlé (les deux points les plus visibles au précédent test) ; obtenir l'image de référence du pont ; prioriser avec l'artiste parmi les 5 chantiers lourds proposés (voir plan détaillé juste en dessous) avant de commencer l'un d'eux.
 
+**Mise en ligne — le jeu est déployé et testable en vrai :**
+- ✅ **https://pmc-la-ville-est-belle.netlify.app** — c'est l'URL de playtest, remise à jour à chaque vague de correctifs de la session. Le dépôt n'a **aucun remote git** : le déploiement ne passe donc pas par une intégration Netlify↔GitHub mais par le CLI, depuis le dossier du projet :
+  ```
+  npm run build && npx netlify deploy --prod --dir=dist
+  ```
+  Site déjà lié (`ea72e3f5-4d7a-40e2-bf5e-d96daa72d23c`, compte Paul MATHIEU COLLIN), rien à reconfigurer.
+
+**Playtest en direct sur l'URL Netlify — 3 vagues de retours enchaînées (branche `gameplay-pause-voitures-etoiles`) :**
+
+*Vague 1 — le démarrage (2 correctifs successifs sur la même cause) :*
+- 🐛 **« Y'a un vrai problème de démarrage, y'a des gens qui reculent. »** Le `LEAD_IN` de la session précédente n'avait corrigé qu'une moitié du problème. La vraie cause, restée invisible jusqu'ici : `road.js` avait une **rampe de démarrage** (smoothstep 0 → vitesse de base sur 4 s) appliquée à `currentSpeed`. Or les entités n'ont pas de position stockée — `entities.js` recalcule leur profondeur **chaque frame** avec `z = PLAYER_NEAR_Z + deltaT × currentSpeed`. Une vitesse qui part de 0 écrase donc *tous* les `z` sur la position du joueur (pop-in massif), puis les repousse vers l'horizon quand elle remonte — d'où des objets qui « reculent ». Simulé en Node avant/après pour confirmer : l'ancienne courbe tombait de 19,8 à 0 en 1 s, la nouvelle reste plate à 19,8.
+- ✅ **1re itération** (`9c7a7c3`) : rampe découplée, appliquée seulement à `distanceScrolled` (défilement visuel de la route), plus à `currentSpeed`. Le pop-in disparaît — mais nouveau retour : « il y a que des étoiles qui apparaissent et c'est super bizarre », la route ne bougeait plus pendant le lead-in.
+- ✅ **2e itération, retenue** (`eb9e608`) : **rampe supprimée entièrement**. La route défile à `vitesseBase` dès la première frame. L'accélération exponentielle du morceau (`vitesseBase` → `vitesseMax` sur 257 s, `SPEED_DOUBLING_TIME`) suffit largement à faire monter la difficulté ; la rampe n'apportait qu'une sensation de « jeu qui ne démarre pas ». `START_RAMP_DURATION` retirée de `road.js`.
+
+*Vague 2 — le premier tiers de course (`94bdcca`) :*
+- ✅ **Période de grâce 8 s → 2 s** (`GRACE_BEATS` 16 → 4). Retour : « il y a juste plein d'étoiles, il se passe rien — je veux des objets exactement comme le reste du circuit ». Le début de course propose maintenant le même mélange étoiles / voitures / piétons que partout ailleurs, juste le temps de voir la route avant le premier danger.
+- ✅ **Roues latérales des voitures retirées** (« c'est très moche »). Les phares/le halo ajoutés à la vague précédente restent.
+- 🐛 **Cyclistes NPC qui passaient par-dessus les étoiles.** L'anti-chevauchement existait déjà mais prenait sa décision **une seule fois**, à la première apparition du cycliste, et la mettait en cache (`npcVisibilityDecision`). Ça ne pouvait pas marcher : les NPC approchent à `speed + NPC_CLOSING_EXTRA` (7 u/s de plus que les entités), donc un cycliste « libre » au moment du spawn rattrape et traverse une étoile plus tard. ✅ Cache supprimé, le test tourne à chaque frame — le cycliste (purement décoratif, il ne perd jamais contre le gameplay) s'efface tant qu'il chevauche une étoile ou une voiture, au lieu de passer au travers.
+
+*Vague 3 — 3 retours reçus, diagnostic fait, **AUCUN correctif écrit** (session interrompue là) :*
+- 🐛 **La musique semble revenir en arrière à la reprise de pause.** Retour exact : « quand on met reprendre, il reprend au moment où on a mis pause au niveau de la musique. Il faudrait juste une surcouche de filtre : le morceau doit continuer, le filtre passe de 100 % à 0 %. » — **Diagnostic établi, la cause est explicite dans le code** (`audio.js`, `setPlaybackMode`) : en mode `muffled`, le morceau continue mais l'horloge de jeu est gelée à la main (`muffleAnchor`), parce que `audioCtx.currentTime` avance toujours et que la course, elle, doit rester figée. À la reprise, l'écart accumulé est rattrapé en **relançant la lecture à l'instant gelé** (`playNow(muffleAnchor)`) — c'est exactement le saut en arrière entendu. Le commentaire du fichier l'assume comme « le prix à payer pour que bonus et obstacles retombent sur les temps ».
+  **Ce qui est demandé revient à trancher l'arbitrage dans l'autre sens** : ne plus toucher à la lecture audio, et resynchroniser la *course* sur le morceau à la reprise (décaler l'origine de l'horloge de jeu de la durée de la pause plutôt que de rembobiner le son). À vérifier au passage : `LEAD_IN`, `resolved`/`consumed` (les créneaux « traversés » pendant la pause ne doivent pas arriver d'un bloc sur le joueur) et le chien de garde `audioWatch`.
+- 🐛 **Classement absent de l'écran de fin.** Retour : « il y a marqué "Voici votre score : 10 100" et je n'ai pas le tableau des meilleurs scores ni mon classement ». Le code est en place et n'a pas été touché (`#leaderboard` dans `index.html`, `renderLeaderboard()` + l'`await net.getTopScores()` dans `endGame()`, `main.js`) ; `#leaderboard` part avec `.hidden` et n'est démasqué que si la requête ramène au moins une ligne. **Piste n°1 à vérifier avant de toucher au code : la requête Supabase elle-même** (`net.js` renvoie `[]` en silence sur toute erreur — vue `scores_public` absente, RLS, réseau) ; `apiScores`/`apiScoresKey` sont bien renseignés dans `config.js`. À reproduire en prod avec la console réseau, pas en preview.
+- 🐛 **« Je passe à travers des cyclistes sans perdre de points, parfois. »** — **Ce n'est pas un bug : les cyclistes NPC sont décoratifs par conception** (`entities.js`, section « Cyclistes NPC en sens inverse » : aucune collision, aucun `resolved`/`consumed`, générateur totalement séparé). Ils ressemblent pourtant à des obstacles et arrivent en sens inverse, donc l'attente du joueur est légitime. **Décision produit à prendre avec l'artiste** — soit ils deviennent de vrais obstacles (et il faut alors les faire entrer dans la grille de quotas `TOTAL_OBSTACLES`, sinon la difficulté du parcours change en douce), soit ils restent décoratifs et il faut les rendre visuellement inoffensifs (éloignés sur les voies extérieures, plus petits, plus transparents).
+
 ---
 
 ## PLAN — 5 chantiers lourds demandés après le 1er playtest externe (session suivante, nouvelle conversation)
 
-Rien de ce qui suit n'est commencé. Contexte complet ci-dessous pour qu'une nouvelle session (autre modèle) puisse attaquer directement sans repasser par l'historique. Ordre de priorité non tranché — demander à l'artiste avant de commencer (question posée en fin de session précédente, jamais répondue : cyclisme d'abord / gameplay d'abord / tout en même temps sans repasser par lui entre chaque étape).
+**Mise à jour : le chantier 2 (glissade swipe bas) est FAIT** — voir ci-dessous. Les quatre autres sont toujours à l'état zéro. Contexte complet ci-dessous pour qu'une nouvelle session (autre modèle) puisse attaquer directement sans repasser par l'historique. Ordre de priorité non tranché — demander à l'artiste avant de commencer (question posée en fin de session précédente, jamais répondue : cyclisme d'abord / gameplay d'abord / tout en même temps sans repasser par lui entre chaque étape).
 
 ### 1. Nouvelle DA du cycliste, d'après une image de référence
 **Demande exacte :** « Je te donne une image pour les cyclistes. Je veux que tu les réalises comme ça, parce que là, tu as fait des copies de moi en cyclisme. »
@@ -453,7 +478,9 @@ Rien de ce qui suit n'est commencé. Contexte complet ci-dessous pour qu'une nou
 
 **Fichiers concernés :** `src/player.js` (silhouette/palette/roue/pédalage — la mécanique de lean/rebond ne change pas, seule l'apparence), `src/cyclists.js` (cyclistes NPC en sens inverse — réutilisent EXPLICITEMENT la géométrie de `player.js` "pour zéro risque visuel", donc à resynchroniser en même temps, pas séparément).
 
-### 2. Glissade rapide vers le sol (swipe vers le bas pendant le saut)
+### 2. ✅ FAIT — Glissade rapide vers le sol (swipe vers le bas pendant le saut)
+**Livré** (`input.js` : `triggerSlam()`/`consumeSlamDown()`, symétrique du swipe haut, plus `ArrowDown`/`KeyS` au clavier pour le confort de test ; `main.js` : le slam n'a d'effet que si `jump.mode === 'air'` et pousse `jump.vy` à `-vJump × 1.5`, donc la parabole existante est court-circuitée sans être remplacée par un cas particulier). La détection réutilise le même verrou « un cran par contact » que les autres gestes. Descriptif d'origine conservé ci-dessous pour mémoire.
+
 **Demande exacte :** « Plusieurs choses quand tu swipes vers le haut, comme sur [Subway Surfers] : la possibilité de swiper vers le bas pour redescendre très rapidement vers le sol. » Contexte : le joueur remonte au clavier/tactile via un swipe vers le haut mais ne peut pas actuellement écourter la descente — « ça me ferait chier qu'on ne puisse pas redescendre une fois qu'on a sauté ».
 
 **Approche technique :** `src/input.js` a déjà la détection du swipe vers le haut (déclenche le saut) — ajouter la détection symétrique du swipe vers le bas, mais seulement exploitable **pendant que `jump.mode === 'air'`** (voir `main.js`, la machine à états du saut : `ground`/`air`/`onCar`). Actuellement la hauteur suit une parabole physique (`jumpPhysics`, voir commentaire dans `config.js` sur `dureeSaut`/`hauteurSaut`) — la glissade rapide doit court-circuiter cette parabole en cours de vol (accélération vers le bas nettement plus forte, ou un `jump.y` qui redescend directement à 0 sur une durée courte fixe) dès l'input détecté, sans attendre la fin naturelle de l'arc. Attention à ne pas casser la détection de collision/ramassage aérien (étoiles aériennes, `AIR_BONUS_KINDS`) si l'atterrissage devient possible plus tôt que prévu.
@@ -750,20 +777,26 @@ Demandé : « un énorme back-end pour centraliser toutes les réponses, score, 
 
 ## 10. Prochaine action
 
-Étapes 0 à 6 toutes faites (étape 6 terminée cette session : écran-titre, CTA "aller écouter",
-statut concours — voir « État d'avancement » en tête de document). Le bloc « ⚠️ À savoir » plus haut
-garde les pièges d'environnement déjà rencontrés : serveur de dev qui meurt régulièrement, IP locale
-à revalider, preview partagée qui peut montrer le mode debug par erreur.
+⚠️ **Cette section a été réécrite : elle décrivait encore l'étape 7 comme à venir alors que Supabase
+est branché et que le jeu est en ligne.** Le passage sur le gyroscope est lui aussi périmé — le
+gyroscope a été retiré (décision verrouillée, voir `CLAUDE.md`), tout se joue au geste.
 
-**Priorité n°1, toujours en attente : tester sur iPhone réel** — gyroscope (nécessite HTTPS/mkcert,
-voir §2), fps avec tout ce qui a été ajouté (façades détaillées, fondu brume, entités, HUD, CTA), et
-confirmation visuelle du correctif de décalage des entités (voir plus haut — subtil, mieux vérifié en
-vrai qu'en preview automatisée). Rien de tout ça n'a encore été validé sur un appareil réel — c'est
-toujours le seul point ouvert de tout ce qui a été construit jusqu'ici.
+Étapes 0 à 7 faites, le jeu est déployé et joué par des testeurs externes
+(https://pmc-la-ville-est-belle.netlify.app). Le bloc « ⚠️ À savoir » plus haut garde les pièges
+d'environnement déjà rencontrés : serveur de dev qui meurt régulièrement, IP locale à revalider,
+preview partagée qui peut montrer le mode debug par erreur. Ajouter à cette liste : **la preview
+navigateur ne peut pas jouer le jeu** — créer l'`AudioContext` y fait figer l'onglet, donc tout ce qui
+touche à l'audio, à la pause ou à l'écran de fin se vérifie en prod sur téléphone, pas en preview.
+
+**Priorité n°1 — les 3 retours de la vague 3, non corrigés** (reprise de pause qui rembobine le
+morceau, classement absent de l'écran de fin, cyclistes NPC traversés sans effet). Diagnostic complet
+et pistes dans « État d'avancement » en tête de document ; le 3e demande une décision produit de
+l'artiste avant tout code.
 
 Ensuite, dans l'ordre le plus efficace :
-1. **Étape 7 — Backend & partage** (Supabase + image story 1080×1920) : plus gros chantier, à faire une fois le cœur du jeu testé en vrai. Le calcul de fenêtre du concours (`contestStatus()`, `hud.js`) est déjà prêt à être réutilisé pour décider si un score envoyé compte pour de vrai.
-2. **Étape 8 — Polish/perf/livraison** en dernier, une fois le reste posé.
+1. **Image de partage 1080×1920** — c'est la moitié de l'étape 7 qui n'a jamais été faite (les scores Supabase, eux, tournent). Le style est déjà arrêté : écran de fin de borne d'arcade 80s, voir §11 point 15.
+2. **Les 4 chantiers lourds restants** issus du 1er playtest externe (DA cycliste, son dégradé sur le dernier cœur, événement « ATTENTION », pont) — à prioriser avec l'artiste, plusieurs sont encore bloqués sur une référence visuelle jamais reçue.
+3. **Étape 8 — Polish/perf/livraison** en dernier, une fois le reste posé.
 
 Livrer un état « fait / reste » à la fin de chaque étape, comme d'habitude.
 
