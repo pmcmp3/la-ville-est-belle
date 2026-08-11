@@ -170,13 +170,36 @@ const CAR_BODY_H = 0.825;
 export const CAR_ROOF_H = 1.35;
 // Nombre de voitures par rangée : surtout 1 ou 2, occasionnellement 3 (le
 // "rangée de trois" demandé reste possible mais reste le cas rare — avec 3
-// voitures sur 4 voies, il ne reste qu'UNE voie de passage, à réserver aux
-// moments qui doivent vraiment être durs).
-const CAR_ROW_SIZES = [
+// voitures sur 4 voies, il ne reste qu'UNE voie de passage). Signalé comme
+// risque avant tout playtest réel de cette mécanique : « à confirmer que ça
+// reste juste, pas injuste » (PLAN-ACTION.md). En l'absence de retour de
+// terrain, la rangée de 3 est mise sous la même rampe de difficulté que
+// BONUS_RATIO_START/END juste au-dessus (même `t` de progression du
+// parcours) plutôt que d'être une probabilité fixe dès le premier obstacle :
+// en tout début de course, seuls 1-2 voitures apparaissent (au moins 2 voies
+// toujours libres) ; la rangée de 3 (1 seule voie de passage) monte
+// progressivement jusqu'à 15 % seulement passé la moitié du parcours, quand
+// le joueur a eu le temps de prendre en main les 4 voies.
+const CAR_ROW_EARLY = [
+  { kind: 1, weight: 0.75 },
+  { kind: 2, weight: 0.25 },
+  { kind: 3, weight: 0.0 },
+];
+const CAR_ROW_LATE = [
   { kind: 1, weight: 0.45 },
   { kind: 2, weight: 0.40 },
   { kind: 3, weight: 0.15 },
 ];
+function carRowSizesAt(slotIndex) {
+  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
+  const t = remainingSlots > 0
+    ? Math.min(1, Math.max(0, (slotIndex - GRACE_SLOTS) / remainingSlots))
+    : 1;
+  return CAR_ROW_EARLY.map((early, i) => ({
+    kind: early.kind,
+    weight: early.weight + (CAR_ROW_LATE[i].weight - early.weight) * t,
+  }));
+}
 // Tolérance longitudinale de "posé sur le toit". La tolérance LATÉRALE a
 // disparu avec les voies : on est sur le toit si on est sur la voie de la
 // rangée, point — plus de « je saute pile dessus et je retombe à côté ».
@@ -254,7 +277,7 @@ function slotContent(slotIndex) {
   }
   const kind = pickWeighted(OBSTACLE_WEIGHTS, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
-    const carCount = pickWeighted(CAR_ROW_SIZES, hash(slotIndex * 3 + 10));
+    const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
     return { isBonus: false, kind: "voiture", carCount };
   }
   return { isBonus: false, kind };

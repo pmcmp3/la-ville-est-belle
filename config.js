@@ -11,6 +11,8 @@ window.CONFIG = {
   fichierAudio: "assets/la-ville-est-belle.mp3", // MP3/AAC servi en prod (léger)
   fonduEntree: 1.2,         // Fondu à l'entrée, en secondes
   fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du morceau), en secondes
+  pauseFiltreHz: 800,       // Menu pause : le morceau continue mais passe dans un filtre passe-bas à cette fréquence — on n'entend plus que les basses (demandé explicitement). Plus bas = plus étouffé.
+  pauseFondu: 0.5,          // Durée en secondes du fondu du filtre (à l'entrée comme à la sortie de la pause)
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.

@@ -44,6 +44,13 @@ let focusGain = null;
 let pendingVolume = 1; // valeur demandée avant que le graphe audio existe
 let currentSource = null; // nœud en cours de lecture, pour pouvoir l'arrêter au rejeu
 
+// Filtre passe-bas inséré en bout de chaîne, transparent en temps normal
+// (fréquence de coupure au-dessus de l'audible) et refermé sur ~800 Hz quand
+// le menu pause s'ouvre : on n'entend plus que les basses, comme un morceau
+// qu'on écouterait depuis la pièce d'à côté. Voir setPlaybackMode() plus bas.
+let lowpass = null;
+const FILTRE_OUVERT_HZ = 20000;
+
 // Safari a longtemps n'accepté que la forme à callbacks de decodeAudioData ;
 // les navigateurs récents renvoient une Promise. On accepte les deux.
 function decodeWith(ctx, data) {
@@ -133,7 +140,14 @@ fetchAvecProgression(window.CONFIG.fichierAudio)
     if (!rawCopy) loadError = err;
   });
 
-function playNow() {
+// `offset` = seconde du morceau où démarrer la lecture. 0 au premier
+// lancement et au rejeu ; non nul uniquement à la sortie du menu pause, où le
+// morceau a continué d'avancer pendant que la course, elle, était gelée : on
+// le remet alors exactement là où le joueur s'était arrêté (voir
+// setPlaybackMode). Sans ça, audio et grille rythmique repartiraient décalés
+// de toute la durée de la pause — or c'est justement leur calage qui fait
+// tout l'intérêt du jeu.
+function playNow(offset = 0) {
   if (!audioCtx || !buffer) return;
 
   if (currentSource) {
@@ -148,24 +162,34 @@ function playNow() {
   volumeGain = audioCtx.createGain();
   volumeGain.gain.value = pendingVolume;
   focusGain = audioCtx.createGain();
-  focusGain.gain.value = paused ? 0 : 1; // repart coupé si on est déjà en pause (rejeu depuis le menu pause)
+  focusGain.gain.value = mode === "silent" ? 0 : 1; // repart coupé si on est déjà en pause silencieuse
+  lowpass = audioCtx.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = mode === "muffled" ? window.CONFIG.pauseFiltreHz : FILTRE_OUVERT_HZ;
 
   sourceNode.connect(envelopeGain);
   envelopeGain.connect(volumeGain);
-  volumeGain.connect(focusGain);
+  volumeGain.connect(lowpass);
+  lowpass.connect(focusGain);
   focusGain.connect(audioCtx.destination);
 
   const { fonduEntree, fonduSortie } = window.CONFIG;
   const now = audioCtx.currentTime;
-  const end = now + buffer.duration;
+  const end = now + Math.max(0, buffer.duration - offset);
 
-  envelopeGain.gain.setValueAtTime(0, now);
-  envelopeGain.gain.linearRampToValueAtTime(1, now + fonduEntree);
-  envelopeGain.gain.setValueAtTime(1, Math.max(now + fonduEntree, end - fonduSortie));
+  // Le fondu d'entrée n'a de sens qu'au vrai début du morceau : reprendre en
+  // plein milieu avec une montée de 1,2 s s'entendrait comme un gonflement.
+  if (offset > 0) {
+    envelopeGain.gain.setValueAtTime(1, now);
+  } else {
+    envelopeGain.gain.setValueAtTime(0, now);
+    envelopeGain.gain.linearRampToValueAtTime(1, now + fonduEntree);
+  }
+  envelopeGain.gain.setValueAtTime(1, Math.max(now + (offset > 0 ? 0 : fonduEntree), end - fonduSortie));
   envelopeGain.gain.linearRampToValueAtTime(0, end);
 
-  sourceNode.start(0);
-  startCtxTime = now;
+  sourceNode.start(0, offset);
+  startCtxTime = now - offset; // now() doit renvoyer `offset` à cet instant précis
   started = true;
 }
 
@@ -259,6 +283,12 @@ export function play() {
 // de course) — le contexte est déjà débloqué depuis la première partie.
 export function restart() {
   if (!audioCtx) return;
+  // Une relance efface toute pause en cours : sans ça, un « Recommencer la
+  // course » lancé depuis le menu pause repartirait avec l'horloge gelée et
+  // le filtre encore fermé.
+  mode = "running";
+  muffleAnchor = null;
+  if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
   if (audioCtx.state !== "running") audioCtx.resume().catch(() => {});
   if (!buffer) return;
   playNow();
@@ -285,12 +315,17 @@ export function getStatus() {
   if (!audioCtx) return buffer ? "prêt (en attente du tap)" : "décodage…";
   if (audioCtx.state !== "running") return `contexte ${audioCtx.state}`;
   if (!buffer) return "running, décodage…";
-  return started ? "lecture" : "running, en attente";
+  if (!started) return "running, en attente";
+  return mode === "muffled" ? "lecture (pause, filtre 800 Hz)" : "lecture";
 }
 
 // Secondes écoulées depuis le premier échantillon du morceau — c'est cette
 // fonction que main.js branche sur clock.setTimeSource() une fois démarré.
 export function now() {
+  // Gelée pendant le menu pause : le contexte tourne toujours (le morceau
+  // continue, étouffé par le passe-bas) mais la course doit rester exactement
+  // là où le joueur l'a laissée. Voir setPlaybackMode().
+  if (muffleAnchor !== null) return muffleAnchor;
   return started ? audioCtx.currentTime - startCtxTime : 0;
 }
 
@@ -311,52 +346,102 @@ export function getVolume() {
   return pendingVolume;
 }
 
-// --- Pause (perte de focus OU menu pause manuel) -----------------------------
-// Deux appelants, même mécanique : le morceau continuait de jouer quand on
-// quittait l'onglet (pas de fade, pas de pause, juste du son qui sort d'un
-// écran qu'on ne regarde plus) — et le menu pause (bouton dédié, voir
-// main.js) a exactement le même besoin : couper le son en douceur ET figer
-// l'horloge de jeu pendant que le panneau est ouvert.
-// focusGain (voir plus haut) porte tout ça, indépendamment du volume choisi
-// par le joueur et du fondu d'entrée/sortie du morceau. On coupe le SON tout
-// de suite (fondu 0,5 s) mais on ne fige l'horloge (audioCtx.suspend())
-// qu'une fois le fondu terminé — sinon la coupure s'entendrait comme un clic
-// sec plutôt qu'un fondu.
+// --- Modes de lecture (course / menu pause / onglet quitté) ------------------
+// Trois états, et un seul point d'entrée pour en changer : main.js calcule le
+// mode voulu à partir de ses deux drapeaux (menu pause ouvert, onglet caché)
+// et appelle setPlaybackMode(). Aucun appelant n'a à savoir ce que ça
+// implique côté Web Audio.
+//
+//   "running"  — la course : filtre ouvert, son plein.
+//   "muffled"  — menu pause : le morceau CONTINUE mais passe dans le filtre
+//                passe-bas (~800 Hz, réglable dans config.js), donc on
+//                n'entend plus que les basses. Demandé explicitement.
+//   "silent"   — onglet/app quitté : fondu à 0 puis audioCtx.suspend(). Là,
+//                jouer même étouffé n'aurait aucun sens, personne n'écoute.
+//
+// ⚠️ Le point délicat est l'horloge. now() est la source de temps maîtresse
+// du jeu (voir en-tête) : en mode "silent" elle se fige d'elle-même avec le
+// suspend, mais en "muffled" le contexte tourne toujours — il faut donc la
+// geler à la main (muffleAnchor), sinon la course continuerait d'avancer
+// derrière le panneau de pause. Conséquence : à la reprise, le morceau a pris
+// de l'avance sur la course, et on le remet à sa place en relançant la
+// lecture à l'instant gelé (playNow(muffleAnchor)). Le petit retour en
+// arrière du morceau est couvert par la réouverture du filtre, et c'est le
+// prix à payer pour que bonus et obstacles retombent sur les temps.
 const PAUSE_FADE = 0.5;
-let paused = false;   // vrai dès la mise en pause, avant même la fin du fondu
+let mode = "running";
+let muffleAnchor = null; // temps de jeu gelé pendant la pause manuelle (null = horloge libre)
 let suspendTimer = null;
 
-export function pause() {
-  paused = true;
-  if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
-  if (!audioCtx || !started) return;
-
-  const now = audioCtx.currentTime;
-  if (focusGain) {
-    focusGain.gain.cancelScheduledValues(now);
-    focusGain.gain.setValueAtTime(focusGain.gain.value, now);
-    focusGain.gain.linearRampToValueAtTime(0, now + PAUSE_FADE);
-  }
-  // audioCtx.currentTime (donc now() côté clock.js) se fige avec le suspend :
-  // c'est voulu, la partie doit geler pendant la pause, pas continuer sans le
-  // joueur. On laisse le temps au fondu de finir avant de couper pour de
-  // vrai (un suspend() immédiat couperait la rampe en plein milieu).
-  suspendTimer = setTimeout(() => {
-    suspendTimer = null;
-    if (audioCtx && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
-  }, PAUSE_FADE * 1000);
+function rampFilter(target) {
+  if (!lowpass) return;
+  const t = audioCtx.currentTime;
+  lowpass.frequency.cancelScheduledValues(t);
+  lowpass.frequency.setValueAtTime(lowpass.frequency.value, t);
+  // Rampe exponentielle : une fréquence se perçoit en octaves, pas en hertz —
+  // une rampe linéaire de 20 kHz à 800 Hz semblerait ne rien faire pendant
+  // presque tout le fondu, puis tout faire à la fin.
+  lowpass.frequency.exponentialRampToValueAtTime(Math.max(20, target), t + window.CONFIG.pauseFondu);
 }
 
-export function resume() {
-  paused = false;
+function rampFocus(target) {
+  if (!focusGain) return;
+  const t = audioCtx.currentTime;
+  focusGain.gain.cancelScheduledValues(t);
+  focusGain.gain.setValueAtTime(focusGain.gain.value, t);
+  focusGain.gain.linearRampToValueAtTime(target, t + PAUSE_FADE);
+}
+
+export function setPlaybackMode(next) {
+  if (next === mode) return;
+  mode = next;
+
+  // Le gel de l'horloge se pose/se lève indépendamment du contexte audio :
+  // il doit tenir même si la lecture n'a pas encore démarré.
+  if (next === "muffled" && muffleAnchor === null) muffleAnchor = now();
+
   if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
-  if (!audioCtx || !started) return;
+  if (!audioCtx || !started) {
+    if (next === "running") muffleAnchor = null;
+    return;
+  }
+
+  if (next === "silent") {
+    rampFocus(0);
+    // On laisse le fondu finir avant de suspendre pour de vrai — un suspend()
+    // immédiat couperait la rampe en plein milieu, ce qui s'entend comme un clic.
+    suspendTimer = setTimeout(() => {
+      suspendTimer = null;
+      if (mode === "silent" && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
+    }, PAUSE_FADE * 1000);
+    return;
+  }
 
   audioCtx.resume().catch(() => {});
-  const now = audioCtx.currentTime;
-  if (focusGain) {
-    focusGain.gain.cancelScheduledValues(now);
-    focusGain.gain.setValueAtTime(focusGain.gain.value, now);
-    focusGain.gain.linearRampToValueAtTime(1, now + PAUSE_FADE);
+
+  if (next === "muffled") {
+    rampFocus(1);
+    rampFilter(window.CONFIG.pauseFiltreHz);
+    return;
+  }
+
+  // next === "running"
+  if (muffleAnchor !== null) {
+    // On sort d'une pause manuelle : le morceau a continué pendant que la
+    // course était gelée, on le ramène à l'instant exact de la reprise.
+    const reprise = muffleAnchor;
+    muffleAnchor = null;
+    playNow(reprise);
+    // playNow() a recréé tout le graphe (donc un filtre neuf, ouvert par
+    // défaut puisque mode vaut déjà "running") : on le repose fermé avant de
+    // lancer la rampe, sinon la réouverture serait instantanée.
+    if (lowpass) lowpass.frequency.value = window.CONFIG.pauseFiltreHz;
+    rampFilter(FILTRE_OUVERT_HZ);
+    rampFocus(1);
+  } else {
+    // On sort d'une pause silencieuse : le contexte était suspendu, donc le
+    // morceau et l'horloge ont gelé ensemble — rien à resynchroniser.
+    rampFocus(1);
+    rampFilter(FILTRE_OUVERT_HZ);
   }
 }

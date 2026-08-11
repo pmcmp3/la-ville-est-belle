@@ -141,11 +141,11 @@ function useFallbackClock(preserve) {
 // l'onglet/l'app (retour de playtest iPhone : le morceau continuait de jouer
 // en arrière-plan) et le bouton pause dédié (voir plus bas, section "Son
 // pendant la partie" pour le câblage du panneau). Elles partagent la même
-// mécanique côté audio.js (fondu 0,5 s + `audioCtx.suspend()`, qui fige aussi
-// l'horloge de jeu) — mais il ne faut reprendre pour de vrai que lorsque LES
-// DEUX sont levées : si le joueur ouvre le menu pause puis change d'onglet,
-// revenir sur l'onglet ne doit pas relancer le son tant que le menu pause est
-// encore affiché.
+// mécanique côté audio.js — mais les deux ne veulent PAS la même chose du
+// son : onglet quitté = silence complet (personne n'écoute), menu pause = le
+// morceau continue derrière un filtre passe-bas à 800 Hz, on n'entend plus
+// que les basses (demandé explicitement). Les deux figent en revanche
+// l'horloge de jeu de la même façon, donc la course, elle, gèle pareil.
 let manualPaused = false;  // menu pause ouvert (bouton dédié)
 let hiddenPaused = false;  // document.hidden
 
@@ -153,31 +153,27 @@ function isPaused() {
   return manualPaused || hiddenPaused;
 }
 
-// À appeler après avoir changé manualPaused OU hiddenPaused, avec l'état
-// PRÉCÉDENT de isPaused() — ne déclenche l'audio que sur une vraie
-// transition (évite de relancer un fondu déjà en cours si les deux sources
-// se chevauchent, voir en-tête).
-function applyPauseState(wasPaused) {
-  const nowPaused = isPaused();
-  if (nowPaused === wasPaused) return;
-  if (nowPaused) {
-    audio.pause();
-  } else {
-    audio.resume();
-    // Même piège que documenté historiquement ici : sans repousser
-    // `audioWatch.lastReal`/`lastT`, le chien de garde (AUDIO_STALL_TIMEOUT
-    // = 1 s) verrait une horloge figée depuis tout le temps passé en pause
-    // et basculerait à tort sur l'horloge de secours juste au moment de
-    // reprendre, ce qui casserait le fondu de retour.
+// À appeler après avoir changé manualPaused OU hiddenPaused. Le mode audio se
+// déduit entièrement des deux drapeaux (l'onglet caché l'emporte sur le menu
+// pause : inutile de jouer même étouffé pour un écran que personne ne
+// regarde), et audio.setPlaybackMode() ignore un mode identique au courant —
+// donc plus besoin de guetter les transitions à la main ici.
+function applyPauseState() {
+  const next = hiddenPaused ? "silent" : manualPaused ? "muffled" : "running";
+  audio.setPlaybackMode(next);
+  if (next === "running") {
+    // Piège documenté de longue date : sans repousser `audioWatch.lastReal`/
+    // `lastT`, le chien de garde (AUDIO_STALL_TIMEOUT = 1 s) verrait une
+    // horloge figée depuis tout le temps passé en pause et basculerait à tort
+    // sur l'horloge de secours juste au moment de reprendre.
     audioWatch.lastT = audio.now();
     audioWatch.lastReal = perfClock();
   }
 }
 
 document.addEventListener("visibilitychange", () => {
-  const was = isPaused();
   hiddenPaused = document.hidden;
-  applyPauseState(was);
+  applyPauseState();
 });
 
 // --- Écrans hors-jeu (menu de démarrage / fin de partie) -----------------
@@ -475,20 +471,18 @@ function hidePauseButton() {
 
 function openPauseMenu() {
   if (manualPaused || pauseButton.hidden) return;
-  const was = isPaused();
   manualPaused = true;
   pauseVolumeSlider.value = volumeSlider.value; // reflète le volume courant à l'ouverture
   setSoundPanelOpen(false); // évite les deux panneaux ouverts en même temps
   pauseScreen.classList.add("visible");
-  applyPauseState(was);
+  applyPauseState();
 }
 
 function closePauseMenu() {
   if (!manualPaused) return;
-  const was = isPaused();
   manualPaused = false;
   pauseScreen.classList.remove("visible");
-  applyPauseState(was);
+  applyPauseState();
 }
 
 pauseButton.addEventListener("click", (e) => {
