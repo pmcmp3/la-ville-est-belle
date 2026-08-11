@@ -36,16 +36,18 @@ const AXIS_DOMINANCE = 1.2;   // un axe doit dépasser l'autre de 20 % pour êtr
 // l'impression que le jeu ne répond pas.
 const laneQueue = [];
 let jumpPressed = false;
+let slamPressed = false;
 
 function pushLane(dir) {
-  // Plafonné : au-delà de 2 crans en attente, c'est du martèlement, pas une
-  // intention — on éviterait sinon que le personnage continue de glisser
-  // plusieurs voies après que le joueur a lâché.
   if (laneQueue.length < 2) laneQueue.push(dir);
 }
 
 function triggerJump() {
   jumpPressed = true;
+}
+
+function triggerSlam() {
+  slamPressed = true;
 }
 
 export function consumeLaneMove() {
@@ -55,6 +57,14 @@ export function consumeLaneMove() {
 export function consumeJumpPress() {
   if (jumpPressed) {
     jumpPressed = false;
+    return true;
+  }
+  return false;
+}
+
+export function consumeSlamDown() {
+  if (slamPressed) {
+    slamPressed = false;
     return true;
   }
   return false;
@@ -110,11 +120,10 @@ function trackGesture(x, y) {
     gestureConsumed = true;
     return true;
   }
-  // Swipe vers le bas : volontairement sans effet (pas de "glissade" dans ce
-  // jeu). On réarme quand même l'origine verticale pour ne pas qu'un
-  // repositionnement du pouce vers le bas empêche le prochain saut.
-  if (ady >= SWIPE_THRESHOLD && dy > 0) {
-    originY = y;
+  if (ady >= SWIPE_THRESHOLD && dy > 0 && ady > adx * AXIS_DOMINANCE) {
+    triggerSlam();
+    gestureConsumed = true;
+    return true;
   }
   return false;
 }
@@ -161,4 +170,5 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "ArrowLeft" || e.code === "KeyA") pushLane(-1);
   else if (e.code === "ArrowRight" || e.code === "KeyD") pushLane(1);
   else if (e.code === "Space" || e.code === "ArrowUp") triggerJump();
+  else if (e.code === "ArrowDown" || e.code === "KeyS") triggerSlam();
 });

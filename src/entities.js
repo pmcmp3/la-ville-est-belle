@@ -58,6 +58,7 @@ export function isFinished(now = clock.now()) {
   return now >= finishTime();
 }
 const Z_WINDOW = 1.0;      // fenêtre (unités-monde) autour du joueur pour tester la collision
+const Z_WINDOW_AIR = 2.2;  // fenêtre élargie pour les bonus aériens (le timing du saut doit être tolérant)
 // Plus de rayon de collision en unités-monde : depuis le passage aux 4 voies,
 // tout est posé sur une voie et la collision est un test d'ÉGALITÉ de voie.
 // C'est ce qui règle les deux reproches du playtest d'un coup — « t'es short
@@ -428,11 +429,11 @@ export function update(playerLane, inAir) {
     if (resolved.has(e.slotIndex)) continue;
 
     if (e.isBonus) {
-      // Fenêtre "à la hauteur du joueur"
-      if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
-      if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
-      const inReach = sameLane(e);
       const aerien = AIR_BONUS_KINDS.has(e.kind);
+      const zw = aerien ? Z_WINDOW_AIR : Z_WINDOW;
+      if (e.z > road.PLAYER_NEAR_Z + zw) continue;
+      if (e.z < road.PLAYER_NEAR_Z - zw) { resolved.add(e.slotIndex); continue; }
+      const inReach = sameLane(e);
       if (inReach && (!aerien || inAir)) {
         events.push({ type: "bonus", kind: e.kind });
         resolved.add(e.slotIndex);
@@ -806,12 +807,11 @@ function renderCar3D(ctx, cx, cz, width, height, color, lit) {
   const bumperH = (bhN) * 0.18;
   ctx.fillStyle = color.dark;
   ctx.fillRect(gNL.x, gNL.y - bumperH, gNR.x - gNL.x, bumperH);
-  // Feux arrière (rectangles clairs collés au bord droite/gauche). Allumés
-  // (demandé explicitement) : halo rouge additif par-dessus, même technique
-  // que le halo de ramassage du joueur (composite "lighter", voir player.js).
-  const lightW = (gNR.x - gNL.x) * 0.14;
-  const lightH = bhN * 0.28;
-  const lightY = gNL.y - bhN * 0.85;
+  // Feux arrière : plus gros et plus éblouissants (demandé : « augmente la
+  // taille des phares pour qu'ils éblouissent un peu plus »).
+  const lightW = (gNR.x - gNL.x) * 0.18;
+  const lightH = bhN * 0.35;
+  const lightY = gNL.y - bhN * 0.88;
   ctx.fillStyle = lit ? "#ff5a3c" : REFLECT;
   ctx.fillRect(gNL.x + 2, lightY, lightW, lightH);
   ctx.fillRect(gNR.x - 2 - lightW, lightY, lightW, lightH);
@@ -819,15 +819,45 @@ function renderCar3D(ctx, cx, cz, width, height, color, lit) {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const lx of [gNL.x + 2 + lightW / 2, gNR.x - 2 - lightW / 2]) {
-      const glow = ctx.createRadialGradient(lx, lightY + lightH / 2, 0, lx, lightY + lightH / 2, lightW * 1.8);
-      glow.addColorStop(0, "rgba(255,90,60,0.55)");
-      glow.addColorStop(1, "rgba(255,90,60,0)");
+      const glowR = lightW * 2.8;
+      const glow = ctx.createRadialGradient(lx, lightY + lightH / 2, 0, lx, lightY + lightH / 2, glowR);
+      glow.addColorStop(0, "rgba(255,90,60,0.7)");
+      glow.addColorStop(0.4, "rgba(255,70,50,0.35)");
+      glow.addColorStop(1, "rgba(255,60,40,0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(lx, lightY + lightH / 2, lightW * 1.8, 0, Math.PI * 2);
+      ctx.arc(lx, lightY + lightH / 2, glowR, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
+  }
+
+  // Roues latérales (demandé : « rajoute des roues sur les côtés »).
+  // Visibles uniquement sur les faces latérales (sinon ça surchargerait la
+  // face arrière). Deux roues par côté, ellipses noires aplaties.
+  const wheelR = bhN * 0.32;
+  const wheelRx = wheelR * 0.45;
+  if (leftSideVisible) {
+    const wy1 = gNL.y - wheelR * 0.4;
+    const wx1 = gNL.x + (gFL.x - gNL.x) * 0.22;
+    const wx2 = gNL.x + (gFL.x - gNL.x) * 0.78;
+    ctx.fillStyle = "#0e0e11";
+    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#5a5b64";
+    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  if (rightSideVisible) {
+    const wy1 = gNR.y - wheelR * 0.4;
+    const wx1 = gNR.x + (gFR.x - gNR.x) * 0.22;
+    const wx2 = gNR.x + (gFR.x - gNR.x) * 0.78;
+    ctx.fillStyle = "#0e0e11";
+    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#5a5b64";
+    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
   }
 
   // Habitacle : vitres latérales foncées (piliers), lunette arrière noire,

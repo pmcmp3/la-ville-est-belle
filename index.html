@@ -513,7 +513,6 @@
       font: 900 104px/1 var(--police);
       color: var(--blanc);
       font-variant-numeric: tabular-nums;
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
     }
 
     /* Titre masqué pendant le décompte : redondant avec le numéro géant et
@@ -680,7 +679,7 @@
       text-align: left;
     }
 
-    .field-note strong { color: var(--noir); font-weight: 900; }
+    .field-note strong { font-weight: 500; }
 
     /* Rappel son de l'étape 2/2 (demandé : « il faut mettre une notification
        qui dit aux gens de monter le son, sinon ils ne sont pas au courant que
@@ -694,12 +693,9 @@
       border: 2px solid rgba(225, 62, 38, 0.55);
       border-radius: 12px;
       background: rgba(225, 62, 38, 0.12);
-      /* 900 → 500 (retour explicite : « pas besoin d'écrire en gras, c'est
-         pas très beau ») — la hiérarchie avec la ligne du dessous se fait à
-         la taille (15px vs 11.5px), pas à la graisse. */
-      font: 500 15px var(--police);
+      font: 500 15px/1.45 var(--police);
       color: var(--noir);
-      text-align: left;
+      text-align: center;
     }
 
     #sound-notice span {
@@ -1135,7 +1131,7 @@
                 maxlength="40"
               />
             </div>
-            <p class="field-note">Seul ton <strong>pseudo</strong> apparaît au classement. Ton insta est <strong>obligatoire</strong> : sans lui, PMC ne peut pas te contacter si tu gagnes — il n'est visible que par lui.</p>
+            <p class="field-note">Seul ton pseudo apparaît au classement. Ton insta est obligatoire, PMC va te contacter si tu gagnes avec ce nom. Il n'est visible que par lui.</p>
             <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant →</button>
           </div>
         </div>
@@ -1143,13 +1139,13 @@
 
       <div class="menu-step" data-step="play">
         <div class="panel">
-          <div class="panel-header"><p class="step-eyebrow">Étape 2/2 — C'est parti</p></div>
+          <div class="panel-header"><p class="step-eyebrow">Monte le son</p></div>
           <div class="panel-body">
             <div id="loading">
               <div id="loading-track"><div id="loading-fill"></div></div>
               <span id="loading-label">0 %</span>
             </div>
-            <p id="sound-notice">🔊 C'est un jeu sonore<span>Le jeu est calé sur le morceau La ville est belle. Sur iPhone, vérifie aussi l'interrupteur sonnerie.</span></p>
+            <p id="sound-notice">Le jeu est calé sur le morceau La ville est belle.<span>Sur iPhone, vérifie l'interrupteur sonnerie. Sur Android, monte le volume.</span></p>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
           </div>
         </div>

@@ -11,7 +11,7 @@ import * as entities from "./entities.js";
 import * as finish from "./finish.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
-import { consumeLaneMove, consumeJumpPress } from "./input.js";
+import { consumeLaneMove, consumeJumpPress, consumeSlamDown } from "./input.js";
 
 const FIXED_DT = 1 / 120; // simulation à 120 Hz, quel que soit le taux de rafraîchissement écran
 const MAX_FRAME_TIME = 0.25; // anti spirale de la mort (onglet mis en arrière-plan, etc.)
@@ -302,9 +302,9 @@ let countdownTimer = null;
 // notamment sur le message de tuto, où les flèches remplacent une partie du
 // texte (plus rapide à lire d'un coup d'œil qu'une phrase).
 const COUNTDOWN_MESSAGES = [
-  "🏆 Réalise le meilleur score, gagne le vinyl de l'EP",
-  "← → pour changer de voie   ↑ pour sauter",
-  "★ Attrape les étoiles, évite tout ce qui est rouge",
+  "Réalise le meilleur score, gagne le vinyl de l'EP",
+  "Swipe gauche ou droite pour changer de voie, swipe vers le haut pour sauter",
+  "Attrape les étoiles et évite les obstacles",
 ];
 const CAPTION_FADE_MS = 300;
 let captionTimeout = null;
@@ -822,17 +822,8 @@ function endGame(reason) {
   })();
 }
 
-// Rejoue : demandé au playtest — « le morceau doit tourner en permanence, tu
-// n'as pas besoin de le faire repartir depuis le début ». La partie suivante
-// se cale donc sur la position musicale COURANTE, pas sur t=0. Exception :
-// si le morceau est déjà fini ou dans ses toutes dernières secondes, on
-// relance depuis le début pour ne pas offrir une partie ridiculement courte.
-const REPLAY_RESTART_IF_REMAINING_UNDER = 60; // s
 function restartGame() {
-  const remaining = window.CONFIG.dureeMorceau - clock.now();
-  if (remaining < REPLAY_RESTART_IF_REMAINING_UNDER || !audio.isRunning()) {
-    audio.restart();
-  }
+  audio.restart();
   // Même règle qu'au démarrage : on ne se cale sur l'audio que s'il tourne
   // vraiment, sinon la partie repartirait sur une horloge figée.
   if (audio.isRunning()) {
@@ -982,12 +973,15 @@ function step(dt) {
   jump.prevY = jump.y;
   const { vJump, g } = jumpPhysics();
   const jumpPressed = consumeJumpPress();
+  const slamDown = consumeSlamDown();
 
   if (jumpPressed && (jump.mode === 'ground' || jump.mode === 'onCar')) {
-    // Impulsion : même vitesse initiale que le mode soit "au sol" ou "sur
-    // toit" — la différence est juste la hauteur de départ.
     jump.vy = vJump;
     jump.mode = 'air';
+  }
+
+  if (slamDown && jump.mode === 'air') {
+    jump.vy = -vJump * 1.5;
   }
 
   if (jump.mode === 'air') {
