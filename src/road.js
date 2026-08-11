@@ -47,8 +47,11 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // sphère : au-delà, le sol est passé sous la ligne de visée. C'est HORIZON_Z,
 // dérivé de CURVATURE, et c'est lui qui règle « 10 bâtiments » (SPACING = 10
 // unités dans world.js, donc HORIZON_Z ≈ 95 ⇒ une dizaine de bâtiments).
-const CURVATURE = 0.000532;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 95 unités-monde
+// 0.000532 → 0.0004 (retour explicite : « génère plus d'horizon », les
+// bâtiments/monuments ont besoin de plus de recul pour apparaître en fondu
+// plutôt que de surgir) — HORIZON_Z ≈ 95 → ≈ 110 unités-monde, +15 %.
+const CURVATURE = 0.0004;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 110 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {
@@ -69,24 +72,33 @@ const SPEED_SMOOTHING = 3;  // vitesse de rattrapage de currentSpeed vers sa cib
 // (1/temps de doublement) monte de 20 %, donc le temps de doublement est
 // divisé par 1,2 : 90 → 68 (playtest précédent) → 68/1,2 ≈ 57.
 const SPEED_DOUBLING_TIME = 57;
+// Démarrage progressif (retour explicite : « on part de 0 km/h et on va à 5,
+// puis 7, puis 10... puis vitesse constante » — vitesseBase démarrait déjà
+// lancé, sans montée en régime perceptible). Voir update().
+const START_RAMP_DURATION = 4;
 const EDGE_WIDTH = 0.25;    // largeur des bords de chaussée, en unités-monde
 const CENTER_LINE_WIDTH = 0.12;
 const MAX_ROWS = 160;       // plafond de bandes dessinées par frame (budget perf mobile)
 
-// Brume chaude du coucher de soleil : sol (ci-dessous) et bâtiments (world.js,
-// qui importe ces constantes) se fondent tous les deux vers cette teinte à
-// distance, au même rythme — cohérence de l'atmosphère sur toute la scène.
-// Couleur = le dernier stop du dégradé du ciel (voir render()), pour que
-// l'horizon se fonde vraiment dedans plutôt que vers une teinte différente.
-// Rouge de la charte PMC (repris de la pochette de l'EP et du dossier DA
-// « ROUGE - #E13E26 ») : c'est vers lui que fond tout le lointain, pour que
-// l'horizon soit un aplat rouge franc plutôt qu'une brume tiède.
-export const HAZE_COLOR = "#e13e26";
-export const HAZE_MAX_Z = 95;   // calé sur HORIZON_Z : un élément est fondu au maximum pile là où la courbe l'avale
-// 0.6 → 0.45 : le rouge de charte est bien plus saturé que l'ancienne brume
-// orangée, et à 0.6 il empâtait tout le lointain. Plus faible, il colore
-// l'horizon sans avaler le béton.
-export const HAZE_STRENGTH = 0.45;
+// Brume du lointain : sol (ci-dessous) et bâtiments (world.js, qui importe
+// ces constantes) se fondent tous les deux vers cette teinte à distance, au
+// même rythme — cohérence de l'atmosphère sur toute la scène. Couleur = le
+// dernier stop du dégradé du ciel (voir render()), pour que l'horizon se
+// fonde vraiment dedans plutôt que vers une teinte différente.
+// Bleu nuit très sombre — PAS le rouge de charte (retour explicite : « il y a
+// des choses rouges qui arrivent, l'horizon est vraiment rouge », les
+// obstacles/voitures rouges s'y fondaient et devenaient invisibles au loin).
+// Le rouge/orange du coucher de soleil reste présent comme bande intermédiaire
+// dans le dégradé du ciel (voir render()) — seul le point de fonte le plus
+// lointain change, pour redonner du contraste aux objets rouges.
+export const HAZE_COLOR = "#12101f";
+export const HAZE_MAX_Z = HORIZON_Z;   // un élément est fondu au maximum pile là où la courbe l'avale
+// 0.45 → 0.36 (retour explicite : « tu peux réduire un tout petit peu la
+// quantité de noir, montre un peu plus de route devant ») — le bleu nuit
+// mange moins la route/les façades à mi-distance, la route reste lisible
+// plus loin ; seul le tout dernier tronçon (voir le dégradé du ciel dans
+// render()) reste franchement sombre.
+export const HAZE_STRENGTH = 0.36;
 
 let distanceScrolled = 0;     // unités-monde parcourues depuis le départ
 let prevDistanceScrolled = 0; // valeur au pas précédent, pour l'interpolation au rendu
@@ -180,6 +192,17 @@ export function getSpeed() {
   return currentSpeed;
 }
 
+// Progression 0..1 entre vitesseBase et vitesseMax (config.js) — sert au flou
+// de mouvement du joueur (main.js), qui doit s'intensifier avec la vitesse
+// plutôt que de rester fixe (demandé explicitement : « plus on va vite, plus
+// intense »). speedMultiplier n'existe plus (jauge d'énergie retirée) :
+// currentSpeed / BASE_SPEED redonne directement la "vitesse logique".
+export function getSpeedRatio() {
+  const { vitesseBase, vitesseMax } = window.CONFIG;
+  const vitesse = currentSpeed / BASE_SPEED;
+  return Math.min(1, Math.max(0, (vitesse - vitesseBase) / (vitesseMax - vitesseBase)));
+}
+
 // Remet le défilement à zéro (rejouer après un game over/fin de course).
 export function reset() {
   distanceScrolled = 0;
@@ -211,10 +234,9 @@ export function getRenderDistance(alpha) {
   return prevDistanceScrolled + (distanceScrolled - prevDistanceScrolled) * alpha;
 }
 
-// Avance le défilement. `songProgress` = avancement dans le morceau (0..1),
-// pilote la montée de vitesse vitesseBase → vitesseMax de config.js.
-// `speedMultiplier` (défaut 1) sert au ralentissement à énergie nulle (étape 5).
-export function update(dt, elapsedSeconds, speedMultiplier = 1) {
+// Avance le défilement. `elapsedSeconds` = clock.now() côté main.js, pilote
+// la montée de vitesse vitesseBase → vitesseMax de config.js.
+export function update(dt, elapsedSeconds) {
   prevDistanceScrolled = distanceScrolled;
 
   // Courbe exponentielle : la vitesse DOUBLE toutes les SPEED_DOUBLING_TIME
@@ -226,17 +248,22 @@ export function update(dt, elapsedSeconds, speedMultiplier = 1) {
   //   t=30 s → ×1,36 (avant ×1,26)   t=60 s → ×1,84 (×1,59)
   //   t=112 s (ligne d'arrivée) → ×3,12 (×2,37)
   // Plafonnée à vitesseMax pour ne pas partir en vrille sur la dernière
-  // portion du parcours. `elapsedSeconds` = clock.now() côté main.js.
+  // portion du parcours.
   const { vitesseBase, vitesseMax } = window.CONFIG;
   const t = Math.max(0, elapsedSeconds);
   const vitesse = Math.min(vitesseMax, vitesseBase * Math.pow(2, t / SPEED_DOUBLING_TIME));
-  const targetSpeed = BASE_SPEED * vitesse * speedMultiplier;
+  // Démarrage progressif superposé à la courbe ci-dessus (pas à sa place) :
+  // à t=0 la cible part de 0, remonte en douceur (smoothstep, plus agréable
+  // qu'une simple rampe linéaire) jusqu'à sa valeur normale vers
+  // START_RAMP_DURATION, après quoi ce facteur vaut 1 et n'a plus d'effet.
+  const rampT = Math.min(1, t / START_RAMP_DURATION);
+  const ramp = rampT * rampT * (3 - 2 * rampT);
+  const targetSpeed = BASE_SPEED * vitesse * ramp;
   // Lissé plutôt que recopié tel quel : entities.js positionne chaque bonus/
   // obstacle pas encore arrivé à partir de la vitesse *courante* (temps
-  // restant × vitesse, pas de position propre stockée). speedMultiplier
-  // change d'un coup au ramassage d'un bonus (+energieParBonus instantané) ;
-  // sans lissage, currentSpeed sauterait dans la même frame et tous les
-  // objets pas encore arrivés se décaleraient visiblement d'un coup.
+  // restant × vitesse, pas de position propre stockée) — un saut brutal de
+  // currentSpeed décalerait visiblement d'un coup tous les objets pas encore
+  // arrivés.
   currentSpeed += (targetSpeed - currentSpeed) * Math.min(1, SPEED_SMOOTHING * dt);
   distanceScrolled += currentSpeed * dt;
 }
@@ -248,17 +275,23 @@ export function render(ctx, width, height, distance) {
   // la planète mange du sol, l'écran gagne du ciel.
   const skyBottom = curvedHorizonY(horizonY, focal);
 
-  // Ciel : bleu profond de la pochette en haut, virant au rouge de la charte
-  // à l'horizon — même bascule bleu/rouge franc que la photo de couverture.
+  // Ciel : bleu profond de la pochette en haut, bascule vers le rouge/orange
+  // du coucher de soleil, puis vers un bleu nuit très sombre PILE à l'horizon
+  // (retour explicite : « qu'on passe presque du bleu nuit, puis aux rouges,
+  // puis aux oranges, puis il y a le ciel » — l'horizon lui-même doit être
+  // plus sombre que le rouge de charte, sans quoi les obstacles/voitures
+  // rouges s'y fondent et deviennent invisibles). Le rouge/orange reste comme
+  // bande intermédiaire, la nuit ne mange que les derniers % vers le sol.
   const sky = ctx.createLinearGradient(0, 0, 0, skyBottom);
   sky.addColorStop(0, "#04225e");
-  sky.addColorStop(0.4, "#0d5cae");
-  sky.addColorStop(0.7, "#4f9fd6");
-  sky.addColorStop(0.82, "#f0813c");
-  // Aplat rouge tenu sur les derniers 6 % : sans ce palier, la transition
-  // orange → rouge mangeait toute la bande et l'horizon virait à l'orange
-  // au lieu du rouge de la pochette.
-  sky.addColorStop(0.94, HAZE_COLOR);
+  sky.addColorStop(0.38, "#0d5cae");
+  sky.addColorStop(0.64, "#4f9fd6");
+  sky.addColorStop(0.80, "#f0813c");
+  sky.addColorStop(0.93, "#e13e26"); // rouge de charte, gardé en dur ici (HAZE_COLOR ne le porte plus)
+  // 0.97 → 0.985 (retour explicite : « réduis un peu la quantité de noir ») —
+  // bande de bleu nuit resserrée aux tout derniers % avant l'horizon, le
+  // rouge/orange du coucher de soleil garde plus de place au-dessus.
+  sky.addColorStop(0.985, HAZE_COLOR);
   sky.addColorStop(1, HAZE_COLOR);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, skyBottom);

@@ -50,8 +50,8 @@
       --rouge-fonce: #8f2415; /* tranche basse des boutons/panneaux "pressables" */
       --blanc: #ffffff;
       --noir: #0d0d10;
-      --panneau-fond: linear-gradient(180deg, #211d29 0%, #131019 100%);
-      --panneau-bord: rgba(255, 255, 255, 0.14);
+      --panneau-fond: #ffffff;
+      --panneau-bord: #000000;
       --police: "Stage Grotesk", system-ui, sans-serif;
       --titre: "Flawsome", "Stage Grotesk", system-ui, sans-serif;
 
@@ -100,6 +100,30 @@
       display: block;
       width: 100%;
       height: 100%;
+      transition: filter 0.6s ease;
+    }
+
+    /* Dernier cœur : alternance couleur/N&B plutôt qu'un N&B statique lourd
+       (retour explicite après test : « c'est trop en noir et blanc, j'aimerais
+       que ça alterne entre images saturées normales et noires et blanches,
+       toutes les une seconde, qu'on comprenne que c'est difficile »). Classe
+       posée/retirée par updateHealthFilterIfChanged() (main.js) selon
+       game.lives — jamais en même temps que .game-over-bw ci-dessous. */
+    #game-canvas.heart-warning {
+      animation: canvas-heart-warning 1s ease-in-out infinite;
+    }
+
+    @keyframes canvas-heart-warning {
+      0%, 100% { filter: grayscale(0); }
+      50% { filter: grayscale(1); }
+    }
+
+    /* Game over : N&B total et statique (pas d'alternance ici, contrairement
+       au dernier cœur — la partie est terminée, pas "en train de devenir
+       difficile"). Le titre/bandeau de l'écran de fin restent en couleur
+       puisqu'ils sont en DOM, hors du canvas. */
+    #game-canvas.game-over-bw {
+      filter: grayscale(1);
     }
 
     /* Vignette : léger flou sur le pourtour de l'écran, netteté intacte au
@@ -141,9 +165,9 @@
       box-sizing: border-box;
       background: linear-gradient(
         180deg,
-        rgba(13, 13, 16, 0.3) 0%,
-        rgba(13, 13, 16, 0.7) 55%,
-        rgba(13, 13, 16, 0.92) 100%
+        rgba(13, 13, 16, 0.1) 0%,
+        rgba(13, 13, 16, 0.3) 55%,
+        rgba(13, 13, 16, 0.5) 100%
       );
       opacity: 0;
       visibility: hidden;
@@ -223,7 +247,7 @@
 
     #score-num {
       font: 900 58px/0.9 var(--police);
-      color: var(--blanc);
+      color: var(--noir);
       letter-spacing: -0.03em;
       font-variant-numeric: tabular-nums;
       display: block;
@@ -240,7 +264,7 @@
       padding: 0;
       font: 500 12px var(--police);
       letter-spacing: 0.04em;
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(0, 0, 0, 0.5);
       background: none;
       border: none;
     }
@@ -252,11 +276,11 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.28);
+      background: rgba(0, 0, 0, 0.25);
     }
 
     #contest-pill.open {
-      color: var(--blanc);
+      color: var(--noir);
     }
 
     #contest-pill.open::before {
@@ -279,7 +303,7 @@
       font: 500 10px var(--police);
       letter-spacing: 0.24em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.45);
+      color: rgba(0, 0, 0, 0.45);
       text-align: center;
     }
 
@@ -301,8 +325,8 @@
       max-height: 185px;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      border-top: 1px solid rgba(255, 255, 255, 0.14);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      border-top: 1px solid rgba(0, 0, 0, 0.14);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.14);
     }
 
     #leaderboard-list li {
@@ -314,8 +338,8 @@
       height: 37px;              /* fixe : indispensable au centrage au scroll */
       padding: 9px 6px;
       font: 500 14px var(--police);
-      color: var(--blanc);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--noir);
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
     }
 
     #leaderboard-list li:first-child {
@@ -325,7 +349,7 @@
     #leaderboard-list .rank {
       font: 500 11px var(--police);
       letter-spacing: 0.06em;
-      color: rgba(255, 255, 255, 0.45);
+      color: rgba(0, 0, 0, 0.45);
       font-variant-numeric: tabular-nums;
       text-align: right;
     }
@@ -341,7 +365,7 @@
     #leaderboard-list .points {
       font: 900 15px var(--police);
       font-variant-numeric: tabular-nums;
-      color: var(--blanc);
+      color: var(--noir);
       letter-spacing: -0.01em;
     }
 
@@ -349,11 +373,11 @@
        (voir la note "écran calme" plus haut) — sinon deux lignes rouges se
        disputent l'œil avec celle du joueur. */
     #leaderboard-list li:first-child .rank {
-      color: rgba(255, 255, 255, 0.75);
+      color: rgba(0, 0, 0, 0.75);
     }
 
     #leaderboard-list li:first-child .points {
-      color: var(--blanc);
+      color: var(--noir);
     }
 
     /* Score du joueur surligné : demandé explicitement (« je veux que mon
@@ -416,15 +440,15 @@
       max-width: 300px;
       box-sizing: border-box;
       border-radius: 22px;
-      border: 3px solid var(--panneau-bord);
+      border: 2px solid var(--panneau-bord);
       background: var(--panneau-fond);
       overflow: hidden;
     }
 
     .panel-header {
       padding: 13px 20px;
-      background: linear-gradient(180deg, var(--rouge-clair) 0%, var(--rouge) 45%, #c9351f 100%);
-      border-bottom: 2px solid rgba(0, 0, 0, 0.28);
+      background: var(--rouge);
+      border-bottom: 2px solid var(--noir);
       text-align: center;
     }
 
@@ -448,6 +472,31 @@
       margin-top: 22px;
     }
 
+    /* Pastilles d'étape sous la carte (repère visuel DA : étape active en
+       pilule rouge, les autres en petit point). Restent claires (et non
+       noir/20% comme sur la maquette d'origine) car elles reposent sur le
+       fond de jeu semi-transparent, pas sur une page blanche. */
+    #step-dots {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .step-dot {
+      display: block;
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.35);
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .step-dot.active {
+      width: 20px;
+      background: var(--rouge);
+    }
+
     /* --- Décompte avant course ---------------------------------------------
        Entre le tap sur JOUER et le vrai début : le geste iOS a déjà débloqué
        l'audio (audio.unlock(), voir main.js), la lecture réelle (audio.play())
@@ -466,7 +515,8 @@
     /* Titre masqué pendant le décompte : redondant avec le numéro géant et
        la légende, et ça encombrait l'écran (retour direct : "il faut que tu
        revoies [ça]"). Reste affiché sur le menu et l'écran de fin. */
-    #overlay.countdown-view #menu-title {
+    #overlay.countdown-view #menu-title,
+    #overlay.play-step-view #menu-title {
       display: none;
     }
 
@@ -479,12 +529,15 @@
        de texte seule ne suffisait pas sur les zones les plus claires. */
     #countdown-caption {
       margin: 18px 0 0;
-      max-width: 280px;
-      padding: 10px 18px;
+      max-width: 300px;
+      padding: 12px 20px;
       border-radius: 14px;
       background: rgba(13, 13, 16, 0.55);
       text-align: center;
-      font: 900 14px/1.4 var(--police);
+      /* 14px → 18px (retour explicite : « je veux le texte plus gros pour les
+         indications ») — décompte allongé à 15s (voir COUNTDOWN_START,
+         main.js) pour laisser le temps de lire chaque message. */
+      font: 900 18px/1.4 var(--police);
       color: var(--blanc);
       opacity: 1;
       transition: opacity 0.35s ease;
@@ -537,20 +590,20 @@
       width: 100%;
       height: 3px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.12);
       overflow: hidden;
     }
 
     #loading-fill {
       width: 0%;
       height: 100%;
-      background: var(--blanc);
+      background: var(--rouge);
       transition: width 0.25s linear;
     }
 
     #loading-label {
       font: 500 13px var(--police);
-      color: rgba(255, 255, 255, 0.72);
+      color: rgba(0, 0, 0, 0.55);
       font-variant-numeric: tabular-nums;
     }
 
@@ -579,7 +632,7 @@
     .btn-primary {
       background: var(--rouge);
       color: var(--blanc);
-      border-color: var(--rouge-fonce);
+      border-color: var(--noir);
     }
 
     .btn-primary:active {
@@ -587,8 +640,14 @@
       filter: brightness(0.85);
     }
 
+    /* Désactivé en gris franc plutôt qu'en rouge délavé (retour DA) : se
+       distingue nettement de l'état actif au lieu d'une simple opacité. */
     .btn-primary:disabled {
-      opacity: 0.4;
+      background: #cccccc;
+      border-color: #bbbbbb;
+      color: var(--blanc);
+      opacity: 1;
+      cursor: not-allowed;
       transform: none;
       filter: none;
     }
@@ -599,13 +658,17 @@
        légitimement inquiétant. */
     .field-note {
       width: 240px;
-      margin: 2px 0 20px;
+      /* Même marge au-dessus qu'entre les deux champs (14px, voir #pseudo-row/
+         #insta-row) — retour explicite : « il faut qu'ils aient la même marge
+         entre pseudo et insta, et entre insta et le texte du dessous », le
+         texte était bien plus collé (2px) que l'écart entre les deux champs. */
+      margin: 14px 0 20px;
       font: 500 11.5px/1.45 var(--police);
-      color: rgba(255, 255, 255, 0.62);
+      color: rgba(0, 0, 0, 0.55);
       text-align: left;
     }
 
-    .field-note strong { color: rgba(255, 255, 255, 0.92); font-weight: 900; }
+    .field-note strong { color: var(--noir); font-weight: 900; }
 
     /* Rappel son de l'étape 2/2 (demandé : « il faut mettre une notification
        qui dit aux gens de monter le son, sinon ils ne sont pas au courant que
@@ -619,8 +682,11 @@
       border: 2px solid rgba(225, 62, 38, 0.55);
       border-radius: 12px;
       background: rgba(225, 62, 38, 0.12);
-      font: 900 15px var(--police);
-      color: var(--blanc);
+      /* 900 → 500 (retour explicite : « pas besoin d'écrire en gras, c'est
+         pas très beau ») — la hiérarchie avec la ligne du dessous se fait à
+         la taille (15px vs 11.5px), pas à la graisse. */
+      font: 500 15px var(--police);
+      color: var(--noir);
       text-align: left;
     }
 
@@ -628,7 +694,7 @@
       display: block;
       margin-top: 5px;
       font: 500 11.5px/1.45 var(--police);
-      color: rgba(255, 255, 255, 0.72);
+      color: rgba(0, 0, 0, 0.6);
     }
 
     /* Playtest 3 : "le slider est beaucoup trop grand". Le range natif
@@ -640,6 +706,12 @@
        (#pause-volume-slider) — même rendu, deux emplacements. */
     #volume-slider { flex: 1; }
     #pause-volume-slider { width: 100%; }
+    /* Piste/curseur sombres sur fond blanc : la classe .volume-range de base
+       cible le panneau son translucide (fond sombre), qui reste inchangé. */
+    #pause-volume-slider.volume-range::-webkit-slider-runnable-track { background: rgba(0, 0, 0, 0.15); }
+    #pause-volume-slider.volume-range::-moz-range-track { background: rgba(0, 0, 0, 0.15); }
+    #pause-volume-slider.volume-range::-webkit-slider-thumb { border-color: var(--noir); }
+    #pause-volume-slider.volume-range::-moz-range-thumb { border-color: var(--noir); }
     .volume-range {
       height: 18px;
       margin: 0;
@@ -690,9 +762,22 @@
       margin-top: 14px;
     }
 
+    /* Arobase fixe, hors du champ éditable (retour explicite : « ils ne
+       comprennent pas qu'ils n'ont pas besoin de mettre l'arobase » — le
+       placeholder "@ton_insta" disparaissait dès la frappe, les joueurs
+       retapaient leur propre "@" devant leur pseudo). Toujours visible,
+       jamais à retaper. cleanInsta() (main.js) retire de toute façon un "@"
+       si quelqu'un en tape un par réflexe — ceinture et bretelles. */
+    #insta-at {
+      flex: none;
+      margin-right: -6px;
+      font: 500 14px var(--police);
+      color: rgba(0, 0, 0, 0.45);
+    }
+
     #pseudo-row .icon, #insta-row .icon {
       font: 500 13px var(--police);
-      color: rgba(255, 255, 255, 0.72);
+      color: rgba(0, 0, 0, 0.6);
       white-space: nowrap;
       /* Largeur fixe : les deux libellés ("Pseudo", "Insta") n'ont pas la
          même longueur, sans ça les deux champs ne commenceraient pas au même
@@ -705,15 +790,15 @@
       min-width: 0;
       background: transparent;
       border: none;
-      border-bottom: 1.5px solid rgba(255, 255, 255, 0.35);
-      color: var(--blanc);
+      border-bottom: 1.5px solid rgba(0, 0, 0, 0.4);
+      color: var(--noir);
       font: 500 14px var(--police);
       padding: 4px 2px;
       -webkit-appearance: none;
     }
 
     #pseudo-input::placeholder, #insta-input::placeholder {
-      color: rgba(255, 255, 255, 0.4);
+      color: rgba(0, 0, 0, 0.32);
     }
 
     #pseudo-input:focus {
@@ -791,7 +876,7 @@
       padding: 0;
       border: none;
       background: none;
-      color: rgba(255, 255, 255, 0.62);
+      color: rgba(0, 0, 0, 0.55);
       font: 500 13px var(--police);
       text-decoration: underline;
       text-underline-offset: 4px;
@@ -852,7 +937,7 @@
       justify-content: center;
       padding: 24px;
       box-sizing: border-box;
-      background: rgba(13, 13, 16, 0.82);
+      background: rgba(13, 13, 16, 0.45);
       opacity: 0;
       visibility: hidden;
       transition: opacity 0.25s ease, visibility 0s linear 0.25s;
@@ -987,6 +1072,10 @@
       #overlay.countdown-view #steer-thumb {
         animation: none;
       }
+      #game-canvas.heart-warning {
+        animation: none;
+        filter: grayscale(0.6); /* repli statique : pas de clignotement, juste un indice visuel */
+      }
     }
   </style>
 </head>
@@ -1023,10 +1112,11 @@
             </div>
             <div id="insta-row">
               <span class="icon">Insta</span>
+              <span id="insta-at" aria-hidden="true">@</span>
               <input
                 type="text"
                 id="insta-input"
-                placeholder="@ton_insta (optionnel)"
+                placeholder="ton_insta (optionnel)"
                 autocomplete="off"
                 autocapitalize="none"
                 spellcheck="false"
@@ -1034,7 +1124,7 @@
               />
             </div>
             <p class="field-note">Seul ton <strong>pseudo</strong> apparaît au classement. Ton insta n'est visible que par PMC, pour te contacter si tu gagnes.</p>
-            <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant</button>
+            <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant →</button>
           </div>
         </div>
       </div>
@@ -1047,10 +1137,15 @@
               <div id="loading-track"><div id="loading-fill"></div></div>
               <span id="loading-label">0 %</span>
             </div>
-            <p id="sound-notice">🔊 Monte le son<span>Le jeu est calé sur le morceau — sans son, il en manque la moitié. Sur iPhone, vérifie aussi l'interrupteur sonnerie.</span></p>
+            <p id="sound-notice">🔊 C'est un jeu sonore<span>Le jeu est calé sur le morceau La ville est belle. Sur iPhone, vérifie aussi l'interrupteur sonnerie.</span></p>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
           </div>
         </div>
+      </div>
+
+      <div id="step-dots" aria-hidden="true">
+        <span class="step-dot" data-dot="0"></span>
+        <span class="step-dot" data-dot="1"></span>
       </div>
     </div>
 

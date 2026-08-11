@@ -259,6 +259,16 @@ function faceCorners(xA, zA, xB, zB, wallHeight, roofHeight, width, height) {
   };
 }
 
+// Fondu d'apparition juste avant l'horizon courbe (retour explicite : « les
+// bâtiments mettent trop de temps à charger [...] qu'il apparaisse un peu
+// plus loin et qu'il soit un peu plus agréable ») — en réalité ils
+// surgissaient d'un coup à pleine opacité pile à la limite de la courbe.
+// Un alpha 0→1 sur les FADE_BAND dernières unités avant HORIZON_Z fait
+// matérialiser le bâtiment depuis la brume au lieu d'un pop-in. Toujours
+// dans la plage de projection valide (jamais z > HORIZON_Z, voir le culling
+// juste en dessous) — seule l'opacité change, pas la géométrie.
+const FADE_BAND = 16;
+
 function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   const shape = buildingShape(n, sideKey);
   const centerAbsolute = (n + 0.5) * SPACING;
@@ -269,6 +279,9 @@ function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   zNear = Math.max(zNear, NEAR_Z_CLAMP);
   zFar = Math.min(zFar, HORIZON_Z);
 
+  const fadeAlpha = Math.min(1, (HORIZON_Z - zNear) / FADE_BAND);
+  if (fadeAlpha <= 0.02) return; // encore fondu dans la brume, pas la peine de peindre
+
   const xInner = side * (ROAD_HALF_WIDTH + SIDEWALK_MARGIN);
   const xOuter = side * (ROAD_HALF_WIDTH + SIDEWALK_MARGIN + shape.girth);
   const wallHeight = shape.height * (1 - ROOF_RATIO);
@@ -276,6 +289,9 @@ function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
 
   const distT = Math.min(1, ((zNear + zFar) / 2) / HAZE_MAX_Z);
   const windowKey = n * 4 + sideKey;
+
+  const wasAlpha = ctx.globalAlpha;
+  if (fadeAlpha < 1) ctx.globalAlpha = wasAlpha * fadeAlpha;
 
   // Retour d'angle (mur pignon, perpendiculaire à la route, à z = zNear) —
   // toujours face à la caméra puisque c'est le bord le plus proche du bloc :
@@ -288,6 +304,8 @@ function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   // de recouvrement fâcheux, juste la jointure du coin du bâtiment.
   const facadeCorners = faceCorners(xInner, zNear, xInner, zFar, wallHeight, roofHeight, width, height);
   drawFace(ctx, facadeCorners, shape, distT, shape.facadeWindowCols, windowKey, true);
+
+  ctx.globalAlpha = wasAlpha;
 }
 
 function renderSide(ctx, width, height, distance, side) {

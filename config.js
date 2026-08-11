@@ -23,11 +23,11 @@ window.CONFIG = {
   hauteurSaut: 2.0,         // Hauteur du saut (multiplicateur) — 1.0 → 2.0 (playtest : "le saut 2x plus haut", entraîne aussi la hauteur des bonus aériens, voir entities.js)
   dureeSaut: 0.665,         // Durée du saut en secondes — 0.45 → 0.95 → 0.665 (-30 %, playtest : "trop long, on reste trop en l'air"). La gravité perçue vient aussi du changement de courbe : parabole physique (accélération constante) au lieu du sinus qui plafonnait longuement à l'apex — voir main.js jumpPhysics.
 
-  // === VIES / ÉNERGIE ===
+  // === VIES ===
   viesDepart: 3,            // Nombre de vies au démarrage
-  drainEnergie: 0.04,       // Vitesse de vidage de la jauge d'énergie par seconde
-  energieParBonus: 0.15,    // Énergie rendue à chaque bonus ramassé (0..1)
-  // Énergie à 0 = ralentissement (pas game over). Les vies gèrent la mort.
+  // Jauge d'énergie (ralentissement à 0) retirée (demandé explicitement :
+  // « elle ne fait pas trop sens ») — la vitesse ne dépend plus que de la
+  // progression du morceau (road.js).
 
   // === BONUS (valeurs de score) ===
   // Bonus repensés autour de l'univers musique / studio (playtest : "des CD,

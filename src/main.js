@@ -39,13 +39,21 @@ const LANE_TWEEN = 7;
 const CAMERA_FOLLOW = 0.55;
 const LATERAL_SPEED = 5.5;  // référence de vitesse latérale pour l'inclinaison du sprite
 const MAX_LEAN = 0.16;      // inclinaison max du sprite dans les virages, en radians
-// Flou de mouvement très léger pendant le glissé de changement de voie
-// (demandé explicitement). Même référence de vitesse que le lean
+// Flou de mouvement pendant le glissé de changement de voie (demandé
+// explicitement, validé une première fois puis "exagéré" sur retour :
+// « plus on va vite, plus intense »). Même référence de vitesse que le lean
 // (LATERAL_SPEED) : le sprite est déjà à peu près à l'inclinaison max dès le
 // début d'un changement de voie (vx dépasse largement LATERAL_SPEED sur un
 // glissé de 2 unités), donc le flou suit le même profil — présent tout du
 // long du glissé (~0,2 s), qui retombe à zéro une fois la voie atteinte.
-const LANE_BLUR_MAX = 1.6; // px, à l'échelle écran — volontairement discret
+// L'intensité MAX n'est plus une constante fixe : elle grandit avec
+// road.getSpeedRatio() (0 en début de course, 1 à vitesseMax) — voir
+// laneBlurMax() plus bas, appelée à chaque frame dans renderPlayer().
+const LANE_BLUR_BASE = 1.6;  // px à vitesse de départ — intensité déjà validée, inchangée
+const LANE_BLUR_SPEED_BOOST = 4.5; // px ajoutés progressivement jusqu'à vitesseMax
+function laneBlurMax() {
+  return LANE_BLUR_BASE + LANE_BLUR_SPEED_BOOST * road.getSpeedRatio();
+}
 const PEDAL_BOB = 0.05;     // amplitude du rebond de pédalage, en unités-monde
 // Calé pour ~0,125 s par frame du cycle de pédalage (4 frames, player.js) à
 // la vitesse de départ (BASE_SPEED × vitesseBase = 11 u/s) — 2x plus rapide
@@ -220,6 +228,7 @@ const stepEls = {
   play: document.querySelector('.menu-step[data-step="play"]'),
 };
 const stepOrder = ["pseudo", "play"];
+const stepDotEls = document.querySelectorAll(".step-dot");
 let stepIndex = 0;
 let currentView = "onboarding";
 
@@ -237,6 +246,12 @@ function showStep(i) {
   stepOrder.forEach((name, idx) => {
     stepEls[name].classList.toggle("active", idx === i);
   });
+  stepDotEls.forEach((dot, idx) => dot.classList.toggle("active", idx === i));
+  // Titre du jeu masqué sur l'étape "JOUER" (retour explicite : « à partir du
+  // moment où on passe à l'étape 2, tu peux enlever le titre ») — même
+  // traitement que pendant le décompte (#overlay.countdown-view), qui cache
+  // déjà #menu-title pour la même raison (écran encombré).
+  overlay.classList.toggle("play-step-view", stepOrder[i] === "play");
   refreshCtaVisibility();
 }
 
@@ -271,23 +286,26 @@ function setView(view) {
 showStep(0);
 
 // --- Décompte avant course -----------------------------------------------
-// "Réalise le meilleur score, et gagne le vinyl de l'EP" pendant 10 → 1,
-// entre le tap JOUER et le vrai début (demandé explicitement). Le geste iOS
-// (déblocage audio) a déjà eu lieu au tap — voir startGame() plus bas — donc
-// ce décompte n'a besoin d'aucun geste supplémentaire à la fin. Sert aussi de
-// tutoriel : la bande de pilotage et le bouton saut sont déjà affichés et
-// utilisables pendant le compte à rebours (voir CSS #steer-control, le
-// personnage y répond en direct — demandé explicitement, "garder le
-// bonhomme visible tant que le décompte n'est pas fini").
-const COUNTDOWN_START = 10;
+// "Réalise le meilleur score, et gagne le vinyl de l'EP" pendant 15 → 1,
+// entre le tap JOUER et le vrai début (demandé explicitement, allongé de
+// 10s à 15s : « je veux le texte plus gros pour les indications, le jeu
+// démarre au bout de 15 secondes » — le temps de lire chaque message monté
+// en taille). Le geste iOS (déblocage audio) a déjà eu lieu au tap — voir
+// startGame() plus bas — donc ce décompte n'a besoin d'aucun geste
+// supplémentaire à la fin. Sert aussi de tutoriel : la bande de pilotage et
+// le bouton saut sont déjà affichés et utilisables pendant le compte à
+// rebours (voir CSS #steer-control, le personnage y répond en direct —
+// demandé explicitement, "garder le bonhomme visible tant que le décompte
+// n'est pas fini").
+const COUNTDOWN_START = 15;
 let countdownTimer = null;
 
 // Légende du décompte : une phrase à la fois, en fondu, plutôt que les 3
 // empilées d'un coup (retour de test : illisible, ça débordait sur le
-// personnage). ~4s hype, ~3s tuto du contrôle tactile, ~3s rappel son.
+// personnage). ~5s hype, ~5s tuto du contrôle tactile, ~5s rappel son.
 const COUNTDOWN_MESSAGES = [
   "Réalise le meilleur score, et gagne le vinyl de l'EP",
-  "Swipe à gauche ou à droite pour changer de voie — swipe vers le haut pour sauter",
+  "Swipe à gauche ou à droite pour changer de voie. Swipe vers le haut pour sauter",
   "Un swipe = une voie. Attrape les étoiles, évite tout ce qui est rouge",
 ];
 const CAPTION_FADE_MS = 300;
@@ -304,8 +322,8 @@ function setCaption(text) {
 }
 
 function updateCaption(n) {
-  const elapsed = COUNTDOWN_START - n; // 0..9
-  const idx = elapsed < 4 ? 0 : elapsed < 7 ? 1 : 2;
+  const elapsed = COUNTDOWN_START - n; // 0..14
+  const idx = elapsed < 5 ? 0 : elapsed < 10 ? 1 : 2;
   if (idx === captionIndex) return;
   captionIndex = idx;
   setCaption(COUNTDOWN_MESSAGES[idx]);
@@ -624,11 +642,12 @@ let pickupFlash = 0;
 const HUD_FADE_DURATION = 0.6;
 let hudAlpha = 0;
 
-// État de partie (étape 5) : vies, énergie (0..1, vide = ralentissement,
-// pas game over), score. `ended` gèle route/entités et affiche l'écran de fin.
+// État de partie (étape 5) : vies, score. `ended` gèle route/entités et
+// affiche l'écran de fin. La jauge d'énergie (ralentissement à 0) a été
+// retirée (demandé explicitement : « elle ne fait pas trop sens ») — la
+// vitesse ne dépend plus que de la progression du morceau (road.js).
 const game = {
   lives: window.CONFIG.viesDepart,
-  energy: 1,
   score: 0,
   ended: false,
   endReason: null, // "gameover" | "finished"
@@ -837,7 +856,6 @@ function restartGame() {
   jump.vy = 0;
 
   game.lives = window.CONFIG.viesDepart;
-  game.energy = 1;
   game.score = 0;
   game.ended = false;
   game.endReason = null;
@@ -1008,7 +1026,6 @@ function step(dt) {
       for (const e of events) {
         if (e.type === "bonus") {
           game.score += window.CONFIG.bonus[e.kind];
-          game.energy = Math.min(1, game.energy + window.CONFIG.energieParBonus);
           pickupFlash = 1;
         } else {
           // Playtest : "quand on se prend une voiture, game over". La
@@ -1025,10 +1042,7 @@ function step(dt) {
           damageFlash = DAMAGE_FLASH_DURATION;
         }
       }
-
-      game.energy = Math.max(0, game.energy - window.CONFIG.drainEnergie * dt);
     }
-    const speedMultiplier = 0.5 + 0.5 * game.energy; // énergie à 0 = ralentissement, pas game over
 
     const now = clock.now();
     if (game.lives <= 0) {
@@ -1052,8 +1066,31 @@ function step(dt) {
         endGame("finished");
       }
     } else {
-      road.update(dt, now, speedMultiplier);
+      road.update(dt, now);
     }
+  }
+
+  updateHealthFilterIfChanged();
+}
+
+// Dernier cœur : alternance couleur/N&B (classe .heart-warning, keyframe
+// dans index.html) + noir et blanc statique total au game over (classe
+// .game-over-bw). Fait en CSS sur le CANVAS uniquement (jamais sur
+// #overlay) : le titre/bandeau de l'écran de fin est en DOM, il reste donc
+// en couleur "sauf le titre" sans traitement particulier.
+// Un premier essai en désaturation statique (grayscale(0.75) fixe au
+// dernier cœur) a été jugé "trop en noir et blanc" au playtest — remplacé
+// par le clignotement, qui signale le danger sans assombrir la lisibilité
+// en continu.
+let lastFilterLives = null;
+function updateHealthFilterIfChanged() {
+  if (game.lives === lastFilterLives) return;
+  lastFilterLives = game.lives;
+  canvas.classList.remove("heart-warning", "game-over-bw");
+  if (game.lives <= 0) {
+    canvas.classList.add("game-over-bw");
+  } else if (game.lives === 1) {
+    canvas.classList.add("heart-warning");
   }
 }
 
@@ -1079,11 +1116,13 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
   }
   ctx.globalAlpha = alpha;
   // Flou de mouvement : proportionnel à la vitesse latérale courante (même
-  // référence que le lean, voir LANE_BLUR_MAX), donc actif pendant un
-  // changement de voie et nul une fois la voie atteinte. `ctx.filter` reste
+  // référence que le lean), donc actif pendant un changement de voie et nul
+  // une fois la voie atteinte ; son plafond grandit lui-même avec la vitesse
+  // de la route (voir laneBlurMax()). `ctx.filter` reste
   // bon marché ici : il ne s'applique qu'au sprite (26×34 mis à l'échelle),
   // jamais à toute la scène.
-  const blurPx = Math.min(LANE_BLUR_MAX, (Math.abs(playerState.vx) / LATERAL_SPEED) * LANE_BLUR_MAX);
+  const blurCap = laneBlurMax();
+  const blurPx = Math.min(blurCap, (Math.abs(playerState.vx) / LATERAL_SPEED) * blurCap);
   if (blurPx > 0.05) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   player.renderPickupGlow(ctx, p.x, p.y - hop - bob, p.scale, pickupFlash);
   player.render(ctx, p.x, p.y - hop - bob, p.scale, renderLean, renderPedalPhase);

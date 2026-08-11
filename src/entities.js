@@ -182,6 +182,35 @@ const CAR_ROW_SIZES = [
 // rangée, point — plus de « je saute pile dessus et je retombe à côté ».
 const ROOF_LONG_TOLERANCE = 0.7;
 
+// Variantes de carrosserie (demandé explicitement : « des voitures bleues,
+// des voitures vertes, des voitures noires »). Rouge de charte gardé comme
+// variante parmi d'autres plutôt que seule couleur possible. Chaque teinte
+// vient avec sa propre ombre (`dark`, faces latérales/pare-chocs) et son
+// reflet (`hi`, arête du toit) — même triplet que DANGER/DANGER_DARK/
+// DANGER_HI, juste par couleur plutôt qu'une seule teinte figée.
+const CAR_COLORS = [
+  { base: "#e13e26", dark: "#a12c1c", hi: "#ff8a72" }, // rouge (charte)
+  { base: "#2f5fb0", dark: "#20406e", hi: "#8fb3e8" }, // bleu
+  { base: "#3a8f5c", dark: "#276140", hi: "#8fd4ab" }, // vert
+  { base: "#1c1c22", dark: "#0d0d10", hi: "#54545c" }, // noir
+  { base: "#e9e4d8", dark: "#b8b2a4", hi: "#ffffff" }, // blanc cassé
+];
+// Une voiture est identifiée par (slotIndex, indice dans la rangée) — stable
+// tant qu'elle est visible, jamais deux fois le même hash qu'une voiture
+// voisine de la même rangée (offset multiplié par un nombre premier distinct
+// des autres hash() du module).
+function carColorFor(slotIndex, laneOffset) {
+  const h = hash(slotIndex * 97 + laneOffset * 31 + 501);
+  return CAR_COLORS[Math.floor(h * CAR_COLORS.length) % CAR_COLORS.length];
+}
+// Phares/feux allumés (demandé explicitement : « des voitures dont les fards
+// sont allumés ») — on ne voit que l'arrière d'une voiture depuis la route,
+// donc ce sont les feux ARRIÈRE qui s'allument (halo rouge/ambré). ~60 % des
+// voitures, pour garder de la variété plutôt qu'un allumage systématique.
+function carLitFor(slotIndex, laneOffset) {
+  return hash(slotIndex * 61 + laneOffset * 19 + 777) < 0.6;
+}
+
 function isCarSlot(content) {
   return !content.isBonus && content.kind === "voiture";
 }
@@ -386,6 +415,7 @@ export function reset() {
   resolved.clear();
   consumed.clear();
   debugOverrides.clear();
+  npcVisibilityDecision.clear();
   invalidateSlotCache();
 }
 
@@ -613,7 +643,7 @@ const OBSTACLE_ICONS = {
 // (côté Z le plus petit — la plus proche de la caméra). Les faces latérales
 // apparaissent quand la voiture est décalée latéralement par rapport au
 // centre de l'écran (parallaxe naturelle donnée par project()).
-function renderCar3D(ctx, cx, cz, width, height) {
+function renderCar3D(ctx, cx, cz, width, height, color, lit) {
   const zNear = cz - CAR_HALF_L;
   const zFar = cz + CAR_HALF_L;
   if (zFar < 0.4) return;   // entièrement passée derrière la caméra
@@ -683,31 +713,48 @@ function renderCar3D(ctx, cx, cz, width, height) {
   const leftSideVisible = cx > 0;   // voiture à droite → on voit son côté gauche (côté route)
   const rightSideVisible = cx < 0;
 
-  if (leftSideVisible) fillPoly(ctx, [gNL, gFL, bFL, bNL], DANGER_DARK);
-  if (rightSideVisible) fillPoly(ctx, [gNR, gFR, bFR, bNR], DANGER_DARK);
+  if (leftSideVisible) fillPoly(ctx, [gNL, gFL, bFL, bNL], color.dark);
+  if (rightSideVisible) fillPoly(ctx, [gNR, gFR, bFR, bNR], color.dark);
 
   // Face arrière (celle qu'on voit toujours, côté joueur)
-  fillPoly(ctx, [gNL, gNR, bNR, bNL], DANGER);
+  fillPoly(ctx, [gNL, gNR, bNR, bNL], color.base);
   // Pare-chocs arrière (bande sombre en bas de la face arrière)
   const bumperH = (bhN) * 0.18;
-  ctx.fillStyle = DANGER_DARK;
+  ctx.fillStyle = color.dark;
   ctx.fillRect(gNL.x, gNL.y - bumperH, gNR.x - gNL.x, bumperH);
-  // Feux arrière (rectangles clairs collés au bord droite/gauche)
+  // Feux arrière (rectangles clairs collés au bord droite/gauche). Allumés
+  // (demandé explicitement) : halo rouge additif par-dessus, même technique
+  // que le halo de ramassage du joueur (composite "lighter", voir player.js).
   const lightW = (gNR.x - gNL.x) * 0.14;
   const lightH = bhN * 0.28;
-  ctx.fillStyle = REFLECT;
-  ctx.fillRect(gNL.x + 2, gNL.y - bhN * 0.85, lightW, lightH);
-  ctx.fillRect(gNR.x - 2 - lightW, gNL.y - bhN * 0.85, lightW, lightH);
+  const lightY = gNL.y - bhN * 0.85;
+  ctx.fillStyle = lit ? "#ff5a3c" : REFLECT;
+  ctx.fillRect(gNL.x + 2, lightY, lightW, lightH);
+  ctx.fillRect(gNR.x - 2 - lightW, lightY, lightW, lightH);
+  if (lit) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const lx of [gNL.x + 2 + lightW / 2, gNR.x - 2 - lightW / 2]) {
+      const glow = ctx.createRadialGradient(lx, lightY + lightH / 2, 0, lx, lightY + lightH / 2, lightW * 1.8);
+      glow.addColorStop(0, "rgba(255,90,60,0.55)");
+      glow.addColorStop(1, "rgba(255,90,60,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(lx, lightY + lightH / 2, lightW * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // Habitacle : vitres latérales foncées (piliers), lunette arrière noire,
-  // toit rouge dessus.
+  // toit dessus (même couleur que la carrosserie).
   fillPoly(ctx, [cNL, cNR, tNR, tNL], "#141419"); // lunette arrière
   if (leftSideVisible) fillPoly(ctx, [cNL, cFL, tFL, tNL], "#141419");
   if (rightSideVisible) fillPoly(ctx, [cNR, cFR, tFR, tNR], "#141419");
   // Toit (face du dessus) — c'est LA face qui doit lire "on peut sauter là"
-  fillPoly(ctx, [tNL, tNR, tFR, tFL], DANGER);
+  fillPoly(ctx, [tNL, tNR, tFR, tFL], color.base);
   // Léger reflet clair sur l'arête arrière du toit
-  ctx.strokeStyle = DANGER_HI;
+  ctx.strokeStyle = color.hi;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(tNL.x, tNL.y);
@@ -748,6 +795,50 @@ function npcHash(slotIndex) {
   return hash(slotIndex * 53 + 991); // multiplicateurs distincts des autres hash() du module : pas de corrélation avec bonus/obstacles
 }
 
+// --- Anti-collision NPC / entités ------------------------------------------
+// Playtest : « il y a des étoiles qui rentrent en collision avec des gens en
+// vélo, je ne peux pas l'attraper » / « des cyclistes qui sont derrière des
+// voitures ». Les cyclistes NPC sont un générateur entièrement indépendant
+// (cadence propre, vitesse de rapprochement propre — voir NPC_CLOSING_EXTRA)
+// des bonus/obstacles/voitures : rien n'empêchait qu'un cycliste et une
+// étoile/voiture occupent la même voie à la même profondeur au même instant.
+// Un cycliste est purement décoratif : en cas de conflit, c'est TOUJOURS lui
+// qui s'efface, jamais l'inverse — score et vies ne doivent jamais dépendre
+// de la présence d'un élément de décor.
+// Fenêtre un peu plus large que la plus grande icône/voiture (ICON_WORLD
+// 2.04, profondeur voiture 2×CAR_HALF_L ≈ 2.55) pour une vraie marge visuelle
+// autour de l'objet, pas juste éviter la superposition pixel exacte.
+const NPC_CONFLICT_WINDOW = 2.6;
+function laneOccupiedByEntity(lane, z, now, speed) {
+  for (const e of slotsFor(now, speed)) {
+    if (consumed.has(e.slotIndex)) continue; // déjà ramassé/percuté : ne bloque plus rien
+    if (!e.lanes.includes(lane)) continue;
+    if (Math.abs(e.z - z) < NPC_CONFLICT_WINDOW) return true;
+  }
+  return false;
+}
+
+// 🐛 Playtest suivant : « j'ai vu un vélo qui s'est approché d'une étoile, et
+// du coup le vélo a disparu » — laneOccupiedByEntity() re-testait la position
+// EN DIRECT à chaque frame, donc un cycliste déjà affiché à l'écran pouvait se
+// mettre à correspondre au critère de conflit en cours de route (l'étoile et
+// lui se rapprochant à des vitesses différentes) et disparaître d'un coup en
+// plein vol — un vrai bug visuel, pas juste "le principe est trop strict"
+// (retour explicite : « je ne veux pas du tout du principe que si il y a une
+// étoile, il ne peut pas y avoir un vélo qui fonce dessus »). Correctif : la
+// décision n'est plus prise à chaque frame mais UNE SEULE FOIS par cycliste,
+// à sa première apparition dans la fenêtre visible — mémorisée ensuite, donc
+// stable jusqu'à sa sortie de l'écran. Un cycliste qui est visible reste
+// visible ; celui qui aurait chevauché une étoile/voiture n'apparaît tout
+// simplement jamais.
+const npcVisibilityDecision = new Map(); // slotIndex -> boolean
+function npcAllowed(slotIndex, lane, z, now, speed) {
+  if (npcVisibilityDecision.has(slotIndex)) return npcVisibilityDecision.get(slotIndex);
+  const allowed = !laneOccupiedByEntity(lane, z, now, speed);
+  npcVisibilityDecision.set(slotIndex, allowed);
+  return allowed;
+}
+
 function npcContentAt(slotIndex) {
   if (npcHash(slotIndex) > NPC_SPAWN_CHANCE) return null;
   const lane = NPC_LANES[Math.floor(hash(slotIndex * 29 + 17) * NPC_LANES.length) % NPC_LANES.length];
@@ -764,6 +855,7 @@ function* visibleNpcs(now, speed) {
     const deltaT = clock.timeOfBeat(beatN) - now;
     const z = road.PLAYER_NEAR_Z + deltaT * (speed + NPC_CLOSING_EXTRA);
     if (z < 1 || z > road.HORIZON_Z) continue;
+    if (!npcAllowed(n, content.lane, z, now, speed)) continue;
     yield { z, x: road.laneX(content.lane), outfitIndex: content.outfitIndex };
   }
 }
@@ -814,8 +906,10 @@ export function render(ctx, width, height) {
     // même profondeur (plus de convoi étagé en Z) — l'ordre entre elles
     // n'a pas d'importance, leurs empans en x ne se recouvrent pas.
     if (isCarSlot(e)) {
-      for (const lane of e.lanes) {
-        renderCar3D(ctx, road.laneX(lane), e.z, width, height);
+      for (let i = 0; i < e.lanes.length; i++) {
+        const color = carColorFor(e.slotIndex, i);
+        const lit = carLitFor(e.slotIndex, i);
+        renderCar3D(ctx, road.laneX(e.lanes[i]), e.z, width, height, color, lit);
       }
       continue;
     }

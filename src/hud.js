@@ -39,105 +39,55 @@ function heartPath(c, x, y, s) {
   c.closePath();
 }
 
-// HUD de jeu : score, vies, énergie empilés VERTICALEMENT dans un seul
-// panneau étroit ancré en haut à droite (demandé explicitement, pour un
-// rendu plus "esthétique" qu'un bandeau horizontal large) — score tout en
-// haut, cœurs un en dessous de l'autre, jauge d'énergie verticale en bas.
-//
-// 🐛 Playtest (hérité de l'ancienne mise en page horizontale, toujours vrai
-// ici) : « la barre d'énergie et les cœurs bougent quand le score bouge, on
-// ne comprend pas pourquoi ». Cause : la largeur/hauteur du panneau ne doit
-// jamais dépendre du texte RÉEL du score (measureText), sinon chaque chiffre
-// gagné redimensionne tout ce qui est en dessous. Correctif inchangé dans
-// l'esprit : on réserve la place d'un nombre fixe de chiffres (SCORE_DIGITS),
-// le score est simplement aligné à droite dans ce gabarit.
-const PAD = 14;
-const PAD_X = 14;
-const PAD_Y = 14;
-const GAP = 10;
-const SCORE_SIZE = 20;
-const HEART_SIZE = 13;
-const HEART_GAP = 5;
-const ENERGY_LABEL_GAP = 5;
-const ENERGY_BAR_W = 8;
-const ENERGY_BAR_H = 46;
-const SCORE_DIGITS = 6;   // gabarit réservé au score (largeur figée)
+// HUD de jeu : score centré tout en haut, cœurs en ligne en haut à droite
+// (retour explicite : « il faut centraliser, l'alignement est super bizarre
+// — tu mets le score au centre de l'image tout en haut, et à droite les
+// cœurs »). Jauge d'énergie retirée (elle ne pilotait plus rien), fond
+// flouté retiré à son tour (« enlève l'effet de flou ») : plus de panneau du
+// tout, juste une ombre portée sur le texte/les cœurs pour se détacher du
+// décor — même traitement que le décompte ou l'ancien indicateur de
+// direction. Bénéfice de la séparation score/cœurs en deux blocs
+// indépendants : le vieux bug "les cœurs bougent quand le score bouge"
+// (les deux partageaient une même colonne dimensionnée par le score) devient
+// structurellement impossible, plus besoin de réserver un gabarit de chiffres.
+const PAD = 16;
+const SCORE_SIZE = 26;
+// Cœurs agrandis (demandé explicitement : « pour que les gens comprennent
+// qu'ils ont trois cœurs ») — 13 → 20px, nettement plus lisible d'un regard.
+const HEART_SIZE = 20;
+const HEART_GAP = 8;
+const HUD_SHADOW = "rgba(0,0,0,0.5)";
+const HUD_SHADOW_BLUR = 6;
 
 export function renderHud(ctx, width, height, game) {
   const livesTotal = window.CONFIG.viesDepart;
-
-  ctx.font = `900 ${SCORE_SIZE}px ${POLICE}`;
   const scoreText = `${game.score}`;
-  // Largeur d'un gabarit de chiffres, jamais du score courant — voir en-tête.
-  // "0"/"8" comme référence : Stage Grotesk Black n'a pas de chasse
-  // tabulaire garantie, on prend donc le chiffre le plus large observé.
-  const digitW = Math.max(
-    ctx.measureText("0").width,
-    ctx.measureText("8").width,
-  );
-  const scoreW = Math.max(SCORE_DIGITS, scoreText.length) * digitW;
-
-  ctx.font = `900 7px ${POLICE}`;
-  const energyLabelW = ctx.measureText("ÉNERGIE").width;
-
-  const contentW = Math.max(scoreW, HEART_SIZE, energyLabelW, ENERGY_BAR_W);
-  const panelW = contentW + PAD_X * 2;
-
-  const heartsBlockH = livesTotal * HEART_SIZE + (livesTotal - 1) * HEART_GAP;
-  const scoreRowH = Math.ceil(SCORE_SIZE * 1.15); // hauteur de ligne approx.
-  const energyLabelRowH = 10;
-  const panelH =
-    PAD_Y + scoreRowH + GAP + heartsBlockH + GAP +
-    energyLabelRowH + ENERGY_LABEL_GAP + ENERGY_BAR_H + PAD_Y;
-
-  const panelLeft = width - PAD - panelW;
-  const panelTop = PAD;
-  const centerX = panelLeft + panelW / 2;
-
-  ctx.fillStyle = PANNEAU;
-  roundRect(ctx, panelLeft, panelTop, panelW, panelH, 18);
-  ctx.fill();
 
   ctx.textBaseline = "top";
-  let y = panelTop + PAD_Y;
+  ctx.shadowColor = HUD_SHADOW;
+  ctx.shadowBlur = HUD_SHADOW_BLUR;
 
-  // Score, aligné à DROITE dans le gabarit réservé : les chiffres poussent
-  // vers la gauche à l'intérieur du panneau au lieu de pousser le panneau.
+  // Score : centré horizontalement, tout en haut.
   ctx.font = `900 ${SCORE_SIZE}px ${POLICE}`;
   ctx.fillStyle = BLANC;
-  ctx.textAlign = "right";
-  ctx.fillText(scoreText, panelLeft + PAD_X + scoreW, y);
-  y += scoreRowH + GAP;
-
-  // Vies : un cœur par vie de départ, empilés verticalement et centrés dans
-  // la colonne — plein (rouge) tant qu'elle reste, vide (blanc translucide)
-  // une fois perdue.
-  ctx.textAlign = "left";
-  for (let i = 0; i < livesTotal; i++) {
-    ctx.fillStyle = i < game.lives ? ROUGE : "rgba(255,255,255,0.2)";
-    heartPath(ctx, centerX - HEART_SIZE / 2, y, HEART_SIZE);
-    ctx.fill();
-    y += HEART_SIZE + (i < livesTotal - 1 ? HEART_GAP : 0);
-  }
-  y += GAP;
-
-  // Énergie : jauge VERTICALE (plus horizontale), se lit de bas en haut
-  // comme n'importe quelle jauge de vie/mana verticale — micro-libellé
-  // au-dessus, sans quoi un simple trait qui descend ne dit rien du geste
-  // (ramasser un bonus) qui le remplit.
   ctx.textAlign = "center";
-  ctx.font = `900 7px ${POLICE}`;
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.fillText("ÉNERGIE", centerX, y);
-  y += energyLabelRowH + ENERGY_LABEL_GAP;
+  ctx.fillText(scoreText, width / 2, PAD);
 
-  const barX = centerX - ENERGY_BAR_W / 2;
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
-  ctx.fillRect(barX, y, ENERGY_BAR_W, ENERGY_BAR_H);
-  const filledH = ENERGY_BAR_H * game.energy;
-  ctx.fillStyle = BLANC;
-  ctx.fillRect(barX, y + (ENERGY_BAR_H - filledH), ENERGY_BAR_W, filledH);
+  // Cœurs : en ligne, ancrés en haut à droite, alignés verticalement sur le
+  // score. Plein (rouge) tant que la vie reste, vide (blanc translucide) une
+  // fois perdue.
+  const heartsRowW = livesTotal * HEART_SIZE + (livesTotal - 1) * HEART_GAP;
+  const heartY = PAD + (SCORE_SIZE * 1.15 - HEART_SIZE) / 2;
+  let hx = width - PAD - heartsRowW;
+  for (let i = 0; i < livesTotal; i++) {
+    ctx.fillStyle = i < game.lives ? ROUGE : "rgba(255,255,255,0.25)";
+    heartPath(ctx, hx, heartY, HEART_SIZE);
+    ctx.fill();
+    hx += HEART_SIZE + HEART_GAP;
+  }
 
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 }
