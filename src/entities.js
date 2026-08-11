@@ -64,7 +64,7 @@ const Z_WINDOW_AIR = 2.2;  // fenêtre élargie pour les bonus aériens (le timi
 // C'est ce qui règle les deux reproches du playtest d'un coup — « t'es short
 // sur les hitbox » (on touchait à côté de ce qu'on voyait) et « je peux rester
 // là indéfiniment » (il n'existe plus de position hors-voie où camper).
-const GRACE_BEATS = 16;    // ~8s à 120 bpm sans aucun obstacle, le temps de prendre en main les contrôles
+const GRACE_BEATS = 4;     // ~2s à 120 bpm sans obstacle, juste le temps de voir la route avant le premier danger
 const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoile en tout début de course
 
 // --- Difficulté progressive + quota EXACT d'étoiles -----------------------
@@ -500,7 +500,6 @@ export function reset() {
   resolved.clear();
   consumed.clear();
   debugOverrides.clear();
-  npcVisibilityDecision.clear();
   invalidateSlotCache();
 }
 
@@ -832,34 +831,6 @@ function renderCar3D(ctx, cx, cz, width, height, color, lit) {
     ctx.restore();
   }
 
-  // Roues latérales (demandé : « rajoute des roues sur les côtés »).
-  // Visibles uniquement sur les faces latérales (sinon ça surchargerait la
-  // face arrière). Deux roues par côté, ellipses noires aplaties.
-  const wheelR = bhN * 0.32;
-  const wheelRx = wheelR * 0.45;
-  if (leftSideVisible) {
-    const wy1 = gNL.y - wheelR * 0.4;
-    const wx1 = gNL.x + (gFL.x - gNL.x) * 0.22;
-    const wx2 = gNL.x + (gFL.x - gNL.x) * 0.78;
-    ctx.fillStyle = "#0e0e11";
-    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#5a5b64";
-    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  }
-  if (rightSideVisible) {
-    const wy1 = gNR.y - wheelR * 0.4;
-    const wx1 = gNR.x + (gFR.x - gNR.x) * 0.22;
-    const wx2 = gNR.x + (gFR.x - gNR.x) * 0.78;
-    ctx.fillStyle = "#0e0e11";
-    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx, wheelR, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#5a5b64";
-    ctx.beginPath(); ctx.ellipse(wx1, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(wx2, wy1, wheelRx * 0.45, wheelR * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  }
-
   // Habitacle : vitres latérales foncées (piliers), lunette arrière noire,
   // toit dessus (même couleur que la carrosserie).
   fillPoly(ctx, [cNL, cNR, tNR, tNL], "#141419"); // lunette arrière
@@ -932,25 +903,8 @@ function laneOccupiedByEntity(lane, z, now, speed) {
   return false;
 }
 
-// 🐛 Playtest suivant : « j'ai vu un vélo qui s'est approché d'une étoile, et
-// du coup le vélo a disparu » — laneOccupiedByEntity() re-testait la position
-// EN DIRECT à chaque frame, donc un cycliste déjà affiché à l'écran pouvait se
-// mettre à correspondre au critère de conflit en cours de route (l'étoile et
-// lui se rapprochant à des vitesses différentes) et disparaître d'un coup en
-// plein vol — un vrai bug visuel, pas juste "le principe est trop strict"
-// (retour explicite : « je ne veux pas du tout du principe que si il y a une
-// étoile, il ne peut pas y avoir un vélo qui fonce dessus »). Correctif : la
-// décision n'est plus prise à chaque frame mais UNE SEULE FOIS par cycliste,
-// à sa première apparition dans la fenêtre visible — mémorisée ensuite, donc
-// stable jusqu'à sa sortie de l'écran. Un cycliste qui est visible reste
-// visible ; celui qui aurait chevauché une étoile/voiture n'apparaît tout
-// simplement jamais.
-const npcVisibilityDecision = new Map(); // slotIndex -> boolean
 function npcAllowed(slotIndex, lane, z, now, speed) {
-  if (npcVisibilityDecision.has(slotIndex)) return npcVisibilityDecision.get(slotIndex);
-  const allowed = !laneOccupiedByEntity(lane, z, now, speed);
-  npcVisibilityDecision.set(slotIndex, allowed);
-  return allowed;
+  return !laneOccupiedByEntity(lane, z, now, speed);
 }
 
 function npcContentAt(slotIndex) {
