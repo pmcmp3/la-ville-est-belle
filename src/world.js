@@ -39,8 +39,10 @@ const DEPTH_COUNT = Math.ceil(HORIZON_Z / SPACING) + 1;
 // Profondeur du bloc le long de la route (< SPACING pour laisser un espace —
 // une ruelle latérale — entre deux bâtiments, ce qui aide à lire des volumes
 // séparés plutôt qu'un mur continu) et largeur perpendiculaire (retour d'angle).
+// GIRTH agrandi pour une meilleure sensation de volume en 3D (retours d'angle
+// plus visibles en perspective, coins du bâtiment plus prononcés).
 const DEPTH_MIN = 5, DEPTH_MAX = 8;
-const GIRTH_MIN = 4, GIRTH_MAX = 7;
+const GIRTH_MIN = 5.5, GIRTH_MAX = 9;
 const MIN_HEIGHT = 9, MAX_HEIGHT = 22;
 // En dessous de cette profondeur caméra, la projection (focal/z) explose —
 // même garde défensive que renderCar3D/renderBus3D dans entities.js.
