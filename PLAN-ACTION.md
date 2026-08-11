@@ -433,7 +433,63 @@
 - 💬 **Plusieurs demandes plus lourdes, pas encore implémentées** (nouvelle DA cycliste d'après référence, glissade rapide vers le sol au relâché du saut, dégradation du son en 128 kbps sur le dernier cœur, événement panneau "Attention" avec rangée de 4 voitures bloquant toutes les voies vers 1 min 30, obstacle "pont" récurrent toutes les 35-40 s à une seule voie de passage) — voir le plan détaillé donné en réponse à l'artiste, en attente de confirmation/priorisation avant de s'y attaquer. Référence "pont" jamais reçue malgré l'annonce.
 - ⬜ **Rien de tout ça n'a encore été reconfirmé sur iPhone réel** — c'est le prochain test.
 
-**Reste à faire (prochaine session) :** retester avec Antoine (ou un autre joueur externe) tous les points ci-dessus, en particulier le pop-in corrigé et le clignotement throttlé (les deux points les plus visibles au précédent test) ; obtenir l'image de référence du pont ; prioriser avec l'artiste parmi les 5 chantiers lourds proposés (voir plan) avant de commencer l'un d'eux.
+**Reste à faire (prochaine session) :** retester avec Antoine (ou un autre joueur externe) tous les points ci-dessus, en particulier le pop-in corrigé et le clignotement throttlé (les deux points les plus visibles au précédent test) ; obtenir l'image de référence du pont ; prioriser avec l'artiste parmi les 5 chantiers lourds proposés (voir plan détaillé juste en dessous) avant de commencer l'un d'eux.
+
+---
+
+## PLAN — 5 chantiers lourds demandés après le 1er playtest externe (session suivante, nouvelle conversation)
+
+Rien de ce qui suit n'est commencé. Contexte complet ci-dessous pour qu'une nouvelle session (autre modèle) puisse attaquer directement sans repasser par l'historique. Ordre de priorité non tranché — demander à l'artiste avant de commencer (question posée en fin de session précédente, jamais répondue : cyclisme d'abord / gameplay d'abord / tout en même temps sans repasser par lui entre chaque étape).
+
+### 1. Nouvelle DA du cycliste, d'après une image de référence
+**Demande exacte :** « Je te donne une image pour les cyclistes. Je veux que tu les réalises comme ça, parce que là, tu as fait des copies de moi en cyclisme. »
+
+**La référence** (image fournie dans le chat, pas encore enregistrée dans le repo — **à redemander à l'artiste au début de la prochaine session**, ou décrite ici de mémoire en attendant) : un rendu **voxel/low-poly isométrique 3D** (style MagicaVoxel/Blockbench, PAS du pixel art 2D plat) — homme barbu (barbe rousse/brune), casque rose voxel, débardeur beige/tan, short marron, baskets rouges, sac à dos rose et blanc en damier, assis sur un vélo à cadre blanc avec de **très grandes roues** (rayons blancs, jante marron), le tout posé sur une petite plateforme de briques beiges.
+
+**⚠️ Contrainte technique à trancher avant de commencer :** `CLAUDE.md` verrouille **vanilla JS + Canvas 2D, aucun moteur 3D**. La référence est un vrai rendu 3D volumétrique — elle ne peut pas être reproduite telle quelle au runtime avec la technique actuelle (`player.js` : sprite pixel art 2D pré-rendu une fois au chargement, blit à l'échelle, exactement comme `pedestrians.js`/`cyclists.js`). Deux options, à faire trancher par l'artiste :
+  - **(a) Réinterprétation pixel art** — redessiner un sprite 2D en s'inspirant de la référence (grandes roues, sac à dos, casque, barbe, palette) mais avec la même technique procédurale que l'existant (rectangles/cercles Canvas, comme `player.js` actuel). Le plus rapide, cohérent avec le reste du pipeline, mais un pixel art plat ne rendra jamais un rendu voxel 3D à l'identique — juste "dans le même esprit".
+  - **(b) Vrais rendus voxel importés** — faire produire (par l'artiste ou en dehors du jeu) des sprites voxel pré-rendus (rotations/frames de pédalage) en PNG, importés comme images statiques à la place du dessin procédural. Beaucoup plus fidèle à la référence, mais change le pipeline (asset externe au lieu de tout générer en Canvas) et demande un aller-retour avec l'artiste pour les fichiers.
+  - **Recommandation : (a) d'abord**, à valider par l'artiste avant de s'engager — c'est réversible et rapide à montrer, (b) reste possible ensuite si le résultat ne satisfait pas.
+
+**Fichiers concernés :** `src/player.js` (silhouette/palette/roue/pédalage — la mécanique de lean/rebond ne change pas, seule l'apparence), `src/cyclists.js` (cyclistes NPC en sens inverse — réutilisent EXPLICITEMENT la géométrie de `player.js` "pour zéro risque visuel", donc à resynchroniser en même temps, pas séparément).
+
+### 2. Glissade rapide vers le sol (swipe vers le bas pendant le saut)
+**Demande exacte :** « Plusieurs choses quand tu swipes vers le haut, comme sur [Subway Surfers] : la possibilité de swiper vers le bas pour redescendre très rapidement vers le sol. » Contexte : le joueur remonte au clavier/tactile via un swipe vers le haut mais ne peut pas actuellement écourter la descente — « ça me ferait chier qu'on ne puisse pas redescendre une fois qu'on a sauté ».
+
+**Approche technique :** `src/input.js` a déjà la détection du swipe vers le haut (déclenche le saut) — ajouter la détection symétrique du swipe vers le bas, mais seulement exploitable **pendant que `jump.mode === 'air'`** (voir `main.js`, la machine à états du saut : `ground`/`air`/`onCar`). Actuellement la hauteur suit une parabole physique (`jumpPhysics`, voir commentaire dans `config.js` sur `dureeSaut`/`hauteurSaut`) — la glissade rapide doit court-circuiter cette parabole en cours de vol (accélération vers le bas nettement plus forte, ou un `jump.y` qui redescend directement à 0 sur une durée courte fixe) dès l'input détecté, sans attendre la fin naturelle de l'arc. Attention à ne pas casser la détection de collision/ramassage aérien (étoiles aériennes, `AIR_BONUS_KINDS`) si l'atterrissage devient possible plus tôt que prévu.
+
+**Fichiers concernés :** `src/input.js` (détection swipe bas), `src/main.js` (état du saut, `jump.*`).
+
+### 3. Dégradation du son sur le dernier cœur (effet "radio pixel")
+**Demande exacte :** « Si tu arrives, quand la personne a un cœur, à dégrader le son pour que le son soit avec un débit beaucoup plus léger, genre 128 kbps voire moins, pour qu'on ait cet effet pixel radio, ça serait super. » — à faire en même temps que le clignotement N&B déjà en place (§ session précédente), pas à sa place.
+
+**⚠️ Nuance technique à connaître :** on ne peut pas "changer le bitrate" d'un flux Web Audio déjà décodé — le bitrate est une propriété de l'ENCODAGE du fichier source, pas un paramètre live. Ce qui EST possible en direct pour approcher l'effet "radio/téléphone" décrit : (a) un filtre passe-bande serré (ex. 300 Hz–3 kHz, coupe les graves ET les aigus — contrairement au simple passe-bas déjà utilisé pour le menu pause), (b) une réduction d'échantillonnage/bitcrush (`WaveShaperNode` ou `AudioWorklet`, plus lourd à mettre en place), (c) un léger bruit/grain ajouté en mixage. Le projet a déjà un `BiquadFilterNode` de passe-bas dans `audio.js` (`setPlaybackMode`, mode `muffled` du menu pause) — s'en inspirer pour le graphe, mais ce doit être une chaîne d'effet **séparée** (le menu pause et "dernier cœur en danger" sont deux états indépendants qui peuvent en théorie se chevaucher).
+
+**Cadence à trancher :** le clignotement visuel vient tout juste d'être throttlé de continu (1s) à un flash toutes les 4s parce que le continu était "beaucoup trop stressant". Recommandation : caler la dégradation sonore sur la **même cadence de 4s** (pulsée, pas permanente) plutôt que de retomber dans le même piège d'intensité déjà identifié — à confirmer avec l'artiste plutôt qu'à décider seul.
+
+**Fichiers concernés :** `src/audio.js` (nouveau nœud/chaîne d'effet, ex. `setDangerMode(active)`), `src/main.js` (déclenché au même endroit que `updateHealthFilterIfChanged`, idéalement sur la même horloge que le flash visuel pour que son et image pulsent ensemble).
+
+### 4. Événement "ATTENTION" vers 1 min 30 — rangée de 4 voitures, saut obligatoire
+**Demande exacte :** « À partir de une minute trente, j'aimerais que tu rajoutes des vrais problèmes, genre un panneau qui dit "Attention" en plein milieu de l'écran. D'un seul coup, il y a 4 voitures qui bloquent toutes les voies, et il est obligatoire de sauter pour passer. [...] ça c'est pour les gens qui sont vraiment très forts et qui arrivent à avancer. »
+
+**Différence avec le système actuel :** les rangées de voitures existantes (`entities.js`, `CAR_ROW_EARLY`/`CAR_ROW_LATE`, voir plus haut dans ce fichier) plafonnent à 3 voitures sur 4 voies — **il reste toujours au moins une voie libre**, par construction. Ce nouvel événement demande l'inverse : **les 4 voies bloquées en même temps**, aucune échappatoire latérale, seul le saut (atterrissage sur le toit, mécanique déjà existante via `roofOverlap`/`renderCar3D`) permet de passer. C'est donc un événement **spécial, hors de la grille aléatoire habituelle**, pas un réglage de plus dans `CAR_ROW_SIZES`.
+
+**Question ouverte à trancher avec l'artiste :** un moment unique et marquant dans toute la course, ou un motif qui revient plusieurs fois après 1 min 30 ? Le texte ("à partir de") suggère plutôt une réapparition possible, mais ce n'est pas explicite.
+
+**Approche technique :** un créneau spécial calé sur un temps fixe (1 min 30 = 90 s → convertir en index de beat avec `clock.timeOfBeat`/`CADENCE`, comme le fait déjà `finishBeatN()`), qui force `pickLanes(slotIndex, 4)` (les 4 voies) au lieu du tirage pondéré habituel. Le panneau "ATTENTION" est un nouvel élément d'UI (bandeau plein écran ou gros texte canvas, à concevoir) qui doit apparaître quelques secondes AVANT que la rangée n'arrive à hauteur du joueur — même principe de timing que la légende du décompte ou l'`#end-note`, mais déclenché en cours de course.
+
+**Fichiers concernés :** `src/entities.js` (créneau spécial + logique de blocage total), nouveau code de rendu pour le panneau "ATTENTION" (`hud.js` ou nouveau module), `src/main.js` (déclenchement/timing).
+
+### 5. Obstacle "pont" récurrent (toutes les 35-40 s), une seule voie de passage
+**Demande exacte :** « Ensuite, j'aimerais que tu rajoutes un pont. [...] il faut que les gens passent dans le pont et qu'ils aient une seule voie pour passer dans le pont. Faudrait que tu mettes ce pont toutes les 35-40 secondes, genre le pont Neuf qui traverse [Paris]. »
+
+**🚧 BLOQUANT : référence jamais reçue.** L'artiste a annoncé « je vais te donner un exemple de design » mais aucune image n'est arrivée dans la conversation. **Ne rien dessiner avant de l'avoir reçue** — demander explicitement au début de la prochaine session.
+
+**Ce qu'on sait déjà :** récurrent (~35-40 s, donc à convertir en un intervalle de beats fixe, cadence indépendante de la grille bonus/obstacle habituelle — comparable au système des cyclistes NPC décoratifs, `NPC_CADENCE`/`NPC_LOOKAHEAD`, qui tourne déjà sur sa propre horloge séparée), et une seule voie de passage pendant le franchissement (rétrécissement temporaire de la largeur praticable, ou piliers/parapets bloquant 3 des 4 voies). Techniquement plus proche d'un **volume architectural** (comme les bâtiments haussmanniens, `world.js`, projeté via `road.project()`) que d'un obstacle ponctuel classique — probablement une structure qui encadre la route plutôt qu'un objet dessus.
+
+**Fichiers concernés :** vraisemblablement un nouveau module dédié (sur le modèle de `world.js`), plus une nouvelle règle de collision dans `entities.js` (contact avec les piliers/le parapet si le joueur n'est pas dans la voie centrale).
+
+---
 
 ---
 
