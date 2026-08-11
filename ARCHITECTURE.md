@@ -375,6 +375,14 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 - L'équilibrage : on garde maintenant ~39 obstacles infranchissables par partie au lieu de ~19
   (le total reste à 100). À confirmer en jouant — le levier est le poids `cycliste`.
 
+**⚠️ Incohérence de DA introduite en passant les cyclistes en voxel.** `cyclists.js` est
+maintenant en blocs extrudés vus de face ; `player.js` (le joueur) et `pedestrians.js` sont
+restés en pixel art plat, et le joueur est vu de dos. Deux grammaires visuelles cohabitent donc
+à l'écran. C'était déjà le chantier n°1 demandé par l'artiste (« refais la DA du cycliste
+d'après cette référence ») — la moitié « cyclistes en sens inverse » est faite, la moitié
+« joueur » ne l'est pas. `player.js` et `cyclists.js` partageaient historiquement leur
+géométrie : ils sont désormais indépendants, donc à retravailler ensemble.
+
 **Jamais validé sur iPhone réel** pour la session en cours : la DA voxel des cyclistes et la
 nouvelle difficulté.
 
