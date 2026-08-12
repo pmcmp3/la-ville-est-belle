@@ -423,6 +423,25 @@ nouvelle fonction partagée pour toute ouverture en plein cintre) :
   (focal/z) explose et le point au sol projeté part loin sous l'écran — lu comme « ils passent
   en dessous de la route ». Culling des bâtiments/props de décor resserré à z≥3.
 
+⚠️ **Sixième passe, même jour : palette réchauffée** (`FACADE_PALETTE`, `ROOF_COLOR`,
+`ROOF_RIDGE_COLOR`, `CORNICE_COLOR`, `WINDOW_DARK`, `SHOPFRONT_COLOR`, `SHUTTER_PALETTE` dans
+`world.js` ; `BRIDGE_STONE` dans `entities.js`, même famille par construction — voir commentaire
+existant à cet endroit). Référence envoyée : pixel art d'une cathédrale gothique, pierre
+rosée/dorée, ciel flamboyant — « tu peux me faire des bâtiments qui ressemblent à ça ». **Portée
+volontairement limitée à la couleur** : la géométrie haussmannienne (fenêtres en plein cintre,
+balcons filants, toit mansardé) ne change pas, et aucun bâtiment ne devient une église (tours
+jumelles/rosace) — clarifié explicitement par l'artiste après coup (« ne mets pas des églises à
+la place de tous les bâtiments »). Concrètement : pierre crème/ocre → rosée/dorée plus soutenue,
+toit/faîtage zinc bleuté → brun chaud, corniche blanc cassé → crème doré, vitres non éclairées
+noir → bleu nuit indigo (contraste chaud/froid direct avec la référence), un des trois volets
+(gris ardoise, seule teinte froide de la palette) → cuivre. `WINDOW_LIT` (orange-rouge de charte)
+non touché — c'est un choix de DA antérieur, pas lié à cette référence.
+⚠️ Non vérifiée visuellement (preview navigateur a de nouveau refusé toute navigation vers le
+serveur de dev cette session — même symptôme que le 12 août 2026, voir §12) — seul `npm run
+build` a été vérifié (propre, mêmes avertissements inoffensifs qu'avant). À confirmer au
+prochain test réel. Changement à faible risque techniquement (constantes de couleur seules,
+aucune logique de rendu/placement touchée) mais **jamais vu à l'écran**.
+
 ---
 
 ## 7. Contrôles

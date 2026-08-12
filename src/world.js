@@ -79,25 +79,34 @@ const SCENERY_MIN_Z = 3;
 // béton, pas de la pierre. Réchauffée ici — plus crème/ocre, luminosité
 // gardée haute (même stratégie qu'avant : partir plus clair pour que le
 // mélange avec la brume reste minéral plutôt que de virer boueux).
-const FACADE_PALETTE = ["#d9c9a3", "#c7b48c", "#e6d8b8", "#b5a37e"];
-// Zinc plutôt que noir plat : très légèrement bleuté, la silhouette reste
-// franche sur le ciel (l'essentiel du contraste vient toujours du fait que
-// c'est quasi noir) mais lit "métal" plutôt que "trou".
-const ROOF_COLOR = "#20242c";
-const ROOF_RIDGE_COLOR = "#0d0d10"; // faîtage + cheminées + balcons : le noir le plus dense
-const CORNICE_COLOR = "#f2efe9";   // bandeau blanc cassé, le trait clair qui découpe la façade
-const WINDOW_DARK = "#15151a";     // fenêtre non éclairée : trou noir dans le béton
+// ⚠️ Palette réchauffée une seconde fois le 12 août 2026, d'après une
+// référence pixel art envoyée par l'artiste (cathédrale gothique, pierre
+// rosée/dorée, ciel flamboyant) : « tu peux me faire des bâtiments qui
+// ressemblent à ça ». Clarifié ensuite : pas question de transformer chaque
+// immeuble en église (pas de tours jumelles ni de rosace généralisées, la
+// forme haussmannienne reste inchangée) — « la couleur de la pierre c'est ce
+// qui compte ». Seuls les tons ci-dessous bougent, la géométrie ne change pas.
+const FACADE_PALETTE = ["#e3ac7a", "#d69666", "#eec89a", "#c17f52"];
+// Brun chaud plutôt que zinc bleuté : cohérent avec la pierre rosée/dorée
+// (silhouette toujours nette sur le ciel, mais lit "pierre/cuivre" plutôt que
+// "métal froid").
+const ROOF_COLOR = "#2a1d15";
+const ROOF_RIDGE_COLOR = "#160f0a"; // faîtage + cheminées + balcons : le brun le plus dense
+const CORNICE_COLOR = "#f7ecd8";   // bandeau crème doré, le trait clair qui découpe la façade
+const WINDOW_DARK = "#1c2350";     // fenêtre non éclairée : verrière bleu nuit, contraste chaud/froid de la référence
 const WINDOW_LIT = "#ff5a34";      // rares fenêtres éclairées, orange-rouge de la charte
 // Volets (12 août 2026, retour direct après plusieurs références Street View
 // envoyées : « revois la manière dont c'est fait [...] immeuble parisien »).
 // C'est le détail le plus identifiable d'une façade haussmannienne à cette
-// échelle, avant même la pierre — vert bouteille/gris ardoise/brun, jamais la
+// échelle, avant même la pierre — vert bouteille/cuivre/brun, jamais la
 // couleur vive de charte (réservée aux objets à ramasser, voir plus haut).
-const SHUTTER_PALETTE = ["#2f4a3a", "#37424a", "#4a3a2f"];
+// Le gris ardoise d'origine (froid) a été remplacé par un cuivre pour rester
+// dans la même famille chaude que la nouvelle pierre.
+const SHUTTER_PALETTE = ["#2f4a3a", "#6b4a2a", "#4a3a2f"];
 // Rez-de-chaussée : vitrine plus sombre (jamais de volets, fenêtres hautes),
 // distinct des étages — signal "commerce au pied de l'immeuble" plutôt qu'un
 // mur de fenêtres identiques du sol au toit.
-const SHOPFRONT_COLOR = "#0e0e12";
+const SHOPFRONT_COLOR = "#1b120c";
 // Auvents de commerce (référence Minecraft/Haussmann envoyée le 12 août
 // 2026) : vert bouteille, bordeaux, bleu nuit — la seule touche de couleur
 // franche au ras du sol, jamais le rouge/orange de charte (déjà partout sur

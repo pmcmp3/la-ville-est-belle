@@ -359,7 +359,9 @@ const BRIDGE_PILLAR_HALF_L = 0.4;
 const BRIDGE_COPING_H = 0.16;  // corniche claire entre la pierre et le métal
 const BRIDGE_BEAM_H = 0.7;
 const BRIDGE_HEIGHT = 3.4;     // sommet de la pierre (sous la corniche)
-const BRIDGE_STONE = { base: "#bdb2a6", dark: "#95897e", hi: "#f2efe9" };
+// Pierre réchauffée le 12 août 2026 en même temps que world.js (même
+// référence pixel art) pour rester dans la même famille que les façades.
+const BRIDGE_STONE = { base: "#d69666", dark: "#a8734a", hi: "#f7ecd8" };
 const BRIDGE_IRON = { base: "#3d5c42", dark: "#243a29", hi: "#6b9370" };
 
 // Variantes de carrosserie (demandé explicitement : « des voitures bleues,
