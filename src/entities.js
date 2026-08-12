@@ -199,20 +199,27 @@ const BONUS_TYPES = [
 // plus de voiture ». Le piéton garde à peu près son effectif absolu (son poids
 // baisse, mais il y a 143 obstacles au lieu de 100) — il n'a rien fait de mal,
 // il ne devait juste plus être le seul obstacle humain.
+// `pont` (5e type, viaduc du métro) ajouté ensuite : poids pris SUR les
+// quatre autres au prorata (même convention que pour le cycliste plus haut),
+// TOTAL_OBSTACLES ne bouge pas. 10 % de départ, à confirmer/ajuster par le
+// recensement hors ligne décrit en ARCHITECTURE.md §12 plutôt qu'à l'œil.
 const OBSTACLE_WEIGHTS = [
-  { kind: "voiture", weight: 0.52 },
-  { kind: "cycliste", weight: 0.28 },
-  { kind: "pieton", weight: 0.12 },
-  { kind: "cone", weight: 0.08 },
+  { kind: "voiture", weight: 0.47 },
+  { kind: "cycliste", weight: 0.25 },
+  { kind: "pieton", weight: 0.11 },
+  { kind: "cone", weight: 0.07 },
+  { kind: "pont", weight: 0.10 },
 ];
 
 // Obstacles INFRANCHISSABLES AU SAUT : ils se contournent latéralement, point.
 // Le piéton est un « mur humain plein » (décision de playtest ancienne) ; le
 // cycliste suit la même règle — sauter par-dessus quelqu'un qui arrive en
 // face n'a pas de sens, et ça garde les deux obstacles "humains" cohérents
-// entre eux. La voiture (survolable, atterrissage sur le toit) et le cône
-// (sautable) restent les deux seuls que le saut permet de franchir.
-const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste"]);
+// entre eux. Le pont (piliers de viaduc) est infranchissable par nature — un
+// pilier bloque toute la hauteur, pas seulement le sol. La voiture
+// (survolable, atterrissage sur le toit) et le cône (sautable) restent les
+// deux seuls que le saut permet de franchir.
+const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste", "pont"]);
 
 // Bonus AÉRIENS : ramassables uniquement en sautant. Playtest : « il faut des
 // objets spéciaux en l'air » — il n'y en avait qu'un seul type (`guitare`,
@@ -283,6 +290,48 @@ function carRowSizesAt(slotIndex) {
 // rangée, point — plus de « je saute pile dessus et je retombe à côté ».
 const ROOF_LONG_TOLERANCE = 0.7;
 
+// --- Pont (viaduc du métro parisien) ---------------------------------------
+// Symétrique de la rangée de voitures : un slot "pont" pose des piliers sur
+// PLUSIEURS voies à la même profondeur, une seule résolution de collision
+// pour tout le pont. La différence structurelle : une rangée de voitures dit
+// "voici les voies OCCUPÉES" (sameLane → collision) ; un pont dit "voici les
+// voies OUVERTES" — mais en stockant directement le COMPLÉMENT (les voies
+// BLOQUÉES) dans `content.lanes`/`slotLanes()`, la collision réutilise
+// sameLane() telle quelle, sans logique inversée (voir update()).
+//
+// Progression demandée : 2 voies ouvertes en début de course (précision
+// confortable, le temps d'apprendre les 4 voies), 1 seule en fin de course —
+// même rampe `t` que les rangées de voitures.
+const BRIDGE_OPEN_EARLY = [
+  { kind: 1, weight: 0.15 },
+  { kind: 2, weight: 0.85 },
+];
+const BRIDGE_OPEN_LATE = [
+  { kind: 1, weight: 0.75 },
+  { kind: 2, weight: 0.25 },
+];
+function bridgeOpenLanesAt(slotIndex) {
+  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
+  const t = remainingSlots > 0
+    ? Math.min(1, Math.max(0, (slotIndex - GRACE_SLOTS) / remainingSlots))
+    : 1;
+  return BRIDGE_OPEN_EARLY.map((early, i) => ({
+    kind: early.kind,
+    weight: early.weight + (BRIDGE_OPEN_LATE[i].weight - early.weight) * t,
+  }));
+}
+
+// Hauteur des piliers, nettement au-dessus de l'apex de saut (~2,28 u avec
+// hauteurSaut = 2.0, voir main.js) : le pont est infranchissable par nature,
+// pas par un hitbox qui triche par rapport à ce qu'on voit à l'écran.
+const BRIDGE_PILLAR_HALF_W = 0.55; // un peu moins large qu'une voie (2 u), la voie reste lisible autour
+const BRIDGE_PILLAR_HALF_L = 0.4;
+const BRIDGE_BEAM_H = 0.6;
+const BRIDGE_HEIGHT = 3.4;
+// Béton + rivets rouillés — cohérent avec les bâtiments haussmanniens plutôt
+// qu'avec un pont en bois (voir la palette de world.js).
+const BRIDGE_COLORS = { base: "#6b6f78", dark: "#4a4d55", hi: "#a7abb5", rust: "#8a4a34" };
+
 // Variantes de carrosserie (demandé explicitement : « des voitures bleues,
 // des voitures vertes, des voitures noires »). Rouge de charte gardé comme
 // variante parmi d'autres plutôt que seule couleur possible. Chaque teinte
@@ -314,6 +363,28 @@ function carLitFor(slotIndex, laneOffset) {
 
 function isCarSlot(content) {
   return !content.isBonus && content.kind === "voiture";
+}
+
+function isBridgeSlot(content) {
+  return !content.isBonus && content.kind === "pont";
+}
+
+// Voies OUVERTES d'un pont : la garde anti-piège (voir slotContent) peut
+// imposer une combinaison différente de celle tirée au hash — c'est
+// `openLanesOverride`, le pendant multi-voies de `laneOverride`.
+function bridgeOpenLanes(slotIndex, content) {
+  if (content.openLanesOverride) return content.openLanesOverride;
+  return pickLanes(slotIndex, content.openCount || 1);
+}
+
+// Voies BLOQUÉES d'un pont — le complément. C'est CE tableau que slotLanes()
+// expose comme `lanes`, pour que la collision (sameLane) et le rendu
+// (un pilier par voie bloquée) n'aient rien à inverser.
+function bridgeBlockedLanes(slotIndex, content) {
+  const open = new Set(bridgeOpenLanes(slotIndex, content));
+  const blocked = [];
+  for (let l = 0; l < road.LANE_COUNT; l++) if (!open.has(l)) blocked.push(l);
+  return blocked;
 }
 
 // `count` voies DISTINCTES parmi les LANE_COUNT (permutation déterministe
@@ -362,6 +433,13 @@ function rawSlotContent(slotIndex) {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
     return { isBonus: false, kind: "voiture", carCount };
   }
+  if (kind === "pont") {
+    // Même offset de hash que carCount (*3+10) : les deux tirages ne
+    // coexistent jamais sur le même slotIndex (un slot n'a qu'un seul kind),
+    // donc aucun risque de collision entre les deux usages.
+    const openCount = pickWeighted(bridgeOpenLanesAt(slotIndex), hash(slotIndex * 3 + 10));
+    return { isBonus: false, kind: "pont", openCount };
+  }
   return { isBonus: false, kind };
 }
 
@@ -395,7 +473,9 @@ const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à l
 // distribution des types, qui redevient donc celle qu'annoncent les poids.
 function slotContent(slotIndex) {
   const raw = rawSlotContent(slotIndex);
-  if (raw.isBonus || !UNJUMPABLE_KINDS.has(raw.kind)) return raw;
+  if (raw.isBonus) return raw;
+  if (raw.kind === "pont") return bridgeGuard(slotIndex, raw);
+  if (!UNJUMPABLE_KINDS.has(raw.kind)) return raw;
 
   // Voies rendues interdites par un bonus voisin immédiat.
   const blocked = new Set();
@@ -422,6 +502,39 @@ function slotContent(slotIndex) {
   return raw; // inatteignable à 4 voies pour 2 voisins, mais on ne renvoie jamais undefined
 }
 
+// Garde anti-piège, variante pont. Un piéton/cycliste n'a qu'UNE voie de
+// repli possible (laneOverride) ; un pont a PLUSIEURS voies ouvertes à la
+// fois, donc la question n'est pas "quelle voie libre choisir" mais "reste-
+// t-il au moins une voie ouverte du pont qui ne coïncide pas avec un bonus
+// voisin (±1 créneau) ». Si toutes ses voies ouvertes sont prises, on fait
+// tourner (rotation modulo LANE_COUNT, décalage tiré au hash) la combinaison
+// de voies ouvertes jusqu'à en trouver une qui en laisse au moins une libre —
+// la rotation préserve le nombre de voies ouvertes et leur espacement.
+function bridgeGuard(slotIndex, raw) {
+  const blockedByBonus = new Set();
+  for (let d = -PIETON_BONUS_GUARD_SLOTS; d <= PIETON_BONUS_GUARD_SLOTS; d++) {
+    if (d === 0) continue;
+    const n = slotIndex + d;
+    if (n < 0) continue;
+    const neighbor = rawSlotContent(n);
+    if (!neighbor.isBonus) continue;
+    blockedByBonus.add(slotLanes(n, neighbor)[0]);
+  }
+
+  const baseOpen = pickLanes(slotIndex, raw.openCount || 1);
+  if (baseOpen.some((l) => !blockedByBonus.has(l))) return raw;
+
+  const start = 1 + Math.floor(hash(slotIndex * 3 + 97) * (road.LANE_COUNT - 1));
+  for (let i = 0; i < road.LANE_COUNT; i++) {
+    const offset = (start + i) % road.LANE_COUNT;
+    const candidate = baseOpen.map((l) => (l + offset) % road.LANE_COUNT);
+    if (candidate.some((l) => !blockedByBonus.has(l))) {
+      return { ...raw, openLanesOverride: candidate };
+    }
+  }
+  return raw; // inatteignable à 4 voies pour 2 voisins de bonus, mais on ne renvoie jamais undefined
+}
+
 // Voies occupées par le contenu d'un créneau. Renvoie toujours un TABLEAU :
 // un objet normal occupe une voie, une rangée de voitures 1 à 3. Tout le
 // reste du module (collision, rendu, atterrissage sur toit) part de là.
@@ -433,6 +546,9 @@ function slotLanes(slotIndex, content) {
   if (content && content.laneOverride != null) return [content.laneOverride];
   if (content && isCarSlot(content)) {
     return pickLanes(slotIndex, content.carCount || 1);
+  }
+  if (content && isBridgeSlot(content)) {
+    return bridgeBlockedLanes(slotIndex, content);
   }
   const h = hash(slotIndex * 3 + 2);
   return [Math.min(Math.floor(h * road.LANE_COUNT), road.LANE_COUNT - 1)];
@@ -576,11 +692,12 @@ export function update(playerLane, inAir) {
         consumed.add(e.slotIndex);
       }
     } else {
-      // Piéton et cycliste : murs humains pleins — la collision compte même
-      // en l'air (voir UNJUMPABLE_KINDS). Ne se sautent pas, se contournent
-      // latéralement uniquement. Le cycliste est arrivé ici en devenant un
-      // vrai obstacle : il ne demande AUCUN cas particulier, il tombe
-      // simplement dans la même branche que le piéton.
+      // Piéton, cycliste ET pont : murs infranchissables — la collision
+      // compte même en l'air (voir UNJUMPABLE_KINDS). Ne se sautent pas, se
+      // contournent latéralement uniquement (pour le pont : en étant sur une
+      // des voies OUVERTES — `e.lanes` contient les voies BLOQUÉES, voir
+      // bridgeBlockedLanes). Aucun des trois ne demande de cas particulier
+      // ici : `e.lanes`/`sameLane` porte déjà toute la différence entre eux.
       if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
       if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
       if (sameLane(e)) {
@@ -965,6 +1082,62 @@ function renderCar3D(ctx, cx, cz, width, height, color, lit) {
   ctx.stroke();
 }
 
+// Pont : un pilier en béton (prisme vertical, mêmes coins projetés
+// proche/loin/sol/sommet qu'un flanc de voiture) par voie bloquée, plus une
+// poutre horizontale qui les relie sur toute la largeur de la route — même
+// technique que renderCar3D (road.project + fillPoly), palette béton/rouille
+// plutôt que le bois du pack FBX regardé en référence (hors charte, voir le
+// plan de cette session).
+function renderBridge(ctx, blockedLanes, z, width, height) {
+  const zNear = z - BRIDGE_PILLAR_HALF_L;
+  const zFar = z + BRIDGE_PILLAR_HALF_L;
+
+  // Poutre : sommet des piliers, sur toute la largeur de la route.
+  const beamNL = road.project(-road.ROAD_HALF_WIDTH, zNear, width, height);
+  const beamNR = road.project(road.ROAD_HALF_WIDTH, zNear, width, height);
+  const beamFL = road.project(-road.ROAD_HALF_WIDTH, zFar, width, height);
+  const beamFR = road.project(road.ROAD_HALF_WIDTH, zFar, width, height);
+  const beamBotN = beamNL.y - BRIDGE_HEIGHT * beamNL.scale;
+  const beamTopN = beamNL.y - (BRIDGE_HEIGHT + BRIDGE_BEAM_H) * beamNL.scale;
+  const beamBotF = beamFL.y - BRIDGE_HEIGHT * beamFL.scale;
+  const beamTopF = beamFL.y - (BRIDGE_HEIGHT + BRIDGE_BEAM_H) * beamFL.scale;
+  // Face inférieure (celle qu'on voit d'en dessous en passant sous le pont).
+  fillPoly(ctx, [
+    { x: beamNL.x, y: beamBotN }, { x: beamNR.x, y: beamBotN },
+    { x: beamFR.x, y: beamBotF }, { x: beamFL.x, y: beamBotF },
+  ], BRIDGE_COLORS.dark);
+  fillPoly(ctx, [
+    { x: beamNL.x, y: beamTopN }, { x: beamNR.x, y: beamTopN },
+    { x: beamFR.x, y: beamTopF }, { x: beamFL.x, y: beamTopF },
+  ], BRIDGE_COLORS.base);
+
+  for (const lane of blockedLanes) {
+    const cx = road.laneX(lane);
+    const gNL = road.project(cx - BRIDGE_PILLAR_HALF_W, zNear, width, height);
+    const gNR = road.project(cx + BRIDGE_PILLAR_HALF_W, zNear, width, height);
+    const gFL = road.project(cx - BRIDGE_PILLAR_HALF_W, zFar, width, height);
+    const gFR = road.project(cx + BRIDGE_PILLAR_HALF_W, zFar, width, height);
+    const topN = { x: gNL.x, y: gNL.y - BRIDGE_HEIGHT * gNL.scale };
+    const topF = { x: gFL.x, y: gFL.y - BRIDGE_HEIGHT * gFL.scale };
+    const topNR = { x: gNR.x, y: gNR.y - BRIDGE_HEIGHT * gNR.scale };
+    const topFR = { x: gFR.x, y: gFR.y - BRIDGE_HEIGHT * gFR.scale };
+
+    // Faces latérales, seulement celle visible depuis le centre de l'écran
+    // (même règle que renderCar3D).
+    const leftVisible = cx > 0;
+    const rightVisible = cx < 0;
+    if (leftVisible) fillPoly(ctx, [gNL, gFL, topF, topN], BRIDGE_COLORS.dark);
+    if (rightVisible) fillPoly(ctx, [gNR, gFR, topFR, topNR], BRIDGE_COLORS.dark);
+    // Face arrière (toujours visible, côté joueur).
+    fillPoly(ctx, [gNL, gNR, topNR, topN], BRIDGE_COLORS.base);
+    // Rivets rouillés — signal "viaduc métro", pas "poteau générique".
+    ctx.fillStyle = BRIDGE_COLORS.rust;
+    const rivetY = topN.y + (gNL.y - topN.y) * 0.15;
+    ctx.fillRect(gNL.x + 2, rivetY, 2, 2);
+    ctx.fillRect(gNR.x - 4, rivetY, 2, 2);
+  }
+}
+
 function fillPoly(ctx, pts, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -1006,6 +1179,13 @@ export function render(ctx, width, height) {
     // courbe, où la projection se replierait. L'objet apparaît en surgissant
     // de derrière la courbe, ce qui est justement l'effet recherché.
     if (e.z > road.HORIZON_Z) continue;
+
+    // Pont : un pilier par voie BLOQUÉE (e.lanes), plus une poutre sur toute
+    // la largeur de la route — voir renderBridge().
+    if (isBridgeSlot(e)) {
+      renderBridge(ctx, e.lanes, e.z, width, height);
+      continue;
+    }
 
     // Rangée de voitures : un volume faux-3D par voie occupée, toutes à la
     // même profondeur (plus de convoi étagé en Z) — l'ordre entre elles

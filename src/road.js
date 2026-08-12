@@ -50,8 +50,15 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // 0.000532 → 0.0004 (retour explicite : « génère plus d'horizon », les
 // bâtiments/monuments ont besoin de plus de recul pour apparaître en fondu
 // plutôt que de surgir) — HORIZON_Z ≈ 95 → ≈ 110 unités-monde, +15 %.
-const CURVATURE = 0.0004;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 110 unités-monde
+// 0.0004 → 0.00034 (inspiré d'un screen Subway Surfers envoyé par l'artiste :
+// perspective de pont/viaduc avec un horizon très long) — même sens et même
+// ordre de grandeur que l'ajustement précédent, un pas à la fois plutôt qu'un
+// gros saut puisque cette valeur a déjà été retouchée une fois sur retour
+// terrain. HORIZON_Z ≈ 110 → ≈ 119 unités-monde, +8 %. ⚠️ Non vérifié
+// visuellement dans cette session (preview navigateur inaccessible, voir
+// ARCHITECTURE.md §12) — à confirmer/ajuster sur le prochain test réel.
+const CURVATURE = 0.00034;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 119 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {

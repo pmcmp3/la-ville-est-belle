@@ -5,7 +5,7 @@
 > une décision a été prise, inutile pour comprendre comment le jeu marche.
 >
 > Ici : comment c'est construit, quels sont les invariants à ne pas casser, et les pièges
-> qui ont déjà coûté des heures. Dernière mise à jour : 11 août 2026.
+> qui ont déjà coûté des heures. Dernière mise à jour : 12 août 2026.
 
 ---
 
@@ -74,8 +74,9 @@ dépendances vont toujours vers le bas.
 | `audio.js` | Chargement, unlock iOS, lecture, 3 modes de pause | Le plus délicat du projet, voir §5.1 et §8 |
 | `road.js` | Projection pseudo-3D, vitesse, rendu du sol | Exporte `project()`, que tout le reste consomme |
 | `world.js` | Façades haussmanniennes, ciel | Purement décoratif |
-| `entities.js` | Bonus/obstacles calés sur les beats, collisions | **1034 lignes**, le cœur du gameplay |
-| `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | Pixel art pré-rendu au chargement |
+| `entities.js` | Bonus/obstacles calés sur les beats, collisions | Le cœur du gameplay ; inclut le pont (viaduc) |
+| `voxel.js` | Primitif de cube extrudé (`blk`/`shade`/`parseColor`) | Partagé par `player.js` et `cyclists.js`, zéro logique d'orientation |
+| `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | **Voxel** (blocs extrudés) depuis le 12 août 2026 — même grammaire que `cyclists.js`, voir §11 |
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
 | `pedestrians.js` | Sprites des piétons-obstacles | Même technique que `player.js` |
 | `finish.js` | Ligne d'arrivée | Cosmétique |
@@ -183,8 +184,13 @@ retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
 sous le plan de la caméra, ce qui donne un horizon **réellement atteignable** :
 
 ```
-HORIZON_Z = √(CAMERA_HEIGHT / CURVATURE) ≈ 110 unités-monde
+HORIZON_Z = √(CAMERA_HEIGHT / CURVATURE) ≈ 119 unités-monde
 ```
+
+`CURVATURE` retouchée une seconde fois le 12 août 2026 (0,0004 → 0,00034, HORIZON_Z ≈ 110 → 119,
++8 %), inspirée d'un screen Subway Surfers envoyé par l'artiste (perspective de pont très longue).
+⚠️ Non vérifiée visuellement dans la session qui l'a posée — preview navigateur inaccessible ce
+jour-là, voir §12. À confirmer/ajuster au prochain test réel avant d'aller plus loin dans ce sens.
 
 Rien ne doit être dessiné au-delà : la projection s'y replierait. Tous les modules de rendu
 testent `z > HORIZON_Z` et sautent. Les objets « surgissent de derrière la courbe », ce qui est
@@ -219,20 +225,36 @@ exponentielle (doublement toutes les 57 s) plafonnée à `vitesseMax` = 6,0.
 Les bonus aériens ne se ramassent **qu'en sautant**, avec une fenêtre de collision élargie
 (`Z_WINDOW_AIR = 2,2` contre `Z_WINDOW = 1,0`) — le timing du saut doit être tolérant.
 
-**4 obstacles** (c'était 3 : le cycliste a été promu de décor à obstacle). Poids revus le
-12 août 2026 (« beaucoup plus de gens qui font du vélo », « un peu plus de voiture ») :
+**5 obstacles** (c'était 3, puis 4 avec la promotion du cycliste, voir plus bas). Poids revus le
+12 août 2026 (« beaucoup plus de gens qui font du vélo », « un peu plus de voiture »), puis
+prélevés une seconde fois au prorata pour faire de la place au pont (même jour) :
 
 | Obstacle | Poids | Coût | Le saut sauve ? |
 |---|---|---|---|
-| `voiture` | 0,52 | **fatal** (3 vies d'un coup) + **−500 pts** | ✅ (survol + atterrissage sur le toit) |
-| `cycliste` | 0,28 | −1 vie + **−500 pts** | ❌ |
-| `pieton` | 0,12 | −1 vie + **−500 pts** | ❌ |
-| `cone` | 0,08 | −1 vie + **−500 pts** | ✅ |
+| `voiture` | 0,47 | **fatal** (3 vies d'un coup) + **−500 pts** | ✅ (survol + atterrissage sur le toit) |
+| `cycliste` | 0,25 | −1 vie + **−500 pts** | ❌ |
+| `pieton` | 0,11 | −1 vie + **−500 pts** | ❌ |
+| `cone` | 0,07 | −1 vie + **−500 pts** | ✅ |
+| `pont` | 0,10 | −1 vie + **−500 pts** | ❌ (piliers, bloquent toute la hauteur) |
 
-`UNJUMPABLE_KINDS = {pieton, cycliste}` : ces deux-là se contournent **latéralement
-uniquement**. Distribution mesurée sur les 343 créneaux (après le passage à 30 900 en score
-max) : voiture 75, cycliste 38, pieton 15, cone 15. Le piéton garde à peu près son effectif
-absolu malgré la baisse de poids relatif — la course compte 43 créneaux de plus qu'avant.
+`UNJUMPABLE_KINDS = {pieton, cycliste, pont}` : ces trois-là se contournent **latéralement
+uniquement**. Distribution mesurée sur les 343 créneaux (recensement hors ligne, voir §12) :
+voiture 67, cycliste 40, pieton 10, cone 8, pont 18. Le piéton perd de l'effectif absolu cette
+fois (10 contre 15 avant le pont) — la marge dégagée par l'allongement du parcours (300→343
+créneaux) est maintenant entièrement absorbée par les deux ajouts (cycliste puis pont).
+
+**Pont (viaduc du métro parisien)**, ajouté le 12 août 2026 (inspiré d'une référence Subway
+Surfers envoyée par l'artiste — perspective à piliers, longue ligne de fuite). Bloque 2 ou 3
+voies sur 4 à la même profondeur, une seule résolution de collision pour tout le pont (même
+principe qu'une rangée de voitures, `entities.js`, mais en stockant les voies **bloquées**
+plutôt qu'occupées — voir `bridgeBlockedLanes()`). Progression : 2 voies ouvertes en début de
+course, 1 seule en fin de course (`bridgeOpenLanesAt()`, même rampe `t` que les rangées de
+voitures). La garde anti-piège a sa propre variante pour le pont (`bridgeGuard()`) : un
+piéton/cycliste n'a qu'une voie de repli, un pont a plusieurs voies ouvertes à la fois — la
+question posée est « reste-t-il au moins une voie ouverte du pont qui ne coïncide pas avec un
+bonus voisin », résolue par rotation de la combinaison de voies ouvertes plutôt que par
+déplacement d'une seule voie. Mesuré sur les 343 créneaux : 0 pont à 0 voie ouverte, 1 pont sur
+18 déplacé par la garde.
 
 **Pénalité de score** (demandée le 12 août 2026, avec la perte de vie) : chaque collision qui
 coûte un cœur retire aussi `penaliteObstacle` points (500, `config.js`), affichés 3 s sous le
@@ -401,28 +423,25 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 
 ## 11. Dettes et points ouverts
 
-**Bugs connus, non corrigés :**
-- **Le classement n'apparaît pas sur l'écran de fin chez l'artiste.** La piste n°1 (la requête
-  Supabase) est **éliminée**, mesurée le 11 août 2026 depuis cette machine :
+**Résolu, ne plus investiguer sauf nouvelle occurrence :**
+- ~~Le classement n'apparaît pas sur l'écran de fin chez l'artiste~~ — constaté fonctionnel en
+  prod le 12 août 2026 (screenshot : écran de fin avec classement rempli, plusieurs scores dont
+  ceux de l'utilisateur). Cause jamais formellement identifiée (les hypothèses réseau/CORS
+  avaient déjà été éliminées le 11 août, voir historique dans `PLAN-ACTION.md` si besoin), mais
+  `net.js` garde son garde-fou (`getLastError()`, affichage « Classement indisponible » +
+  raison en `?debug`) en cas de nouvelle panne côté client.
+- ~~Incohérence de DA joueur/cyclistes~~ — résolue le 12 août 2026 : `player.js` est passé en
+  voxel (blocs extrudés, `blk()`/`shade()` extraits vers `voxel.js` et partagés avec
+  `cyclists.js`), vu de dos (roue arrière en tranche plutôt qu'en ellipse). Les deux fichiers
+  partagent maintenant le même primitif de rendu, chacun garde sa silhouette bespoke (vue de
+  face vs de dos, sac à dos vs guidon).
 
-  | Vérifié | Résultat |
-  |---|---|
-  | `GET scores_public` avec la clé anon | **200**, 23 lignes |
-  | Préflight `OPTIONS` (les en-têtes `apikey`/`Authorization` en déclenchent un) | **200**, `allow-origin: *` |
-  | `GET` avec `Origin:` du site prod | **200**, CORS correct |
-  | Bundle servi en prod vs build de `HEAD` | **identique** (`index-aaCxow4X.js`) — la prod n'est pas en retard |
-
-  Le chemin DOM/CSS a été relu, il est correct. Restent trois hypothèses, toutes
-  **spécifiques à son appareil** : un bloqueur de contenu iOS qui mange `supabase.co`, un
-  problème de réseau local, ou un débordement de mise en page sur un petit écran (`#overlay` est
-  un flex centré **sans défilement** : un contenu plus haut que l'écran se fait rogner en haut
-  ET en bas).
-
-  Ce qui a été fait à la place : **l'échec ne peut plus être silencieux.** `net.js` retient la
-  raison (`getLastError()`) et l'écran de fin affiche « Classement indisponible » — plus la
-  raison technique en `?debug`, qui est la seule console disponible sur un téléphone. Une table
-  réellement vide reste muette, comme avant. **Prochaine étape : lui faire ouvrir
-  `…netlify.app/?debug`, finir une partie, et lire la ligne.**
+**Nouvelle incohérence de DA, pas traitée cette session :**
+- `pedestrians.js` est resté en pixel art plat — il avait été converti à l'origine pour matcher
+  l'ANCIEN style du joueur (voir son en-tête de fichier). Depuis que le joueur ET les cyclistes
+  sont en voxel, c'est maintenant le piéton qui détonne, seul obstacle humain encore en pixel
+  art. Même chantier que celui qui vient d'être fait pour le joueur (extraire le layout vers des
+  blocs `blk()`), pas encore fait — à prioriser si l'incohérence se voit en jeu.
 
 **Dette structurelle :**
 - `main.js` (1242 lignes) est un module fourre-tout : pause, DOM, onboarding, classement,
@@ -436,22 +455,15 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 - ⚠️ `config.js` → `dateOuverture` est fixée au **5 août 2026** pour les tests. Le commentaire
   demande de la remettre à la date de lancement officiel **et de vider la table `scores`** côté
   Supabase pour repartir sur un classement propre.
-- ⚠️ `CLAUDE.md` mentionne encore `linktr.ee/pmc.mp3` comme CTA, alors que `config.js` pointe
-  désormais vers `li.sten.to/la-ville-est-belle`. C'est `config.js` qui fait foi.
-- L'équilibrage : on garde maintenant ~39 obstacles infranchissables par partie au lieu de ~19
-  (le total reste à 100). À confirmer en jouant — le levier est le poids `cycliste`.
+- L'équilibrage : 68 obstacles infranchissables par partie sur 143 (pieton 10 + cycliste 40 +
+  pont 18), contre 19 à l'origine (300 créneaux, avant cycliste et pont). À confirmer en jouant
+  — les leviers sont les poids `cycliste`/`pont` dans `OBSTACLE_WEIGHTS`.
 
-**⚠️ Incohérence de DA introduite en passant les cyclistes en voxel.** `cyclists.js` est
-maintenant en blocs extrudés vus de face ; `player.js` (le joueur) et `pedestrians.js` sont
-restés en pixel art plat, et le joueur est vu de dos. Deux grammaires visuelles cohabitent donc
-à l'écran. C'était déjà le chantier n°1 demandé par l'artiste (« refais la DA du cycliste
-d'après cette référence ») — la moitié « cyclistes en sens inverse » est faite, la moitié
-« joueur » ne l'est pas. `player.js` et `cyclists.js` partageaient historiquement leur
-géométrie : ils sont désormais indépendants, donc à retravailler ensemble.
-
-**Jamais validé sur iPhone réel** pour la session en cours : la DA voxel des cyclistes, la
-nouvelle difficulté, et la reprise de pause sans rembobinage (§8.1) — vérifiée par le calcul,
-pas encore à l'oreille.
+**Jamais validé sur iPhone réel** pour la session du 12 août 2026 : le joueur en voxel vue de
+dos, l'obstacle pont (rendu, franchissement, garde anti-piège), et le nudge de courbure/horizon
+(§5.5) — tout vérifié par le calcul (recensement hors ligne, `npm run build` propre) mais pas à
+l'œil, la preview navigateur ayant été inaccessible pendant cette session (voir §12). S'ajoute à
+la dette précédente non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
 
 ---
 
@@ -473,3 +485,9 @@ rencontrés par voie sur 300).
 
 Pour juger un sprite : le dessiner sur un canvas superposé à plusieurs échelles réelles
 (110 px au plus près jusqu'à 24 px au loin) — un sprite qui marche à 14× peut être illisible en jeu.
+
+⚠️ Le 12 août 2026, la preview navigateur a en plus refusé toute navigation vers le serveur de
+dev (`localhost`, requêtes bloquées avant même le chargement de la page) — distinct du piège n°1
+(figement par `AudioContext`), donc pas la même cause. Symptôme à surveiller : si les deux méthodes
+ci-dessus deviennent aussi inutilisables, la seule vérification qui reste est un vrai test sur
+téléphone après déploiement.

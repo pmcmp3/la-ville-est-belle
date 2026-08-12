@@ -15,7 +15,7 @@
 // éclairées), PAS du pixel art plat. On ne peut pas importer de vrai voxel 3D
 // (CLAUDE.md verrouille Canvas 2D, aucun moteur 3D), donc on en reprend les
 // SIGNAUX, qui tiennent tous à petite taille :
-//   1. tout est construit en BLOCS, jamais en courbes — d'où blk() plus bas,
+//   1. tout est construit en BLOCS, jamais en courbes — d'où blk() (voxel.js),
 //      qui pose une arête haute éclaircie et des arêtes basse/droite
 //      assombries sur chaque rectangle (c'est ce qui fait lire "cube extrudé"
 //      plutôt que "rectangle de couleur") ;
@@ -28,6 +28,13 @@
 // Vus de FACE (ils arrivent en sens inverse) — c'était incohérent jusqu'ici :
 // ils réutilisaient la géométrie de player.js, dessinée de dos, alors qu'ils
 // roulent vers le joueur. Un obstacle doit se lire au premier regard.
+//
+// blk()/shade() (voxel.js) sont maintenant partagés avec player.js, passé en
+// voxel vue de dos à son tour — seul le primitif de cube est commun, la
+// silhouette (roue de face vs de dos, sac à dos vs guidon) reste bespoke à
+// chaque fichier.
+
+import { blk, shade } from "./voxel.js";
 
 const SPRITE_W = 30;
 const SPRITE_H = 36;
@@ -72,47 +79,6 @@ const OUTFITS = [
 ];
 
 export const OUTFIT_COUNT = OUTFITS.length;
-
-// Éclaircit/assombrit une couleur d'un delta RGB. Sert uniquement aux arêtes
-// des blocs — la palette elle-même reste écrite en dur, pour garder la main
-// sur les teintes exactes des références.
-// Accepte hex ET "rgb(...)" : blk() ré-assombrit ce qu'on lui passe, donc une
-// couleur déjà passée par shade() lui revient sous forme rgb(). Ne gérer que
-// le hex donnait un parseInt NaN, un fillStyle invalide silencieusement
-// ignoré par Canvas, et donc un bloc peint avec la couleur précédente.
-function parseColor(c) {
-  if (c[0] === "#") {
-    const n = parseInt(c.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  }
-  return c.match(/\d+/g).map(Number);
-}
-
-function shade(color, amount) {
-  const [r, g, b] = parseColor(color);
-  const c = (v) => Math.max(0, Math.min(255, v + amount));
-  return `rgb(${c(r)},${c(g)},${c(b)})`;
-}
-
-// LE primitif de tout ce fichier : un rectangle rendu comme un cube extrudé.
-// Arête haute éclaircie (la lumière vient d'en haut), arêtes basse et droite
-// assombries (faces dans l'ombre). C'est ce seul détail qui fait la
-// différence entre "pixel art plat" et "voxel" à cette taille — sans lui, on
-// retombe exactement sur l'ancien sprite.
-function blk(ctx, x, y, w, h, base) {
-  ctx.fillStyle = base;
-  ctx.fillRect(x, y, w, h);
-  if (h >= 3) {
-    ctx.fillStyle = shade(base, 30);
-    ctx.fillRect(x, y, w, 1);
-    ctx.fillStyle = shade(base, -34);
-    ctx.fillRect(x, y + h - 1, w, 1);
-  }
-  if (w >= 3) {
-    ctx.fillStyle = shade(base, -22);
-    ctx.fillRect(x + w - 1, y, 1, h);
-  }
-}
 
 // Roue avant vue de face : étroite, haute, avec des CRAMPONS en quinconce qui
 // débordent de part et d'autre. Les crampons sont le détail le plus

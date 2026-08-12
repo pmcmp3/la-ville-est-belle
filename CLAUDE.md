@@ -34,15 +34,19 @@ En ligne : **https://pmc-la-ville-est-belle.netlify.app**
 - **Contrôle 100 % au geste**, aucun contrôle à l'écran : swipe gauche/droite = une voie,
   swipe haut = saut, swipe bas = glissade rapide. **Le gyroscope a été retiré** après plusieurs
   sessions à fiabiliser la permission iOS — ne pas le réintroduire.
-- Parcours **fini** : il s'arrête après **300 objets** (~225 s), pas à la fin du morceau
-  (257,9 s) — la musique continue après la ligne d'arrivée. **120 BPM**, offset ~0,01 s.
-- **3 vies**, **4 obstacles**, **5 bonus**.
+- Parcours **fini** : il s'arrête après **343 objets** (~257,3 s), soit toute la durée du
+  morceau (257,9 s, ~0,6 s de marge) — renversement du 12 août 2026 (c'était 300 objets/225 s,
+  la musique continuait après la ligne). **120 BPM**, offset ~0,01 s.
+- **3 vies**, **5 obstacles**, **5 bonus**.
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
-  - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`.
+  - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont`.
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
-    (« on fait en sorte que les cyclistes deviennent tous des obstacles »). Voiture et cône se
-    franchissent au saut ; cycliste et piéton se contournent **latéralement uniquement**
-    (`UNJUMPABLE_KINDS` dans `entities.js`).
+    (« on fait en sorte que les cyclistes deviennent tous des obstacles »).
+  - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 4
+    à la même profondeur (2 voies ouvertes en début de course, 1 seule en fin de course).
+  - Voiture et cône se franchissent au saut ; cycliste, piéton et pont se contournent
+    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`) — un pilier de pont
+    bloque toute la hauteur, il n'y a pas de "toit" à atterrir dessus comme la voiture.
 - **200 étoiles exactement** par partie : le score maximum doit être un nombre connu.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.

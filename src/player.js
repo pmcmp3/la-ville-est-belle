@@ -1,7 +1,20 @@
-// player.js — Sprite du cycliste (silhouette "B — penché en avant", choisie
-// par l'artiste parmi 3 propositions à l'étape 3). Pixel art dessiné une
-// seule fois sur un canvas hors-écran 26×34, puis blit à l'échelle chaque
-// frame (image-rendering "pixelated" : pas de flou en agrandissant).
+// player.js — Sprite du cycliste joueur, VU DE DOS.
+//
+// Passé en voxel (blocs extrudés) pour matcher la DA de cyclists.js — c'était
+// la moitié manquante du chantier « refais la DA du cycliste » (voir
+// ARCHITECTURE.md §11) : les cyclistes en sens inverse avaient déjà cette
+// grammaire, le joueur restait seul en pixel art plat. blk()/shade() sont le
+// primitif partagé (voxel.js), la silhouette (roue de dos vs de face, sac à
+// dos vs guidon) reste bespoke à chaque fichier — voir le commentaire en tête
+// de cyclists.js pour la justification de la technique (pas de vrai voxel 3D
+// possible en Canvas 2D, on en reprend les signaux : blocs, jamais de
+// courbes).
+//
+// Dessiné une seule fois sur un canvas hors-écran 26×34, puis blit à
+// l'échelle chaque frame (image-rendering "pixelated" : pas de flou en
+// agrandissant).
+
+import { blk } from "./voxel.js";
 
 const SPRITE_W = 26;
 const SPRITE_H = 34;
@@ -18,75 +31,26 @@ const PAL = {
   white: "#f0ead9",
   pants: "#22242b",
   pantsLo: "#20232b",
-  // Chaussures nettement plus claires que la roue (pneu/jante très sombres) :
-  // au rayon d'origine, les deux se confondaient et les pieds se lisaient
-  // comme deux petites roues supplémentaires de part et d'autre de la
-  // vraie roue (retour playtest : "on dirait que j'ai deux roues à droite
-  // et à gauche"). semelle = liseré clair pour renforcer la silhouette.
+  // Chaussures nettement plus claires que la roue (pneu très sombre) : au
+  // rayon d'origine, les deux se confondaient (retour playtest : "on dirait
+  // que j'ai deux roues à droite et à gauche"). semelle = liseré clair pour
+  // renforcer la silhouette.
   shoe: "#565a66",
   shoeSole: "#e8dcc0",
   frame: "#1b1b21",
-  rim: "#5a5b64",
   // Liseré clair sur la jante (playtest/DA : « manque de contact/lisibilité
-  // avec la route, jantes », 2 références envoyées — vélos avec jantes
-  // nettement découpées, contraste net plutôt que plat, esprit Pokémon).
-  // Un simple dégradé tire→rim ne suffisait pas à la lire comme une jante à
-  // cette résolution ; un arc clair net, façon reflet métallique, fait le
-  // travail en un seul bloc de couleur au lieu d'un flou.
+  // avec la route, jantes »).
   rimHi: "#c7c9d2",
   tire: "#0e0e11",
   grip: "#33333b",
 };
 
-function px(ctx, x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
-}
-
-// Torse rayé (maillot rugby), largeur variable en haut/bas pour la posture.
-function stripedTorso(ctx, x0, y0, widthTop, widthBottom, height) {
-  for (let i = 0; i < height; i++) {
-    const t = i / (height - 1);
-    const w = Math.round(widthTop + (widthBottom - widthTop) * t);
-    const x = Math.round(x0 - w / 2);
-    const stripe = Math.floor(i / 2) % 2 === 0;
-    px(ctx, x, y0 + i, w, 1, stripe ? PAL.green : PAL.white);
-  }
-}
-
-// Vue de dos du vélo : le disque de la roue arrière est perpendiculaire à la
-// caméra. On ne voit donc PAS un cercle plein (qui se lirait comme une roue
-// couchée, une planche à roulettes) mais l'épaisseur du pneu — une ellipse
-// haute et étroite (demandé au playtest : « ta roue est toujours à plat,
-// il faut la faire tourner de 90° pour qu'elle soit dans le sens de la
-// route »). Petit reflet clair sur la face avant de la jante pour donner
-// l'idée du disque intérieur qu'on devine à peine par le côté.
-function wheel(ctx, cx, cy, r) {
-  const halfW = Math.max(2, r * 0.32);
-  const halfH = r;
-  ctx.fillStyle = PAL.tire;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, halfW, halfH, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = PAL.rim;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, halfW * 0.4, halfH * 0.86, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Reflet de jante : arc clair sur le bord haut, en aplat net (pas de
-  // dégradé) — c'est ce qui manquait pour lire "jante métallique" plutôt
-  // qu'un simple disque gris uni.
-  ctx.fillStyle = PAL.rimHi;
-  ctx.beginPath();
-  ctx.ellipse(cx - halfW * 0.15, cy - halfH * 0.35, halfW * 0.32, halfH * 0.22, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 // Ombre de contact au sol : ellipse aplatie sous la roue, non tournée par le
 // lean (une ombre reste plaquée au sol même quand le personnage penche dans
-// un virage). Absente jusqu'ici — retour DA : « le vélo manque de contact
-// avec la route ». Dessinée à part du sprite pré-rendu (elle dépend de x/
-// groundY à l'écran, pas d'un pixel art figé), même technique que les ombres
-// de véhicules dans entities.js (ellipse noire semi-transparente).
+// un virage). Dessinée à part du sprite pré-rendu (elle dépend de x/groundY à
+// l'écran, pas d'un pixel art figé), même technique que les ombres de
+// véhicules dans entities.js (ellipse noire semi-transparente) — seule
+// exception "courbe" du fichier, purement géométrique, pas de la DA du sprite.
 function groundShadow(ctx, x, groundY, w) {
   ctx.save();
   ctx.globalAlpha = 0.3;
@@ -97,39 +61,39 @@ function groundShadow(ctx, x, groundY, w) {
   ctx.restore();
 }
 
-// Cheveux bouclés : anneau complet de bosses tout autour de l'ellipse de
-// base (pas juste au sommet) pour lire clairement "boucles" — un contour
-// lisse avec 2-3 bosses ne se voit pas assez à 32 px, une silhouette en
-// "nuage"/chou-fleur sur tout le pourtour se reconnaît d'un coup d'œil.
-function hair(ctx, cx, topY, w, h, bumps) {
-  ctx.fillStyle = PAL.hair;
-  ctx.beginPath();
-  ctx.ellipse(cx, topY + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  for (const [bx, by, br] of bumps) {
-    ctx.beginPath();
-    ctx.arc(cx + bx * w, topY + h / 2 + by * h, br * w, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = PAL.hairHi;
-  ctx.beginPath();
-  ctx.arc(cx - w * 0.18, topY + h * 0.28, w * 0.16, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx + w * 0.32, topY + h * 0.62, w * 0.1, 0, Math.PI * 2);
-  ctx.fill();
+// Roue arrière, vue de DOS : le disque est perpendiculaire à la caméra, donc
+// on ne voit pas sa face (contrairement à la roue avant des cyclistes, vue de
+// face avec ses crampons en quinconce) mais sa TRANCHE — un bloc étroit et
+// haut, sans crampons visibles par le côté. Bande claire fine au centre :
+// même intention que l'ancien reflet de jante en ellipse, traduite en bloc.
+function wheelEdge(ctx, cx, yTop, yBot) {
+  const w = 5;
+  blk(ctx, cx - w / 2, yTop, w, yBot - yTop, PAL.tire);
+  blk(ctx, cx - 1, yTop + 2, 2, yBot - yTop - 4, PAL.rimHi);
+}
+
+// Cheveux bouclés en escalier de blocs (pas de courbes, cf. philosophie
+// voxel) : un bloc de crâne, un étage plus large en dessous (les boucles
+// débordent), un étage resserré au ras du cou. Deux petits blocs de reflet
+// cassent la silhouette pour lire "boucles" plutôt que "casque plein".
+function hair(ctx, cx) {
+  blk(ctx, cx - 4, 1, 8, 3, PAL.hair);
+  blk(ctx, cx - 6, 4, 12, 3, PAL.hair);
+  blk(ctx, cx - 5, 7, 10, 2, PAL.hair);
+  blk(ctx, cx - 7, 5, 3, 3, PAL.hairHi);
+  blk(ctx, cx + 4, 6, 3, 3, PAL.hairHi);
 }
 
 // Mollet + pied d'une jambe, remontés de `lift` px (genou plus ou moins
-// plié). Les 4 frames du cycle de pédalage (PEDAL_FRAMES ci-dessous) ne
-// sont qu'une paire (liftGauche, liftDroite) différente à chaque fois — sans
-// cette variation, le personnage ne fait que tanguer d'un bloc, comme posé
-// sur une trottinette plutôt qu'à vélo. Semelle claire en pied de chaussure :
+// plié). Les 4 frames du cycle de pédalage (PEDAL_FRAMES ci-dessous) ne sont
+// qu'une paire (liftGauche, liftDroite) différente à chaque fois — sans cette
+// variation, le personnage ne fait que tanguer d'un bloc, comme posé sur une
+// trottinette plutôt qu'à vélo. Semelle claire en pied de chaussure :
 // contraste avec la roue derrière, pour bien lire "pied" et pas "roue".
 function drawLeg(ctx, calfX, footX, lift) {
-  px(ctx, calfX, 31 - lift, 4, 3, PAL.pantsLo);
-  px(ctx, footX, 33 - lift, 5, 1, PAL.shoe);
-  px(ctx, footX, 34 - lift, 5, 1, PAL.shoeSole);
+  blk(ctx, calfX, 31 - lift, 4, 3, PAL.pantsLo);
+  blk(ctx, footX, 33 - lift, 5, 1, PAL.shoe);
+  blk(ctx, footX, 34 - lift, 5, 1, PAL.shoeSole);
 }
 
 // "Penché en avant" : buste tassé et plus large (épaules hunchées), prise de
@@ -138,29 +102,35 @@ function drawLeg(ctx, calfX, footX, lift) {
 //
 // Vue de dos : UNE seule roue (arrière), et les deux pieds pédalent devant
 // elle, resserrés près de l'axe central plutôt qu'écartés à ses deux bords —
-// demandé explicitement après playtest ("j'ai l'impression d'avoir deux
-// roues à droite et à gauche") : avec l'écartement précédent (~7px) et une
-// couleur de chaussure trop proche du pneu, les deux pieds se lisaient comme
-// deux petites roues supplémentaires flanquant la vraie. Bassin réduit et
-// remonté (au lieu de recouvrir presque toute la roue) pour la laisser
-// apparaître clairement en dessous, comme un vrai arrière-plan.
+// demandé explicitement après playtest ("j'ai l'impression d'avoir deux roues
+// à droite et à gauche"). Bassin réduit et remonté (au lieu de recouvrir
+// presque toute la roue) pour la laisser apparaître clairement en dessous,
+// comme un vrai arrière-plan — ordre de peinture : roue → cadre → cheveux →
+// torse → bras/guidon → bassin/short → jambes.
 function draw(ctx, liftLeft, liftRight) {
-  wheel(ctx, 13, 28, 7);
-  px(ctx, 12, 20, 2, 7, PAL.frame);
-  px(ctx, 10.5, 19, 5, 2, PAL.frame);
-  hair(ctx, 13, 3, 11, 7, [
-    [-0.55, -0.32, 0.30], [0, -0.55, 0.30], [0.55, -0.32, 0.30],
-    [-0.68, 0.1, 0.26], [0.68, 0.1, 0.26],
-    [-0.5, 0.48, 0.26], [0, 0.6, 0.26], [0.5, 0.48, 0.26],
-  ]);
-  px(ctx, 11.5, 9.5, 3, 1.5, PAL.skin);
-  stripedTorso(ctx, 13, 11, 17, 15, 9);
-  px(ctx, 2, 13, 4, 2, PAL.green);
-  px(ctx, 1, 15, 3, 2, PAL.grip);
-  px(ctx, 21, 13, 4, 2, PAL.green);
-  px(ctx, 22, 15, 3, 2, PAL.grip);
-  stripedTorso(ctx, 13, 20, 12, 10, 4);
-  px(ctx, 9, 23, 8, 5, PAL.pants);
+  wheelEdge(ctx, 13, 21, 34);
+  blk(ctx, 12, 19, 3, 3, PAL.frame);  // selle
+  blk(ctx, 12, 16, 3, 5, PAL.frame);  // tube de selle
+
+  hair(ctx, 13);
+  blk(ctx, 11, 9, 4, 2, PAL.skin);    // nuque
+
+  // Torse rayé (maillot), taperé en escalier au lieu d'un dégradé continu de
+  // largeur par ligne — c'est justement l'escalier qui fait "voxel" plutôt
+  // que "silhouette lissée".
+  blk(ctx, 5, 11, 16, 3, PAL.white);
+  blk(ctx, 6, 14, 14, 3, PAL.green);
+  blk(ctx, 7, 17, 12, 3, PAL.white);
+
+  // Bras vers le guidon, en deux marches (épaule → poignée).
+  blk(ctx, 2, 13, 4, 3, PAL.green);
+  blk(ctx, 1, 16, 4, 3, PAL.grip);
+  blk(ctx, 20, 13, 4, 3, PAL.green);
+  blk(ctx, 21, 16, 4, 3, PAL.grip);
+
+  blk(ctx, 8, 20, 10, 4, PAL.green);  // bassin
+  blk(ctx, 9, 24, 8, 5, PAL.pants);   // short
+
   drawLeg(ctx, 9, 9, liftLeft);
   drawLeg(ctx, 12, 12, liftRight);
 }
@@ -176,7 +146,9 @@ function makeSprite(liftLeft, liftRight) {
 }
 
 // Cycle de pédalage à 4 frames (jambe gauche, jambe droite), pré-rendues une
-// fois. render() choisit celle qui correspond à la phase courante.
+// fois. render() choisit celle qui correspond à la phase courante. Gardé à 4
+// frames (pas 2 comme les cyclistes) : c'est déjà le rendu le plus fluide
+// pour le personnage qu'on regarde en continu, pas de raison de dégrader.
 const PEDAL_FRAMES = [
   makeSprite(3, 0), // jambe gauche en haut, droite en bas
   makeSprite(2, 1), // transition
