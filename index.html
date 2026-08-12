@@ -1253,8 +1253,15 @@
     <div id="countdown" class="view">
       <div id="countdown-num">20</div>
       <p id="countdown-caption"></p>
-      <button id="skip-countdown" type="button">Passer l'intro →</button>
     </div>
+
+    <!-- Hors de #countdown volontairement : .view.active porte une animation
+         (transform: translateY, voir @keyframes view-in), et tout ancêtre
+         avec un transform actif devient le référentiel de positionnement de
+         ses descendants position:absolute — le bouton se retrouvait ancré au
+         bloc du décompte (donc collé au texte) au lieu du bas de l'écran.
+         Même contournement que #cta-link, pour la même raison. -->
+    <button id="skip-countdown" type="button">Passer l'intro →</button>
 
     <!-- Écran de fin : MÊME carte .panel que les étapes du menu (demandé —
          « il faut revoir l'écran de game over entièrement pour qu'il soit
