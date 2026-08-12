@@ -78,7 +78,7 @@ dépendances vont toujours vers le bas.
 | `voxel.js` | Primitif de cube extrudé (`blk`/`shade`/`parseColor`) | Partagé par `player.js` et `cyclists.js`, zéro logique d'orientation |
 | `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | **Voxel** (blocs extrudés) depuis le 12 août 2026 — même grammaire que `cyclists.js`, voir §11 |
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
-| `pedestrians.js` | Sprites des piétons-obstacles | Même technique que `player.js` |
+| `pedestrians.js` | Sprites des piétons-obstacles | **Voxel** depuis le 12 août 2026, même `blk()` que joueur/cyclistes |
 | `finish.js` | Ligne d'arrivée | Cosmétique |
 | `hud.js` | Score, vies, statut concours | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
@@ -328,13 +328,16 @@ infranchissables et vidait la catégorie en silence (18 cyclistes tirés → 8 s
 
 ## 6bis. Décor : façades, croisements, feux (12 août 2026)
 
-Chantier fait en autonomie créative (accord explicite de l'utilisateur avant de se coucher —
+Chantier commencé en autonomie créative (accord explicite de l'utilisateur avant de se coucher —
 « autorise-toi tout seul pour la créa »), à partir de plusieurs références Street View
 (immeuble haussmannien classique + viaduc du métro) et du retour direct : « revois la manière
 dont c'est fait en pixel [...] immeuble parisien », « des fois qu'on croise des avenues »,
-« tu peux rajouter des feux ». **Rien de tout ça n'a été vérifié visuellement** — preview
-navigateur inaccessible toute la session (voir §12) — seulement par lecture de code et
-`npm run build`. **Premier réflexe au réveil : regarder si c'est beau, pas supposer que ça l'est.**
+« tu peux rajouter des feux ». Déployé sur le miroir GitHub Pages (§9) et **revu par
+l'utilisateur au réveil** : croisements/feux/piliers de pont jugés bons, mais verdict tranché sur
+les bâtiments — « les bâtiments qui font pas du tout parisien » — d'où la deuxième passe
+ci-dessous. **Cette deuxième passe, elle, n'a pas encore été revue** (preview navigateur
+inaccessible toute la session, voir §12, donc pas de vérification possible de ce côté-ci) —
+prochaine chose à regarder.
 
 **Façades (`world.js`, `drawFace`/`buildingShape`)** — trois ajouts, tous additifs sur le rendu
 existant (aucun invariant de placement/perspective touché) :
@@ -347,6 +350,28 @@ existant (aucun invariant de placement/perspective touché) :
 - **2e rangée de balcon** : possible désormais au dernier étage noble (juste sous le toit), en
   plus du balcon du 2e étage déjà existant — tirage indépendant (`h8`), jamais garanti sur un
   petit immeuble (`rows >= 5` requis).
+
+⚠️ **Deuxième passe, même jour, sur retour direct plus tranchant : « les bâtiments ne font pas
+du tout parisien ».** Le premier lot ci-dessus n'ajoutait que des DÉTAILS de surface ; en
+creusant, la FORME elle-même ne matchait pas — le commentaire d'origine du fichier
+(`FACADE_PALETTE`) révélait que la palette/les proportions avaient été conçues pour des
+« tours de béton brut » (une photo pochette de l'artiste), jamais retravaillées quand l'en-tête
+du fichier a commencé à promettre « façades haussmanniennes ». Les ajouts haussmanniens
+habillaient donc une forme béton, pas de la pierre. Corrigé :
+- **Gabarit resserré** : hauteur `9-22` → `16-19` (ligne de corniche quasi uniforme, la
+  signature d'un boulevard haussmannien réglementé, plutôt qu'une skyline de tours
+  dépareillées) ; profondeur `5-8` → `7,5-9,3` sur `SPACING=10` (mur quasi continu, ruelle
+  latérale réduite à un filet plutôt qu'un vrai vide entre bâtiments).
+- **Palette réchauffée** : `FACADE_PALETTE` vire du gris béton vers un crème/ocre plus soutenu,
+  luminosité gardée haute (même stratégie que le commentaire d'origine — partir plus clair pour
+  ne pas virer boueux une fois mélangé à la brume rouge). `ROOF_COLOR` très légèrement bleuté
+  ("zinc") plutôt que noir plat.
+- **Fenêtres** : hautes et étroites (porte-fenêtre) plutôt que carrées (`winW`×0,55→0,46,
+  `winH`×0,6→0,78), encadrement clair ajouté (`strokeRect`, sinon la fenêtre se lisait comme un
+  trou plaqué). Vitrines de rez-de-chaussée en plein cintre (arc, pas un rectangle).
+- **Lucarnes** (`DORMER_MIN_ROOF_PX`) : deux petites fenêtres à pignon triangulaire qui percent
+  le bas du toit — c'était le détail manquant pour lire "mansarde parisienne" plutôt que "pan
+  incliné générique", le toit n'ayant jusque-là qu'un aplat sombre uni.
 
 **Croisements d'avenue** (`road.js` + `world.js`) — grille partagée pour éviter toute
 divergence entre les deux fichiers :
@@ -542,13 +567,10 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   `cyclists.js`), vu de dos (roue arrière en tranche plutôt qu'en ellipse). Les deux fichiers
   partagent maintenant le même primitif de rendu, chacun garde sa silhouette bespoke (vue de
   face vs de dos, sac à dos vs guidon).
-
-**Nouvelle incohérence de DA, pas traitée cette session :**
-- `pedestrians.js` est resté en pixel art plat — il avait été converti à l'origine pour matcher
-  l'ANCIEN style du joueur (voir son en-tête de fichier). Depuis que le joueur ET les cyclistes
-  sont en voxel, c'est maintenant le piéton qui détonne, seul obstacle humain encore en pixel
-  art. Même chantier que celui qui vient d'être fait pour le joueur (extraire le layout vers des
-  blocs `blk()`), pas encore fait — à prioriser si l'incohérence se voit en jeu.
+- ~~`pedestrians.js` resté en pixel art plat~~ — résolu le 12 août 2026 (même session, retour
+  direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
+  identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
+  personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
 **Dette structurelle :**
 - `main.js` (1242 lignes) est un module fourre-tout : pause, DOM, onboarding, classement,
@@ -566,14 +588,17 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   pont 18), contre 19 à l'origine (300 créneaux, avant cycliste et pont). À confirmer en jouant
   — les leviers sont les poids `cycliste`/`pont` dans `OBSTACLE_WEIGHTS`.
 
-**Jamais validé sur iPhone réel** pour la session du 12 août 2026 :
-- Premier lot (testé sur téléphone en cours de session, corrigé depuis) : voxel joueur, pont,
-  courbure — retours déjà traités (fatal au pont, LEAD_IN, trait noir d'horizon, cheveux).
-- **Second lot, jamais vu du tout** (fait en autonomie créative après ce test, voir §6bis) :
-  volets/rez-de-chaussée/2e balcon sur les façades, croisements d'avenue, feux de circulation,
-  et la nouvelle règle "sauter sous un pont est fatal même voie ouverte" spécifiquement. Tout
-  vérifié par lecture de code + `npm run build` propre, rien à l'œil. **C'est le premier lot à
-  regarder au réveil.**
+**Historique de validation, session du 12 août 2026** (voir §12 : preview navigateur inaccessible
+toute la session, donc rien de tout ça vérifié autrement qu'en jouant réellement sur téléphone) :
+- Premier lot testé en cours de session, corrigé sur retour : voxel joueur, pont (fatal, garde
+  anti-piège), LEAD_IN, trait noir d'horizon, cheveux. ✅ Revu et corrigé.
+- Deuxième lot (façades v1 volets/vitrine/balcon, croisements, feux) testé au réveil : croisements
+  et feux jugés bons, **façades jugées "pas du tout parisiennes"** → troisième passe (§6bis,
+  gabarit/fenêtres/lucarnes/palette) + piétons passés en voxel. ✅ Croisements/feux validés,
+  ❌ façades en cours de re-correction.
+- **Troisième lot, jamais vu du tout** : la refonte façades ci-dessus (§6bis) et les piétons
+  voxel. Vérifié par lecture de code + `npm run build` propre uniquement. **Prochaine chose à
+  regarder.**
 - Dette antérieure non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
 
 ---

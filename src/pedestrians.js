@@ -1,12 +1,12 @@
 // pedestrians.js — Piétons qui traversent la chaussée.
 //
-// ⚠️ Même direction artistique que le cycliste (demandé explicitement : « que
-// ce soit la même DA que mon perso, parce que là ça marche pas »). La version
-// précédente les dessinait en vectoriel à la volée (rectangles + arcs à la
-// taille écran, contours lissés, t-shirts bleu/jaune hors charte) : à côté du
-// sprite pixel art du joueur, ça se lisait comme deux jeux différents.
+// ⚠️ Même direction artistique que le joueur/cyclistes (retour du 12 août
+// 2026, après le passage du joueur en voxel : « tu dois me revoir [...] les
+// piétons »). Convertis en blocs extrudés (blk(), voxel.js) — même
+// silhouette/layout qu'avant (c'était déjà cohérent en pixel art plat avec
+// l'ANCIEN style du joueur), juste le primitif de dessin qui change.
 //
-// Même technique que player.js, donc :
+// Toujours la même technique de fabrication :
 //   - dessin en pixels entiers sur un canvas hors-écran basse résolution,
 //   - pré-rendu UNE fois au chargement (pas de dessin par frame),
 //   - blit à l'échelle avec imageSmoothingEnabled = false (pas de flou),
@@ -14,6 +14,13 @@
 //     claire) + le rouge de charte pour les hauts.
 // Les piétons sont des obstacles : le rouge de charte domine les outfits pour
 // que le signal "danger" reste lisible, comme les autres obstacles.
+//
+// Vue de face/dos, symétrique : contrairement au joueur (vu de dos, roue
+// visible par la tranche) et aux cyclistes (vus de face, roue de face), un
+// piéton debout n'a pas de "roue" pour trancher l'orientation — le même
+// sprite sert aux deux, comme avant cette conversion.
+
+import { blk } from "./voxel.js";
 
 const SPRITE_W = 16;
 const SPRITE_H = 26;
@@ -27,10 +34,12 @@ const PEDESTRIAN_HEIGHT = 2.0;
 
 // Palette commune avec player.js (mêmes valeurs, recopiées plutôt
 // qu'importées : player.js ne les exporte pas et c'est le seul lien entre les
-// deux modules — si la charte bouge, les deux sont à mettre à jour).
+// deux modules — si la charte bouge, les deux sont à mettre à jour). HAIR
+// resynchronisé le 12 août 2026 (player.js est passé au noir, « je veux
+// cheveux noirs »).
 const SKIN = "#c98a5b";
 const SKIN_DARK = "#a86f45";
-const HAIR = "#241609";
+const HAIR = "#0d0d0f";
 const PANTS = "#22242b";
 const SHOE = "#565a66";
 const SHOE_SOLE = "#e8dcc0";
@@ -49,47 +58,45 @@ export const PEDESTRIAN_ICONS = {
 
 const OUTFIT_TYPES = Object.keys(PEDESTRIAN_ICONS);
 
-function px(ctx, x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
-}
-
 // Vue de face/dos, jambes écartées selon `step` (-1, 0, +1) : c'est le seul
 // paramètre du cycle de marche. Deux frames extrêmes + une neutre suffisent à
 // cette taille — au-delà, l'animation ne se lit plus, exactement comme le
-// cycle de pédalage à 4 frames du cycliste.
+// cycle de pédalage à 4 frames du cycliste. blk() (voxel.js) remplace le
+// fillRect plat de la version pixel art précédente — même layout, juste le
+// primitif de rendu qui change (arête haute éclaircie/basse-droite assombrie,
+// voir voxel.js).
 function draw(ctx, outfit, step) {
   // Cheveux + tête
-  px(ctx, 5, 1, 6, 3, outfit.hair);
-  px(ctx, 5, 4, 6, 4, SKIN);
-  px(ctx, 5, 7, 6, 1, SKIN_DARK);   // ombre sous le menton
+  blk(ctx, 5, 1, 6, 3, outfit.hair);
+  blk(ctx, 5, 4, 6, 4, SKIN);
+  blk(ctx, 5, 7, 6, 1, SKIN_DARK);   // ombre sous le menton
 
   // Bras (le long du corps, décalés en opposition avec les jambes)
   const armL = step > 0 ? 1 : 0;
   const armR = step < 0 ? 1 : 0;
-  px(ctx, 2, 9 + armL, 2, 6, outfit.top);
-  px(ctx, 2, 15 + armL, 2, 2, SKIN);
-  px(ctx, 12, 9 + armR, 2, 6, outfit.top);
-  px(ctx, 12, 15 + armR, 2, 2, SKIN);
+  blk(ctx, 2, 9 + armL, 2, 6, outfit.top);
+  blk(ctx, 2, 15 + armL, 2, 2, SKIN);
+  blk(ctx, 12, 9 + armR, 2, 6, outfit.top);
+  blk(ctx, 12, 15 + armR, 2, 2, SKIN);
 
   // Buste + bande claire horizontale (écho du maillot rayé du cycliste, et
   // signal type "gilet de sécurité" sur un obstacle à éviter)
-  px(ctx, 4, 8, 8, 9, outfit.top);
-  px(ctx, 4, 12, 8, 2, outfit.stripe);
-  px(ctx, 4, 16, 8, 1, outfit.topShade);
+  blk(ctx, 4, 8, 8, 9, outfit.top);
+  blk(ctx, 4, 12, 8, 2, outfit.stripe);
+  blk(ctx, 4, 16, 8, 1, outfit.topShade);
 
   // Jambes : `step` écarte l'une et rapproche l'autre
   const legLx = 4 - step;
   const legRx = 9 + step;
-  px(ctx, legLx, 17, 3, 6, outfit.pants);
-  px(ctx, legRx, 17, 3, 6, outfit.pants);
+  blk(ctx, legLx, 17, 3, 6, outfit.pants);
+  blk(ctx, legRx, 17, 3, 6, outfit.pants);
 
   // Chaussures : semelle claire, comme sur le cycliste — c'est ce qui détache
   // les pieds du bitume sombre.
-  px(ctx, legLx - 1, 23, 4, 2, SHOE);
-  px(ctx, legLx - 1, 25, 4, 1, SHOE_SOLE);
-  px(ctx, legRx, 23, 4, 2, SHOE);
-  px(ctx, legRx, 25, 4, 1, SHOE_SOLE);
+  blk(ctx, legLx - 1, 23, 4, 2, SHOE);
+  blk(ctx, legLx - 1, 25, 4, 1, SHOE_SOLE);
+  blk(ctx, legRx, 23, 4, 2, SHOE);
+  blk(ctx, legRx, 25, 4, 1, SHOE_SOLE);
 }
 
 function makeSprite(outfit, step) {

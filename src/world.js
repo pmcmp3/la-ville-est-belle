@@ -41,28 +41,39 @@ const SIDEWALK_MARGIN = 0.5; // marge entre le bord de route et le pied des bât
 // Plus rien n'est visible au-delà de l'horizon courbe (HORIZON_Z ≈ 95, soit
 // une dizaine de bâtiments à SPACING = 10) : inutile d'en préparer davantage.
 const DEPTH_COUNT = Math.ceil(HORIZON_Z / SPACING) + 1;
-// Profondeur du bloc le long de la route (< SPACING pour laisser un espace —
-// une ruelle latérale — entre deux bâtiments, ce qui aide à lire des volumes
-// séparés plutôt qu'un mur continu) et largeur perpendiculaire (retour d'angle).
-// GIRTH agrandi pour une meilleure sensation de volume en 3D (retours d'angle
-// plus visibles en perspective, coins du bâtiment plus prononcés).
-const DEPTH_MIN = 5, DEPTH_MAX = 8;
+// Profondeur du bloc le long de la route (< SPACING pour laisser tout juste
+// un filet — une ruelle latérale — entre deux bâtiments) et largeur
+// perpendiculaire (retour d'angle).
+// ⚠️ Revu le 12 août 2026 (retour direct : « les bâtiments ne font pas du
+// tout parisien »). Deux défauts de FORME, pas seulement de détail :
+// 1. Gabarit trop variable (9 à 22, ×2,4) → skyline de tours dépareillées au
+//    lieu de la ligne de corniche QUASI UNIFORME qui définit un boulevard
+//    haussmannien (hauteur réglementée à l'époque). Resserré à 16-19.
+// 2. Trop d'écart entre bâtiments (jusqu'à 5 unités de vide sur 10) → lecture
+//    "tours isolées" plutôt que mur continu de mitoyens. Resserré à 7,5-9,3
+//    (le filet de ruelle reste, juste plus étroit).
+const DEPTH_MIN = 7.5, DEPTH_MAX = 9.3;
 const GIRTH_MIN = 5.5, GIRTH_MAX = 9;
-const MIN_HEIGHT = 9, MAX_HEIGHT = 22;
+const MIN_HEIGHT = 16, MAX_HEIGHT = 19;
 // En dessous de cette profondeur caméra, la projection (focal/z) explose —
 // même garde défensive que renderCar3D/renderBus3D dans entities.js.
 const NEAR_Z_CLAMP = 0.6;
 
-// DA pochette : tours de béton brut, gris chauds et sourds, tranchées par des
-// toits quasi noirs et des corniches blanches. Le décor tient le fond du
-// cadre en noir/blanc/béton ; la couleur vive est réservée au ciel, au rouge
-// de la charte et aux objets à ramasser — comme sur la photo, où seuls le
-// mur rouge et le bleu du ciel claquent sur le béton.
-// Gris clairs : mélangés au rouge de la brume, des gris moyens viraient au
-// brun boueux et la ville perdait son côté béton. Il faut partir plus haut
-// en luminosité pour que le mélange reste minéral.
-const FACADE_PALETTE = ["#bdb2a6", "#a89c90", "#cdc4ba", "#95897e"];
-const ROOF_COLOR = "#1a1a1e";      // toiture quasi noire, silhouette franche sur le ciel
+// ⚠️ Tension de DA identifiée le 12 août 2026 en creusant pourquoi « les
+// bâtiments ne font pas parisien » : la palette d'origine ("DA pochette")
+// visait des TOURS DE BÉTON BRUT d'après une photo de l'artiste — gris
+// sourds, délibérément désaturés pour ne pas virer au "brun boueux" une fois
+// mélangés à la brume rouge du couchant. L'en-tête du fichier promettait
+// « pierre parisienne crème/ocre » sans jamais y toucher : les ajouts
+// haussmanniens (volets, corniche, balcons) habillaient donc une teinte
+// béton, pas de la pierre. Réchauffée ici — plus crème/ocre, luminosité
+// gardée haute (même stratégie qu'avant : partir plus clair pour que le
+// mélange avec la brume reste minéral plutôt que de virer boueux).
+const FACADE_PALETTE = ["#d9c9a3", "#c7b48c", "#e6d8b8", "#b5a37e"];
+// Zinc plutôt que noir plat : très légèrement bleuté, la silhouette reste
+// franche sur le ciel (l'essentiel du contraste vient toujours du fait que
+// c'est quasi noir) mais lit "métal" plutôt que "trou".
+const ROOF_COLOR = "#20242c";
 const ROOF_RIDGE_COLOR = "#0d0d10"; // faîtage + cheminées + balcons : le noir le plus dense
 const CORNICE_COLOR = "#f2efe9";   // bandeau blanc cassé, le trait clair qui découpe la façade
 const WINDOW_DARK = "#15151a";     // fenêtre non éclairée : trou noir dans le béton
@@ -86,6 +97,11 @@ const SIDE_SHADE = 0.82;
 
 const ROOF_RATIO = 0.22;        // fraction de la hauteur (monde) occupée par le toit mansardé
 const WINDOW_MIN_PX = 9;        // sous cette largeur/hauteur écran, pas de fenêtres (trop petit pour se lire)
+// Lucarnes (dormer windows) : LE détail qui fait "toit mansardé parisien"
+// plutôt que "toit en pente générique" — sans elles le toit n'était qu'un
+// aplat sombre. Une par façade assez large, jamais sur le retour d'angle
+// (trop étroit pour rester lisible).
+const DORMER_MIN_ROOF_PX = 14;
 
 // Hash déterministe : un bâtiment garde toujours la même forme/teinte au
 // même endroit (sinon ça scintille en boucle quand on repasse dessus).
@@ -203,16 +219,20 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     const rows = Math.max(1, Math.min(shape.windowRows, Math.floor(wallH / 6)));
     const marginX = wallW * 0.12;
     const cellW = (wallW - marginX * 2) / cols;
-    const winW = cellW * 0.55;
+    // Fenêtres hautes et étroites (porte-fenêtre à la française) plutôt que
+    // carrées — retour du 12 août 2026, l'un des écarts qui faisait lire
+    // "immeuble de bureaux" plutôt que "immeuble parisien".
+    const winW = cellW * 0.46;
     const marginY = wallH * 0.1;
     const cellH = (wallH - marginY) / rows;
-    const winH = cellH * 0.6;
+    const winH = cellH * 0.78;
     const litColor = gradientStep(windowLitGradient, distT);
     const darkColor = gradientStep(windowDarkGradient, distT);
     const balconyColor = gradientStep(roofRidgeGradient, distT);
     const shutterColor = gradientStep(shape.shutterGradient, distT);
     const shopfrontColor = gradientStep(shopfrontGradient, distT);
     const bandeauColor = gradientStep(corniceGradient, distT);
+    const frameColor = gradientStep(corniceGradient, distT);
     // Rez-de-chaussée = dernière rangée (r croît du toit vers le sol) —
     // traité à part (vitrine, pas de volets) seulement si l'immeuble a bien
     // un "étage" distinct au-dessus (sinon rows === 1, rien à séparer).
@@ -245,15 +265,37 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       for (let c = 0; c < cols; c++) {
         const wx = wallLeft + marginX + c * cellW + (cellW - winW) / 2;
         if (isGround) {
-          // Vitrine sombre et plus haute que les fenêtres d'étage, jamais de
-          // volets — sans ça la façade était uniforme du sol au toit.
+          // Vitrine en plein cintre (arc en demi-cercle) plutôt qu'un simple
+          // rectangle — signal "devanture parisienne" bien plus net qu'une
+          // fenêtre carrée, et ça la distingue déjà visuellement des fenêtres
+          // d'étage sans autre traitement.
+          const shopH = Math.min(cellH * 0.92, winH * 1.7);
+          const shopTop = wallBottom - shopH;
+          const archR = winW / 2;
           ctx.fillStyle = shopfrontColor;
-          const shopH = Math.min(cellH * 0.92, winH * 1.6);
-          ctx.fillRect(wx, wallBottom - shopH, winW, shopH);
+          ctx.beginPath();
+          if (shopH > archR) {
+            ctx.moveTo(wx, shopTop + archR);
+            ctx.arc(wx + archR, shopTop + archR, archR, Math.PI, 0);
+            ctx.lineTo(wx + winW, wallBottom);
+            ctx.lineTo(wx, wallBottom);
+          } else {
+            ctx.rect(wx, shopTop, winW, shopH);
+          }
+          ctx.closePath();
+          ctx.fill();
           continue;
         }
         ctx.fillStyle = windowIsLit(windowKey, isFacade ? 0 : 1, r, c) ? litColor : darkColor;
         ctx.fillRect(wx, rowY, winW, winH);
+        // Encadrement clair (pierre de taille autour de l'ouverture) — sans
+        // lui la fenêtre se lisait comme un trou plaqué sur le mur plutôt
+        // qu'une ouverture taillée dedans.
+        if (winW >= 5 && winH >= 5) {
+          ctx.strokeStyle = frameColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(wx + 0.5, rowY + 0.5, winW - 1, winH - 1);
+        }
         // Volets, seulement si assez de place pour rester lisibles (pas de
         // bouillie à distance) — deux blocs de part et d'autre de la fenêtre.
         const shutterW = Math.min(winW * 0.4, (cellW - winW) / 2 - 1);
@@ -297,6 +339,33 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
   ctx.fillRect(roofLeft, roofTop, roofW, roofH);
   ctx.fillStyle = gradientStep(roofRidgeGradient, distT);
   ctx.fillRect(roofLeft, roofTop, roofW, Math.max(1, roofH * 0.22));
+
+  // Lucarnes : petites fenêtres qui percent le bas du toit, pignon
+  // triangulaire au-dessus — LE détail qui distingue un vrai toit mansardé
+  // parisien d'un simple pan incliné uni (retour du 12 août 2026, avec les
+  // mêmes références Street View que les volets/façades).
+  if (isFacade && roofW > DORMER_MIN_ROOF_PX) {
+    const dormerW = roofW * 0.16;
+    const dormerH = roofH * 0.42;
+    const dormerY = roofBottom - roofH * 0.5;
+    const frameStone = gradientStep(corniceGradient, distT);
+    for (const fx of [0.38, 0.58]) {
+      const dx = roofLeft + roofW * fx;
+      ctx.fillStyle = frameStone;
+      ctx.beginPath();
+      ctx.moveTo(dx, dormerY);
+      ctx.lineTo(dx + dormerW / 2, dormerY - dormerW * 0.5);
+      ctx.lineTo(dx + dormerW, dormerY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(dx + dormerW * 0.12, dormerY, dormerW * 0.76, dormerH);
+      ctx.fillStyle = windowIsLit(windowKey, 2, 0, Math.round(fx * 10))
+        ? gradientStep(windowLitGradient, distT)
+        : gradientStep(windowDarkGradient, distT);
+      ctx.fillRect(dx + dormerW * 0.22, dormerY + dormerH * 0.15, dormerW * 0.56, dormerH * 0.7);
+    }
+  }
+
   ctx.restore();
 
   // Corniche : fine bande claire entre mur et toit (hors clip, tracée en
