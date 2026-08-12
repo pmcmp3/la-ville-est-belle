@@ -39,9 +39,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 - **Contrôle 100 % au geste**, aucun contrôle à l'écran : swipe gauche/droite = une voie,
   swipe haut = saut, swipe bas = glissade rapide. **Le gyroscope a été retiré** après plusieurs
   sessions à fiabiliser la permission iOS — ne pas le réintroduire.
-- Parcours **fini** : il s'arrête après **343 objets** (~257,3 s), soit toute la durée du
-  morceau (257,9 s, ~0,6 s de marge) — renversement du 12 août 2026 (c'était 300 objets/225 s,
-  la musique continuait après la ligne). **120 BPM**, offset ~0,01 s.
+- Parcours **fini** : la ligne d'arrivée arrive quand le morceau atteint **`config.dureeCourse`
+  (205 s, "03:25")**, PAS à la fin du morceau — deuxième renversement du 12 août 2026 (même jour
+  que le premier : c'était d'abord 343 objets/257,3 s calé sur toute la durée du morceau, 257,9 s
+  de musique). Le morceau, lui, continue de jouer jusqu'à sa fin réelle (`dureeMorceau`) pendant
+  que le joueur est déjà sur l'écran de fin (~53 s de marge) — cohérent avec l'objectif "donner
+  envie d'écouter le morceau". `TOTAL_OBJECTS` (entities.js) dérive de `dureeCourse`, pas de
+  `dureeMorceau`. **120 BPM**, offset ~0,01 s.
 - **3 vies**, **5 obstacles**, **5 bonus**.
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
@@ -49,13 +53,25 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     (« on fait en sorte que les cyclistes deviennent tous des obstacles »).
   - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 4
     à la même profondeur (2 voies ouvertes en début de course, 1 seule en fin de course).
-  - Voiture et cône se franchissent au saut ; cycliste et piéton se contournent
-    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`).
+  - Voiture, cône **et cycliste** se franchissent au saut ; seul le piéton se contourne
+    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`). ⚠️ Le cycliste en est
+    sorti le 12 août 2026 (demandé explicitement, il y était depuis sa promotion en obstacle) —
+    ne pas le réintroduire dans `UNJUMPABLE_KINDS` sans redemander.
+  - ⚠️ **Intensification des vélos en fin de partie** (demandé le 12 août 2026) : au-delà de
+    **10 000 points**, le poids `cycliste` est doublé puis la table renormalisée
+    (`CYCLIST_BOOST_SCORE`/`CYCLIST_BOOST_FACTOR`, `entities.js`) — seule donnée de ce fichier qui
+    dépend du GAMEPLAY (score) plutôt que d'un hash pur par index de créneau, voir
+    `ARCHITECTURE.md` §5.2.
   - ⚠️ **Le pont est un cas à part, revu le 12 août 2026** : sauter y est TOUJOURS dangereux,
     même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
     risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
     voie. Choc fatal comme la voiture (`game.lives = 0` dans `main.js`), pas seulement −1 vie.
-- **200 étoiles exactement** par partie : le score maximum doit être un nombre connu.
+- **200 étoiles exactement** par partie : le score maximum doit être un nombre connu — inchangé
+  malgré le raccourcissement du parcours (205 s au lieu de 257 s) : c'est `TOTAL_OBSTACLES` qui
+  encaisse, mécaniquement plus bas (voir `ARCHITECTURE.md` §5.4).
+- **Ligne d'arrivée en volume** (`finish.js`) : damier au sol + portique (deux pylônes + poutre à
+  damier qui enjambe la route), façon Formule 1 — demandé explicitement le 12 août 2026 pour
+  remplacer le simple damier plat d'origine.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
 - Image de partage **1080×1920 pixel art borne arcade 80s** — pas encore faite.

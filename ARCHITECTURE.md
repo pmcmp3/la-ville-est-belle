@@ -82,7 +82,7 @@ dépendances vont toujours vers le bas.
 | `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | **Voxel** (blocs extrudés) depuis le 12 août 2026 — même grammaire que `cyclists.js`, voir §11 |
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
 | `pedestrians.js` | Sprites des piétons-obstacles | **Voxel** depuis le 12 août 2026, même `blk()` que joueur/cyclistes |
-| `finish.js` | Ligne d'arrivée | Cosmétique |
+| `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `hud.js` | Score, vies, statut concours | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence |
@@ -185,25 +185,54 @@ accumule le ratio cible créneau après créneau, et un créneau est une étoile
 franchir un palier entier. Le total vaut alors exactement `floor(somme des ratios)`.
 
 ```
-TOTAL_STARS      = 200   ← LE réglage central (score max = 30 900, mesuré)
-TOTAL_OBJECTS    = 343   ← dérivé de la durée du morceau (12 août 2026)
-TOTAL_OBSTACLES  = 143   ← ce qui reste
+TOTAL_STARS      = 200   ← LE réglage central (score max = 30 900, mesuré), inchangé
+TOTAL_OBJECTS    = 273   ← dérivé de dureeCourse (12 août 2026, deuxième révision)
+TOTAL_OBSTACLES  = 73    ← ce qui reste
 ```
 
-**La course dure maintenant tout le morceau** (343 × 0,75 = 257,3 s pour 257,9 s de musique) —
-renversement du 12 août 2026, demandé par l'artiste. Avant : 300 créneaux, 225 s, et la musique
-continuait 33 s après la ligne. Conséquence à ne pas perdre de vue : **il n'y a plus de marge**,
-donc tout retard pris en pause (§8.1) rend muettes les dernières secondes de course — d'où
-`pauseDeriveMax` ramené à 8 s.
+⚠️ **Deuxième révision de la longueur du parcours, même jour** : la ligne d'arrivée n'est plus
+calée sur la fin du morceau mais sur `config.dureeCourse` (205 s = « 03:25 », demandé
+explicitement), un réglage **séparé** de `dureeMorceau` (257,9 s, la durée réelle du MP3). Le
+morceau continue de jouer après la ligne, jusqu'à sa fin réelle — l'écran de fin/le classement
+s'affichent avec ~53 s de morceau encore devant eux, ce qui sert directement l'objectif "donner
+envie d'écouter le morceau". `TOTAL_OBJECTS` dérive donc de `dureeCourse`, pas de `dureeMorceau`
+(`entities.js`). Avant cette révision (même jour) : 343 créneaux calés sur `dureeMorceau`
+(257,3 s) ; avant elle, 300 créneaux/225 s à la main, la musique continuant 33 s après la ligne.
+**`pauseDeriveMax` remonté de 8 s à 25 s** (`config.js`) : la marge morceau/course qui avait
+disparu (257,3 s de course pour 257,9 s de musique) est revenue en force (~53 s) avec ce
+changement.
 
-`BONUS_RATIO_END` est **dérivé**, pas écrit à la main, pour que le quota tienne même si on
-retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
+`TOTAL_STARS` reste fixé à 200 (décision verrouillée : score max = nombre connu) alors que
+`TOTAL_OBJECTS` baisse fortement (343→273, −20 %) : `TOTAL_OBSTACLES` encaisse tout le
+raccourcissement (143→73, −49 %) — la course est plus courte ET nettement moins dense en
+obstacles à quota d'étoiles égal. Si la densité de danger doit revenir à ce qu'elle était, c'est
+`TOTAL_STARS` qu'il faudrait revoir à la baisse (pas fait ici : non demandé).
 
-> 🐛 La dérivation calait la **moyenne** de la rampe sur le quota, ce qui suppose que `t` moyenne
-> à 0,5 — faux, il s'arrête à (N−1)/N. Biais minuscule, mais du mauvais côté du `floor` final :
-> **199 étoiles au lieu de 200**, et un score maximum qui n'est plus le nombre annoncé. La somme
-> de la rampe est désormais résolue exactement, plus un epsilon avant le `floor` (le cumul final
-> tombe pile sur un entier, donc pile là où un flottant peut coûter une étoile).
+`BONUS_RATIO_START`/`BONUS_RATIO_END` sont **dérivés**, pas écrits à la main, pour que le quota
+tienne même si on retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
+
+> 🐛 **Deux bugs de cette dérivation, trouvés à deux moments différents.**
+> 1. (12 août 2026, avant la révision `dureeCourse`) La dérivation calait la **moyenne** de la
+>    rampe sur le quota, ce qui suppose que `t` moyenne à 0,5 — faux, il s'arrête à (N−1)/N. Biais
+>    minuscule, mais du mauvais côté du `floor` final : **199 étoiles au lieu de 200**. Corrigé en
+>    résolvant la somme de la rampe exactement (`N·start + (end−start)·(N−1)/2 = quota`),
+>    initialement en dérivant `end` à partir d'un `start` fixe (0,45).
+> 2. (12 août 2026, après le passage à `dureeCourse` = 205 s) **Le même quota de 200 étoiles sur
+>    beaucoup moins de créneaux (273 contre 343) a fait DÉPASSER 1 au `end` ainsi dérivé** (mesuré :
+>    1,011). Un ratio de tramage > 1 fait sauter plus d'un palier entier sur un même créneau, qui
+>    ne peut pourtant porter qu'un seul objet — l'étoile "en trop" se perd en silence. Mesuré avant
+>    correction : de nouveau **199 étoiles au lieu de 200**, plus une fin de course à 100 %
+>    étoiles (aucun obstacle possible une fois le ratio saturé). Corrigé en inversant le sens de la
+>    dérivation : `end` est maintenant un plafond volontaire fixe (0,92, sous 1 avec marge), et
+>    c'est `start` qui se dérive de la somme exacte — la formule tient quels que soient
+>    `TOTAL_STARS`/`TOTAL_OBJECTS`/`GRACE_SLOTS` retouchés ensuite, pas seulement la combinaison du
+>    jour. Recensement hors ligne (méthode §12) après correction : 200 étoiles / 73 obstacles
+>    pile, ratio max mesuré sur le parcours réel ≈ 0,919 (< 1, marge confirmée).
+>
+> Mesure de distribution après ce recensement (méthode §12, 273 créneaux, ordre d'ouverture
+> curatée inclus) : voiture 39, cycliste 20, pieton 3, cone 4, pont 7 — échantillon beaucoup plus
+> petit qu'avant (73 obstacles contre 143), donc plus sensible au hasard du hash que les anciens
+> comptages ; à reconfirmer si `TOTAL_STARS`/`dureeCourse` rebougent.
 
 ### 5.5 La projection pseudo-3D est courbe, pas plate
 
@@ -259,19 +288,38 @@ prélevés une seconde fois au prorata pour faire de la place au pont (même jou
 | Obstacle | Poids | Coût | Le saut sauve ? |
 |---|---|---|---|
 | `voiture` | 0,47 | **fatal** (3 vies d'un coup) + **−500 pts** | ✅ (survol + atterrissage sur le toit) |
-| `cycliste` | 0,25 | −1 vie + **−500 pts** | ❌ |
+| `cycliste` | 0,25 (0,40 au-delà de 10 000 pts, voir plus bas) | −1 vie + **−500 pts** | ✅ depuis le 12 août 2026 |
 | `pieton` | 0,11 | −1 vie + **−500 pts** | ❌ |
 | `cone` | 0,07 | −1 vie + **−500 pts** | ✅ |
 | `pont` | 0,10 | **fatal** (3 vies d'un coup) + **−500 pts** | ❌❌ (sauter AGGRAVE : dangereux même voie ouverte) |
 
-`UNJUMPABLE_KINDS = {pieton, cycliste}` : ces deux-là se contournent **latéralement uniquement**,
-`inAir` n'y change rien. Le pont n'est plus dans cet ensemble depuis le 12 août 2026 (voir plus
-bas) — sa branche de collision est dédiée. Distribution mesurée sur les 343 créneaux
-(recensement hors ligne, voir §12), après
-l'ouverture curatée (§5.3) : voiture 67, cycliste 41, pieton 9, cone 8, pont 18. Le piéton perd de
-l'effectif absolu depuis l'arrivée du pont (15 à l'origine, sur 300 créneaux) — la marge dégagée
-par l'allongement du parcours (300→343) est maintenant entièrement absorbée par les ajouts
-successifs (cycliste, puis pont, puis le créneau d'ouverture forcé en cycliste).
+⚠️ **Cycliste rendu franchissable au saut le 12 août 2026** (demandé explicitement — il avait
+rejoint `UNJUMPABLE_KINDS` en même temps que sa promotion en obstacle, voir plus bas). Sa branche
+de collision dans `update()` (`entities.js`) est désormais la même que le cône (`sameLane(e) &&
+!inAir`), et il est sorti de `UNJUMPABLE_KINDS` — la garde anti-piège (plus bas) ne s'applique
+donc plus à lui, uniquement au piéton.
+
+`UNJUMPABLE_KINDS = {pieton}` : lui seul se contourne **latéralement uniquement**, `inAir` n'y
+change rien. Le pont n'est pas dans cet ensemble bien qu'infranchissable — sa branche de
+collision est dédiée (voir plus bas). Distribution mesurée sur les 273 créneaux (recensement hors
+ligne, voir §12, après le raccourcissement du parcours à `dureeCourse` = 205 s), après
+l'ouverture curatée (§5.3) : voiture 39, cycliste 20, pieton 3, cone 4, pont 7. Échantillon
+beaucoup plus petit qu'avant (73 obstacles contre 143 sur les 343 créneaux d'avant le
+raccourcissement) — plus sensible au hasard du hash, donc plus volatil d'une combinaison de
+réglages à l'autre ; à reconfirmer si `TOTAL_STARS`/`dureeCourse` rebougent.
+
+⚠️ **Intensification en fin de partie** (demandé explicitement le 12 août 2026 : « ×2 à partir de
+10 000 points ») : au-delà de `CYCLIST_BOOST_SCORE` (10 000 pts, `entities.js`), le poids
+`cycliste` est doublé puis toute la table `OBSTACLE_WEIGHTS` renormalisée (sinon la somme dépasse
+1 et `pickWeighted()` devient injuste — les derniers types de la liste, `cone`/`pont`,
+deviendraient carrément inatteignables). Mesuré : la part de `cycliste` passe de 25 % à 40 % des
+obstacles, le reste se répartissant dans les mêmes proportions relatives qu'avant. ⚠️ **Seule
+donnée de tout ce fichier qui dépend du GAMEPLAY (le score courant) plutôt que d'un hash pur par
+index de créneau** (voir §5.2) — `main.js` pousse `game.score` via `entities.setScore()` une fois
+par frame. Le tirage est **mémoïsé par créneau** (`rawContentCache`) dès son premier calcul : sans
+ça, un score qui franchit le seuil pile pendant qu'un vélo est déjà visible mais pas encore résolu
+lui ferait changer de nature EN COURS D'APPROCHE. Vidé par `reset()` au rejeu, comme
+`resolved`/`consumed`/`debugOverrides`.
 
 **Pont (viaduc du métro parisien)**, ajouté le 12 août 2026 (inspiré d'une référence Subway
 Surfers envoyée par l'artiste — perspective à piliers, longue ligne de fuite). Bloque 2 ou 3
@@ -509,10 +557,13 @@ de pause. Le résidu, c'est le sursaut de la course à la reprise : **0,25 s au 
 (un demi-temps à 120 BPM), dans un sens ou dans l'autre.
 
 Contrepartie : le morceau finit `clockShift` secondes plus tôt dans la course. ⚠️ **La marge a
-disparu** depuis que la course dure tout le morceau (§5.4, 12 août 2026) : 257,3 s de course pour
-257,9 s de musique, ~0,6 s de battement. `pauseDeriveMax` a donc été ramené de 25 s à **8 s** —
-au-delà, la reprise rembobine quand même plutôt que de risquer un joueur qui franchit la ligne en
-silence. Le rembobinage remet `clockShift` à zéro, le budget repart à neuf.
+disparu puis est revenue, deux fois le même jour** (§5.4, 12 août 2026) : d'abord ramenée à ~0,6 s
+quand la course a duré tout le morceau (257,3 s de course pour 257,9 s de musique), donc
+`pauseDeriveMax` ramené de 25 s à 8 s — puis la marge est revenue en force (~53 s) quand la ligne
+d'arrivée s'est recalée sur `dureeCourse` (205 s) plutôt que sur la fin du morceau, donc
+`pauseDeriveMax` remonté à **25 s**. Au-delà de ce budget, la reprise rembobine quand même plutôt
+que de risquer un joueur qui franchit la ligne en silence. Le rembobinage remet `clockShift` à
+zéro, le budget repart à neuf.
 
 Le retard courant s'affiche dans `audio.getStatus()`, donc dans l'overlay `?debug` — seul moyen
 de le vérifier sur un téléphone.
@@ -661,9 +712,11 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 - ⚠️ `config.js` → `dateOuverture` est fixée au **5 août 2026** pour les tests. Le commentaire
   demande de la remettre à la date de lancement officiel **et de vider la table `scores`** côté
   Supabase pour repartir sur un classement propre.
-- L'équilibrage : 68 obstacles infranchissables par partie sur 143 (pieton 10 + cycliste 40 +
-  pont 18), contre 19 à l'origine (300 créneaux, avant cycliste et pont). À confirmer en jouant
-  — les leviers sont les poids `cycliste`/`pont` dans `OBSTACLE_WEIGHTS`.
+- L'équilibrage : depuis que le cycliste est franchissable au saut (12 août 2026), seuls le
+  piéton et le pont restent réellement "infranchissables" (le pont l'est différemment : sauter y
+  est dangereux plutôt que neutre, voir plus haut). Sur les 73 obstacles mesurés (§6, parcours
+  raccourci à `dureeCourse` = 205 s) : pieton 3 + pont 7 = 10 obstacles où le saut ne protège pas.
+  Échantillon petit, sensible au hasard du hash — à confirmer en jouant.
 
 **Historique de validation, session du 12 août 2026** (voir §12 : preview navigateur inaccessible
 toute la session, donc rien de tout ça vérifié autrement qu'en jouant réellement sur téléphone) :
@@ -688,6 +741,14 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
 - **Cinquième lot, jamais vu du tout** — voir §6bis pour le détail complet. Vérifié par lecture
   de code + `npm run build` propre uniquement. **Prochaine chose à confirmer.**
 - Dette antérieure non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
+- **Sixième lot, même jour, sur nouvelle demande directe** : cycliste rendu franchissable au saut,
+  ligne d'arrivée recalée sur `dureeCourse` (205 s) avec portique F1 (`finish.js`), bug de
+  dépassement de ratio corrigé dans le quota d'étoiles (§5.4), intensification des vélos au-delà
+  de 10 000 pts, palette des cartes de menu réchauffée (`--panneau-fond`/`--panneau-bord`,
+  `index.html`). `npm run build` propre + recensement hors ligne (§12, script Node) pour les
+  chiffres du quota/de la distribution. Preview navigateur à nouveau bloquée cette session (même
+  symptôme que le 12 août, voir §12) — vérification visuelle faite sur le miroir GitHub Pages en
+  prod après déploiement (voir note de session la plus récente pour le détail de ce qui a été vu).
 
 ---
 

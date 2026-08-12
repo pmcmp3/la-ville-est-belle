@@ -7,13 +7,14 @@ window.CONFIG = {
   // === MORCEAU / RYTHME ===
   bpm: 120,                 // Tempo mesuré sur le master (à affiner avec la grille de debug)
   premierTempsOffset: 0.01, // Décalage en secondes du 1er temps depuis le début du fichier
-  dureeMorceau: 257.9,      // Durée du morceau en secondes = longueur du parcours
+  dureeMorceau: 257.9,      // Durée du MORCEAU (audio) en secondes — sert au fondu de sortie et à la vérif de durée du MP3 (audio.js). Le morceau continue de jouer après la ligne d'arrivée (objectif "donner envie d'écouter le morceau") : voir dureeCourse, distinct, pour la longueur du PARCOURS.
+  dureeCourse: 205,         // ⚠️ Longueur du PARCOURS en secondes = quand la ligne d'arrivée atteint le joueur (demandé explicitement : "à 03:25"). Distinct de dureeMorceau : le morceau continue après, jusqu'à sa fin réelle, pendant que le joueur est déjà sur l'écran de fin. D'où dérive TOTAL_OBJECTS (entities.js) — donc le nombre d'obstacles rencontrés, PAS le quota de 200 étoiles qui reste fixe (voir TOTAL_STARS, entities.js).
   fichierAudio: "assets/la-ville-est-belle.mp3", // MP3/AAC servi en prod (léger)
   fonduEntree: 1.2,         // Fondu à l'entrée, en secondes
-  fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du morceau), en secondes
+  fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du MORCEAU, pas de la course), en secondes
   pauseFiltreHz: 800,       // Menu pause : le morceau continue mais passe dans un filtre passe-bas à cette fréquence — on n'entend plus que les basses (demandé explicitement). Plus bas = plus étouffé.
   pauseFondu: 0.5,          // Durée en secondes du fondu du filtre (à l'entrée comme à la sortie de la pause)
-  pauseDeriveMax: 8,        // Retard maximal (secondes, cumulé sur toutes les pauses) que la course accepte de prendre sur le morceau plutôt que de le rembobiner. ⚠️ Depuis que la course dure TOUT le morceau (257,3 s de course pour 257,9 s de musique), il n'y a plus de marge : tout retard rend muettes les dernières secondes de course. Arbitrage : en dessous de ce seuil on garde le morceau qui avance (pas de rembobinage, demandé) ; au-dessus on rembobine, pour ne pas franchir la ligne d'arrivée en silence (audio.js, setPlaybackMode).
+  pauseDeriveMax: 25,       // Retard maximal (secondes, cumulé sur toutes les pauses) que la course accepte de prendre sur le morceau plutôt que de le rembobiner. Redescendu à 8 le 12 août 2026 quand la course durait tout le morceau (plus de marge) ; remonté à sa valeur d'origine maintenant que dureeCourse (205 s) laisse à nouveau ~53 s de marge avant la fin réelle du morceau (257,9 s). Arbitrage : en dessous de ce seuil on garde le morceau qui avance (pas de rembobinage, demandé) ; au-dessus on rembobine, pour ne pas franchir la ligne d'arrivée en silence (audio.js, setPlaybackMode).
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.

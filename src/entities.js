@@ -64,20 +64,24 @@ export const LEAD_IN =
 // TOTAL_OBSTACLES fixe la difficulté en face (voitures tripées, voir plus
 // bas) ; TOTAL_OBJECTS (= la ligne d'arrivée) en découle.
 export const TOTAL_STARS = 200;
-// ⚠️ Renversement de décision (12 août 2026, retour de l'artiste sur iPhone) :
-// « la course, faudrait qu'elle dure le temps du morceau ». La ligne d'arrivée
-// n'est donc plus un nombre d'objets choisi à la main (300, soit 225 s pour un
-// morceau de 257,9 s) mais le dernier créneau qui tient AVANT la fin du
-// morceau — dérivé de config.js pour rester juste si le master change.
-// 343 créneaux = 257,26 s, la ligne arrive 0,6 s avant la dernière note.
+// ⚠️ Deuxième renversement (12 août 2026, même jour, retour ultérieur) : la
+// ligne d'arrivée n'est plus calée sur la fin du morceau (`dureeMorceau`) mais
+// sur `dureeCourse` (config.js, 205 s = "03:25"), un réglage séparé — demandé
+// explicitement pour que la course soit plus courte que le morceau. Le
+// morceau, lui, continue de jouer après la ligne jusqu'à sa fin réelle
+// (257,9 s) : l'écran de fin/le classement s'affichent pendant que le
+// morceau tourne encore ~53 s, cohérent avec l'objectif "donner envie
+// d'écouter le morceau". Dernier créneau qui tient AVANT dureeCourse.
 export const TOTAL_OBJECTS = Math.floor(
-  (window.CONFIG.dureeMorceau - window.CONFIG.premierTempsOffset) / (CADENCE * clock.beatPeriod)
+  (window.CONFIG.dureeCourse - window.CONFIG.premierTempsOffset) / (CADENCE * clock.beatPeriod)
 );
 // Les 200 étoiles ne bougent pas (décision verrouillée : le score maximum doit
-// rester un nombre connu — 31 250). Les créneaux gagnés en allongeant la
-// course vont donc TOUS aux obstacles : 100 → 143, soit +27 % d'obstacles à la
-// seconde. Retour direct de l'artiste : « il y a beaucoup trop d'étoiles par
-// rapport aux obstacles », « je m'ennuie un petit peu ».
+// rester un nombre connu). ⚠️ Conséquence directe du raccourcissement de la
+// course (343 → moins de créneaux) : TOTAL_OBSTACLES baisse mécaniquement
+// dans les mêmes proportions puisque TOTAL_STARS est fixe — la course est
+// plus courte ET moins dense en obstacles à nombre d'étoiles égal. Si la
+// densité de danger doit rester celle d'avant, c'est TOTAL_STARS qu'il faut
+// revoir à la baisse, pas ce calcul.
 export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
 export function finishBeatN() { return TOTAL_OBJECTS * CADENCE; }
 export function finishTime() { return clock.timeOfBeat(finishBeatN()); }
@@ -129,23 +133,33 @@ const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoi
 // tard, de la VITESSE (66 u/s contre 19,8 au départ, soit 3,3× moins de temps
 // pour lire la route et se déporter). Les étoiles se font plus nombreuses au
 // moment précis où elles deviennent difficiles à aller chercher.
-const BONUS_RATIO_START = 0.45; // juste après la grâce : plus d'obstacles que d'étoiles
-// Dérivé (pas une constante à la main) pour que la MOYENNE du ratio sur les
-// créneaux restants (hors grâce) retombe exactement sur le quota d'étoiles
-// restant — c'est ce qui garantit le total de TOTAL_STARS, quels que soient
-// TOTAL_STARS/TOTAL_OBSTACLES/GRACE_SLOTS si on les retouche un jour.
-// 🐛 Dérivation corrigée le 12 août 2026 — elle perdait UNE étoile.
-// L'ancienne formule calait la MOYENNE de la rampe sur le quota, ce qui
-// suppose que `t` balaie 0→1 en moyennant à 0,5. Faux : `t` vaut (i-GRACE)/N
-// sur N créneaux, donc il s'arrête à (N-1)/N et la moyenne réelle est
-// 0,5 - 1/(2N). Le biais est minuscule mais il tombe du mauvais côté du
-// `floor` final : 199 étoiles au lieu de 200, et un score maximum qui n'est
-// plus le nombre annoncé. On somme donc la rampe EXACTEMENT
-// (N·start + (end-start)·(N-1)/2 = quota) et on résout pour `end`.
 const RAMP_SLOTS = TOTAL_OBJECTS - GRACE_SLOTS;
-const BONUS_RATIO_END =
-  BONUS_RATIO_START +
-  (2 * (TOTAL_STARS - GRACE_SLOTS - RAMP_SLOTS * BONUS_RATIO_START)) / (RAMP_SLOTS - 1);
+// Plafond volontaire, PAS dérivé : un ratio est une probabilité de tramage
+// par créneau, et un créneau ne peut porter qu'UN SEUL objet — au-delà de 1,
+// un même créneau peut franchir plus d'un palier entier d'un coup, mais
+// l'étoile "en trop" n'a nulle part où se loger et disparaît en silence (voir
+// le bug ci-dessous). 0,92 plutôt que 1 pile : marge de sécurité + garde une
+// petite chance d'obstacle jusqu'au bout plutôt qu'une fin de course 100 %
+// étoiles.
+const BONUS_RATIO_END = 0.92;
+// BONUS_RATIO_START dérivé (pas une constante à la main) pour que la SOMME
+// EXACTE de la rampe (N·start + (end-start)·(N-1)/2, `t` = (i-GRACE)/N sur N
+// créneaux) retombe sur le quota d'étoiles restant — c'est ce qui garantit le
+// total de TOTAL_STARS, quels que soient TOTAL_STARS/TOTAL_OBJECTS/
+// GRACE_SLOTS si on les retouche un jour. Symétrique de l'ancienne dérivation
+// (qui fixait `start` et calculait `end`) : elle a dû changer de sens le
+// 12 août 2026 quand `dureeCourse` (205 s au lieu de la durée du morceau,
+// 257,9 s) a resserré le parcours sans réduire le quota de 200 étoiles — le
+// même quota sur beaucoup moins de créneaux (273 contre 343) rend la rampe
+// bien plus dense, et calculer `end` à partir de `start = 0,45` (l'ancienne
+// constante) le faisait DÉPASSER 1 (mesuré : 1,011) — exactement le cas
+// dégénéré décrit plus haut. 🐛 Mesuré avant correction : 199 étoiles au lieu
+// de 200 (une perdue dans le dépassement), plus une longue fin de course
+// sans un seul obstacle. En fixant `end` sous 1 et en dérivant `start` dans
+// l'autre sens, le problème est réglé à la source pour toute combinaison
+// future de ces trois réglages, pas seulement celle d'aujourd'hui.
+const BONUS_RATIO_START =
+  (2 * (TOTAL_STARS - GRACE_SLOTS) - BONUS_RATIO_END * (RAMP_SLOTS - 1)) / (RAMP_SLOTS + 1);
 
 // Marge après la ligne d'arrivée : visibleSlots() peut regarder jusqu'à
 // LOOKAHEAD_SLOTS créneaux au-delà du dernier passé, il faut donc un tableau
@@ -231,18 +245,47 @@ const OBSTACLE_WEIGHTS = [
   { kind: "pont", weight: 0.10 },
 ];
 
+// Intensification des vélos en fin de partie (demandé explicitement : « *2 à
+// partir de 10000 points »). Multiplie le poids `cycliste` puis renormalise
+// (sinon la somme dépasse 1 et pickWeighted() devient injuste — les derniers
+// types de la liste, cone/pont, deviendraient carrément inatteignables, voir
+// pickWeighted() plus bas). Table précalculée une seule fois au chargement.
+const CYCLIST_BOOST_SCORE = 10000;
+const CYCLIST_BOOST_FACTOR = 2;
+function scaleWeight(list, kind, factor) {
+  const scaled = list.map((item) => (item.kind === kind ? { kind, weight: item.weight * factor } : item));
+  const total = scaled.reduce((sum, item) => sum + item.weight, 0);
+  return scaled.map((item) => ({ kind: item.kind, weight: item.weight / total }));
+}
+const BOOSTED_OBSTACLE_WEIGHTS = scaleWeight(OBSTACLE_WEIGHTS, "cycliste", CYCLIST_BOOST_FACTOR);
+
+// Score de la partie en cours, pour la même raison que currentScore plus bas
+// dans ce fichier n'existe pas déjà : c'est la seule donnée de ce module qui
+// vient du GAMEPLAY plutôt que d'un hash déterministe par index de créneau
+// (voir ARCHITECTURE.md §5.2 — le reste du fichier est volontairement une
+// fonction pure de l'index). Pilotée par main.js, une fois par frame.
+let currentScore = 0;
+export function setScore(score) { currentScore = score; }
+
+// Mémoïsation du tirage de créneau (voir rawSlotContent plus bas) : sans
+// elle, un score qui franchit CYCLIST_BOOST_SCORE pendant qu'un vélo est déjà
+// visible mais pas encore résolu lui ferait changer de nature EN COURS
+// D'APPROCHE (le tirage dépend de `currentScore`, relu à chaque appel). La
+// décision est donc figée au premier calcul de chaque créneau, comme si le
+// score qui compte était celui du moment où le créneau "apparaît" au joueur.
+const rawContentCache = new Map();
+
 // Obstacles INFRANCHISSABLES AU SAUT : ils se contournent latéralement, point.
-// Le piéton est un « mur humain plein » (décision de playtest ancienne) ; le
-// cycliste suit la même règle — sauter par-dessus quelqu'un qui arrive en
-// face n'a pas de sens, et ça garde les deux obstacles "humains" cohérents
-// entre eux. La voiture (survolable, atterrissage sur le toit) et le cône
-// (sautable) restent les deux seuls que le saut permet de franchir SANS
-// risque. Le pont n'est PAS dans cet ensemble bien qu'il soit lui aussi
-// infranchissable : contrairement à pieton/cycliste, sauter y AGGRAVE le
-// risque au lieu d'être neutre (voir sa branche dédiée dans update()) — le
-// router ici appliquerait la mauvaise règle (sameLane seul, sans le OR
-// inAir).
-const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste"]);
+// Le piéton reste un « mur humain plein » (décision de playtest ancienne) :
+// sauter ne l'évite pas, seul un changement de voie le fait. Le cycliste en
+// est sorti le 12 août 2026 (demandé explicitement) — il rejoint voiture/cône
+// dans les obstacles que le saut permet de franchir SANS risque (voir sa
+// branche dédiée dans update(), même schéma que le cône). Le pont n'est PAS
+// dans cet ensemble bien qu'il soit lui aussi infranchissable : contrairement
+// au piéton, sauter y AGGRAVE le risque au lieu d'être neutre (voir sa
+// branche dédiée dans update()) — le router ici appliquerait la mauvaise
+// règle (sameLane seul, sans le OR inAir).
+const UNJUMPABLE_KINDS = new Set(["pieton"]);
 
 // Bonus AÉRIENS : ramassables uniquement en sautant. Playtest : « il faut des
 // objets spéciaux en l'air » — il n'y en avait qu'un seul type (`guitare`,
@@ -468,14 +511,23 @@ const OPENING_KIND_OVERRIDE = { [GRACE_SLOTS]: "cycliste" };
 
 function rawSlotContent(slotIndex) {
   const override = debugOverrides.get(slotIndex);
-  if (override) return { isBonus: override.isBonus, kind: override.kind };
+  if (override) return { isBonus: override.isBonus, kind: override.kind }; // jamais mémoïsé, doit rester réactif au debug
+  const cached = rawContentCache.get(slotIndex);
+  if (cached) return cached;
+  const content = computeRawSlotContent(slotIndex);
+  rawContentCache.set(slotIndex, content);
+  return content;
+}
+
+function computeRawSlotContent(slotIndex) {
   if (isBonusAt(slotIndex)) {
     return { isBonus: true, kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)) };
   }
   if (OPENING_KIND_OVERRIDE[slotIndex]) {
     return { isBonus: false, kind: OPENING_KIND_OVERRIDE[slotIndex] };
   }
-  const kind = pickWeighted(OBSTACLE_WEIGHTS, hash(slotIndex * 3 + 1));
+  const weights = currentScore >= CYCLIST_BOOST_SCORE ? BOOSTED_OBSTACLE_WEIGHTS : OBSTACLE_WEIGHTS;
+  const kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
     return { isBonus: false, kind: "voiture", carCount };
@@ -501,10 +553,10 @@ function rawSlotContent(slotIndex) {
 // même piège) — la voiture/le cône, eux, restent volontairement autorisés à
 // partager une voie avec un bonus proche : sauter les évite sans sacrifier
 // l'étoile.
-// ⚠️ La garde s'applique désormais à TOUT obstacle infranchissable au saut
-// (UNJUMPABLE_KINDS), pas au seul piéton : le cycliste vient d'hériter
-// exactement de la même contrainte, donc du même piège potentiel. L'oublier
-// aurait recréé le bug déjà corrigé une fois, mais avec l'autre type.
+// ⚠️ La garde s'applique à TOUT obstacle de UNJUMPABLE_KINDS, pas au seul
+// piéton codé en dur — le cycliste y est passé puis en est ressorti le
+// 12 août 2026 (rendu franchissable au saut) : tant qu'un type reste dans cet
+// ensemble, l'oublier ici recréerait le même piège, avec un autre type.
 const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à la cadence par défaut
 
 // ⚠️ La garde DÉPLACE l'obstacle de voie ; elle ne change plus son type.
@@ -752,11 +804,23 @@ export function update(playerLane, inAir) {
         resolved.add(e.slotIndex);
         consumed.add(e.slotIndex);
       }
+    } else if (e.kind === "cycliste") {
+      // ⚠️ Rendu franchissable au saut le 12 août 2026 (demandé explicitement
+      // — auparavant un mur infranchissable comme le piéton, voir
+      // UNJUMPABLE_KINDS). Même traitement que le cône : sauter l'évite,
+      // rester au sol dans sa voie ne suffit plus.
+      if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
+      if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
+      if (sameLane(e) && !inAir) {
+        events.push({ type: "obstacle", kind: e.kind });
+        resolved.add(e.slotIndex);
+        consumed.add(e.slotIndex);
+      }
     } else {
-      // Piéton et cycliste : murs infranchissables — la collision compte
-      // même en l'air (voir UNJUMPABLE_KINDS), mais rester au sol dans la
-      // bonne voie suffit à les éviter (contrairement au pont ci-dessus, où
-      // sauter n'importe où sous la structure coûte la partie).
+      // Piéton : mur infranchissable — la collision compte même en l'air
+      // (voir UNJUMPABLE_KINDS), rester au sol dans la bonne voie suffit à
+      // l'éviter (contrairement au pont ci-dessus, où sauter n'importe où
+      // sous la structure coûte la partie).
       if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
       if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
       if (sameLane(e)) {
@@ -794,6 +858,8 @@ export function reset() {
   resolved.clear();
   consumed.clear();
   debugOverrides.clear();
+  rawContentCache.clear();
+  currentScore = 0;
   invalidateSlotCache();
 }
 

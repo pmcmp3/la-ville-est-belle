@@ -50,8 +50,13 @@
       --rouge-fonce: #8f2415; /* tranche basse des boutons/panneaux "pressables" */
       --blanc: #ffffff;
       --noir: #0d0d10;
-      --panneau-fond: #ffffff;
-      --panneau-bord: #000000;
+      /* Réchauffés le 12 août 2026 (demandé : « cohérent avec la DA »), pour
+         que les cartes de menu appartiennent au même monde que les nouvelles
+         façades pierre rosée/dorée plutôt qu'un blanc/noir neutres — mêmes
+         teintes que CORNICE_COLOR/ROOF_RIDGE_COLOR dans world.js. Police et
+         rouge de charte inchangés (locked, voir CLAUDE.md). */
+      --panneau-fond: #fdf3e4;
+      --panneau-bord: #1a120c;
       --police: "Stage Grotesk", system-ui, sans-serif;
       --titre: "Flawsome", "Stage Grotesk", system-ui, sans-serif;
 
@@ -459,7 +464,7 @@
     .panel-header {
       padding: 13px 20px;
       background: var(--rouge);
-      border-bottom: 2px solid var(--noir);
+      border-bottom: 2px solid var(--panneau-bord);
       text-align: center;
     }
 
@@ -711,8 +716,8 @@
        le seul endroit où ça se joue vraiment. */
     .btn-secondary {
       background: transparent;
-      color: var(--noir);
-      border-color: var(--noir);
+      color: var(--panneau-bord);
+      border-color: var(--panneau-bord);
     }
 
     .btn-secondary:active {

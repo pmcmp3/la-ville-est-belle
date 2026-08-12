@@ -1097,6 +1097,7 @@ function step(dt) {
       // Le mode 'air' comme 'onCar' rendent le joueur invulnérable aux
       // voitures (mais pas au piéton/cône — voir entities.js pour le
       // comportement par kind).
+      entities.setScore(game.score); // intensification des vélos au-delà de CYCLIST_BOOST_SCORE (entities.js)
       const events = entities.update(playerState.lane, jump.mode !== 'ground');
       for (const e of events) {
         if (e.type === "bonus") {
@@ -1136,10 +1137,12 @@ function step(dt) {
     if (game.lives <= 0) {
       endGame("gameover");
     } else if (entities.isFinished(now) || finishing.active) {
-      // Ligne d'arrivée franchie (150 objets, voir entities.js). Le morceau
-      // continue de jouer jusqu'au bout (objectif "donner envie d'écouter
-      // le morceau"), mais la course s'arrête : caméra qui freine smooth,
-      // personnage qui continue jusqu'à l'horizon (voir beginFinish/render).
+      // Ligne d'arrivée franchie (TOTAL_OBJECTS créneaux, dérivé de
+      // config.dureeCourse — voir entities.js). Le morceau continue de jouer
+      // jusqu'à SA fin réelle (config.dureeMorceau, plus longue, objectif
+      // "donner envie d'écouter le morceau"), mais la course s'arrête ici :
+      // caméra qui freine smooth, personnage qui continue jusqu'à l'horizon
+      // (voir beginFinish/render).
       if (!finishing.active) beginFinish();
       road.brake(dt);
       finishing.elapsed += dt;
