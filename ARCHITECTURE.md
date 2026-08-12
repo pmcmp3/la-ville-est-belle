@@ -366,12 +366,20 @@ habillaient donc une forme béton, pas de la pierre. Corrigé :
   luminosité gardée haute (même stratégie que le commentaire d'origine — partir plus clair pour
   ne pas virer boueux une fois mélangé à la brume rouge). `ROOF_COLOR` très légèrement bleuté
   ("zinc") plutôt que noir plat.
-- **Fenêtres** : hautes et étroites (porte-fenêtre) plutôt que carrées (`winW`×0,55→0,46,
-  `winH`×0,6→0,78), encadrement clair ajouté (`strokeRect`, sinon la fenêtre se lisait comme un
-  trou plaqué). Vitrines de rez-de-chaussée en plein cintre (arc, pas un rectangle).
+- **Fenêtres** : hautes et étroites (porte-fenêtre) plutôt que carrées, encadrement clair ajouté
+  (`strokeRect`, sinon la fenêtre se lisait comme un trou plaqué). Vitrines de rez-de-chaussée en
+  plein cintre (arc, pas un rectangle).
+  - ⚠️ **Bug de la première tentative** (`winH` × 0,78) : ne laissait que 22 % de `cellH` entre
+    deux étages, ce qui fusionnait les fenêtres en bandes verticales continues à l'écran (« pas
+    du tout immeuble parisien », capture à l'appui — lu comme un mur de lattes/persiennes, pas
+    une grille de fenêtres). Redescendu à `winH` × 0,5, `winW` × 0,42, et la marge des volets
+    resserrée (`-1` → `-3` px) pour garder de la pierre visible entre colonnes aussi.
 - **Lucarnes** (`DORMER_MIN_ROOF_PX`) : deux petites fenêtres à pignon triangulaire qui percent
   le bas du toit — c'était le détail manquant pour lire "mansarde parisienne" plutôt que "pan
   incliné générique", le toit n'ayant jusque-là qu'un aplat sombre uni.
+- **Contraste de volume renforcé** : `SIDE_SHADE` (retour d'angle vs façade principale) assombri
+  de 0,82 à 0,68 — retour direct « faut que tu fasses des immeubles en 3D quand même » : un
+  contraste trop faible entre les deux faces se lisait comme un mur plat.
 
 **Croisements d'avenue** (`road.js` + `world.js`) — grille partagée pour éviter toute
 divergence entre les deux fichiers :
@@ -391,6 +399,12 @@ divergence entre les deux fichiers :
 **Feux de circulation** (`world.js`, `renderTrafficLight`) : poteau + tête tricolore (3 pastilles
 rouge/jaune/vert), posés au bord du trottoir sur les deux côtés à chaque créneau de croisement,
 même technique `project()`+fondu-brume que le reste du décor.
+- ⚠️ **Revu le 12 août 2026** (« les poteaux des feux fais pareil », même retour que les
+  bâtiments) : la première version était un simple `fillRect` plat, sans volume — lisait
+  "carton", pas objet planté au sol. Le poteau (trop fin pour qu'un flanc projeté reste visible)
+  prend un dégradé 3 tons façon métal cintré ; la tête tricolore, elle, prend un vrai flanc
+  projeté à profondeur différente (`fillPoly`, même principe que les piliers de pont/
+  `renderCar3D` dans `entities.js`).
 
 ---
 
@@ -592,13 +606,19 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 toute la session, donc rien de tout ça vérifié autrement qu'en jouant réellement sur téléphone) :
 - Premier lot testé en cours de session, corrigé sur retour : voxel joueur, pont (fatal, garde
   anti-piège), LEAD_IN, trait noir d'horizon, cheveux. ✅ Revu et corrigé.
-- Deuxième lot (façades v1 volets/vitrine/balcon, croisements, feux) testé au réveil : croisements
-  et feux jugés bons, **façades jugées "pas du tout parisiennes"** → troisième passe (§6bis,
-  gabarit/fenêtres/lucarnes/palette) + piétons passés en voxel. ✅ Croisements/feux validés,
-  ❌ façades en cours de re-correction.
-- **Troisième lot, jamais vu du tout** : la refonte façades ci-dessus (§6bis) et les piétons
-  voxel. Vérifié par lecture de code + `npm run build` propre uniquement. **Prochaine chose à
-  regarder.**
+- Deuxième lot (façades v1 volets/vitrine/balcon, croisements, feux) testé au réveil :
+  **façades jugées "pas du tout parisiennes"** → troisième passe (gabarit/fenêtres/lucarnes/
+  palette) + piétons passés en voxel. Croisements/feux non commentés à ce stade (ni bons ni
+  mauvais signalés).
+- Troisième lot testé avec captures d'écran à l'appui : **bug réel trouvé** (fenêtres fusionnées
+  en bandes verticales, `winH` bien trop haut) + **poteaux de feux plats, sans volume** signalés
+  en plus des bâtiments. → quatrième passe : fenêtres redimensionnées, contraste de volume
+  (`SIDE_SHADE`) renforcé, poteau/tête de feu revus en profil projeté. ✅ Bug de fenêtres
+  identifié avec certitude (capture directe) ; ❌ tout le reste de cette 4e passe encore non vu.
+- **Quatrième lot, jamais vu du tout** : le fix des fenêtres, le contraste de volume, et les
+  feux tricolores volumétriques. Vérifié par lecture de code + `npm run build` propre
+  uniquement — **c'est la prochaine chose à confirmer**, en particulier que le fix des fenêtres
+  a bien réglé l'effet "bandes verticales".
 - Dette antérieure non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
 
 ---

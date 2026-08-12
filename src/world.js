@@ -88,9 +88,12 @@ const SHUTTER_PALETTE = ["#2f4a3a", "#37424a", "#4a3a2f"];
 // distinct des étages — signal "commerce au pied de l'immeuble" plutôt qu'un
 // mur de fenêtres identiques du sol au toit.
 const SHOPFRONT_COLOR = "#0e0e12";
-// Retour d'angle : légèrement plus sombre que la façade principale (face qui
-// reçoit moins la lumière rasante du couchant) — lit comme un vrai profil.
-const SIDE_SHADE = 0.82;
+// Retour d'angle : plus sombre que la façade principale (face qui reçoit
+// moins la lumière rasante du couchant) — lit comme un vrai profil. Assombri
+// le 12 août 2026 (0,82 → 0,68) : retour direct « faut que tu fasses des
+// immeubles en 3D quand même » — un contraste trop faible entre les deux
+// faces se lit comme un mur plat plutôt qu'un vrai coin de bâtiment.
+const SIDE_SHADE = 0.68;
 // HAZE_MAX_Z/HAZE_STRENGTH viennent de road.js : même brume, même distance
 // de fondu que le sol (via les mêmes buildHazeGradient/gradientStep), pour
 // une atmosphère cohérente sur toute la scène.
@@ -222,10 +225,15 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     // Fenêtres hautes et étroites (porte-fenêtre à la française) plutôt que
     // carrées — retour du 12 août 2026, l'un des écarts qui faisait lire
     // "immeuble de bureaux" plutôt que "immeuble parisien".
-    const winW = cellW * 0.46;
+    // ⚠️ 0,78 (première tentative) laissait à peine 22 % de cellH entre deux
+    // étages : à l'écran ça fusionnait en bandes verticales continues (« pas
+    // du tout immeuble parisien », capture à l'appui) au lieu d'une grille de
+    // fenêtres distinctes. Redescendu à 0,5 — bien plus de pierre visible
+    // entre les étages, quitte à perdre un peu de l'effet "porte-fenêtre".
+    const winW = cellW * 0.42;
     const marginY = wallH * 0.1;
     const cellH = (wallH - marginY) / rows;
-    const winH = cellH * 0.78;
+    const winH = cellH * 0.5;
     const litColor = gradientStep(windowLitGradient, distT);
     const darkColor = gradientStep(windowDarkGradient, distT);
     const balconyColor = gradientStep(roofRidgeGradient, distT);
@@ -298,7 +306,8 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
         }
         // Volets, seulement si assez de place pour rester lisibles (pas de
         // bouillie à distance) — deux blocs de part et d'autre de la fenêtre.
-        const shutterW = Math.min(winW * 0.4, (cellW - winW) / 2 - 1);
+        // Marge -3 (pas -1) pour garder de la pierre visible entre colonnes.
+        const shutterW = Math.min(winW * 0.35, (cellW - winW) / 2 - 3);
         if (shutterW >= 2) {
           ctx.fillStyle = shutterColor;
           ctx.fillRect(wx - shutterW - 1, rowY, shutterW, winH);
@@ -405,21 +414,41 @@ const FADE_BAND = 16;
 // Demandé le 12 août 2026 avec les croisements (« tu peux rajouter des feux
 // d'ailleurs sur le côté »). Prop simple posée au même endroit que le
 // bâtiment sauté par isCrossingSlot (voir renderBuilding) : un poteau + une
-// tête tricolore, même technique project()+fillRect que le reste du décor.
+// tête tricolore. Revu le 12 août 2026 (« les poteaux des feux fais pareil »,
+// même retour que les piliers du pont) : un poteau plat en un seul fillRect
+// lisait "carton", pas "objet planté au bord du trottoir". Le poteau (fin,
+// rond) prend un dégradé 3 tons façon métal cintré ; la tête (un vrai volume
+// carré) prend un flanc projeté à z différent, même technique que les
+// piliers de pont/renderCar3D (road.project + polygone).
 const TRAFFIC_POLE_COLOR = "#2a2a2e";
+const TRAFFIC_POLE_HI = "#5a5d68";   // reflet métallique sur l'arête éclairée du poteau
 const TRAFFIC_BOX_COLOR = "#1c1c20";
+const TRAFFIC_BOX_DARK = "#0e0e11";  // flanc de la tête, dans l'ombre
 const TRAFFIC_RED = "#e13e26";   // rouge de charte, cohérent avec le reste des accents
 const TRAFFIC_YELLOW = "#f0a83c";
 const TRAFFIC_GREEN = "#3a8f5c";
 const TRAFFIC_POLE_HEIGHT = 3.2;
+const TRAFFIC_POLE_HALF_W = 0.05; // demi-épaisseur du poteau, en unités-monde
 const TRAFFIC_BOX_H = 0.9;
-const TRAFFIC_BOX_W = 0.35;
+const TRAFFIC_BOX_HALF_W = 0.17;
+const TRAFFIC_BOX_HALF_D = 0.14; // profondeur de la tête — c'est elle qui donne le flanc
 
 const trafficPoleGradient = buildHazeGradient(TRAFFIC_POLE_COLOR);
+const trafficPoleHiGradient = buildHazeGradient(TRAFFIC_POLE_HI);
 const trafficBoxGradient = buildHazeGradient(TRAFFIC_BOX_COLOR);
+const trafficBoxDarkGradient = buildHazeGradient(TRAFFIC_BOX_DARK);
 const trafficRedGradient = buildHazeGradient(TRAFFIC_RED);
 const trafficYellowGradient = buildHazeGradient(TRAFFIC_YELLOW);
 const trafficGreenGradient = buildHazeGradient(TRAFFIC_GREEN);
+
+function fillPoly(ctx, pts, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.fill();
+}
 
 function renderTrafficLight(ctx, n, side, distance, width, height) {
   const z = (n + 0.5) * SPACING - distance;
@@ -436,24 +465,55 @@ function renderTrafficLight(ctx, n, side, distance, width, height) {
   const wasAlpha = ctx.globalAlpha;
   if (fadeAlpha < 1) ctx.globalAlpha = wasAlpha * fadeAlpha;
 
+  // Poteau : base + reflet vertical décalé (façon tube cintré), pas un vrai
+  // volume — trop fin pour qu'un flanc projeté reste visible, mais un aplat
+  // seul ne suffisait pas non plus.
   const ground = project(x, z, width, height);
   const poleTopY = ground.y - TRAFFIC_POLE_HEIGHT * ground.scale;
-  const poleW = Math.max(1, 0.08 * ground.scale);
+  const poleW = Math.max(2, TRAFFIC_POLE_HALF_W * 2 * ground.scale * 3);
+  const poleX = ground.x - poleW / 2;
   ctx.fillStyle = gradientStep(trafficPoleGradient, distT);
-  ctx.fillRect(ground.x - poleW / 2, poleTopY, poleW, ground.y - poleTopY);
+  ctx.fillRect(poleX, poleTopY, poleW, ground.y - poleTopY);
+  if (poleW >= 3) {
+    ctx.fillStyle = gradientStep(trafficPoleHiGradient, distT);
+    ctx.fillRect(poleX + poleW * 0.62, poleTopY, Math.max(1, poleW * 0.2), ground.y - poleTopY);
+  }
 
-  const boxW = TRAFFIC_BOX_W * ground.scale;
-  const boxH = TRAFFIC_BOX_H * ground.scale;
-  const boxX = ground.x - boxW / 2;
-  const boxY = poleTopY - boxH;
-  ctx.fillStyle = gradientStep(trafficBoxGradient, distT);
-  ctx.fillRect(boxX, boxY, boxW, boxH);
+  // Tête tricolore : vrai volume, flanc projeté à zFar pour donner un profil
+  // (même principe que les piliers de pont/renderCar3D).
+  const zNear = z - TRAFFIC_BOX_HALF_D;
+  const zFar = z + TRAFFIC_BOX_HALF_D;
+  const gN = project(x - TRAFFIC_BOX_HALF_W, zNear, width, height);
+  const gNR = project(x + TRAFFIC_BOX_HALF_W, zNear, width, height);
+  const gF = project(x - TRAFFIC_BOX_HALF_W, zFar, width, height);
+  const gFR = project(x + TRAFFIC_BOX_HALF_W, zFar, width, height);
+  const boxBotN = poleTopY;
+  const boxTopN = poleTopY - TRAFFIC_BOX_H * gN.scale;
+  const boxBotF = gF.y - TRAFFIC_POLE_HEIGHT * gF.scale;
+  const boxTopF = boxBotF - TRAFFIC_BOX_H * gF.scale;
+  const topN = { x: gN.x, y: boxTopN };
+  const topNR = { x: gNR.x, y: boxTopN };
+  const topF = { x: gF.x, y: boxTopF };
+  const topFR = { x: gFR.x, y: boxTopF };
+  const botN = { x: gN.x, y: boxBotN };
+  const botNR = { x: gNR.x, y: boxBotN };
+  const botF = { x: gF.x, y: boxBotF };
 
+  const leftVisible = x > 0;
+  const boxDark = gradientStep(trafficBoxDarkGradient, distT);
+  const boxBase = gradientStep(trafficBoxGradient, distT);
+  // Un seul flanc visible à la fois (celui qui fait face au centre de
+  // l'écran), même règle que renderCar3D/les piliers de pont.
+  if (leftVisible) fillPoly(ctx, [botN, botF, topF, topN], boxDark);
+  else fillPoly(ctx, [botNR, botF, topF, topNR], boxDark);
+  fillPoly(ctx, [botN, botNR, topNR, topN], boxBase);
+
+  const boxW = gNR.x - gN.x;
   // Trois pastilles seulement si la tête est assez large pour rester lisible
   // (même garde que les autres détails fins du décor, voir WINDOW_MIN_PX).
-  if (boxW >= 3) {
-    const dotR = boxW * 0.28;
-    const cx = boxX + boxW / 2;
+  if (Math.abs(boxW) >= 3) {
+    const dotR = Math.abs(boxW) * 0.28;
+    const cx = (gN.x + gNR.x) / 2;
     const dotColors = [
       gradientStep(trafficRedGradient, distT),
       gradientStep(trafficYellowGradient, distT),
@@ -461,7 +521,7 @@ function renderTrafficLight(ctx, n, side, distance, width, height) {
     ];
     for (let i = 0; i < 3; i++) {
       ctx.fillStyle = dotColors[i];
-      const cy = boxY + boxH * (0.22 + i * 0.28);
+      const cy = boxTopN + (boxBotN - boxTopN) * (0.22 + i * 0.28);
       ctx.beginPath();
       ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
       ctx.fill();
