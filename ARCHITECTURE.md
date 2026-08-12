@@ -73,7 +73,7 @@ dépendances vont toujours vers le bas.
 | `clock.js` | Temps musical : `now()`, `beatIndexAt()`, `timeOfBeat()` | Source de temps injectable (`setTimeSource`) |
 | `audio.js` | Chargement, unlock iOS, lecture, 3 modes de pause | Le plus délicat du projet, voir §5.1 et §8 |
 | `road.js` | Projection pseudo-3D, vitesse, rendu du sol | Exporte `project()`, que tout le reste consomme |
-| `world.js` | Façades haussmanniennes, ciel | Purement décoratif |
+| `world.js` | Façades haussmanniennes, ciel, croisements, feux | Purement décoratif ; source de `isCrossingSlot` co-exportée par `road.js` |
 | `entities.js` | Bonus/obstacles calés sur les beats, collisions | Le cœur du gameplay ; inclut le pont (viaduc) |
 | `voxel.js` | Primitif de cube extrudé (`blk`/`shade`/`parseColor`) | Partagé par `player.js` et `cyclists.js`, zéro logique d'orientation |
 | `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | **Voxel** (blocs extrudés) depuis le 12 août 2026 — même grammaire que `cyclists.js`, voir §11 |
@@ -326,6 +326,49 @@ infranchissables et vidait la catégorie en silence (18 cyclistes tirés → 8 s
 
 ---
 
+## 6bis. Décor : façades, croisements, feux (12 août 2026)
+
+Chantier fait en autonomie créative (accord explicite de l'utilisateur avant de se coucher —
+« autorise-toi tout seul pour la créa »), à partir de plusieurs références Street View
+(immeuble haussmannien classique + viaduc du métro) et du retour direct : « revois la manière
+dont c'est fait en pixel [...] immeuble parisien », « des fois qu'on croise des avenues »,
+« tu peux rajouter des feux ». **Rien de tout ça n'a été vérifié visuellement** — preview
+navigateur inaccessible toute la session (voir §12) — seulement par lecture de code et
+`npm run build`. **Premier réflexe au réveil : regarder si c'est beau, pas supposer que ça l'est.**
+
+**Façades (`world.js`, `drawFace`/`buildingShape`)** — trois ajouts, tous additifs sur le rendu
+existant (aucun invariant de placement/perspective touché) :
+- **Volets** (`SHUTTER_PALETTE`) : deux blocs de part et d'autre de chaque fenêtre d'étage,
+  teinte tirée par bâtiment (vert bouteille/gris ardoise/brun), masqués si la fenêtre est trop
+  petite pour rester lisible (même garde que le reste du décor, `WINDOW_MIN_PX`-like).
+- **Rez-de-chaussée distinct** : la dernière rangée de fenêtres (`groundRow`, la plus proche du
+  sol) devient une vitrine sombre plus haute (`SHOPFRONT_COLOR`), sans volets, séparée des
+  étages par un bandeau clair (`bandeauColor`, réutilise `corniceGradient`).
+- **2e rangée de balcon** : possible désormais au dernier étage noble (juste sous le toit), en
+  plus du balcon du 2e étage déjà existant — tirage indépendant (`h8`), jamais garanti sur un
+  petit immeuble (`rows >= 5` requis).
+
+**Croisements d'avenue** (`road.js` + `world.js`) — grille partagée pour éviter toute
+divergence entre les deux fichiers :
+- `road.js` exporte désormais `WORLD_GRID_SPACING` (= 10, l'ancien `SPACING` local de
+  `world.js`, maintenant importé de là) et `isCrossingSlot(n)` = `n % 7 === 0` (à partir de
+  `n = 2`, jamais deux collés, jamais au tout début de la course).
+- Sur un créneau de croisement : `world.js` ne pose **aucun bâtiment** des deux côtés
+  (`renderBuilding` retourne immédiatement) et pose un feu tricolore à la place
+  (`renderTrafficLight`) ; `road.js` remplace, pour les lignes de sol dont le `z` tombe dans ce
+  créneau, le trottoir+chaussée+pointillés habituels par un large passage piéton
+  (`CROSSING_EXTRA_WIDTH = 6` unités de plus de chaque côté, alternance claire/sombre par bande
+  comme le reste du sol).
+- ⚠️ **Volontairement purement décoratif** : `laneX()`/la largeur des voies ne changent jamais,
+  même au croisement — aucune règle de collision/spawn (`entities.js`) n'a besoin de savoir
+  qu'un croisement existe. C'est ce qui rend le risque contenu malgré l'absence de test visuel.
+
+**Feux de circulation** (`world.js`, `renderTrafficLight`) : poteau + tête tricolore (3 pastilles
+rouge/jaune/vert), posés au bord du trottoir sur les deux côtés à chaque créneau de croisement,
+même technique `project()`+fondu-brume que le reste du décor.
+
+---
+
 ## 7. Contrôles
 
 Tout se joue au geste, **à un pouce**, sans aucun contrôle à l'écran.
@@ -502,11 +545,15 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   pont 18), contre 19 à l'origine (300 créneaux, avant cycliste et pont). À confirmer en jouant
   — les leviers sont les poids `cycliste`/`pont` dans `OBSTACLE_WEIGHTS`.
 
-**Jamais validé sur iPhone réel** pour la session du 12 août 2026 : le joueur en voxel vue de
-dos, l'obstacle pont (rendu, franchissement, garde anti-piège), et le nudge de courbure/horizon
-(§5.5) — tout vérifié par le calcul (recensement hors ligne, `npm run build` propre) mais pas à
-l'œil, la preview navigateur ayant été inaccessible pendant cette session (voir §12). S'ajoute à
-la dette précédente non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
+**Jamais validé sur iPhone réel** pour la session du 12 août 2026 :
+- Premier lot (testé sur téléphone en cours de session, corrigé depuis) : voxel joueur, pont,
+  courbure — retours déjà traités (fatal au pont, LEAD_IN, trait noir d'horizon, cheveux).
+- **Second lot, jamais vu du tout** (fait en autonomie créative après ce test, voir §6bis) :
+  volets/rez-de-chaussée/2e balcon sur les façades, croisements d'avenue, feux de circulation,
+  et la nouvelle règle "sauter sous un pont est fatal même voie ouverte" spécifiquement. Tout
+  vérifié par lecture de code + `npm run build` propre, rien à l'œil. **C'est le premier lot à
+  regarder au réveil.**
+- Dette antérieure non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
 
 ---
 

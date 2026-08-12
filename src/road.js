@@ -86,6 +86,24 @@ const EDGE_WIDTH = 0.25;    // largeur des bords de chaussée, en unités-monde
 const CENTER_LINE_WIDTH = 0.12;
 const MAX_ROWS = 160;       // plafond de bandes dessinées par frame (budget perf mobile)
 
+// --- Croisements d'avenue ---------------------------------------------------
+// Demandé le 12 août 2026 (retour direct, avec références Street View) :
+// « des fois ça serait bien qu'on croise des avenues pour donner un peu de
+// diversité ». Grille partagée avec world.js (bâtiments) : un même index de
+// créneau `n = floor((z + distance) / WORLD_GRID_SPACING)` dit aux deux
+// modules si on est à un carrefour, sans dépendance circulaire (road.js reste
+// la source, world.js importe déjà tout le reste d'ici).
+export const WORLD_GRID_SPACING = 10; // écart entre centres de bâtiments, en unités-monde — voir world.js
+const CROSSING_PERIOD = 7; // un carrefour tous les 7 créneaux (~70 unités-monde), jamais deux collés
+export function isCrossingSlot(n) {
+  return n >= 2 && n % CROSSING_PERIOD === 0;
+}
+// Élargissement du trottoir en unités-monde de chaque côté au carrefour —
+// donne l'impression d'une avenue plus large plutôt qu'une simple rue,
+// jamais touché aux voies elles-mêmes (laneX inchangé, la voiture reste
+// jouable exactement pareil qu'ailleurs).
+const CROSSING_EXTRA_WIDTH = 6;
+
 // Brume du lointain : sol (ci-dessous) et bâtiments (world.js, qui importe
 // ces constantes) se fondent tous les deux vers cette teinte à distance, au
 // même rythme — cohérence de l'atmosphère sur toute la scène. Couleur = le
@@ -155,6 +173,10 @@ export function gradientStep(gradient, t) {
 const sidewalkGradients = ["#5c5349", "#665c51"].map((hex) => buildHazeGradient(hex));
 const roadGradients = ["#141419", "#1b1b22"].map((hex) => buildHazeGradient(hex));
 const lineGradient = buildHazeGradient("#ffffff");
+// Passage piéton du carrefour : alternance claire/sombre plutôt que
+// trottoir+chaussée — même technique de bande (`band`) que le reste du sol,
+// juste une palette différente pour se lire comme un large passage clouté.
+const crossingGradients = ["#d8d2c6", "#8f8879"].map((hex) => buildHazeGradient(hex));
 
 // --- Caméra qui suit latéralement ------------------------------------------
 // Avec 4 voies sur une chaussée de 8 unités, les voies extérieures tombent
@@ -325,6 +347,19 @@ export function render(ctx, width, height, distance) {
     const band = Math.floor((z + distance) / BAND_LENGTH) % 2 === 0;
     const rectY = y - rowStep;
     const hazeT = z / HAZE_MAX_Z; // sol teinté par la lumière chaude à distance, comme les bâtiments (world.js)
+    const crossing = isCrossingSlot(Math.floor((z + distance) / WORLD_GRID_SPACING));
+
+    if (crossing) {
+      // Carrefour : un large passage piéton plutôt que trottoir+chaussée —
+      // même alternance `band` que le reste du sol, palette différente. Les
+      // voies (laneX) ne bougent pas, seul le décor s'élargit : la voiture
+      // reste jouable exactement pareil qu'ailleurs, aucune règle de
+      // gameplay ne dépend de ce bloc.
+      const wideHalfPx = (ROAD_HALF_WIDTH + CROSSING_EXTRA_WIDTH) * scale;
+      ctx.fillStyle = gradientStep(crossingGradients[band ? 1 : 0], hazeT);
+      ctx.fillRect(roadCenterX - wideHalfPx, rectY, wideHalfPx * 2, rowStep);
+      continue;
+    }
 
     // Trottoirs de part et d'autre de la chaussée.
     ctx.fillStyle = gradientStep(sidewalkGradients[band ? 1 : 0], hazeT);

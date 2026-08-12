@@ -29,9 +29,14 @@ import {
   buildHazeGradient,
   buildHazeGradientFromRgb,
   gradientStep,
+  WORLD_GRID_SPACING,
+  isCrossingSlot,
 } from "./road.js";
 
-const SPACING = 10;          // écart entre centres de bâtiments, en unités-monde
+// Alias local : SPACING vient de road.js (source unique, partagée avec les
+// croisements d'avenue — voir isCrossingSlot) pour que bâtiments et carrefour
+// tombent toujours sur la même grille sans jamais pouvoir diverger.
+const SPACING = WORLD_GRID_SPACING;
 const SIDEWALK_MARGIN = 0.5; // marge entre le bord de route et le pied des bâtiments
 // Plus rien n'est visible au-delà de l'horizon courbe (HORIZON_Z ≈ 95, soit
 // une dizaine de bâtiments à SPACING = 10) : inutile d'en préparer davantage.
@@ -62,6 +67,16 @@ const ROOF_RIDGE_COLOR = "#0d0d10"; // faîtage + cheminées + balcons : le noir
 const CORNICE_COLOR = "#f2efe9";   // bandeau blanc cassé, le trait clair qui découpe la façade
 const WINDOW_DARK = "#15151a";     // fenêtre non éclairée : trou noir dans le béton
 const WINDOW_LIT = "#ff5a34";      // rares fenêtres éclairées, orange-rouge de la charte
+// Volets (12 août 2026, retour direct après plusieurs références Street View
+// envoyées : « revois la manière dont c'est fait [...] immeuble parisien »).
+// C'est le détail le plus identifiable d'une façade haussmannienne à cette
+// échelle, avant même la pierre — vert bouteille/gris ardoise/brun, jamais la
+// couleur vive de charte (réservée aux objets à ramasser, voir plus haut).
+const SHUTTER_PALETTE = ["#2f4a3a", "#37424a", "#4a3a2f"];
+// Rez-de-chaussée : vitrine plus sombre (jamais de volets, fenêtres hautes),
+// distinct des étages — signal "commerce au pied de l'immeuble" plutôt qu'un
+// mur de fenêtres identiques du sol au toit.
+const SHOPFRONT_COLOR = "#0e0e12";
 // Retour d'angle : légèrement plus sombre que la façade principale (face qui
 // reçoit moins la lumière rasante du couchant) — lit comme un vrai profil.
 const SIDE_SHADE = 0.82;
@@ -105,6 +120,8 @@ const roofRidgeGradient = buildHazeGradient(ROOF_RIDGE_COLOR, HAZE_STRENGTH * 0.
 const corniceGradient = buildHazeGradient(CORNICE_COLOR);
 const windowLitGradient = buildHazeGradient(WINDOW_LIT, HAZE_STRENGTH * 0.5);
 const windowDarkGradient = buildHazeGradient(WINDOW_DARK);
+const shutterGradients = SHUTTER_PALETTE.map((hex) => buildHazeGradient(hex));
+const shopfrontGradient = buildHazeGradient(SHOPFRONT_COLOR);
 
 function buildingShape(slotIndex, sideKey) {
   const h1 = hash(slotIndex * 2 + sideKey);
@@ -113,12 +130,23 @@ function buildingShape(slotIndex, sideKey) {
   const h4 = hash(slotIndex * 11 + sideKey);
   const h5 = hash(slotIndex * 13 + sideKey);
   const h6 = hash(slotIndex * 17 + sideKey);
+  const h7 = hash(slotIndex * 19 + sideKey); // teinte des volets
+  const h8 = hash(slotIndex * 23 + sideKey); // 2e rangée de balcon (dernier étage noble)
 
   const depth = DEPTH_MIN + h1 * (DEPTH_MAX - DEPTH_MIN);   // le long de la route (façade)
   const girth = GIRTH_MIN + h5 * (GIRTH_MAX - GIRTH_MIN);   // perpendiculaire (retour d'angle)
   const height = MIN_HEIGHT + h2 * (MAX_HEIGHT - MIN_HEIGHT);
   const paletteIndex = Math.floor(h3 * FACADE_PALETTE.length);
   const brightnessIndex = Math.floor(h4 * BRIGHTNESS_STEPS);
+  const rows = Math.max(3, Math.min(7, Math.round(height / 3)));
+
+  // Balcons filants : 2e étage (le plus fréquent, typologie haussmannienne),
+  // et parfois un 2e rang au dernier étage noble juste sous le toit — jamais
+  // au rez-de-chaussée (SHOPFRONT_COLOR plus bas) ni sur un immeuble trop
+  // petit pour avoir un "dernier étage" distinct du 2e.
+  const balconyRows = [];
+  if (h6 < 0.5) balconyRows.push(Math.floor(rows * 0.55));
+  if (h8 < 0.4 && rows >= 5) balconyRows.push(1);
 
   return {
     depth,
@@ -126,10 +154,11 @@ function buildingShape(slotIndex, sideKey) {
     height,
     facadeGradient: facadeGradients[paletteIndex][brightnessIndex],
     sideGradient: sideGradients[paletteIndex][brightnessIndex],
+    shutterGradient: shutterGradients[Math.floor(h7 * shutterGradients.length)],
     facadeWindowCols: Math.max(3, Math.min(7, Math.round(depth * 0.9))),
     sideWindowCols: Math.max(2, Math.min(3, Math.round(girth / 2.5))),
-    windowRows: Math.max(3, Math.min(7, Math.round(height / 3))),
-    balconyRows: h6 < 0.5 ? [Math.floor(Math.min(6, Math.max(3, Math.round(height / 3))) * 0.55)] : [],
+    windowRows: rows,
+    balconyRows,
   };
 }
 
@@ -181,9 +210,17 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     const litColor = gradientStep(windowLitGradient, distT);
     const darkColor = gradientStep(windowDarkGradient, distT);
     const balconyColor = gradientStep(roofRidgeGradient, distT);
+    const shutterColor = gradientStep(shape.shutterGradient, distT);
+    const shopfrontColor = gradientStep(shopfrontGradient, distT);
+    const bandeauColor = gradientStep(corniceGradient, distT);
+    // Rez-de-chaussée = dernière rangée (r croît du toit vers le sol) —
+    // traité à part (vitrine, pas de volets) seulement si l'immeuble a bien
+    // un "étage" distinct au-dessus (sinon rows === 1, rien à séparer).
+    const groundRow = rows > 1 ? rows - 1 : -1;
 
     for (let r = 0; r < rows; r++) {
       const rowY = wallTop + marginY + r * cellH;
+      const isGround = r === groundRow;
       if (isFacade && shape.balconyRows.includes(r) && wallW > 16) {
         // Balcon filant : fine bande sombre courant sur toute la largeur du
         // mur, juste sous la rangée de fenêtres, + quelques piquets (garde-
@@ -197,10 +234,34 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
           ctx.fillRect(wallLeft + marginX * 0.4 + t * tickSpacing, railY, Math.max(1, wallH * 0.006), wallH * 0.03);
         }
       }
+      // Bandeau : ligne claire juste au-dessus du rez-de-chaussée, sépare
+      // visuellement "commerce" et "étages" — un des repères les plus lisibles
+      // d'une façade haussmannienne à cette échelle (retour direct : « revois
+      // la manière dont c'est fait [...] immeuble parisien »).
+      if (isGround && wallW > 16) {
+        ctx.fillStyle = bandeauColor;
+        ctx.fillRect(wallLeft, rowY - cellH * 0.06, wallW, Math.max(1, wallH * 0.012));
+      }
       for (let c = 0; c < cols; c++) {
-        ctx.fillStyle = windowIsLit(windowKey, isFacade ? 0 : 1, r, c) ? litColor : darkColor;
         const wx = wallLeft + marginX + c * cellW + (cellW - winW) / 2;
+        if (isGround) {
+          // Vitrine sombre et plus haute que les fenêtres d'étage, jamais de
+          // volets — sans ça la façade était uniforme du sol au toit.
+          ctx.fillStyle = shopfrontColor;
+          const shopH = Math.min(cellH * 0.92, winH * 1.6);
+          ctx.fillRect(wx, wallBottom - shopH, winW, shopH);
+          continue;
+        }
+        ctx.fillStyle = windowIsLit(windowKey, isFacade ? 0 : 1, r, c) ? litColor : darkColor;
         ctx.fillRect(wx, rowY, winW, winH);
+        // Volets, seulement si assez de place pour rester lisibles (pas de
+        // bouillie à distance) — deux blocs de part et d'autre de la fenêtre.
+        const shutterW = Math.min(winW * 0.4, (cellW - winW) / 2 - 1);
+        if (shutterW >= 2) {
+          ctx.fillStyle = shutterColor;
+          ctx.fillRect(wx - shutterW - 1, rowY, shutterW, winH);
+          ctx.fillRect(wx + winW + 1, rowY, shutterW, winH);
+        }
       }
     }
   }
@@ -271,7 +332,78 @@ function faceCorners(xA, zA, xB, zB, wallHeight, roofHeight, width, height) {
 // juste en dessous) — seule l'opacité change, pas la géométrie.
 const FADE_BAND = 16;
 
+// --- Feux de circulation, aux croisements -----------------------------------
+// Demandé le 12 août 2026 avec les croisements (« tu peux rajouter des feux
+// d'ailleurs sur le côté »). Prop simple posée au même endroit que le
+// bâtiment sauté par isCrossingSlot (voir renderBuilding) : un poteau + une
+// tête tricolore, même technique project()+fillRect que le reste du décor.
+const TRAFFIC_POLE_COLOR = "#2a2a2e";
+const TRAFFIC_BOX_COLOR = "#1c1c20";
+const TRAFFIC_RED = "#e13e26";   // rouge de charte, cohérent avec le reste des accents
+const TRAFFIC_YELLOW = "#f0a83c";
+const TRAFFIC_GREEN = "#3a8f5c";
+const TRAFFIC_POLE_HEIGHT = 3.2;
+const TRAFFIC_BOX_H = 0.9;
+const TRAFFIC_BOX_W = 0.35;
+
+const trafficPoleGradient = buildHazeGradient(TRAFFIC_POLE_COLOR);
+const trafficBoxGradient = buildHazeGradient(TRAFFIC_BOX_COLOR);
+const trafficRedGradient = buildHazeGradient(TRAFFIC_RED);
+const trafficYellowGradient = buildHazeGradient(TRAFFIC_YELLOW);
+const trafficGreenGradient = buildHazeGradient(TRAFFIC_GREEN);
+
+function renderTrafficLight(ctx, n, side, distance, width, height) {
+  const z = (n + 0.5) * SPACING - distance;
+  if (z < NEAR_Z_CLAMP || z > HORIZON_Z) return;
+  const fadeAlpha = Math.min(1, (HORIZON_Z - z) / FADE_BAND);
+  if (fadeAlpha <= 0.02) return;
+
+  // Un peu plus près du bord de route que les bâtiments (SIDEWALK_MARGIN
+  // complet) : le feu doit lire comme posé au bord du trottoir, pas en
+  // retrait dans la ruelle entre deux immeubles.
+  const x = side * (ROAD_HALF_WIDTH + SIDEWALK_MARGIN * 0.6);
+  const distT = Math.min(1, z / HAZE_MAX_Z);
+
+  const wasAlpha = ctx.globalAlpha;
+  if (fadeAlpha < 1) ctx.globalAlpha = wasAlpha * fadeAlpha;
+
+  const ground = project(x, z, width, height);
+  const poleTopY = ground.y - TRAFFIC_POLE_HEIGHT * ground.scale;
+  const poleW = Math.max(1, 0.08 * ground.scale);
+  ctx.fillStyle = gradientStep(trafficPoleGradient, distT);
+  ctx.fillRect(ground.x - poleW / 2, poleTopY, poleW, ground.y - poleTopY);
+
+  const boxW = TRAFFIC_BOX_W * ground.scale;
+  const boxH = TRAFFIC_BOX_H * ground.scale;
+  const boxX = ground.x - boxW / 2;
+  const boxY = poleTopY - boxH;
+  ctx.fillStyle = gradientStep(trafficBoxGradient, distT);
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+
+  // Trois pastilles seulement si la tête est assez large pour rester lisible
+  // (même garde que les autres détails fins du décor, voir WINDOW_MIN_PX).
+  if (boxW >= 3) {
+    const dotR = boxW * 0.28;
+    const cx = boxX + boxW / 2;
+    const dotColors = [
+      gradientStep(trafficRedGradient, distT),
+      gradientStep(trafficYellowGradient, distT),
+      gradientStep(trafficGreenGradient, distT),
+    ];
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = dotColors[i];
+      const cy = boxY + boxH * (0.22 + i * 0.28);
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.globalAlpha = wasAlpha;
+}
+
 function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
+  if (isCrossingSlot(n)) return; // carrefour : pas de bâtiment ici, voir renderTrafficLight
   const shape = buildingShape(n, sideKey);
   const centerAbsolute = (n + 0.5) * SPACING;
   let zNear = centerAbsolute - distance - shape.depth / 2;
@@ -315,6 +447,10 @@ function renderSide(ctx, width, height, distance, side) {
   const startSlot = Math.floor(distance / SPACING) - 1;
 
   for (let n = startSlot + DEPTH_COUNT; n >= startSlot; n--) {
+    if (isCrossingSlot(n)) {
+      renderTrafficLight(ctx, n, side, distance, width, height);
+      continue;
+    }
     renderBuilding(ctx, n, sideKey, side, distance, width, height);
   }
 }
