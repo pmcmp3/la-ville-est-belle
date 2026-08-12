@@ -747,8 +747,16 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
   de 10 000 pts, palette des cartes de menu réchauffée (`--panneau-fond`/`--panneau-bord`,
   `index.html`). `npm run build` propre + recensement hors ligne (§12, script Node) pour les
   chiffres du quota/de la distribution. Preview navigateur à nouveau bloquée cette session (même
-  symptôme que le 12 août, voir §12) — vérification visuelle faite sur le miroir GitHub Pages en
-  prod après déploiement (voir note de session la plus récente pour le détail de ce qui a été vu).
+  symptôme que le 12 août, voir §12).
+  - ✅ **Palette des menus** : vue sur le miroir GitHub Pages en prod (l'écran d'accueil s'affiche
+    sans lancer l'audio, donc sans le piège habituel) — carte crème/bordeaux-noir confirmée,
+    lisible, cohérente avec les façades.
+  - ❌ **Portique F1 (`finish.js`) et collision cycliste/saut jamais vus tourner** : les deux ne
+    se déclenchent qu'une fois la partie réellement lancée (`gameStarted === true` pour le
+    portique — `finish.render()` n'est appelé que dans ce cas, voir `main.js`), donc derrière le
+    geste qui débloque l'`AudioContext` — pas de contournement sûr trouvé cette session sans
+    risquer de figer l'onglet (voir piège n°1, §10). **Prochaine chose à confirmer en vrai, sur
+    téléphone.**
 
 ---
 
