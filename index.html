@@ -345,6 +345,18 @@
       border-top: none;
     }
 
+    /* Ligne unique affichée quand la requête de classement a échoué (et
+       seulement dans ce cas — une table vide reste silencieuse). Sort de la
+       grille à 3 colonnes des vraies lignes et n'a pas de hauteur fixe : le
+       message en ?debug porte la raison technique et peut passer à la ligne. */
+    #leaderboard-list li.board-message {
+      display: block;
+      height: auto;
+      text-align: center;
+      font: 500 12px var(--police);
+      color: rgba(0, 0, 0, 0.5);
+    }
+
     #leaderboard-list .rank {
       font: 500 11px var(--police);
       letter-spacing: 0.06em;
@@ -649,6 +661,42 @@
     .btn-primary:active {
       transform: scale(0.96);
       filter: brightness(0.85);
+    }
+
+    /* Action SECONDAIRE (12 août 2026). Hiérarchie inversée sur l'écran de
+       fin : « l'objectif, c'est que les gens cliquent sur Aller écouter
+       l'album [...] la priorité, c'est pas qu'ils rejouent ». « Écouter le
+       morceau » prend donc le rouge de l'action principale, et REJOUER passe
+       ici — même gabarit (donc même surface tactile, il reste facile à
+       viser), mais contour seul, sans aplat : il se lit en second sans
+       disparaître. Le jeu existe pour amener au morceau, l'écran de fin est
+       le seul endroit où ça se joue vraiment. */
+    .btn-secondary {
+      background: transparent;
+      color: var(--noir);
+      border-color: var(--noir);
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.96);
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    /* L'ancre "Écouter le morceau" de la carte de fin est un <a>, pas un
+       <button> : il lui manque le centrage vertical que le bouton a
+       d'origine, et l'icône « nouvel onglet » doit rester collée au libellé. */
+    a.btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-sizing: border-box;
+      text-decoration: none;
+    }
+
+    a.btn svg {
+      flex: none;
+      opacity: 0.8;
     }
 
     /* Désactivé en gris franc plutôt qu'en rouge délavé (retour DA) : se
@@ -1189,8 +1237,21 @@
             <p class="board-title">Meilleurs scores</p>
             <ol id="leaderboard-list"></ol>
           </div>
+          <!-- Ordre volontaire : le lien vers le morceau EST l'action
+               principale de cet écran, REJOUER passe dessous en secondaire
+               (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent
+               sur le lien »). Le CTA flottant en bas d'écran (#cta-link) est
+               masqué sur cette vue, il ferait doublon. -->
           <div id="end-actions">
-            <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
+            <a id="end-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+              <span>ÉCOUTER LE MORCEAU</span>
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+                <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+            <button id="replay-button" class="btn btn-secondary" type="button">REJOUER</button>
           </div>
         </div>
       </div>

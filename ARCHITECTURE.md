@@ -157,16 +157,25 @@ accumule le ratio cible créneau après créneau, et un créneau est une étoile
 franchir un palier entier. Le total vaut alors exactement `floor(somme des ratios)`.
 
 ```
-TOTAL_STARS      = 200   ← LE réglage central
-TOTAL_OBSTACLES  = 100
-TOTAL_OBJECTS    = 300   ← c'est ça, la ligne d'arrivée (pas la fin du morceau)
+TOTAL_STARS      = 200   ← LE réglage central (score max = 30 900, mesuré)
+TOTAL_OBJECTS    = 343   ← dérivé de la durée du morceau (12 août 2026)
+TOTAL_OBSTACLES  = 143   ← ce qui reste
 ```
 
-La course dure donc 300 × 1,5 × 0,5 = **225 s**, alors que le morceau en fait 257,9. L'écart est
-voulu : la musique continue après la ligne d'arrivée.
+**La course dure maintenant tout le morceau** (343 × 0,75 = 257,3 s pour 257,9 s de musique) —
+renversement du 12 août 2026, demandé par l'artiste. Avant : 300 créneaux, 225 s, et la musique
+continuait 33 s après la ligne. Conséquence à ne pas perdre de vue : **il n'y a plus de marge**,
+donc tout retard pris en pause (§8.1) rend muettes les dernières secondes de course — d'où
+`pauseDeriveMax` ramené à 8 s.
 
 `BONUS_RATIO_END` est **dérivé**, pas écrit à la main, pour que le quota tienne même si on
-retouche `TOTAL_STARS` / `TOTAL_OBSTACLES` / `GRACE_SLOTS`.
+retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
+
+> 🐛 La dérivation calait la **moyenne** de la rampe sur le quota, ce qui suppose que `t` moyenne
+> à 0,5 — faux, il s'arrête à (N−1)/N. Biais minuscule, mais du mauvais côté du `floor` final :
+> **199 étoiles au lieu de 200**, et un score maximum qui n'est plus le nombre annoncé. La somme
+> de la rampe est désormais résolue exactement, plus un epsilon avant le `floor` (le cumul final
+> tombe pile sur un entier, donc pile là où un flottant peut coûter une étoile).
 
 ### 5.5 La projection pseudo-3D est courbe, pas plate
 
@@ -210,18 +219,35 @@ exponentielle (doublement toutes les 57 s) plafonnée à `vitesseMax` = 6,0.
 Les bonus aériens ne se ramassent **qu'en sautant**, avec une fenêtre de collision élargie
 (`Z_WINDOW_AIR = 2,2` contre `Z_WINDOW = 1,0`) — le timing du saut doit être tolérant.
 
-**4 obstacles** (c'était 3 : le cycliste a été promu de décor à obstacle) :
+**4 obstacles** (c'était 3 : le cycliste a été promu de décor à obstacle). Poids revus le
+12 août 2026 (« beaucoup plus de gens qui font du vélo », « un peu plus de voiture ») :
 
 | Obstacle | Poids | Coût | Le saut sauve ? |
 |---|---|---|---|
-| `voiture` | 0,50 | **fatal** (3 vies d'un coup) | ✅ (survol + atterrissage sur le toit) |
-| `cycliste` | 0,20 | −1 vie | ❌ |
-| `pieton` | 0,15 | −1 vie | ❌ |
-| `cone` | 0,15 | −1 vie | ✅ |
+| `voiture` | 0,52 | **fatal** (3 vies d'un coup) + **−500 pts** | ✅ (survol + atterrissage sur le toit) |
+| `cycliste` | 0,28 | −1 vie + **−500 pts** | ❌ |
+| `pieton` | 0,12 | −1 vie + **−500 pts** | ❌ |
+| `cone` | 0,08 | −1 vie + **−500 pts** | ✅ |
 
 `UNJUMPABLE_KINDS = {pieton, cycliste}` : ces deux-là se contournent **latéralement
-uniquement**. Distribution réelle mesurée sur les 300 créneaux : voiture 46, piéton 21,
-cycliste 18, cône 15.
+uniquement**. Distribution mesurée sur les 343 créneaux (après le passage à 30 900 en score
+max) : voiture 75, cycliste 38, pieton 15, cone 15. Le piéton garde à peu près son effectif
+absolu malgré la baisse de poids relatif — la course compte 43 créneaux de plus qu'avant.
+
+**Pénalité de score** (demandée le 12 août 2026, avec la perte de vie) : chaque collision qui
+coûte un cœur retire aussi `penaliteObstacle` points (500, `config.js`), affichés 3 s sous le
+score (`game.penaltyTimer`/`penaltyAmount`, `hud.js`). Une seule pénalité par collision, y
+compris pour la voiture (qui prend les 3 vies d'un coup). Le score ne descend jamais sous 0.
+
+**Cyclistes en sens inverse — vitesse d'approche.** Signalé comme « je ne vois que des vélos
+statiques » : un cycliste avançait à la vitesse du DÉCOR (comme un cône posé au sol), donc
+sans lecture de croisement malgré l'animation de pédalage. `APPROACH_FACTOR` (`entities.js`)
+multiplie la vitesse de rapprochement des seuls créneaux `cycliste` (×1,35), sans toucher
+l'instant d'arrivée — il tombe toujours pile sur son temps musical, il part juste de plus loin.
+⚠️ Cassait une hypothèse silencieuse : `visibleSlots()` produisait les créneaux par index
+croissant = profondeur croissante, ce que `render()` suppose pour son ordre du peintre (§10,
+piège n°4). Un facteur d'approche différent par type casse cette égalité — `slotsFor()` trie
+maintenant explicitement par `z` avant de mettre en cache.
 
 **Période de grâce** : `GRACE_BEATS = 4` (~2 s) sans obstacle en début de course. C'était 16
 (~8 s), réduit après le retour « il y a juste plein d'étoiles, il se passe rien ».
@@ -278,12 +304,35 @@ Trois gains en série, chacun avec sa raison d'exister pour qu'ils ne se marchen
 > contexte. « J'avais pas de son sur mon tél » a été remonté à chaque playtest et c'était
 > systématiquement ça.
 
-> 🐛 **Point ouvert — la reprise de pause rembobine le morceau.** En mode `muffled` l'horloge de
-> jeu est gelée à la main (`muffleAnchor`) pendant que le morceau continue ; à la reprise, l'écart
-> est rattrapé en **relançant la lecture à l'instant gelé** (`playNow(muffleAnchor)`). C'est
-> assumé dans le code (« le prix à payer pour que bonus et obstacles retombent sur les temps »)
-> mais l'artiste l'entend comme un retour en arrière et veut l'inverse : que le morceau continue
-> et que ce soit la *course* qui se resynchronise. **Non corrigé.**
+### 8.1 La reprise de pause : c'est la course qui se recale, pas le morceau
+
+Toute sortie du mode `running` gèle l'horloge de jeu à la main (`pauseAnchor`) — en `muffled`
+parce que le contexte tourne toujours, en `silent` parce que le `suspend()` n'arrive qu'après le
+fondu (et sur iOS, le timer qui le déclenche peut ne jamais partir en arrière-plan). À la
+reprise, le morceau a donc de l'avance sur la course.
+
+**Le morceau ne recule jamais** (il rembobinait avant, via `playNow(muffleAnchor)` : l'artiste
+l'entendait comme un retour en arrière). L'écart est encaissé dans `clockShift`, un **retard
+permanent** que `audio.now()` retranche à l'horloge audio.
+
+`clockShift` est **arrondi au temps musical le plus proche**, et c'est tout le mécanisme : les
+objets arrivent tous les 1,5 temps, donc un décalage multiple d'un temps les laisse **exactement
+sur la même grille** — mesuré à 0,000 temps d'écart sur 300 créneaux × 200 000 tirages de durée
+de pause. Le résidu, c'est le sursaut de la course à la reprise : **0,25 s au pire**
+(un demi-temps à 120 BPM), dans un sens ou dans l'autre.
+
+Contrepartie : le morceau finit `clockShift` secondes plus tôt dans la course. ⚠️ **La marge a
+disparu** depuis que la course dure tout le morceau (§5.4, 12 août 2026) : 257,3 s de course pour
+257,9 s de musique, ~0,6 s de battement. `pauseDeriveMax` a donc été ramené de 25 s à **8 s** —
+au-delà, la reprise rembobine quand même plutôt que de risquer un joueur qui franchit la ligne en
+silence. Le rembobinage remet `clockShift` à zéro, le budget repart à neuf.
+
+Le retard courant s'affiche dans `audio.getStatus()`, donc dans l'overlay `?debug` — seul moyen
+de le vérifier sur un téléphone.
+
+Enfin, tout ça ne vaut que si l'horloge audio pilote encore le jeu. Sur l'horloge de secours
+(§5.1), rien ne gèle la course pendant la pause : `main.js` la recule alors du temps passé en
+pause (`applyPauseState`), avec le même arrondi au temps musical.
 
 ---
 
@@ -353,10 +402,27 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 ## 11. Dettes et points ouverts
 
 **Bugs connus, non corrigés :**
-- La reprise de pause rembobine le morceau (voir §8).
-- Le classement n'apparaît pas sur l'écran de fin chez l'artiste. Le code est en place et
-  intact ; **piste n°1 : la requête Supabase elle-même** (`net.js` renvoie `[]` en silence sur
-  toute erreur). À reproduire en prod avec la console réseau.
+- **Le classement n'apparaît pas sur l'écran de fin chez l'artiste.** La piste n°1 (la requête
+  Supabase) est **éliminée**, mesurée le 11 août 2026 depuis cette machine :
+
+  | Vérifié | Résultat |
+  |---|---|
+  | `GET scores_public` avec la clé anon | **200**, 23 lignes |
+  | Préflight `OPTIONS` (les en-têtes `apikey`/`Authorization` en déclenchent un) | **200**, `allow-origin: *` |
+  | `GET` avec `Origin:` du site prod | **200**, CORS correct |
+  | Bundle servi en prod vs build de `HEAD` | **identique** (`index-aaCxow4X.js`) — la prod n'est pas en retard |
+
+  Le chemin DOM/CSS a été relu, il est correct. Restent trois hypothèses, toutes
+  **spécifiques à son appareil** : un bloqueur de contenu iOS qui mange `supabase.co`, un
+  problème de réseau local, ou un débordement de mise en page sur un petit écran (`#overlay` est
+  un flex centré **sans défilement** : un contenu plus haut que l'écran se fait rogner en haut
+  ET en bas).
+
+  Ce qui a été fait à la place : **l'échec ne peut plus être silencieux.** `net.js` retient la
+  raison (`getLastError()`) et l'écran de fin affiche « Classement indisponible » — plus la
+  raison technique en `?debug`, qui est la seule console disponible sur un téléphone. Une table
+  réellement vide reste muette, comme avant. **Prochaine étape : lui faire ouvrir
+  `…netlify.app/?debug`, finir une partie, et lire la ligne.**
 
 **Dette structurelle :**
 - `main.js` (1242 lignes) est un module fourre-tout : pause, DOM, onboarding, classement,
@@ -383,8 +449,9 @@ d'après cette référence ») — la moitié « cyclistes en sens inverse » es
 « joueur » ne l'est pas. `player.js` et `cyclists.js` partageaient historiquement leur
 géométrie : ils sont désormais indépendants, donc à retravailler ensemble.
 
-**Jamais validé sur iPhone réel** pour la session en cours : la DA voxel des cyclistes et la
-nouvelle difficulté.
+**Jamais validé sur iPhone réel** pour la session en cours : la DA voxel des cyclistes, la
+nouvelle difficulté, et la reprise de pause sans rembobinage (§8.1) — vérifiée par le calcul,
+pas encore à l'oreille.
 
 ---
 

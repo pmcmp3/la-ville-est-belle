@@ -81,6 +81,20 @@ export function renderHud(ctx, width, height, game) {
   ctx.textAlign = "center";
   ctx.fillText(scoreText, width / 2, PAD);
 
+  // Pénalité de collision (demandée le 12 août 2026 : « on perd un cœur et ça
+  // fait perdre 500 points, il faudrait qu'il écrive -500 qui apparaît
+  // 3 secondes en dessous du score »). Rouge de charte, juste sous le score,
+  // avec un fondu sur la dernière seconde plutôt qu'une disparition sèche —
+  // et une remontée lente, pour que l'œil l'attrape même en pleine course.
+  if (game.penaltyTimer > 0) {
+    const age = window.CONFIG.penaliteDuree - game.penaltyTimer; // 0 → fraîche
+    ctx.font = `900 ${Math.round(SCORE_SIZE * 0.62)}px ${POLICE}`;
+    ctx.fillStyle = ROUGE;
+    ctx.globalAlpha = Math.min(1, game.penaltyTimer); // fondu sur la dernière seconde
+    ctx.fillText(`-${game.penaltyAmount}`, width / 2, PAD + SCORE_SIZE * 1.2 - age * 4);
+    ctx.globalAlpha = 1;
+  }
+
   // Cœurs : en ligne, ancrés en haut à droite, alignés verticalement sur le
   // score. Plein (rouge) tant que la vie reste, vide (blanc translucide) une
   // fois perdue.

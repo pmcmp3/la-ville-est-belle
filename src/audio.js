@@ -141,12 +141,11 @@ fetchAvecProgression(window.CONFIG.fichierAudio)
   });
 
 // `offset` = seconde du morceau où démarrer la lecture. 0 au premier
-// lancement et au rejeu ; non nul uniquement à la sortie du menu pause, où le
-// morceau a continué d'avancer pendant que la course, elle, était gelée : on
-// le remet alors exactement là où le joueur s'était arrêté (voir
-// setPlaybackMode). Sans ça, audio et grille rythmique repartiraient décalés
-// de toute la durée de la pause — or c'est justement leur calage qui fait
-// tout l'intérêt du jeu.
+// lancement et au rejeu. Non nul dans un seul cas restant : la soupape de
+// dérive en sortie de pause, quand le morceau a tellement avancé qu'il
+// finirait avant la ligne d'arrivée (voir setPlaybackMode). Une sortie de
+// pause ordinaire ne rembobine PLUS le morceau : c'est la course qui se
+// recale dessus, via clockShift.
 function playNow(offset = 0) {
   if (!audioCtx || !buffer) return;
 
@@ -190,6 +189,7 @@ function playNow(offset = 0) {
 
   sourceNode.start(0, offset);
   startCtxTime = now - offset; // now() doit renvoyer `offset` à cet instant précis
+  clockShift = 0;              // la lecture repart calée sur la course : plus aucun retard à traîner
   started = true;
 }
 
@@ -287,7 +287,8 @@ export function restart() {
   // course » lancé depuis le menu pause repartirait avec l'horloge gelée et
   // le filtre encore fermé.
   mode = "running";
-  muffleAnchor = null;
+  pauseAnchor = null;
+  clockShift = 0; // le retard accumulé pendant les pauses de la partie précédente ne se transmet pas
   if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
   if (audioCtx.state !== "running") audioCtx.resume().catch(() => {});
   if (!buffer) return;
@@ -316,17 +317,22 @@ export function getStatus() {
   if (audioCtx.state !== "running") return `contexte ${audioCtx.state}`;
   if (!buffer) return "running, décodage…";
   if (!started) return "running, en attente";
-  return mode === "muffled" ? "lecture (pause, filtre 800 Hz)" : "lecture";
+  if (mode === "muffled") return "lecture (pause, filtre 800 Hz)";
+  // Le retard course↔morceau est invisible en jeu : on l'affiche ici, c'est le
+  // seul moyen de le vérifier sur un téléphone (ni console ni clavier).
+  return clockShift > 0 ? `lecture (retard ${clockShift.toFixed(2)}s)` : "lecture";
 }
 
 // Secondes écoulées depuis le premier échantillon du morceau — c'est cette
 // fonction que main.js branche sur clock.setTimeSource() une fois démarré.
 export function now() {
-  // Gelée pendant le menu pause : le contexte tourne toujours (le morceau
-  // continue, étouffé par le passe-bas) mais la course doit rester exactement
-  // là où le joueur l'a laissée. Voir setPlaybackMode().
-  if (muffleAnchor !== null) return muffleAnchor;
-  return started ? audioCtx.currentTime - startCtxTime : 0;
+  // Gelée pendant la pause : le contexte peut très bien continuer de tourner
+  // (menu pause = le morceau continue, étouffé par le passe-bas) mais la
+  // course, elle, doit rester exactement là où le joueur l'a laissée.
+  if (pauseAnchor !== null) return pauseAnchor;
+  // clockShift = retard accumulé de la course sur le morceau (voir
+  // setPlaybackMode). Vaut 0 tant qu'aucune pause n'a eu lieu.
+  return started ? audioCtx.currentTime - startCtxTime - clockShift : 0;
 }
 
 export function getDuration() {
@@ -360,18 +366,38 @@ export function getVolume() {
 //                jouer même étouffé n'aurait aucun sens, personne n'écoute.
 //
 // ⚠️ Le point délicat est l'horloge. now() est la source de temps maîtresse
-// du jeu (voir en-tête) : en mode "silent" elle se fige d'elle-même avec le
-// suspend, mais en "muffled" le contexte tourne toujours — il faut donc la
-// geler à la main (muffleAnchor), sinon la course continuerait d'avancer
-// derrière le panneau de pause. Conséquence : à la reprise, le morceau a pris
-// de l'avance sur la course, et on le remet à sa place en relançant la
-// lecture à l'instant gelé (playNow(muffleAnchor)). Le petit retour en
-// arrière du morceau est couvert par la réouverture du filtre, et c'est le
-// prix à payer pour que bonus et obstacles retombent sur les temps.
+// du jeu (voir en-tête). Dès qu'on quitte le mode "running", on la gèle à la
+// main (pauseAnchor) : en "muffled" le contexte tourne toujours (sinon la
+// course avancerait derrière le panneau de pause), et en "silent" le suspend
+// n'arrive qu'après le fondu — et sur iOS le timer qui le déclenche peut ne
+// jamais partir tant que l'app est en arrière-plan. Un seul mécanisme couvre
+// donc les deux.
+//
+// À la reprise, le morceau a pris de l'avance sur la course. C'est LA course
+// qui se recale sur lui : on n'a jamais rembobiné le morceau (l'artiste
+// l'entendait comme un retour en arrière), on encaisse l'écart dans
+// `clockShift`, un retard permanent que now() retranche à l'horloge audio.
+//
+// Le retard est arrondi au TEMPS musical le plus proche, et c'est tout
+// l'intérêt : les objets arrivent tous les 1,5 temps, donc un décalage
+// multiple d'un temps les laisse exactement sur la même grille rythmique — ils
+// retombent sur les temps du morceau comme avant, simplement plus loin dans le
+// morceau. Le résidu est au pire d'un demi-temps (0,25 s à 120 BPM), soit le
+// petit sursaut de la course à la reprise, dans un sens ou dans l'autre.
+//
+// Seule contrepartie : le morceau finit `clockShift` secondes plus tôt dans la
+// course. Il y a ~33 s de marge (course 225 s, morceau 257,9 s) — au-delà de
+// `pauseDeriveMax`, la soupape rembobine quand même, sans quoi le joueur
+// terminerait en silence.
 const PAUSE_FADE = 0.5;
 let mode = "running";
-let muffleAnchor = null; // temps de jeu gelé pendant la pause manuelle (null = horloge libre)
+let pauseAnchor = null; // temps de jeu gelé pendant la pause (null = horloge libre)
+let clockShift = 0;     // retard permanent de la course sur le morceau, en secondes
 let suspendTimer = null;
+
+// Même valeur que clock.js, recalculée ici plutôt qu'importée : audio.js est
+// sous l'horloge de jeu dans la pile de dépendances, pas au-dessus.
+const beatPeriod = 60 / window.CONFIG.bpm;
 
 function rampFilter(target) {
   if (!lowpass) return;
@@ -398,11 +424,11 @@ export function setPlaybackMode(next) {
 
   // Le gel de l'horloge se pose/se lève indépendamment du contexte audio :
   // il doit tenir même si la lecture n'a pas encore démarré.
-  if (next === "muffled" && muffleAnchor === null) muffleAnchor = now();
+  if (next !== "running" && pauseAnchor === null) pauseAnchor = now();
 
   if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
   if (!audioCtx || !started) {
-    if (next === "running") muffleAnchor = null;
+    if (next === "running") pauseAnchor = null;
     return;
   }
 
@@ -426,22 +452,33 @@ export function setPlaybackMode(next) {
   }
 
   // next === "running"
-  if (muffleAnchor !== null) {
-    // On sort d'une pause manuelle : le morceau a continué pendant que la
-    // course était gelée, on le ramène à l'instant exact de la reprise.
-    const reprise = muffleAnchor;
-    muffleAnchor = null;
-    playNow(reprise);
-    // playNow() a recréé tout le graphe (donc un filtre neuf, ouvert par
-    // défaut puisque mode vaut déjà "running") : on le repose fermé avant de
-    // lancer la rampe, sinon la réouverture serait instantanée.
-    if (lowpass) lowpass.frequency.value = window.CONFIG.pauseFiltreHz;
-    rampFilter(FILTRE_OUVERT_HZ);
-    rampFocus(1);
-  } else {
-    // On sort d'une pause silencieuse : le contexte était suspendu, donc le
-    // morceau et l'horloge ont gelé ensemble — rien à resynchroniser.
-    rampFocus(1);
-    rampFilter(FILTRE_OUVERT_HZ);
+  if (pauseAnchor !== null) {
+    const reprise = pauseAnchor;
+    pauseAnchor = null;
+
+    // Écart pris par le morceau pendant la pause. Nul (ou presque) si le
+    // contexte avait vraiment été suspendu, égal à la durée de la pause s'il a
+    // continué de tourner derrière le filtre.
+    const positionMorceau = audioCtx.currentTime - startCtxTime;
+    const ecart = Math.max(0, positionMorceau - clockShift - reprise);
+    const rattrapage = Math.round(ecart / beatPeriod) * beatPeriod;
+    const morceauFini = buffer && positionMorceau >= buffer.duration;
+
+    if (morceauFini || clockShift + rattrapage > window.CONFIG.pauseDeriveMax) {
+      // Soupape : le morceau est fini, ou il finirait avant la ligne
+      // d'arrivée. C'est le seul cas où on rembobine encore.
+      playNow(reprise);
+      // playNow() a recréé tout le graphe (donc un filtre neuf, ouvert par
+      // défaut puisque mode vaut déjà "running") : on le repose fermé avant de
+      // lancer la rampe, sinon la réouverture serait instantanée.
+      if (lowpass) lowpass.frequency.value = window.CONFIG.pauseFiltreHz;
+    } else {
+      // Cas normal : le morceau garde sa position, la course encaisse le
+      // retard — arrondi au temps musical près pour rester sur la grille.
+      clockShift += rattrapage;
+    }
   }
+
+  rampFocus(1);
+  rampFilter(FILTRE_OUVERT_HZ);
 }

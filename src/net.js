@@ -14,6 +14,18 @@ function configured() {
   return Boolean(window.CONFIG.apiScores && window.CONFIG.apiScoresKey);
 }
 
+// Ne jamais lever reste la règle — mais échouer en SILENCE a coûté une
+// session entière : « le classement n'apparaît pas chez moi » pouvait aussi
+// bien être un backend cassé, un réseau coupé, un bloqueur de contenu iOS
+// mangeant le domaine supabase.co, ou simplement une table vide. Les quatre
+// donnaient exactement le même écran. On garde donc la trace du dernier échec,
+// que l'écran de fin peut afficher (voir renderLeaderboard dans main.js).
+let lastError = null;
+
+export function getLastError() {
+  return lastError;
+}
+
 function headers(extra = {}) {
   return {
     apikey: window.CONFIG.apiScoresKey,
@@ -63,20 +75,49 @@ export async function postScore(pseudo, insta, score) {
 // Repli sur la table `scores` si la vue n'existe pas encore côté Supabase
 // (migration pas encore appliquée) : le classement continue de s'afficher.
 export async function getTopScores(limit = window.CONFIG.apiScoresLimit || 10) {
-  if (!configured()) return [];
+  if (!configured()) {
+    lastError = "backend non configuré";
+    return [];
+  }
+  lastError = null; // état propre pour CET appel, sans traîner l'échec du précédent
   const publicUrl = window.CONFIG.apiScores.replace(/\/scores$/, "/scores_public");
+
   const rows = await fetchScores(publicUrl, "pseudo,score", limit);
-  if (rows) return rows;
-  return (await fetchScores(window.CONFIG.apiScores, "pseudo_insta,score", limit)) || [];
+  if (rows && rows.length) return rows;
+
+  // Piège à ne pas réintroduire : la RLS interdit le SELECT direct sur
+  // `scores`, qui répond donc **200 avec un tableau vide** — un succès aux
+  // yeux du code. Tester `legacy` seul effacerait la raison de l'échec de la
+  // vue et on retomberait sur l'écran muet qu'on cherche justement à éliminer.
+  // Seul un repli qui ramène VRAIMENT des lignes compte comme un succès.
+  const legacy = await fetchScores(window.CONFIG.apiScores, "pseudo_insta,score", limit);
+  if (legacy && legacy.length) {
+    lastError = null;
+    return legacy;
+  }
+
+  // Rien à afficher. Si une des deux sources a échoué, lastError porte la
+  // raison ; si les deux ont répondu vide pour de bon, il vaut null et
+  // l'écran de fin reste muet — c'est le cas du tout premier joueur.
+  return rows || legacy || [];
 }
 
 async function fetchScores(base, select, limit) {
+  const url = `${base}?select=${select}&order=score.desc&limit=${limit}`;
   try {
-    const url = `${base}?select=${select}&order=score.desc&limit=${limit}`;
     const res = await fetch(url, { headers: headers() });
-    if (!res.ok) return null; // null = cette source n'existe pas, on tente le repli
+    if (!res.ok) {
+      // null = cette source n'existe pas, on tente le repli.
+      lastError = `HTTP ${res.status} sur ${base.split("/").pop()}`;
+      console.warn(`[net] ${lastError}`, await res.text().catch(() => ""));
+      return null;
+    }
     return await res.json();
-  } catch {
+  } catch (err) {
+    // Ici, la requête n'a même pas abouti : réseau coupé, DNS, CORS, ou
+    // bloqueur de contenu. C'est le cas qu'on ne pouvait pas distinguer avant.
+    lastError = `requête bloquée (${err.name || "erreur"})`;
+    console.warn(`[net] ${lastError} sur ${url}`, err);
     return null;
   }
 }

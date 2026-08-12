@@ -13,6 +13,7 @@ window.CONFIG = {
   fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du morceau), en secondes
   pauseFiltreHz: 800,       // Menu pause : le morceau continue mais passe dans un filtre passe-bas à cette fréquence — on n'entend plus que les basses (demandé explicitement). Plus bas = plus étouffé.
   pauseFondu: 0.5,          // Durée en secondes du fondu du filtre (à l'entrée comme à la sortie de la pause)
+  pauseDeriveMax: 8,        // Retard maximal (secondes, cumulé sur toutes les pauses) que la course accepte de prendre sur le morceau plutôt que de le rembobiner. ⚠️ Depuis que la course dure TOUT le morceau (257,3 s de course pour 257,9 s de musique), il n'y a plus de marge : tout retard rend muettes les dernières secondes de course. Arbitrage : en dessous de ce seuil on garde le morceau qui avance (pas de rembobinage, demandé) ; au-dessus on rembobine, pour ne pas franchir la ligne d'arrivée en silence (audio.js, setPlaybackMode).
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
@@ -27,6 +28,8 @@ window.CONFIG = {
 
   // === VIES ===
   viesDepart: 3,            // Nombre de vies au démarrage
+  penaliteObstacle: 500,    // Points perdus à chaque collision qui coûte un cœur (demandé : « on perd un cœur et ça fait perdre 500 points »). Le score ne descend jamais sous 0.
+  penaliteDuree: 3,         // Durée d'affichage du "-500" sous le score, en secondes
   // Jauge d'énergie (ralentissement à 0) retirée (demandé explicitement :
   // « elle ne fait pas trop sens ») — la vitesse ne dépend plus que de la
   // progression du morceau (road.js).

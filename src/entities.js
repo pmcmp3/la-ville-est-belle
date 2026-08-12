@@ -44,8 +44,21 @@ export const LEAD_IN = LOOKAHEAD_SLOTS * CADENCE * clock.beatPeriod;
 // TOTAL_OBSTACLES fixe la difficulté en face (voitures tripées, voir plus
 // bas) ; TOTAL_OBJECTS (= la ligne d'arrivée) en découle.
 export const TOTAL_STARS = 200;
-const TOTAL_OBSTACLES = 100;
-export const TOTAL_OBJECTS = TOTAL_STARS + TOTAL_OBSTACLES; // 300 créneaux
+// ⚠️ Renversement de décision (12 août 2026, retour de l'artiste sur iPhone) :
+// « la course, faudrait qu'elle dure le temps du morceau ». La ligne d'arrivée
+// n'est donc plus un nombre d'objets choisi à la main (300, soit 225 s pour un
+// morceau de 257,9 s) mais le dernier créneau qui tient AVANT la fin du
+// morceau — dérivé de config.js pour rester juste si le master change.
+// 343 créneaux = 257,26 s, la ligne arrive 0,6 s avant la dernière note.
+export const TOTAL_OBJECTS = Math.floor(
+  (window.CONFIG.dureeMorceau - window.CONFIG.premierTempsOffset) / (CADENCE * clock.beatPeriod)
+);
+// Les 200 étoiles ne bougent pas (décision verrouillée : le score maximum doit
+// rester un nombre connu — 31 250). Les créneaux gagnés en allongeant la
+// course vont donc TOUS aux obstacles : 100 → 143, soit +27 % d'obstacles à la
+// seconde. Retour direct de l'artiste : « il y a beaucoup trop d'étoiles par
+// rapport aux obstacles », « je m'ennuie un petit peu ».
+export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
 export function finishBeatN() { return TOTAL_OBJECTS * CADENCE; }
 export function finishTime() { return clock.timeOfBeat(finishBeatN()); }
 // Nombre d'objets déjà "passés" au sens du parcours (créneaux au niveau ou
@@ -85,13 +98,34 @@ const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoi
 // GRACE_SLOTS est traité à part (toujours étoile, jamais compté dans le
 // calcul de rampe) pour garder intact le filet de sécurité « pas d'obstacle
 // avant que le joueur ait pris les commandes en main ».
-const BONUS_RATIO_START = 0.8; // juste après la période de grâce : encore très généreux en étoiles
+// ⚠️ RAMPE INVERSÉE (12 août 2026). Elle allait de 0,8 à 0,53 : beaucoup
+// d'étoiles tôt, de moins en moins tard (« plus on avance, plus ça doit être
+// difficile de récolter », playtest antérieur). Le retour sur iPhone dit
+// l'inverse : « les étoiles, faut pas qu'il y en ait autant au début, faut que
+// ce soit assez progressif » — le début se jouait tout seul, on ramassait sans
+// rien risquer, et le score était déjà fait à mi-parcours.
+// La difficulté ne disparaît pas pour autant en fin de course : elle change de
+// nature. Tôt, elle vient de la DENSITÉ d'obstacles (55 % des créneaux) ;
+// tard, de la VITESSE (66 u/s contre 19,8 au départ, soit 3,3× moins de temps
+// pour lire la route et se déporter). Les étoiles se font plus nombreuses au
+// moment précis où elles deviennent difficiles à aller chercher.
+const BONUS_RATIO_START = 0.45; // juste après la grâce : plus d'obstacles que d'étoiles
 // Dérivé (pas une constante à la main) pour que la MOYENNE du ratio sur les
 // créneaux restants (hors grâce) retombe exactement sur le quota d'étoiles
 // restant — c'est ce qui garantit le total de TOTAL_STARS, quels que soient
 // TOTAL_STARS/TOTAL_OBSTACLES/GRACE_SLOTS si on les retouche un jour.
+// 🐛 Dérivation corrigée le 12 août 2026 — elle perdait UNE étoile.
+// L'ancienne formule calait la MOYENNE de la rampe sur le quota, ce qui
+// suppose que `t` balaie 0→1 en moyennant à 0,5. Faux : `t` vaut (i-GRACE)/N
+// sur N créneaux, donc il s'arrête à (N-1)/N et la moyenne réelle est
+// 0,5 - 1/(2N). Le biais est minuscule mais il tombe du mauvais côté du
+// `floor` final : 199 étoiles au lieu de 200, et un score maximum qui n'est
+// plus le nombre annoncé. On somme donc la rampe EXACTEMENT
+// (N·start + (end-start)·(N-1)/2 = quota) et on résout pour `end`.
+const RAMP_SLOTS = TOTAL_OBJECTS - GRACE_SLOTS;
 const BONUS_RATIO_END =
-  2 * ((TOTAL_STARS - GRACE_SLOTS) / (TOTAL_OBJECTS - GRACE_SLOTS)) - BONUS_RATIO_START;
+  BONUS_RATIO_START +
+  (2 * (TOTAL_STARS - GRACE_SLOTS - RAMP_SLOTS * BONUS_RATIO_START)) / (RAMP_SLOTS - 1);
 
 // Marge après la ligne d'arrivée : visibleSlots() peut regarder jusqu'à
 // LOOKAHEAD_SLOTS créneaux au-delà du dernier passé, il faut donc un tableau
@@ -108,7 +142,10 @@ const isBonusQuota = (() => {
     const t = Math.min(1, (i - GRACE_SLOTS) / remainingSlots);
     const ratio = BONUS_RATIO_START + (BONUS_RATIO_END - BONUS_RATIO_START) * t;
     cumul += ratio;
-    const floor = Math.floor(cumul);
+    // Epsilon : le cumul final vaut EXACTEMENT le quota par construction, donc
+    // il tombe pile sur un entier — l'endroit précis où une addition flottante
+    // qui atterrit à 196,999999 coûte une étoile pour rien.
+    const floor = Math.floor(cumul + 1e-9);
     arr[i] = floor > prevFloor;
     prevFloor = floor;
   }
@@ -157,11 +194,16 @@ const BONUS_TYPES = [
 // du parcours et le quota exact de 200 étoiles ne bougent pas d'un pouce.
 // La voiture reste largement dominante (retour playtest : « multiplie par
 // trois le nombre de voitures présentes partout »).
+// Poids revus le 12 août 2026 sur retour iPhone : « il faut que tu mettes
+// beaucoup plus de gens qui font du vélo » et « tu peux mettre un petit peu
+// plus de voiture ». Le piéton garde à peu près son effectif absolu (son poids
+// baisse, mais il y a 143 obstacles au lieu de 100) — il n'a rien fait de mal,
+// il ne devait juste plus être le seul obstacle humain.
 const OBSTACLE_WEIGHTS = [
-  { kind: "voiture", weight: 0.5 },
-  { kind: "cycliste", weight: 0.2 },
-  { kind: "pieton", weight: 0.15 },
-  { kind: "cone", weight: 0.15 },
+  { kind: "voiture", weight: 0.52 },
+  { kind: "cycliste", weight: 0.28 },
+  { kind: "pieton", weight: 0.12 },
+  { kind: "cone", weight: 0.08 },
 ];
 
 // Obstacles INFRANCHISSABLES AU SAUT : ils se contournent latéralement, point.
@@ -405,6 +447,23 @@ function lanesCenterX(lanes) {
   return sum / lanes.length;
 }
 
+// Vitesse d'APPROCHE, relative à celle de la route. Retour iPhone du 12 août
+// 2026 : « je n'ai vu que des gens en vélo statique ». Le diagnostic est
+// exactement là — un cycliste en sens inverse était porté vers le joueur à la
+// vitesse du décor, comme un cône posé au sol. Il pédalait (2 frames, 3,2 Hz)
+// mais ne se rapprochait pas plus vite qu'un lampadaire : impossible de lire
+// qu'il vient EN FACE.
+//
+// Le facteur ne touche QUE la vitesse de rapprochement, jamais l'instant
+// d'arrivée : à deltaT = 0 le cycliste est au niveau du joueur quoi qu'il
+// arrive, donc il tombe toujours pile sur son temps musical. Il part
+// simplement de plus loin et fond sur nous — ce qui EST la définition d'un
+// croisement à contresens.
+const APPROACH_FACTOR = { cycliste: 1.35 };
+function approachFactor(content) {
+  return (content && APPROACH_FACTOR[content.kind]) || 1;
+}
+
 function slotZ(slotIndex, now, speed) {
   const beatN = slotIndex * CADENCE;
   const deltaT = clock.timeOfBeat(beatN) - now;
@@ -414,9 +473,19 @@ function slotZ(slotIndex, now, speed) {
 function* visibleSlots(now, speed) {
   const currentSlot = Math.floor(clock.beatIndexAt(now) / CADENCE);
   for (let n = Math.max(0, currentSlot - 1); n <= currentSlot + LOOKAHEAD_SLOTS; n++) {
-    const z = slotZ(n, now, speed);
-    if (z < 1 || z > 90) continue;
+    // 🐛 Rien au-delà de la ligne d'arrivée (retour du 12 août 2026 : « à la
+    // ligne d'arrivée, il y a des objets qui s'entremêlent »). Le parcours
+    // continuait de peupler les créneaux d'APRÈS l'arrivée ; comme la caméra
+    // freine pendant la séquence de fin (road.brake), leur profondeur — qui
+    // est un temps restant × la vitesse — s'écrase d'un coup et les tassait
+    // les uns dans les autres devant le joueur. Après la ligne, la route est
+    // vide : c'est fini.
+    if (n >= TOTAL_OBJECTS) break;
+    // Le contenu se calcule AVANT la profondeur : c'est lui qui dit à quelle
+    // vitesse le créneau se rapproche (voir APPROACH_FACTOR).
     const content = slotContent(n);
+    const z = slotZ(n, now, speed * approachFactor(content));
+    if (z < 1 || z > 90) continue;
     const lanes = slotLanes(n, content);
     yield { slotIndex: n, z, lanes, x: lanesCenterX(lanes), ...content };
   }
@@ -432,6 +501,14 @@ function slotsFor(now, speed) {
   if (slotCache.now === now && slotCache.speed === speed) return slotCache.list;
   slotCache.list.length = 0;
   for (const e of visibleSlots(now, speed)) slotCache.list.push(e);
+  // ⚠️ Tri par profondeur croissante, désormais OBLIGATOIRE et non plus
+  // automatique. L'ordre du peintre (voir render()) reposait sur « index
+  // croissant = profondeur croissante » — vrai tant que tous les créneaux
+  // approchaient à la même vitesse. Depuis APPROACH_FACTOR, un cycliste à plus
+  // de ~2 s devant est plus LOIN que l'objet du créneau suivant : sans ce tri,
+  // il se peindrait par-dessus lui. C'est exactement le bug « les objets ne
+  // passent pas les uns devant les autres » déjà corrigé une fois.
+  slotCache.list.sort((a, b) => a.z - b.z);
   slotCache.now = now;
   slotCache.speed = speed;
   return slotCache.list;

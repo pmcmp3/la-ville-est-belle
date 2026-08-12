@@ -158,9 +158,29 @@ function isPaused() {
 // pause : inutile de jouer même étouffé pour un écran que personne ne
 // regarde), et audio.setPlaybackMode() ignore un mode identique au courant —
 // donc plus besoin de guetter les transitions à la main ici.
+// L'horloge de jeu se gèle dans audio.js (`pauseAnchor`) — mais uniquement si
+// c'est bien l'audio qui la pilote. Sur l'horloge de secours (perfClock), rien
+// ne l'arrête : la course rattraperait d'un coup toute la durée de la pause à
+// la reprise. On la recule donc du temps passé en pause, arrondi au temps
+// musical près pour les mêmes raisons qu'en audio (voir setPlaybackMode) —
+// même si, sans morceau, le calage n'a plus d'auditeur : la course, elle,
+// reste construite sur cette grille.
+let pauseStartedAt = 0;
+
 function applyPauseState() {
   const next = hiddenPaused ? "silent" : manualPaused ? "muffled" : "running";
   audio.setPlaybackMode(next);
+
+  if (next !== "running") {
+    if (pauseStartedAt === 0) pauseStartedAt = perfClock();
+  } else {
+    if (pauseStartedAt > 0 && !audioDrivesClock) {
+      const ecart = perfClock() - pauseStartedAt;
+      clock.jumpBy(-Math.round(ecart / clock.beatPeriod) * clock.beatPeriod);
+    }
+    pauseStartedAt = 0;
+  }
+
   if (next === "running") {
     // Piège documenté de longue date : sans repousser `audioWatch.lastReal`/
     // `lastT`, le chien de garde (AUDIO_STALL_TIMEOUT = 1 s) verrait une
@@ -198,6 +218,10 @@ const loadingFill = document.getElementById("loading-fill");
 const loadingLabel = document.getElementById("loading-label");
 const ctaLink = document.getElementById("cta-link");
 ctaLink.href = window.CONFIG.lienEP;
+// Même lien, deux emplacements : le CTA flottant (menu) et l'action principale
+// de la carte de fin. C'est toujours config.js qui fait foi (lienEP).
+const endCta = document.getElementById("end-cta");
+endCta.href = window.CONFIG.lienEP;
 
 function showOverlay() {
   overlay.classList.add("visible");
@@ -231,9 +255,12 @@ let currentView = "onboarding";
 // autre décision : la dernière étape de l'onboarding (à côté de JOUER, comme
 // avant) et l'écran de fin. Caché pendant les étapes 1/2 et pendant le
 // décompte.
+// ⚠️ Plus affiché sur l'écran de fin depuis le 12 août 2026 : le lien y est
+// devenu l'action PRINCIPALE, dans la carte elle-même (#end-cta), donc le CTA
+// flottant en bas d'écran ferait doublon avec lui.
 function refreshCtaVisibility() {
   const onPlayStep = currentView === "onboarding" && stepOrder[stepIndex] === "play";
-  ctaLink.style.display = currentView === "end" || onPlayStep ? "" : "none";
+  ctaLink.style.display = onPlayStep ? "" : "none";
 }
 
 function showStep(i) {
@@ -652,6 +679,8 @@ const game = {
   score: 0,
   ended: false,
   endReason: null, // "gameover" | "finished"
+  penaltyTimer: 0,   // s restantes d'affichage du "-500" sous le score (hud.js)
+  penaltyAmount: 0,  // montant du dernier malus, pour l'afficher tel quel
 };
 
 // --- Séquence de fin (ligne d'arrivée franchie) --------------------------
@@ -707,7 +736,24 @@ function resetFinish() {
 function renderLeaderboard(scores) {
   leaderboardList.innerHTML = "";
   if (!scores.length) {
-    leaderboard.classList.add("hidden");
+    // Table réellement vide (premier joueur du concours) : rien à montrer, on
+    // masque comme avant. Mais si la requête a ÉCHOUÉ, se taire était le vrai
+    // problème — « le classement n'apparaît pas chez moi » était
+    // indistinguable d'un classement vide. On le dit, et on donne la raison
+    // technique en mode ?debug (sur téléphone, c'est la seule console qu'on
+    // ait). Voir net.getLastError().
+    const raison = net.getLastError();
+    if (!raison) {
+      leaderboard.classList.add("hidden");
+      return;
+    }
+    const li = document.createElement("li");
+    li.className = "board-message";
+    li.textContent = debugOverlay.isEnabled()
+      ? `Classement indisponible — ${raison}`
+      : "Classement indisponible pour le moment";
+    leaderboardList.appendChild(li);
+    leaderboard.classList.remove("hidden");
     return;
   }
   const pseudoJoueur = cleanPseudo();
@@ -793,11 +839,9 @@ function endGame(reason) {
   endEyebrow.textContent = finished ? "Parcours terminé" : "Game Over";
   scoreNum.textContent = `${game.score}`;
 
-  // CTA en vrai bouton sur un parcours terminé — c'est le joueur qui vient
-  // d'entendre le morceau en entier, la meilleure fenêtre pour l'inviter à
-  // l'écouter pour de vrai. Sur Game Over, on reste sur un simple lien :
-  // l'enjeu y est de relancer vite, pas de retenir l'attention.
-  ctaLink.classList.toggle("cta-minimal", !finished);
+  // (L'ancienne bascule `cta-minimal` du CTA flottant a disparu avec lui :
+  // sur l'écran de fin, le lien est maintenant le bouton principal de la
+  // carte, aussi bien après un game over qu'après un parcours terminé.)
   // La bascule son n'est plus masquée ici : elle reste affichée sur TOUS les
   // écrans (demandé explicitement). Le morceau continue de tourner sur
   // l'écran de fin — c'est justement là qu'on peut vouloir le couper.
@@ -860,6 +904,7 @@ function restartGame() {
   resetFinish();
   damageFlash = 0;
   pickupFlash = 0;
+  game.penaltyTimer = 0; // sinon le "-500" de la partie précédente survit au rejeu
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
 
   hideOverlay();
@@ -955,6 +1000,12 @@ function step(dt) {
   // Rebond de pédalage, cadence proportionnelle à la vitesse d'avancement.
   playerState.pedalPhase += road.getSpeed() * PEDAL_RATE * dt;
 
+  // Le "-500" vit en temps réel (dt), pas en temps musical : c'est un retour
+  // d'interface, il doit durer 3 s montre en main quelle que soit la vitesse.
+  if (game.penaltyTimer > 0) {
+    game.penaltyTimer = Math.max(0, game.penaltyTimer - dt);
+  }
+
   if (pickupFlash > 0) {
     pickupFlash = Math.max(0, pickupFlash - dt / PICKUP_FLASH_DURATION);
   }
@@ -1041,6 +1092,15 @@ function step(dt) {
           } else {
             game.lives -= 1;
           }
+          // Pénalité de score, demandée avec la perte de cœur : une collision
+          // ne coûtait qu'une vie, donc rien tant qu'il en restait — on
+          // pouvait foncer dans le tas sans que le score s'en aperçoive.
+          // Une seule pénalité par collision, y compris pour la voiture (qui
+          // prend tous les cœurs d'un coup) : c'est le choc qui coûte, pas le
+          // décompte des cœurs. Jamais de score négatif.
+          game.penaltyAmount = window.CONFIG.penaliteObstacle;
+          game.score = Math.max(0, game.score - game.penaltyAmount);
+          game.penaltyTimer = window.CONFIG.penaliteDuree;
           damageFlash = DAMAGE_FLASH_DURATION;
         }
       }
