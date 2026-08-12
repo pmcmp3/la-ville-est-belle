@@ -565,6 +565,44 @@
       opacity: 0;
     }
 
+    /* Bouton "Passer l'intro" : pour qui a déjà joué, pas la peine de
+       resubir 20 s de tutoriel à chaque fois. Apparaît en fondu après un
+       court délai (SKIP_BUTTON_DELAY, main.js) plutôt que d'emblée — le
+       début du décompte reste sans distraction pour un premier joueur qui
+       découvre le jeu. En bas, à l'écart du numéro/de la légende (en haut,
+       voir #overlay.countdown-view) et du personnage (au centre).
+       ⚠️ #overlay.countdown-view passe en `pointer-events: none` pour
+       laisser passer les touchers vers le jeu en dessous (tutoriel jouable
+       pendant le décompte) — ce bouton doit donc réactiver `pointer-events`
+       lui-même, sinon il devient visible mais intappable. */
+    #skip-countdown {
+      position: absolute;
+      left: 50%;
+      bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      transform: translateX(-50%);
+      padding: 8px 4px;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.6);
+      font: 500 13px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    #skip-countdown.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #skip-countdown:active {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
     /* Voile allégé pendant le décompte : le fond sombre standard de #overlay
        (jusqu'à 92% de noir en bas) masquait le cycliste juste au moment où on
        veut au contraire bien le montrer, prêt à partir (demandé explicitement
@@ -1119,7 +1157,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      #overlay, #overlay .fade, .btn, #mute-button, #loading-fill, #countdown-caption {
+      #overlay, #overlay .fade, .btn, #mute-button, #loading-fill, #countdown-caption, #skip-countdown {
         transition-duration: 0.01s;
       }
       .view.active, .menu-step.active {
@@ -1215,6 +1253,7 @@
     <div id="countdown" class="view">
       <div id="countdown-num">20</div>
       <p id="countdown-caption"></p>
+      <button id="skip-countdown" type="button">Passer l'intro →</button>
     </div>
 
     <!-- Écran de fin : MÊME carte .panel que les étapes du menu (demandé —

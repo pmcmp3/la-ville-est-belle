@@ -241,6 +241,7 @@ const countdownEl = document.getElementById("countdown");
 const endScreenEl = document.getElementById("end-screen");
 const countdownNum = document.getElementById("countdown-num");
 const countdownCaption = document.getElementById("countdown-caption");
+const skipCountdownBtn = document.getElementById("skip-countdown");
 
 const stepEls = {
   pseudo: document.querySelector('.menu-step[data-step="pseudo"]'),
@@ -320,6 +321,11 @@ showStep(0);
 // décompte n'est pas fini").
 const COUNTDOWN_START = 20;
 let countdownTimer = null;
+// Bouton "Passer l'intro" (demandé explicitement, pour qui a déjà joué) :
+// apparaît après un délai plutôt que d'emblée, pour ne pas parasiter le tout
+// début du décompte pour un premier joueur qui découvre le jeu.
+const SKIP_BUTTON_DELAY = 4000;
+let skipButtonTimer = null;
 
 // Légende du décompte : une phrase à la fois, en fondu, plutôt que les 3
 // empilées d'un coup (retour de test : illisible, ça débordait sur le
@@ -360,6 +366,9 @@ function runCountdown() {
   countdownNum.textContent = String(n);
   captionIndex = -1;
   updateCaption(n);
+  skipCountdownBtn.classList.remove("visible");
+  clearTimeout(skipButtonTimer);
+  skipButtonTimer = setTimeout(() => skipCountdownBtn.classList.add("visible"), SKIP_BUTTON_DELAY);
   countdownTimer = setInterval(() => {
     n -= 1;
     if (n <= 0) {
@@ -374,9 +383,22 @@ function runCountdown() {
   }, 1000);
 }
 
+// Sur clic : coupe le décompte en cours (timer + légende) et enchaîne
+// directement sur beginRun(), comme si le "20 → 1" venait de finir tout seul.
+function skipCountdown() {
+  if (countdownTimer === null) return; // décompte déjà fini ou pas démarré
+  clearInterval(countdownTimer);
+  countdownTimer = null;
+  clearTimeout(captionTimeout);
+  beginRun();
+}
+skipCountdownBtn.addEventListener("click", skipCountdown);
+
 function beginRun() {
   hideOverlay();
   showPauseButton();
+  clearTimeout(skipButtonTimer);
+  skipCountdownBtn.classList.remove("visible");
   // audio.play() N'est PLUS appelé ici — le morceau tourne depuis nextStep()
   // (étape pseudo → étape volume), on ne veut surtout pas le relancer et
   // perdre la position courante (le score dépend de la position musicale).
