@@ -19,7 +19,8 @@ d'aller l'écouter. Toute décision de design se tranche là-dessus. C'est pourq
 la musique continue de jouer après un game over.
 
 - **Cible** : navigateur mobile, **Safari iOS en priorité absolue**, portrait natif.
-- **En ligne** : https://pmc-la-ville-est-belle.netlify.app
+- **En ligne** : https://pmcmp3.github.io/la-ville-est-belle/ — seul site, Netlify abandonné
+  (12 août 2026), voir §9.
 - **Deadline publique** : 11 septembre 2026.
 - **Concours** : meilleur score = un vinyle de l'EP. Scores dans Supabase, identité = pseudo + Insta.
 
@@ -40,11 +41,13 @@ elle qu'on ouvre sur l'iPhone. Mode debug : suffixe `?debug` dans l'URL (indispe
 téléphone, où il n'y a ni console ni clavier), ou touche `d` au clavier.
 
 ```bash
-npm run build && npx netlify deploy --prod --dir=dist
+npm run build && npx vite build --base=./ --outDir=dist-pages
 ```
 
-Le dépôt **n'a aucun remote git** : pas d'intégration Netlify↔GitHub, le déploiement passe
-uniquement par le CLI. Site déjà lié (`ea72e3f5-4d7a-40e2-bf5e-d96daa72d23c`).
+Déploiement = repousser `dist-pages/` à la main sur la branche `gh-pages` du remote `origin`
+(`pmcmp3/la-ville-est-belle`, compte artiste). **Pas de CI, pas d'automatisation** : voir §9 pour
+la procédure exacte. ⚠️ Netlify a été **abandonné le 12 août 2026** (crédits épuisés) — ne plus
+proposer `netlify deploy`, ne plus le citer comme cible de prod.
 
 ---
 
@@ -438,11 +441,10 @@ noir → bleu nuit indigo (contraste chaud/froid direct avec la référence), un
 non touché — c'est un choix de DA antérieur, pas lié à cette référence.
 ⚠️ La preview navigateur a de nouveau refusé toute navigation vers le serveur de dev cette
 session (même symptôme que le 12 août 2026, voir §12), donc pas de vérification locale possible.
-**Vérifiée en revanche sur le miroir GitHub Pages en prod, juste après le déploiement** (écran
-d'accueil, rue vue de dos) : pierre rosée/dorée, fenêtres bleu nuit, corniche crème, auvents —
-lisible et cohérent avec l'ambiance couchant. Reste à confirmer sur le site Netlify officiel
-(pas encore redéployé à cette date, voir CLAUDE.md/§9 — le déploiement GitHub ne le met pas à
-jour automatiquement) et par l'artiste directement.
+**Vérifiée en revanche sur le site officiel (GitHub Pages) en prod, juste après le déploiement**
+(écran d'accueil, rue vue de dos) : pierre rosée/dorée, fenêtres bleu nuit, corniche crème,
+auvents — lisible et cohérent avec l'ambiance couchant. Reste à confirmer par l'artiste
+directement.
 
 ---
 
@@ -535,30 +537,53 @@ concours se fait au screenshot envoyé par le joueur.
 
 **Cache HTTP** (`public/_headers`) — deux régimes opposés :
 - Sans hash dans le nom (`index.html`, `config.js`) → `no-store`, jamais périmé.
-- Avec hash (bundle) ou quasi figé (MP3, polices) → cache long. Le MP3 fait 3,9 Mo, le remettre
-  en cache est ce qui a arrêté de brûler les crédits Netlify. **En cas de nouveau master :
-  renommer le fichier** pour propager immédiatement.
+- Avec hash (bundle) ou quasi figé (MP3, polices) → cache long. Le MP3 fait 3,9 Mo ; ce réglage
+  date de l'époque Netlify (facturée à la bande passante) mais reste utile tel quel sur GitHub
+  Pages. **En cas de nouveau master : renommer le fichier** pour propager immédiatement.
 
-**Miroir GitHub Pages** (ajouté le 12 août 2026, crédits Netlify épuisés en cours de session) :
+**Déploiement GitHub Pages** — ⚠️ **seule cible depuis le 12 août 2026, Netlify abandonné**
+(crédits épuisés ce jour-là ; ce qui était présenté comme un « miroir de secours » dans une
+version antérieure de ce fichier est maintenant le site officiel). `CLAUDE.md` et `config.js`
+(`lienEP`) font foi pour les liens communiqués.
 - Dépôt public **`pmcmp3/la-ville-est-belle`** (compte artiste, distinct du compte perso
-  `workpaulmathieucollin-byte` — `gh auth switch` si besoin de re-pousser).
-- Branche `main` : **snapshot sans historique**, volontairement — exclut
-  `assets/la-ville-est-belle-MASTER.wav` (jamais servi tel quel, voir plus haut) et le dossier
-  `3D assets/` (hors sujet, voir le contexte de session sur les assets FBX). L'historique complet
-  de développement reste uniquement dans le dépôt local (`.git`), jamais poussé.
-- Branche `gh-pages` : le build statique, servi sur **https://pmcmp3.github.io/la-ville-est-belle/**.
-- ⚠️ **`index.html` utilise désormais des chemins RELATIFS** (`config.js`, `src/main.js`,
-  `fonts/*.ttf`/`.otf` — plus de `/config.js` etc.) pour rester servable aussi bien à la racine
-  (Netlify) que sous un sous-chemin (GitHub Pages) sans divergence de code entre les deux cibles.
-  Vérifié : Vite laisse ces chemins relatifs inchangés (avertissement de build inoffensif,
-  « didn't resolve at build time, it will remain unchanged ») — c'est le comportement voulu.
-- Le build GitHub Pages **n'est pas** `dist/` (réservé à Netlify, `base` implicite `/`) mais
-  `dist-pages/` (gitignoré, régénéré via `npx vite build --base=./ --outDir=dist-pages` — base
-  relative, portable sous n'importe quel sous-chemin sans le coder en dur).
-- **Mettre à jour ce miroir n'est pas automatique** : after `npm run build`, il faut aussi
-  regénérer `dist-pages/` et repousser la branche `gh-pages` à la main (pas de CI configurée).
-  À faire seulement en secours (crédits Netlify épuisés) ou en parallèle si utile — Netlify
-  reste la cible officielle du lien communiqué (`CLAUDE.md`).
+  `workpaulmathieucollin-byte` — `gh auth switch` si besoin de re-pousser). Remote `origin` du
+  dépôt local.
+- Branche `main` (source) et branche `gh-pages` (build statique servi sur
+  **https://pmcmp3.github.io/la-ville-est-belle/**) sont toutes les deux des **snapshots sans
+  historique** : un unique commit racine (`git checkout --orphan`), généré à neuf à chaque mise à
+  jour, jamais un merge/rebase de l'historique local. L'historique complet de développement reste
+  uniquement dans le dépôt local (`.git`), jamais poussé sur ce remote public.
+- **Exclus du snapshot `main`** : `assets/la-ville-est-belle-MASTER.wav` et
+  `assets/la-ville-est-belle-320k-original.mp3` (jamais servis tels quels, voir plus haut) et le
+  dossier `3D assets/` (hors sujet, sans rapport avec le jeu — voir le contexte de session sur les
+  assets FBX).
+- ⚠️ **`index.html` utilise des chemins RELATIFS** (`config.js`, `src/main.js`, `fonts/*.ttf`/
+  `.otf` — jamais de `/config.js` en absolu) pour que le site reste servable sous un sous-chemin
+  (`/la-ville-est-belle/`) sans divergence de code selon la cible. Vérifié : Vite laisse ces
+  chemins relatifs inchangés au build (avertissement inoffensif, « didn't resolve at build time,
+  it will remain unchanged ») — comportement voulu.
+- Le build GitHub Pages passe par `dist-pages/` (gitignoré), pas `dist/` (celui-ci reste utilisé
+  seulement pour vérifier le build en local, `base` implicite `/`) : `npx vite build --base=./
+  --outDir=dist-pages` — base relative, portable sous n'importe quel sous-chemin sans le coder en
+  dur.
+- **Mise à jour manuelle, pas de CI.** Procédure éprouvée le 12 août 2026 (recette exacte, à
+  réutiliser telle quelle) :
+  1. `git checkout --orphan gh-clean-N` (N = prochain numéro libre, voir `git branch` —
+     `gh-clean`/`gh-clean2`/… existent déjà en local, une par mise à jour passée), `git add -A`
+     puis `git rm --cached` sur les fichiers exclus ci-dessus, `git commit`, puis
+     `git push origin gh-clean-N:main --force`.
+  2. `npx vite build --base=./ --outDir=dist-pages`, retirer `.DS_Store`, ajouter un `.nojekyll`
+     vide (sinon GitHub Pages traite le dossier avec Jekyll et peut ignorer certains fichiers).
+  3. Construire le commit `gh-pages` **dans un `git worktree` séparé**, jamais dans l'arbre de
+     travail principal — sinon `git checkout --orphan` à la racine désindexe tout le dépôt en
+     cours et le retour en arrière déclenche des conflits « untracked files would be overwritten »
+     sur les gros binaires (vécu le 12 août 2026, aucune perte de données mais évitable) :
+     `git worktree add -b gh-pages-clean-N <chemin tmp> <branche courante>`, puis dans ce
+     worktree `git checkout --orphan …`, `git rm -rf --cached .`, `git clean -fdx`, copier le
+     contenu de `dist-pages/` dedans, committer, `git push origin <branche>:gh-pages --force`,
+     puis `git worktree remove` pour nettoyer.
+  4. Étape 1 et 3 sont indépendantes (deux remotes/branches différentes) : peuvent se faire dans
+     n'importe quel ordre.
 
 **Poids** : bundle **17 Ko gzippé** contre **3,9 Mo de MP3** — l'audio pèse 99,6 % du total.
 Le code n'est pas un levier d'optimisation, et le MP3 est déjà à 128 kbps pour 4 min 18 :

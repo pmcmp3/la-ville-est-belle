@@ -18,10 +18,12 @@ d'aller écouter le morceau** — c'est l'objectif produit, et il tranche tous l
 design. Cible : **navigateur mobile, Safari iOS en priorité**, puis Chrome & Firefox iOS/Android.
 **Portrait natif.**
 
-En ligne : **https://pmc-la-ville-est-belle.netlify.app** (officiel, `lienEP`/CTA pointent ici).
-Miroir de secours (crédits Netlify épuisés le 12 août 2026) :
-**https://pmcmp3.github.io/la-ville-est-belle/** — voir `ARCHITECTURE.md` §9 pour la mise à jour
-(pas automatique, à repousser à la main).
+En ligne (seul site, officiel) : **https://pmcmp3.github.io/la-ville-est-belle/**. **Netlify est
+abandonné** (décision du 12 août 2026, crédits épuisés) — ne plus le mentionner comme cible, ne
+plus lancer `netlify deploy`. Mise à jour du site **pas automatique** : après chaque build, il
+faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le CTA « aller
+écouter » dans le jeu est un lien différent (le morceau, pas le jeu) : voir `config.js`
+(`lienEP`), qui fait foi.
 
 ## Règles techniques non négociables
 
