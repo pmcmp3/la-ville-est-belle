@@ -789,12 +789,28 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
   - **Menu Pause grossi de 20 %** (`transform: scale(1.2)` sur `#pause-screen .panel`,
     `index.html`) **+ score/cœurs du HUD grossis de 20 %** (`SCORE_SIZE` 26→31, `HEART_SIZE`
     20→24, `HEART_GAP` 8→10, `hud.js`) — ancrages (`PAD`) inchangés, seules les tailles bougent.
-  - Vérifié : `npm run build` propre après chaque changement. Preview navigateur bloquée cette
-    session (même symptôme, voir §12) — **aucun de ces changements vu tourner**, y compris ceux
-    qui ne dépendent pas de l'audio (bâtiments, menu pause) : la vérification par bascule de
-    classes CSS en console (utilisée pour la palette des menus, cinquième/sixième lot) n'a pas pu
-    être retentée cette fois faute de temps de session. **Tout est à confirmer au prochain test
-    réel.**
+  - `npm run build` propre après chaque changement. Preview navigateur bloquée cette session
+    (même symptôme, voir §12) — vérification par bascule de classes CSS en console (miroir GitHub
+    Pages en prod, sans lancer l'audio), comme pour la palette des menus au lot précédent :
+    - ✅ **Décompte** : voile bien plus sombre, légende bien centrée à l'écran, "20" resté en
+      haut, personnage toujours visible en dessous. 🐛 **Bug réel trouvé et corrigé en vérifiant** :
+      la légende ne faisait que ~144px de large au lieu des 320px voulus (`left:50%` sans largeur
+      explicite → le navigateur calcule une largeur "disponible" de 50 % du conteneur pour le
+      shrink-to-fit) — texte débordant de son fond en 6 lignes étroites. Corrigé avec un `width`
+      explicite (`min(320px, calc(100% - 48px))`) + `box-sizing:border-box`. Opacité du fond du
+      panneau remontée en même temps (0,55→0,7), sinon il se distinguait à peine du voile
+      désormais plus sombre derrière lui.
+    - ✅ **Menu pause** : bien agrandi (~20 %), tient dans l'écran (375×812) sans être coupé,
+      lisible.
+    - ⚠️ **Joueur (roue + pédalage latéral)** : inspecté via un zoom manuel (recadrage du canvas
+      sur un `<canvas>` offscreen, screenshot) plutôt que par bascule de classes — une seule frame
+      du cycle de pédalage vue (position figée hors course), roue visible mais discrète, écart
+      latéral des jambes non confirmé (nécessiterait de voir plusieurs frames s'enchaîner, donc la
+      partie réellement lancée). **Pas concluant, à confirmer en jouant.**
+    - ❌ **Seuils de détail des bâtiments, `FADE_BAND`, flou de fin de course, score/cœurs du HUD** :
+      non vérifiés (les deux premiers demandent de voir le défilement dans la durée, pas une image
+      figée ; le flou de fin dépend de `finishTime()` donc de l'audio ; le HUD ne s'affiche
+      qu'en course). **À confirmer au prochain test réel.**
 
 ---
 
