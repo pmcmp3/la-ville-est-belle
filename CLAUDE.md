@@ -18,7 +18,10 @@ d'aller écouter le morceau** — c'est l'objectif produit, et il tranche tous l
 design. Cible : **navigateur mobile, Safari iOS en priorité**, puis Chrome & Firefox iOS/Android.
 **Portrait natif.**
 
-En ligne : **https://pmc-la-ville-est-belle.netlify.app**
+En ligne : **https://pmc-la-ville-est-belle.netlify.app** (officiel, `lienEP`/CTA pointent ici).
+Miroir de secours (crédits Netlify épuisés le 12 août 2026) :
+**https://pmcmp3.github.io/la-ville-est-belle/** — voir `ARCHITECTURE.md` §9 pour la mise à jour
+(pas automatique, à repousser à la main).
 
 ## Règles techniques non négociables
 

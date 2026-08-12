@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-pages/    # build --base=./ pour le miroir GitHub Pages, voir ARCHITECTURE.md §9
 .DS_Store
 .netlify/
 .claude/settings.local.json

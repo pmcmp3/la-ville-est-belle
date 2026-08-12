@@ -462,6 +462,27 @@ concours se fait au screenshot envoyé par le joueur.
   en cache est ce qui a arrêté de brûler les crédits Netlify. **En cas de nouveau master :
   renommer le fichier** pour propager immédiatement.
 
+**Miroir GitHub Pages** (ajouté le 12 août 2026, crédits Netlify épuisés en cours de session) :
+- Dépôt public **`pmcmp3/la-ville-est-belle`** (compte artiste, distinct du compte perso
+  `workpaulmathieucollin-byte` — `gh auth switch` si besoin de re-pousser).
+- Branche `main` : **snapshot sans historique**, volontairement — exclut
+  `assets/la-ville-est-belle-MASTER.wav` (jamais servi tel quel, voir plus haut) et le dossier
+  `3D assets/` (hors sujet, voir le contexte de session sur les assets FBX). L'historique complet
+  de développement reste uniquement dans le dépôt local (`.git`), jamais poussé.
+- Branche `gh-pages` : le build statique, servi sur **https://pmcmp3.github.io/la-ville-est-belle/**.
+- ⚠️ **`index.html` utilise désormais des chemins RELATIFS** (`config.js`, `src/main.js`,
+  `fonts/*.ttf`/`.otf` — plus de `/config.js` etc.) pour rester servable aussi bien à la racine
+  (Netlify) que sous un sous-chemin (GitHub Pages) sans divergence de code entre les deux cibles.
+  Vérifié : Vite laisse ces chemins relatifs inchangés (avertissement de build inoffensif,
+  « didn't resolve at build time, it will remain unchanged ») — c'est le comportement voulu.
+- Le build GitHub Pages **n'est pas** `dist/` (réservé à Netlify, `base` implicite `/`) mais
+  `dist-pages/` (gitignoré, régénéré via `npx vite build --base=./ --outDir=dist-pages` — base
+  relative, portable sous n'importe quel sous-chemin sans le coder en dur).
+- **Mettre à jour ce miroir n'est pas automatique** : after `npm run build`, il faut aussi
+  regénérer `dist-pages/` et repousser la branche `gh-pages` à la main (pas de CI configurée).
+  À faire seulement en secours (crédits Netlify épuisés) ou en parallèle si utile — Netlify
+  reste la cible officielle du lien communiqué (`CLAUDE.md`).
+
 **Poids** : bundle **17 Ko gzippé** contre **3,9 Mo de MP3** — l'audio pèse 99,6 % du total.
 Le code n'est pas un levier d'optimisation, et le MP3 est déjà à 128 kbps pour 4 min 18 :
 descendre plus bas dégraderait ce que le jeu existe pour vendre.
