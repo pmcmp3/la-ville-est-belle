@@ -58,6 +58,16 @@ const MIN_HEIGHT = 16, MAX_HEIGHT = 19;
 // En dessous de cette profondeur caméra, la projection (focal/z) explose —
 // même garde défensive que renderCar3D/renderBus3D dans entities.js.
 const NEAR_Z_CLAMP = 0.6;
+// ⚠️ Culling dédié aux bâtiments/props de décor, plus loin que NEAR_Z_CLAMP.
+// Retour du 12 août 2026 : « ils passent en dessous de la route ça va pas ».
+// En resserrant DEPTH_MIN/MAX (plus haut) pour un mur plus continu, le bord
+// proche d'un bâtiment pouvait maintenant approcher z=0,6 — bien plus près
+// que le joueur lui-même (PLAYER_NEAR_Z=13) — où l'échelle (focal/z) explose
+// et le point au sol projeté part très loin sous l'écran, donnant
+// l'impression que le bâtiment traverse la route. Aucune scénographie ne
+// dépend de voir un bâtiment d'aussi près (il sort de toute façon du cadre
+// par les bords à cette distance) : coupé bien plus tôt.
+const SCENERY_MIN_Z = 3;
 
 // ⚠️ Tension de DA identifiée le 12 août 2026 en creusant pourquoi « les
 // bâtiments ne font pas parisien » : la palette d'origine ("DA pochette")
@@ -88,6 +98,11 @@ const SHUTTER_PALETTE = ["#2f4a3a", "#37424a", "#4a3a2f"];
 // distinct des étages — signal "commerce au pied de l'immeuble" plutôt qu'un
 // mur de fenêtres identiques du sol au toit.
 const SHOPFRONT_COLOR = "#0e0e12";
+// Auvents de commerce (référence Minecraft/Haussmann envoyée le 12 août
+// 2026) : vert bouteille, bordeaux, bleu nuit — la seule touche de couleur
+// franche au ras du sol, jamais le rouge/orange de charte (déjà partout sur
+// le ciel et les objets à ramasser).
+const AWNING_PALETTE = ["#2f6b52", "#6b2530", "#243a5e"];
 // Retour d'angle : plus sombre que la façade principale (face qui reçoit
 // moins la lumière rasante du couchant) — lit comme un vrai profil. Assombri
 // le 12 août 2026 (0,82 → 0,68) : retour direct « faut que tu fasses des
@@ -141,6 +156,7 @@ const windowLitGradient = buildHazeGradient(WINDOW_LIT, HAZE_STRENGTH * 0.5);
 const windowDarkGradient = buildHazeGradient(WINDOW_DARK);
 const shutterGradients = SHUTTER_PALETTE.map((hex) => buildHazeGradient(hex));
 const shopfrontGradient = buildHazeGradient(SHOPFRONT_COLOR);
+const awningGradients = AWNING_PALETTE.map((hex) => buildHazeGradient(hex));
 
 function buildingShape(slotIndex, sideKey) {
   const h1 = hash(slotIndex * 2 + sideKey);
@@ -148,9 +164,8 @@ function buildingShape(slotIndex, sideKey) {
   const h3 = hash(slotIndex * 7 + sideKey);
   const h4 = hash(slotIndex * 11 + sideKey);
   const h5 = hash(slotIndex * 13 + sideKey);
-  const h6 = hash(slotIndex * 17 + sideKey);
+  const h6 = hash(slotIndex * 17 + sideKey); // teinte de l'auvent
   const h7 = hash(slotIndex * 19 + sideKey); // teinte des volets
-  const h8 = hash(slotIndex * 23 + sideKey); // 2e rangée de balcon (dernier étage noble)
 
   const depth = DEPTH_MIN + h1 * (DEPTH_MAX - DEPTH_MIN);   // le long de la route (façade)
   const girth = GIRTH_MIN + h5 * (GIRTH_MAX - GIRTH_MIN);   // perpendiculaire (retour d'angle)
@@ -159,14 +174,6 @@ function buildingShape(slotIndex, sideKey) {
   const brightnessIndex = Math.floor(h4 * BRIGHTNESS_STEPS);
   const rows = Math.max(3, Math.min(7, Math.round(height / 3)));
 
-  // Balcons filants : 2e étage (le plus fréquent, typologie haussmannienne),
-  // et parfois un 2e rang au dernier étage noble juste sous le toit — jamais
-  // au rez-de-chaussée (SHOPFRONT_COLOR plus bas) ni sur un immeuble trop
-  // petit pour avoir un "dernier étage" distinct du 2e.
-  const balconyRows = [];
-  if (h6 < 0.5) balconyRows.push(Math.floor(rows * 0.55));
-  if (h8 < 0.4 && rows >= 5) balconyRows.push(1);
-
   return {
     depth,
     girth,
@@ -174,15 +181,33 @@ function buildingShape(slotIndex, sideKey) {
     facadeGradient: facadeGradients[paletteIndex][brightnessIndex],
     sideGradient: sideGradients[paletteIndex][brightnessIndex],
     shutterGradient: shutterGradients[Math.floor(h7 * shutterGradients.length)],
+    awningGradient: awningGradients[Math.floor(h6 * awningGradients.length)],
     facadeWindowCols: Math.max(3, Math.min(7, Math.round(depth * 0.9))),
     sideWindowCols: Math.max(2, Math.min(3, Math.round(girth / 2.5))),
     windowRows: rows,
-    balconyRows,
   };
 }
 
 function windowIsLit(slotIndex, faceKey, r, c) {
   return hash(slotIndex * 131 + faceKey * 977 + r * 17 + c * 31) < 0.07;
+}
+
+// Trace un rectangle à sommet en plein cintre (arc en demi-cercle) — chaque
+// ouverture du bâtiment (vitrine ET fenêtres d'étage depuis le 12 août 2026,
+// références Minecraft/Haussmann envoyées) est taillée dans ce gabarit
+// plutôt qu'un simple rectangle, qui lisait "immeuble de bureaux".
+function archPath(ctx, x, top, w, h) {
+  const archR = w / 2;
+  ctx.beginPath();
+  if (h > archR) {
+    ctx.moveTo(x, top + archR);
+    ctx.arc(x + archR, top + archR, archR, Math.PI, 0);
+    ctx.lineTo(x + w, top + h);
+    ctx.lineTo(x, top + h);
+  } else {
+    ctx.rect(x, top, w, h);
+  }
+  ctx.closePath();
 }
 
 // Peint une face (façade ou retour d'angle) déjà réduite à un quadrilatère
@@ -249,10 +274,11 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     for (let r = 0; r < rows; r++) {
       const rowY = wallTop + marginY + r * cellH;
       const isGround = r === groundRow;
-      if (isFacade && shape.balconyRows.includes(r) && wallW > 16) {
-        // Balcon filant : fine bande sombre courant sur toute la largeur du
-        // mur, juste sous la rangée de fenêtres, + quelques piquets (garde-
-        // corps) pour qu'on lise "ferronnerie" plutôt qu'un simple trait.
+      // Balcon filant : désormais à CHAQUE étage (plus seulement 1-2 tirés au
+      // hash) — retour du 12 août 2026 avec les références Minecraft/
+      // Haussmann : les façades montrées ont une ferronnerie quasi continue
+      // sous chaque rangée de fenêtres, pas juste un ou deux étages isolés.
+      if (isFacade && !isGround && wallW > 16) {
         const railY = rowY + winH + cellH * 0.06;
         ctx.fillStyle = balconyColor;
         ctx.fillRect(wallLeft + marginX * 0.4, railY, wallW - marginX * 0.8, Math.max(1, wallH * 0.012));
@@ -273,36 +299,41 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       for (let c = 0; c < cols; c++) {
         const wx = wallLeft + marginX + c * cellW + (cellW - winW) / 2;
         if (isGround) {
-          // Vitrine en plein cintre (arc en demi-cercle) plutôt qu'un simple
-          // rectangle — signal "devanture parisienne" bien plus net qu'une
-          // fenêtre carrée, et ça la distingue déjà visuellement des fenêtres
-          // d'étage sans autre traitement.
+          // Vitrine en plein cintre — signal "devanture parisienne" bien plus
+          // net qu'une fenêtre carrée.
           const shopH = Math.min(cellH * 0.92, winH * 1.7);
           const shopTop = wallBottom - shopH;
-          const archR = winW / 2;
+          archPath(ctx, wx, shopTop, winW, shopH);
           ctx.fillStyle = shopfrontColor;
+          ctx.fill();
+          // Auvent de commerce : petit pan coloré incliné au-dessus de la
+          // vitrine — détail direct des références envoyées, et ça casse la
+          // grille cream/ocre par une touche de couleur au ras du sol.
+          const awningH = cellH * 0.16;
+          const awningSlant = winW * 0.18;
+          ctx.fillStyle = shape.awningGradient ? gradientStep(shape.awningGradient, distT) : shopfrontColor;
           ctx.beginPath();
-          if (shopH > archR) {
-            ctx.moveTo(wx, shopTop + archR);
-            ctx.arc(wx + archR, shopTop + archR, archR, Math.PI, 0);
-            ctx.lineTo(wx + winW, wallBottom);
-            ctx.lineTo(wx, wallBottom);
-          } else {
-            ctx.rect(wx, shopTop, winW, shopH);
-          }
+          ctx.moveTo(wx - 1, shopTop);
+          ctx.lineTo(wx + winW + 1, shopTop);
+          ctx.lineTo(wx + winW + 1 - awningSlant, shopTop + awningH);
+          ctx.lineTo(wx - 1 + awningSlant, shopTop + awningH);
           ctx.closePath();
           ctx.fill();
           continue;
         }
+        // Fenêtre en plein cintre elle aussi (avant : rectangle nu, l'écart le
+        // plus net avec les références envoyées — chaque ouverture y est
+        // arquée, du rez-de-chaussée jusqu'au dernier étage).
+        archPath(ctx, wx, rowY, winW, winH);
         ctx.fillStyle = windowIsLit(windowKey, isFacade ? 0 : 1, r, c) ? litColor : darkColor;
-        ctx.fillRect(wx, rowY, winW, winH);
+        ctx.fill();
         // Encadrement clair (pierre de taille autour de l'ouverture) — sans
         // lui la fenêtre se lisait comme un trou plaqué sur le mur plutôt
         // qu'une ouverture taillée dedans.
         if (winW >= 5 && winH >= 5) {
           ctx.strokeStyle = frameColor;
           ctx.lineWidth = 1;
-          ctx.strokeRect(wx + 0.5, rowY + 0.5, winW - 1, winH - 1);
+          ctx.stroke();
         }
         // Volets, seulement si assez de place pour rester lisibles (pas de
         // bouillie à distance) — deux blocs de part et d'autre de la fenêtre.
@@ -313,6 +344,25 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
           ctx.fillRect(wx - shutterW - 1, rowY, shutterW, winH);
           ctx.fillRect(wx + winW + 1, rowY, shutterW, winH);
         }
+      }
+    }
+
+    // Bossage (refends) au soubassement : blocs de pierre alternés clair/
+    // sombre sur les deux arêtes verticales du mur, sur la hauteur des 2
+    // premiers étages — signature très reconnaissable des références
+    // envoyées, absente jusqu'ici (le mur était uni jusqu'en bas).
+    if (wallW > 20) {
+      const quoinRows = Math.min(rows, 2);
+      const quoinH = quoinRows * cellH + marginY;
+      const quoinW = Math.min(wallW * 0.07, 6);
+      const blockH = Math.max(3, quoinH / 8);
+      for (let i = 0; i * blockH < quoinH; i++) {
+        const by = Math.max(wallTop, wallBottom - (i + 1) * blockH);
+        const bh = wallBottom - (i * blockH) - by;
+        if (bh <= 0) continue;
+        ctx.fillStyle = i % 2 === 0 ? frameColor : facadeColor;
+        ctx.fillRect(wallLeft, by, quoinW, bh);
+        ctx.fillRect(wallRight - quoinW, by, quoinW, bh);
       }
     }
   }
@@ -452,7 +502,7 @@ function fillPoly(ctx, pts, color) {
 
 function renderTrafficLight(ctx, n, side, distance, width, height) {
   const z = (n + 0.5) * SPACING - distance;
-  if (z < NEAR_Z_CLAMP || z > HORIZON_Z) return;
+  if (z < SCENERY_MIN_Z || z > HORIZON_Z) return;
   const fadeAlpha = Math.min(1, (HORIZON_Z - z) / FADE_BAND);
   if (fadeAlpha <= 0.02) return;
 
@@ -537,9 +587,9 @@ function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   const centerAbsolute = (n + 0.5) * SPACING;
   let zNear = centerAbsolute - distance - shape.depth / 2;
   let zFar = centerAbsolute - distance + shape.depth / 2;
-  if (zFar < NEAR_Z_CLAMP) return;   // entièrement passé derrière la caméra
+  if (zFar < SCENERY_MIN_Z) return;  // entièrement passé derrière la caméra (ou trop proche, voir SCENERY_MIN_Z)
   if (zNear > HORIZON_Z) return;     // entièrement au-delà de l'horizon courbe
-  zNear = Math.max(zNear, NEAR_Z_CLAMP);
+  zNear = Math.max(zNear, SCENERY_MIN_Z);
   zFar = Math.min(zFar, HORIZON_Z);
 
   const fadeAlpha = Math.min(1, (HORIZON_Z - zNear) / FADE_BAND);

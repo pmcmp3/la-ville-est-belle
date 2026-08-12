@@ -406,6 +406,23 @@ même technique `project()`+fondu-brume que le reste du décor.
   projeté à profondeur différente (`fillPoly`, même principe que les piliers de pont/
   `renderCar3D` dans `entities.js`).
 
+⚠️ **Cinquième passe façades, même jour** : deux références Minecraft de bâtiments
+haussmanniens très détaillées envoyées (bossage, fenêtres/portes en plein cintre, ferronnerie à
+chaque étage, auvents de commerce colorés). Traduit dans la technique existante (`archPath()`,
+nouvelle fonction partagée pour toute ouverture en plein cintre) :
+- **Toutes les ouvertures en plein cintre** — plus seulement la vitrine du rez-de-chaussée, les
+  fenêtres d'étage aussi (avant : rectangle nu, l'écart le plus visible avec les références).
+- **Balcon filant à chaque étage** (avant : 1-2 étages tirés au hash) — la ferronnerie est
+  quasi continue sur les références, pas un accessoire occasionnel.
+- **Bossage/refends** au soubassement (2 premiers étages) : blocs de pierre alternés clair/
+  sombre sur les deux arêtes verticales du mur — absent jusqu'ici, le mur était uni jusqu'en bas.
+- **Auvents de commerce colorés** (`AWNING_PALETTE` : vert bouteille/bordeaux/bleu nuit) au-dessus
+  de chaque vitrine — seule touche de couleur franche au ras du sol.
+- **Bug corrigé en même temps** : `SCENERY_MIN_Z` (voir §4/commentaire dans `world.js`) — les
+  bâtiments pouvaient rendre jusqu'à z=0,6 (plus près que le joueur, z=13), où l'échelle
+  (focal/z) explose et le point au sol projeté part loin sous l'écran — lu comme « ils passent
+  en dessous de la route ». Culling des bâtiments/props de décor resserré à z≥3.
+
 ---
 
 ## 7. Contrôles
@@ -614,11 +631,16 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
   en bandes verticales, `winH` bien trop haut) + **poteaux de feux plats, sans volume** signalés
   en plus des bâtiments. → quatrième passe : fenêtres redimensionnées, contraste de volume
   (`SIDE_SHADE`) renforcé, poteau/tête de feu revus en profil projeté. ✅ Bug de fenêtres
-  identifié avec certitude (capture directe) ; ❌ tout le reste de cette 4e passe encore non vu.
-- **Quatrième lot, jamais vu du tout** : le fix des fenêtres, le contraste de volume, et les
-  feux tricolores volumétriques. Vérifié par lecture de code + `npm run build` propre
-  uniquement — **c'est la prochaine chose à confirmer**, en particulier que le fix des fenêtres
-  a bien réglé l'effet "bandes verticales".
+  identifié avec certitude (capture directe).
+- Quatrième lot testé avec captures + **deux références Minecraft de bâtiments haussmanniens
+  très détaillées** envoyées : fenêtres en grille confirmées lisibles (bug résolu), mais
+  toujours « pas du tout immeuble parisien » + **second bug réel** : « ils passent en dessous
+  de la route » (bâtiments rendus trop près de la caméra, voir `SCENERY_MIN_Z`). → cinquième
+  passe (fenêtres/vitrines en plein cintre partout, bossage/refends, balcons à chaque étage,
+  auvents colorés, culling resserré). ✅ Les deux bugs (fenêtres + "sous la route") identifiés
+  avec certitude sur captures ; ❌ la cinquième passe encore non vue.
+- **Cinquième lot, jamais vu du tout** — voir §6bis pour le détail complet. Vérifié par lecture
+  de code + `npm run build` propre uniquement. **Prochaine chose à confirmer.**
 - Dette antérieure non encore revérifiée : la reprise de pause sans rembobinage (§8.1).
 
 ---
