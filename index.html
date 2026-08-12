@@ -559,10 +559,19 @@
       left: 50%;
       transform: translate(-50%, -50%);
       margin: 0;
-      max-width: 320px;
+      /* ⚠️ `width` explicite, pas juste `max-width` : un `left:50%` sans
+         largeur posée fait calculer au navigateur une largeur "disponible"
+         de 50% du conteneur (containing block width − left), donc ~187px
+         sur un iPhone plutôt que les 320px voulus — bug trouvé en vérifiant
+         (texte débordant de son fond, 6 lignes étroites au lieu de 4). */
+      width: min(320px, calc(100% - 48px));
+      box-sizing: border-box;
       padding: 14px 22px;
       border-radius: 14px;
-      background: rgba(13, 13, 16, 0.55);
+      /* 0,55 → 0,7 en même temps que le voile assombri (12 août 2026) : sur
+         le fond désormais plus sombre du décompte, l'ancienne opacité rendait
+         le panneau presque invisible, fondu dans le voile derrière. */
+      background: rgba(13, 13, 16, 0.7);
       text-align: center;
       /* 14px → 18px → 22px (retours explicites successifs : « je veux le
          texte plus gros », puis « un peu plus gros, avec des icônes, des
