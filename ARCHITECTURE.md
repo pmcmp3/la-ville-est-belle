@@ -136,16 +136,40 @@ frame. Ça a produit deux bugs distincts :
 > ⚠️ **Ne jamais réintroduire de modulation brusque de la vitesse.** Toute variation doit passer
 > par le lissage, sinon elle se voit sur toute la profondeur de champ.
 
-### 5.3 `LEAD_IN` : pourquoi l'horloge démarre à −7,5 s
+### 5.3 `LEAD_IN` : pourquoi l'horloge ne démarre pas à 0
 
 `clock.now()` vaut 0 à l'instant où la partie démarre. Or le créneau 0 est censé arriver au
 joueur *pile* à cet instant : sans correctif, tout le premier lot d'objets se retrouve déjà **à**
 la position du joueur dès la première frame, au lieu d'avoir glissé depuis l'horizon.
 
-D'où `clock.jumpBy(-entities.LEAD_IN)` au départ **et au rejeu**, avec
-`LEAD_IN = LOOKAHEAD_SLOTS × CADENCE × beatPeriod` = 10 × 1,5 × 0,5 = **7,5 s**. Le créneau 0
-démarre alors exactement à la limite de visibilité, comme n'importe quel créneau plus tard en
-course.
+D'où `clock.jumpBy(-entities.LEAD_IN)` au départ **et au rejeu**.
+
+⚠️ **Recalé le 12 août 2026.** La formule d'origine, `LOOKAHEAD_SLOTS × CADENCE × beatPeriod`
+= 10 × 1,5 × 0,5 = 7,5 s, visait le mauvais repère : un nombre de créneaux de délai MUSICAL, pas
+`VISIBLE_Z_MAX` (= 90, la vraie limite de visibilité utilisée par `visibleSlots()`). À la vitesse
+de départ (19,8 u/s), le créneau 0 démarrait donc à z ≈ 162 — largement au-delà de la fenêtre
+visible — et la route restait **vide pendant ~3,6 s à chaque partie**, invariablement (le jeu
+est entièrement déterministe, voir §5.2). Signalé directement par l'artiste sur téléphone :
+« au démarrage, il n'y a rien du tout comme objet ».
+
+Nouvelle formule, qui résout directement le décalage plaçant le créneau 0 à `VISIBLE_Z_MAX`
+(moins une petite marge) à la vitesse de départ :
+
+```
+LEAD_IN = (VISIBLE_Z_MAX − marge − PLAYER_NEAR_Z) / vitesse_départ − premierTempsOffset ≈ 3,78 s
+```
+
+Le créneau 0 est donc déjà dans le champ (z ≈ 88) dès la toute première frame, puis glisse
+normalement jusqu'au joueur comme n'importe quel créneau plus tard en course — sans reproduire le
+bug de pop-in que `LEAD_IN` existe pour éviter. ⚠️ Non vérifié visuellement (preview navigateur
+inaccessible cette session, voir §12) — confirmé seulement par le calcul.
+
+**Ouverture curatée** (même changement, même retour) : le tout premier créneau qui peut être un
+obstacle (`slotIndex === GRACE_SLOTS`) est désormais forcé à `cycliste` plutôt que laissé au hash
+(`OPENING_KIND_OVERRIDE` dans `entities.js`) — sans ce forçage, le premier cycliste naturel
+n'arrivait qu'au créneau 9, largement hors du champ visible au démarrage. Même principe que
+`GRACE_SLOTS` qui force déjà les tout premiers créneaux en étoiles pour la même raison de rythme
+d'ouverture. Un seul créneau déplacé sur 143 obstacles, quota global inchangé.
 
 ### 5.4 Le quota exact par diffusion d'erreur
 
@@ -235,13 +259,16 @@ prélevés une seconde fois au prorata pour faire de la place au pont (même jou
 | `cycliste` | 0,25 | −1 vie + **−500 pts** | ❌ |
 | `pieton` | 0,11 | −1 vie + **−500 pts** | ❌ |
 | `cone` | 0,07 | −1 vie + **−500 pts** | ✅ |
-| `pont` | 0,10 | −1 vie + **−500 pts** | ❌ (piliers, bloquent toute la hauteur) |
+| `pont` | 0,10 | **fatal** (3 vies d'un coup) + **−500 pts** | ❌❌ (sauter AGGRAVE : dangereux même voie ouverte) |
 
-`UNJUMPABLE_KINDS = {pieton, cycliste, pont}` : ces trois-là se contournent **latéralement
-uniquement**. Distribution mesurée sur les 343 créneaux (recensement hors ligne, voir §12) :
-voiture 67, cycliste 40, pieton 10, cone 8, pont 18. Le piéton perd de l'effectif absolu cette
-fois (10 contre 15 avant le pont) — la marge dégagée par l'allongement du parcours (300→343
-créneaux) est maintenant entièrement absorbée par les deux ajouts (cycliste puis pont).
+`UNJUMPABLE_KINDS = {pieton, cycliste}` : ces deux-là se contournent **latéralement uniquement**,
+`inAir` n'y change rien. Le pont n'est plus dans cet ensemble depuis le 12 août 2026 (voir plus
+bas) — sa branche de collision est dédiée. Distribution mesurée sur les 343 créneaux
+(recensement hors ligne, voir §12), après
+l'ouverture curatée (§5.3) : voiture 67, cycliste 41, pieton 9, cone 8, pont 18. Le piéton perd de
+l'effectif absolu depuis l'arrivée du pont (15 à l'origine, sur 300 créneaux) — la marge dégagée
+par l'allongement du parcours (300→343) est maintenant entièrement absorbée par les ajouts
+successifs (cycliste, puis pont, puis le créneau d'ouverture forcé en cycliste).
 
 **Pont (viaduc du métro parisien)**, ajouté le 12 août 2026 (inspiré d'une référence Subway
 Surfers envoyée par l'artiste — perspective à piliers, longue ligne de fuite). Bloque 2 ou 3
@@ -255,6 +282,22 @@ question posée est « reste-t-il au moins une voie ouverte du pont qui ne coïn
 bonus voisin », résolue par rotation de la combinaison de voies ouvertes plutôt que par
 déplacement d'une seule voie. Mesuré sur les 343 créneaux : 0 pont à 0 voie ouverte, 1 pont sur
 18 déplacé par la garde.
+
+⚠️ **DA et règle revues une première fois, le jour même**, sur retour direct après un test réel
+sur téléphone :
+- Le premier rendu (piliers béton gris uni + rivets) a été jugé « pas beau ». Remplacé par une
+  DA pierre de taille (palette reprise de `world.js`, `FACADE_PALETTE`/`CORNICE_COLOR`) +
+  corniche claire + poutre en treillis métallique vert, d'après une photo Street View d'un
+  viaduc du métro parisien (`renderBridge()` dans `entities.js`).
+- La règle de collision a changé de nature. À l'origine le pont suivait `UNJUMPABLE_KINDS`
+  (sauter ne sauve pas, mais ne punit pas non plus). Retour : « j'ai fait exprès de sauter
+  quand j'étais dans le trou du pont, j'aurais dû me prendre le pont [...] et le pont doit
+  arrêter la partie si je me le prends ». Désormais : sauter sous un pont est TOUJOURS
+  dangereux (même voie ouverte — `sameLane(e) || inAir` dans `update()`, seul obstacle où
+  `inAir` aggrave au lieu de neutraliser) et le choc est **fatal**, comme la voiture
+  (`main.js`, `game.lives = 0`). Passer sous un pont exige de rester au sol, dans la bonne voie.
+- Non vérifié visuellement (preview navigateur inaccessible, voir §12) — à confirmer au
+  prochain test réel, notamment que `inAir` déclenche bien la collision dans une voie ouverte.
 
 **Pénalité de score** (demandée le 12 août 2026, avec la perte de vie) : chaque collision qui
 coûte un cœur retire aussi `penaliteObstacle` points (500, `config.js`), affichés 3 s sous le

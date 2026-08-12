@@ -24,8 +24,11 @@ const SPRITE_H = 34;
 export const HEIGHT_WORLD = 1.9;
 
 const PAL = {
-  hair: "#241609",
-  hairHi: "#3c2712",
+  // Noir (retour direct : « je veux cheveux noirs »). Le highlight reste un
+  // gris très sombre plutôt que du noir pur : sans lui, le bloc de reflet
+  // (hairHi) disparaîtrait dans la base et les cheveux perdraient tout relief.
+  hair: "#0d0d0f",
+  hairHi: "#2a2a2e",
   skin: "#c98a5b",
   green: "#2f7a46",
   white: "#f0ead9",

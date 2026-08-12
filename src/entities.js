@@ -16,6 +16,15 @@ import * as cyclists from "./cyclists.js";
 const CADENCE = window.CONFIG.cadenceSpawnBeats; // un événement tous les N temps
 const LOOKAHEAD_SLOTS = 10;
 
+// Distance (unités-monde) au-delà de laquelle un créneau n'est pas encore
+// pris en compte par visibleSlots() — la vraie limite de visibilité utilisée
+// par le jeu, indépendante du nombre de créneaux de lookahead (voir LEAD_IN
+// ci-dessous, qui vise CE repère plutôt qu'un compte de créneaux).
+const VISIBLE_Z_MAX = 90;
+// Petite marge pour que le créneau 0 soit franchement DANS la fenêtre dès la
+// première frame, pas pile sur le seuil de coupure (évite tout flottement).
+const LEAD_IN_VISIBILITY_MARGIN = 2;
+
 // Décalage à appliquer à l'horloge de jeu au tout début d'une course (voir
 // main.js, appelé juste après clock.setTimeSource) — corrige un vrai bug
 // visuel signalé au playtest : « animation bizarre au tout début, les
@@ -27,11 +36,22 @@ const LOOKAHEAD_SLOTS = 10;
 // première frame au lieu d'avoir défilé depuis l'horizon comme n'importe
 // quel créneau plus tard dans la partie (seuls ceux-là "popent" au lieu de
 // glisser, parce qu'ils n'ont jamais eu de frame précédente pour approcher
-// progressivement). Décaler le départ de l'horloge de -LEAD_IN place le
-// créneau 0 exactement à la limite de visibilité (comme n'importe quel
-// créneau qui vient d'apparaître à LOOKAHEAD_SLOTS créneaux d'avance) : il
-// glisse alors normalement jusqu'au joueur, comme tous les suivants.
-export const LEAD_IN = LOOKAHEAD_SLOTS * CADENCE * clock.beatPeriod;
+// progressivement).
+//
+// ⚠️ Recalé le 12 août 2026 — l'ancienne formule (LOOKAHEAD_SLOTS × CADENCE ×
+// beatPeriod = 7,5 s) visait le mauvais repère : un nombre de créneaux de
+// délai MUSICAL, pas la distance de visibilité RÉELLE (VISIBLE_Z_MAX). À la
+// vitesse de départ, le créneau 0 démarrait donc à z ≈ 162 — largement
+// au-delà de VISIBLE_Z_MAX — et restait invisible pendant near 3,6 s à
+// CHAQUE partie avant de franchir le seuil. Signalé par l'artiste : « au
+// démarrage, il n'y a rien du tout comme objet ». Nouvelle formule : on
+// résout directement le décalage qui place le créneau 0 à VISIBLE_Z_MAX
+// (moins une petite marge) à la vitesse de départ — il est donc déjà visible
+// dès la première frame, puis glisse normalement jusqu'au joueur comme tous
+// les créneaux suivants.
+export const LEAD_IN =
+  (VISIBLE_Z_MAX - LEAD_IN_VISIBILITY_MARGIN - road.PLAYER_NEAR_Z) / road.getSpeed() -
+  window.CONFIG.premierTempsOffset;
 
 // --- Ligne d'arrivée + quota exact d'étoiles -------------------------------
 // Demandé : la course se termine après un nombre fixe d'objets, pas au bout
@@ -215,11 +235,14 @@ const OBSTACLE_WEIGHTS = [
 // Le piéton est un « mur humain plein » (décision de playtest ancienne) ; le
 // cycliste suit la même règle — sauter par-dessus quelqu'un qui arrive en
 // face n'a pas de sens, et ça garde les deux obstacles "humains" cohérents
-// entre eux. Le pont (piliers de viaduc) est infranchissable par nature — un
-// pilier bloque toute la hauteur, pas seulement le sol. La voiture
-// (survolable, atterrissage sur le toit) et le cône (sautable) restent les
-// deux seuls que le saut permet de franchir.
-const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste", "pont"]);
+// entre eux. La voiture (survolable, atterrissage sur le toit) et le cône
+// (sautable) restent les deux seuls que le saut permet de franchir SANS
+// risque. Le pont n'est PAS dans cet ensemble bien qu'il soit lui aussi
+// infranchissable : contrairement à pieton/cycliste, sauter y AGGRAVE le
+// risque au lieu d'être neutre (voir sa branche dédiée dans update()) — le
+// router ici appliquerait la mauvaise règle (sameLane seul, sans le OR
+// inAir).
+const UNJUMPABLE_KINDS = new Set(["pieton", "cycliste"]);
 
 // Bonus AÉRIENS : ramassables uniquement en sautant. Playtest : « il faut des
 // objets spéciaux en l'air » — il n'y en avait qu'un seul type (`guitare`,
@@ -324,13 +347,20 @@ function bridgeOpenLanesAt(slotIndex) {
 // Hauteur des piliers, nettement au-dessus de l'apex de saut (~2,28 u avec
 // hauteurSaut = 2.0, voir main.js) : le pont est infranchissable par nature,
 // pas par un hitbox qui triche par rapport à ce qu'on voit à l'écran.
+// DA revue le 12 août 2026 sur retour direct (« les ponts sont vraiment pas
+// beaux ») — piliers en pierre de taille (palette reprise de world.js,
+// FACADE_PALETTE/CORNICE_COLOR, pour rester dans la même famille que les
+// façades haussmanniennes) surmontés d'une corniche claire, puis d'une
+// poutre en treillis métallique vert type viaduc du métro parisien (ligne 2/6),
+// d'après une référence Street View envoyée par l'artiste — plus le pont en
+// bois générique d'avant.
 const BRIDGE_PILLAR_HALF_W = 0.55; // un peu moins large qu'une voie (2 u), la voie reste lisible autour
 const BRIDGE_PILLAR_HALF_L = 0.4;
-const BRIDGE_BEAM_H = 0.6;
-const BRIDGE_HEIGHT = 3.4;
-// Béton + rivets rouillés — cohérent avec les bâtiments haussmanniens plutôt
-// qu'avec un pont en bois (voir la palette de world.js).
-const BRIDGE_COLORS = { base: "#6b6f78", dark: "#4a4d55", hi: "#a7abb5", rust: "#8a4a34" };
+const BRIDGE_COPING_H = 0.16;  // corniche claire entre la pierre et le métal
+const BRIDGE_BEAM_H = 0.7;
+const BRIDGE_HEIGHT = 3.4;     // sommet de la pierre (sous la corniche)
+const BRIDGE_STONE = { base: "#bdb2a6", dark: "#95897e", hi: "#f2efe9" };
+const BRIDGE_IRON = { base: "#3d5c42", dark: "#243a29", hi: "#6b9370" };
 
 // Variantes de carrosserie (demandé explicitement : « des voitures bleues,
 // des voitures vertes, des voitures noires »). Rouge de charte gardé comme
@@ -422,11 +452,26 @@ const debugOverrides = new Map(); // slotIndex -> { isBonus, kind, x }
 // slotContent() consulte pour ses voisins (jamais slotContent() lui-même,
 // qui recréerait la même vérification en boucle et bouclerait à l'infini
 // dès que deux créneaux voisins tombent tous les deux sur "piéton").
+// Ouverture curatée (12 août 2026, retour direct : « à l'horizon, proche
+// d'une étoile à attraper et d'un vélo qui arrive »). GRACE_SLOTS force déjà
+// les tout premiers créneaux en étoiles pour la même raison de rythme
+// d'ouverture (voir isBonusQuota) ; ceci en est le prolongement côté
+// obstacle : le tout premier créneau qui PEUT être un obstacle
+// (slotIndex === GRACE_SLOTS) est forcé "cycliste" plutôt que laissé au
+// hash, pour qu'un vélo soit visible et lisible dès les premières secondes
+// plutôt que si le hash y avait placé autre chose (ou rien avant longtemps —
+// le premier cycliste naturel n'arrivait qu'au créneau 9). Poids/quota
+// globaux inchangés : un seul créneau déplacé sur 143 obstacles.
+const OPENING_KIND_OVERRIDE = { [GRACE_SLOTS]: "cycliste" };
+
 function rawSlotContent(slotIndex) {
   const override = debugOverrides.get(slotIndex);
   if (override) return { isBonus: override.isBonus, kind: override.kind };
   if (isBonusAt(slotIndex)) {
     return { isBonus: true, kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)) };
+  }
+  if (OPENING_KIND_OVERRIDE[slotIndex]) {
+    return { isBonus: false, kind: OPENING_KIND_OVERRIDE[slotIndex] };
   }
   const kind = pickWeighted(OBSTACLE_WEIGHTS, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
@@ -601,7 +646,7 @@ function* visibleSlots(now, speed) {
     // vitesse le créneau se rapproche (voir APPROACH_FACTOR).
     const content = slotContent(n);
     const z = slotZ(n, now, speed * approachFactor(content));
-    if (z < 1 || z > 90) continue;
+    if (z < 1 || z > VISIBLE_Z_MAX) continue;
     const lanes = slotLanes(n, content);
     yield { slotIndex: n, z, lanes, x: lanesCenterX(lanes), ...content };
   }
@@ -691,13 +736,25 @@ export function update(playerLane, inAir) {
         resolved.add(e.slotIndex);
         consumed.add(e.slotIndex);
       }
+    } else if (e.kind === "pont") {
+      // ⚠️ Revu le 12 août 2026 sur retour direct après test réel : sauter
+      // sous un pont doit TOUJOURS être dangereux, même dans une voie
+      // ouverte — la poutre est basse, on ne passe dessous qu'au sol. Seul
+      // obstacle où `inAir` AGGRAVE le risque au lieu de protéger. Fatal
+      // comme la voiture (voir main.js `game.lives = 0` pour `kind ===
+      // "pont"`) : un choc de pont met fin à la partie, pas juste −1 vie.
+      if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
+      if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
+      if (sameLane(e) || inAir) {
+        events.push({ type: "obstacle", kind: e.kind });
+        resolved.add(e.slotIndex);
+        consumed.add(e.slotIndex);
+      }
     } else {
-      // Piéton, cycliste ET pont : murs infranchissables — la collision
-      // compte même en l'air (voir UNJUMPABLE_KINDS). Ne se sautent pas, se
-      // contournent latéralement uniquement (pour le pont : en étant sur une
-      // des voies OUVERTES — `e.lanes` contient les voies BLOQUÉES, voir
-      // bridgeBlockedLanes). Aucun des trois ne demande de cas particulier
-      // ici : `e.lanes`/`sameLane` porte déjà toute la différence entre eux.
+      // Piéton et cycliste : murs infranchissables — la collision compte
+      // même en l'air (voir UNJUMPABLE_KINDS), mais rester au sol dans la
+      // bonne voie suffit à les éviter (contrairement au pont ci-dessus, où
+      // sauter n'importe où sous la structure coûte la partie).
       if (e.z > road.PLAYER_NEAR_Z + Z_WINDOW) continue;
       if (e.z < road.PLAYER_NEAR_Z - Z_WINDOW) { resolved.add(e.slotIndex); continue; }
       if (sameLane(e)) {
@@ -1082,34 +1139,53 @@ function renderCar3D(ctx, cx, cz, width, height, color, lit) {
   ctx.stroke();
 }
 
-// Pont : un pilier en béton (prisme vertical, mêmes coins projetés
-// proche/loin/sol/sommet qu'un flanc de voiture) par voie bloquée, plus une
-// poutre horizontale qui les relie sur toute la largeur de la route — même
-// technique que renderCar3D (road.project + fillPoly), palette béton/rouille
-// plutôt que le bois du pack FBX regardé en référence (hors charte, voir le
-// plan de cette session).
+// Pont : piliers en pierre de taille (mêmes coins projetés proche/loin/sol/
+// sommet qu'un flanc de voiture, un par voie bloquée) surmontés d'une
+// corniche claire puis d'une poutre en treillis métallique vert qui court
+// sur toute la largeur de la route — d'après une référence Street View d'un
+// viaduc du métro parisien envoyée par l'artiste (le pont en béton/bois
+// générique de la première passe « n'était pas beau »). Même technique que
+// renderCar3D (road.project + fillPoly).
 function renderBridge(ctx, blockedLanes, z, width, height) {
   const zNear = z - BRIDGE_PILLAR_HALF_L;
   const zFar = z + BRIDGE_PILLAR_HALF_L;
 
-  // Poutre : sommet des piliers, sur toute la largeur de la route.
-  const beamNL = road.project(-road.ROAD_HALF_WIDTH, zNear, width, height);
-  const beamNR = road.project(road.ROAD_HALF_WIDTH, zNear, width, height);
-  const beamFL = road.project(-road.ROAD_HALF_WIDTH, zFar, width, height);
-  const beamFR = road.project(road.ROAD_HALF_WIDTH, zFar, width, height);
-  const beamBotN = beamNL.y - BRIDGE_HEIGHT * beamNL.scale;
-  const beamTopN = beamNL.y - (BRIDGE_HEIGHT + BRIDGE_BEAM_H) * beamNL.scale;
-  const beamBotF = beamFL.y - BRIDGE_HEIGHT * beamFL.scale;
-  const beamTopF = beamFL.y - (BRIDGE_HEIGHT + BRIDGE_BEAM_H) * beamFL.scale;
-  // Face inférieure (celle qu'on voit d'en dessous en passant sous le pont).
+  // Corniche + poutre : un mur plat au premier plan du pont (profondeur
+  // zNear uniquement, comme la face arrière d'une voiture) — c'est la
+  // surface la plus grande et la plus longtemps visible, pas la peine d'un
+  // volume complet pour un élément qui reste loin au-dessus du joueur.
+  const edgeL = road.project(-road.ROAD_HALF_WIDTH, zNear, width, height);
+  const edgeR = road.project(road.ROAD_HALF_WIDTH, zNear, width, height);
+  const stoneTopY = edgeL.y - BRIDGE_HEIGHT * edgeL.scale;
+  const copingTopY = edgeL.y - (BRIDGE_HEIGHT + BRIDGE_COPING_H) * edgeL.scale;
+  const beamTopY = edgeL.y - (BRIDGE_HEIGHT + BRIDGE_COPING_H + BRIDGE_BEAM_H) * edgeL.scale;
+
   fillPoly(ctx, [
-    { x: beamNL.x, y: beamBotN }, { x: beamNR.x, y: beamBotN },
-    { x: beamFR.x, y: beamBotF }, { x: beamFL.x, y: beamBotF },
-  ], BRIDGE_COLORS.dark);
+    { x: edgeL.x, y: stoneTopY }, { x: edgeR.x, y: stoneTopY },
+    { x: edgeR.x, y: copingTopY }, { x: edgeL.x, y: copingTopY },
+  ], BRIDGE_STONE.hi); // corniche
   fillPoly(ctx, [
-    { x: beamNL.x, y: beamTopN }, { x: beamNR.x, y: beamTopN },
-    { x: beamFR.x, y: beamTopF }, { x: beamFL.x, y: beamTopF },
-  ], BRIDGE_COLORS.base);
+    { x: edgeL.x, y: copingTopY }, { x: edgeR.x, y: copingTopY },
+    { x: edgeR.x, y: beamTopY }, { x: edgeL.x, y: beamTopY },
+  ], BRIDGE_IRON.base); // poutre
+
+  // Treillis en X réparti sur la largeur (signal "viaduc métro" plutôt que
+  // poutre pleine) — nombre de croix fixe, pas espacé en unités-monde : reste
+  // lisible que le pont soit encore loin ou déjà tout proche.
+  ctx.strokeStyle = BRIDGE_IRON.hi;
+  ctx.lineWidth = Math.max(1, (edgeR.x - edgeL.x) * 0.01);
+  const bays = 6;
+  const bayW = (edgeR.x - edgeL.x) / bays;
+  ctx.beginPath();
+  for (let i = 0; i < bays; i++) {
+    const x0 = edgeL.x + i * bayW;
+    const x1 = x0 + bayW;
+    ctx.moveTo(x0, copingTopY);
+    ctx.lineTo(x1, beamTopY);
+    ctx.moveTo(x0, beamTopY);
+    ctx.lineTo(x1, copingTopY);
+  }
+  ctx.stroke();
 
   for (const lane of blockedLanes) {
     const cx = road.laneX(lane);
@@ -1126,15 +1202,22 @@ function renderBridge(ctx, blockedLanes, z, width, height) {
     // (même règle que renderCar3D).
     const leftVisible = cx > 0;
     const rightVisible = cx < 0;
-    if (leftVisible) fillPoly(ctx, [gNL, gFL, topF, topN], BRIDGE_COLORS.dark);
-    if (rightVisible) fillPoly(ctx, [gNR, gFR, topFR, topNR], BRIDGE_COLORS.dark);
+    if (leftVisible) fillPoly(ctx, [gNL, gFL, topF, topN], BRIDGE_STONE.dark);
+    if (rightVisible) fillPoly(ctx, [gNR, gFR, topFR, topNR], BRIDGE_STONE.dark);
     // Face arrière (toujours visible, côté joueur).
-    fillPoly(ctx, [gNL, gNR, topNR, topN], BRIDGE_COLORS.base);
-    // Rivets rouillés — signal "viaduc métro", pas "poteau générique".
-    ctx.fillStyle = BRIDGE_COLORS.rust;
-    const rivetY = topN.y + (gNL.y - topN.y) * 0.15;
-    ctx.fillRect(gNL.x + 2, rivetY, 2, 2);
-    ctx.fillRect(gNR.x - 4, rivetY, 2, 2);
+    fillPoly(ctx, [gNL, gNR, topNR, topN], BRIDGE_STONE.base);
+
+    // Joints de maçonnerie : deux traits horizontaux plus foncés — pierre de
+    // taille assemblée par blocs plutôt qu'un pilier uni.
+    ctx.strokeStyle = BRIDGE_STONE.dark;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const t of [0.35, 0.7]) {
+      const y = topN.y + (gNL.y - topN.y) * t;
+      ctx.moveTo(gNL.x, y);
+      ctx.lineTo(gNR.x, y);
+    }
+    ctx.stroke();
   }
 }
 

@@ -39,14 +39,17 @@ En ligne : **https://pmc-la-ville-est-belle.netlify.app**
   la musique continuait après la ligne). **120 BPM**, offset ~0,01 s.
 - **3 vies**, **5 obstacles**, **5 bonus**.
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
-  - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont`.
+  - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
     (« on fait en sorte que les cyclistes deviennent tous des obstacles »).
   - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 4
     à la même profondeur (2 voies ouvertes en début de course, 1 seule en fin de course).
-  - Voiture et cône se franchissent au saut ; cycliste, piéton et pont se contournent
-    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`) — un pilier de pont
-    bloque toute la hauteur, il n'y a pas de "toit" à atterrir dessus comme la voiture.
+  - Voiture et cône se franchissent au saut ; cycliste et piéton se contournent
+    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`).
+  - ⚠️ **Le pont est un cas à part, revu le 12 août 2026** : sauter y est TOUJOURS dangereux,
+    même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
+    risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
+    voie. Choc fatal comme la voiture (`game.lives = 0` dans `main.js`), pas seulement −1 vie.
 - **200 étoiles exactement** par partie : le score maximum doit être un nombre connu.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.

@@ -1085,9 +1085,13 @@ function step(dt) {
           // voiture est traitée comme un choc fatal (3 vies perdues d'un
           // coup, endGame déclenché juste après dans le même step) — le
           // convoi se voit à 100 m, se contourne, aucune raison d'être
-          // clément. Les autres obstacles (piéton, cône, bus) restent à -1
-          // vie chacun.
-          if (e.kind === "voiture") {
+          // clément. Le pont a rejoint la voiture le 12 août 2026 (retour
+          // direct après test réel : « le pont doit arrêter la partie si je
+          // me le prends ») — cohérent avec sa branche de collision dédiée
+          // dans entities.js, où sauter dessous aggrave le risque au lieu de
+          // le neutraliser. Les autres obstacles (piéton, cycliste, cône)
+          // restent à -1 vie chacun.
+          if (e.kind === "voiture" || e.kind === "pont") {
             game.lives = 0;
           } else {
             game.lives -= 1;

@@ -291,6 +291,18 @@ export function render(ctx, width, height, distance) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, skyBottom);
 
+  // Filet de sécurité (12 août 2026, retour direct : « on voit un trait noir
+  // qui semble être le vide »). La boucle ci-dessous saute toute ligne dont
+  // le z retombe pile sur/au-delà de l'horizon courbe (`disc <= 0`) — près de
+  // la limite, la quantification en `rowStep` peut faire tomber une ligne
+  // entière dans cette zone sautée. Sans rien en dessous, ces lignes montrent
+  // le fond du canvas au lieu de continuer le dégradé du ciel, ce qui se lit
+  // comme un trait noir/un trou plutôt qu'un fondu. Un aplat `HAZE_COLOR` —
+  // la même teinte que la toute dernière étape du dégradé du ciel — sous le
+  // ciel garantit la continuité quoi que fasse la boucle.
+  ctx.fillStyle = HAZE_COLOR;
+  ctx.fillRect(0, skyBottom, width, height - skyBottom);
+
   const groundHeight = height - skyBottom;
   const rowStep = Math.max(1, Math.floor(groundHeight / MAX_ROWS));
 
