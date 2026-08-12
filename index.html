@@ -547,8 +547,18 @@
        propre (comme les autres panneaux du HUD) : garantit la lisibilité
        quel que soit ce qu'il y a derrière (ciel clair, façades...), l'ombre
        de texte seule ne suffisait pas sur les zones les plus claires. */
+    /* Centrée à l'écran depuis le 12 août 2026 (demandé explicitement :
+       « centrer les consignes au centre de l'écran », le "20" reste en haut
+       — voir #countdown-num). Hors de #countdown dans le HTML (voir le
+       commentaire à cet endroit), donc gérée en display:none/block par
+       #overlay.countdown-view plutôt que par .view.active. */
     #countdown-caption {
-      margin: 18px 0 0;
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
       max-width: 320px;
       padding: 14px 22px;
       border-radius: 14px;
@@ -564,6 +574,10 @@
       color: var(--blanc);
       opacity: 1;
       transition: opacity 0.35s ease;
+    }
+
+    #overlay.countdown-view #countdown-caption {
+      display: block;
     }
 
     #countdown-caption.hidden {
@@ -618,11 +632,19 @@
          personnage juste en dessous, qui doit rester bien visible. */
       justify-content: flex-start;
       padding-top: calc(48px + var(--safe-top));
+      /* Assombri le 12 août 2026 (demandé explicitement : « assombrir le jeu
+         réel pour qu'on ait une meilleure visibilité des consignes ») — le
+         voile d'origine (0,05 → 0,55) restait très clair pour garder le
+         personnage bien visible ; il gardait aussi la légende, elle, en fond
+         propre (rgba(13,13,16,0.55) sur #countdown-caption) donc la lisait
+         déjà correctement, mais le RESTE de la scène (route, façades)
+         paraissait trop lumineux à côté. Le personnage reste visible (jamais
+         > 0,82), juste sur un fond nettement plus sombre. */
       background: linear-gradient(
         180deg,
-        rgba(13, 13, 16, 0.05) 0%,
-        rgba(13, 13, 16, 0.15) 55%,
-        rgba(13, 13, 16, 0.55) 100%
+        rgba(13, 13, 16, 0.35) 0%,
+        rgba(13, 13, 16, 0.55) 45%,
+        rgba(13, 13, 16, 0.82) 100%
       );
       /* Le décompte sert de TUTORIEL : la bande de pilotage et le saut doivent
          vraiment répondre pendant qu'il tourne. Or #overlay (z-index 20)
@@ -1048,6 +1070,14 @@
       transition: opacity 0.25s ease, visibility 0s;
     }
 
+    /* Grossi de 20 % (demandé explicitement le 12 août 2026) — .panel garde
+       sa taille de boîte normale (300px max-width), un transform:scale() sur
+       la carte visible suffit : #pause-screen n'affiche jamais rien d'autre
+       en même temps, aucun risque de chevauchement à agrandir. */
+    #pause-screen .panel {
+      transform: scale(1.2);
+    }
+
     #pause-volume-row {
       display: flex;
       align-items: center;
@@ -1257,15 +1287,19 @@
          PLAN-ACTION.md, "Personnage gardé visible pendant le décompte"). -->
     <div id="countdown" class="view">
       <div id="countdown-num">20</div>
-      <p id="countdown-caption"></p>
     </div>
 
-    <!-- Hors de #countdown volontairement : .view.active porte une animation
-         (transform: translateY, voir @keyframes view-in), et tout ancêtre
-         avec un transform actif devient le référentiel de positionnement de
-         ses descendants position:absolute — le bouton se retrouvait ancré au
-         bloc du décompte (donc collé au texte) au lieu du bas de l'écran.
-         Même contournement que #cta-link, pour la même raison. -->
+    <!-- #countdown-caption et #skip-countdown sont hors de #countdown
+         volontairement : .view.active porte une animation (transform:
+         translateY, voir @keyframes view-in), et tout ancêtre avec un
+         transform actif devient le référentiel de positionnement de ses
+         descendants position:absolute — un élément centré à l'intérieur se
+         retrouverait centré sur le bloc du décompte (donc collé au numéro en
+         haut), pas sur l'écran entier. Même contournement que #cta-link. La
+         légende est désormais centrée à l'écran (demandé explicitement :
+         « centrer les consignes au centre de l'écran », le "20" reste en
+         haut) — voir #countdown-caption plus bas dans le CSS. -->
+    <p id="countdown-caption"></p>
     <button id="skip-countdown" type="button">Passer l'intro →</button>
 
     <!-- Écran de fin : MÊME carte .panel que les étapes du menu (demandé —

@@ -758,6 +758,44 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
     risquer de figer l'onglet (voir piège n°1, §10). **Prochaine chose à confirmer en vrai, sur
     téléphone.**
 
+- **Septième lot, même jour, sur nouvelle demande directe** (retours après un premier essai sur
+  téléphone) :
+  - **Décompte : voile assombri + légende recentrée à l'écran** (`index.html`). ⚠️ Piège rencontré
+    une seconde fois : `#countdown-caption` a dû sortir de `#countdown` pour se centrer sur
+    l'écran entier plutôt que sur le bloc du décompte — même raison que `#skip-countdown`
+    (`.view.active` porte un `transform` d'animation, qui devient le référentiel de tout
+    descendant `position:absolute`, voir plus haut ce même lot). Comme elle n'est plus protégée
+    par `display:none` via `.view`, sa visibilité passe désormais par
+    `#overlay.countdown-view #countdown-caption { display: block }`, même technique que
+    `#menu-title`.
+  - **Joueur (`player.js`) : roue arrière élargie 5 → 8 px** (se lisait à peine derrière les
+    jambes) **+ jambes qui s'écartent latéralement en pédalant** (`drawLeg` prend un paramètre
+    `swing`, en plus de `lift`) — retour direct : « mes pieds ne bougent pas dans le vide, il faut
+    une roue de vélo et des jambes qui pédalent sur le côté ».
+  - **Bâtiments : seuils de détail par taille écran abaissés** (`WINDOW_MIN_PX` 9→6,
+    `DORMER_MIN_ROOF_PX` 14→8, seuils de balcon/bandeau 16→11, bossage 20→14) **+ `FADE_BAND`
+    16→36** (`world.js`) : retour « les bâtiments chargent très tard, trop proche de mon joueur,
+    je vois les lignes apparaître au fur et à mesure ». Diagnostic : la cause principale n'était
+    pas le fondu d'apparition (déjà loin de la caméra, z∈[103,119]) mais les seuils de détail
+    eux-mêmes, qui ne se déclenchent qu'à une taille écran donnée — donc relativement PRÈS de la
+    caméra vu la projection en perspective — faisant "poper" fenêtres/lucarnes/balcons un par un
+    juste devant le joueur. Seuils abaissés pour que le détail arrive pendant que le bâtiment est
+    encore loin.
+  - **Flou de mouvement autour de la ligne d'arrivée** (`main.js`, `finishBlur()`) : monte en
+    fondu sur `FINISH_BLUR_WINDOW` = 3 s de part et d'autre de `entities.finishTime()`, plafonne à
+    3,5 px pile sur la ligne. Appliqué au même `ctx.filter` que le flou de changement de voie
+    (`Math.max` des deux, pas de cumul) — reste bon marché : seul le sprite du joueur est flouté,
+    jamais la scène entière.
+  - **Menu Pause grossi de 20 %** (`transform: scale(1.2)` sur `#pause-screen .panel`,
+    `index.html`) **+ score/cœurs du HUD grossis de 20 %** (`SCORE_SIZE` 26→31, `HEART_SIZE`
+    20→24, `HEART_GAP` 8→10, `hud.js`) — ancrages (`PAD`) inchangés, seules les tailles bougent.
+  - Vérifié : `npm run build` propre après chaque changement. Preview navigateur bloquée cette
+    session (même symptôme, voir §12) — **aucun de ces changements vu tourner**, y compris ceux
+    qui ne dépendent pas de l'audio (bâtiments, menu pause) : la vérification par bascule de
+    classes CSS en console (utilisée pour la palette des menus, cinquième/sixième lot) n'a pas pu
+    être retentée cette fois faute de temps de session. **Tout est à confirmer au prochain test
+    réel.**
+
 ---
 
 ## 12. Comment tester

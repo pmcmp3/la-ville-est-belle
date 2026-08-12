@@ -51,11 +51,16 @@ function heartPath(c, x, y, s) {
 // (les deux partageaient une même colonne dimensionnée par le score) devient
 // structurellement impossible, plus besoin de réserver un gabarit de chiffres.
 const PAD = 16;
-const SCORE_SIZE = 26;
-// Cœurs agrandis (demandé explicitement : « pour que les gens comprennent
-// qu'ils ont trois cœurs ») — 13 → 20px, nettement plus lisible d'un regard.
-const HEART_SIZE = 20;
-const HEART_GAP = 8;
+// Score + cœurs grossis de 20 % le 12 août 2026 (demandé explicitement,
+// « leur place est très bien » — donc PAD inchangé, seules les tailles
+// bougent : le score reste ancré à `width/2, PAD`, la rangée de cœurs reste
+// ancrée à `width - PAD` par la droite, voir plus bas).
+const SCORE_SIZE = 31;   // 26 → 31 (+20 %)
+// Cœurs déjà agrandis une première fois (demandé explicitement : « pour que
+// les gens comprennent qu'ils ont trois cœurs ») — 13 → 20px. Puis +20 % le
+// 12 août 2026, même demande que le score.
+const HEART_SIZE = 24;   // 20 → 24 (+20 %)
+const HEART_GAP = 10;    // 8 → 10 (+20 %, garde le même rythme visuel)
 const HUD_SHADOW = "rgba(0,0,0,0.5)";
 const HUD_SHADOW_BLUR = 6;
 

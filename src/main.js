@@ -54,6 +54,23 @@ const LANE_BLUR_SPEED_BOOST = 4.5; // px ajoutés progressivement jusqu'à vites
 function laneBlurMax() {
   return LANE_BLUR_BASE + LANE_BLUR_SPEED_BOOST * road.getSpeedRatio();
 }
+
+// Flou de mouvement supplémentaire autour de la ligne d'arrivée (demandé
+// explicitement le 12 août 2026 : « augmente le flou de mouvement à partir du
+// moment où je suis très, très proche de l'arrivée »). Monte en fondu à
+// l'approche, plafonne pile sur la ligne, redescend pendant la séquence de
+// fin (voir finishing.active plus bas) — même fenêtre des deux côtés plutôt
+// qu'un pic asymétrique, pour rester simple. Indépendant du flou de
+// changement de voie ci-dessus (le max des deux est pris, voir
+// renderPlayer()) : les deux ne se cumulent pas, ils se complètent.
+const FINISH_BLUR_WINDOW = 3; // s de part et d'autre de la ligne
+const FINISH_BLUR_MAX = 3.5;  // px, au plus fort (pile sur la ligne)
+function finishBlur(now) {
+  const remaining = entities.finishTime() - now;
+  const t = Math.abs(remaining) / FINISH_BLUR_WINDOW;
+  if (t >= 1) return 0;
+  return FINISH_BLUR_MAX * (1 - t);
+}
 const PEDAL_BOB = 0.05;     // amplitude du rebond de pédalage, en unités-monde
 // Calé pour ~0,125 s par frame du cycle de pédalage (4 frames, player.js) à
 // la vitesse de départ (BASE_SPEED × vitesseBase = 11 u/s) — 2x plus rapide
@@ -1227,7 +1244,8 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
   // bon marché ici : il ne s'applique qu'au sprite (26×34 mis à l'échelle),
   // jamais à toute la scène.
   const blurCap = laneBlurMax();
-  const blurPx = Math.min(blurCap, (Math.abs(playerState.vx) / LATERAL_SPEED) * blurCap);
+  const laneBlurPx = Math.min(blurCap, (Math.abs(playerState.vx) / LATERAL_SPEED) * blurCap);
+  const blurPx = Math.max(laneBlurPx, finishBlur(clock.now()));
   if (blurPx > 0.05) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   player.renderPickupGlow(ctx, p.x, p.y - hop - bob, p.scale, pickupFlash);
   player.render(ctx, p.x, p.y - hop - bob, p.scale, renderLean, renderPedalPhase);

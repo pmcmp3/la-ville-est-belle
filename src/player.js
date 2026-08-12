@@ -69,8 +69,14 @@ function groundShadow(ctx, x, groundY, w) {
 // face avec ses crampons en quinconce) mais sa TRANCHE — un bloc étroit et
 // haut, sans crampons visibles par le côté. Bande claire fine au centre :
 // même intention que l'ancien reflet de jante en ellipse, traduite en bloc.
+// ⚠️ Élargie 5 → 8 px (12 août 2026, retour direct : « mes pieds ne bougent
+// pas dans le vide, on ne voit pas que je suis sur un vélo ») : à 5 px elle
+// était presque entièrement recouverte par les jambes qui pédalent devant
+// (voir drawLeg), donc quasi invisible en jeu malgré l'ordre de peinture
+// roue→jambes. Assez large maintenant pour dépasser des deux côtés des
+// jambes (étroites, 4-5 px) même jambes écartées.
 function wheelEdge(ctx, cx, yTop, yBot) {
-  const w = 5;
+  const w = 8;
   blk(ctx, cx - w / 2, yTop, w, yBot - yTop, PAL.tire);
   blk(ctx, cx - 1, yTop + 2, 2, yBot - yTop - 4, PAL.rimHi);
 }
@@ -88,15 +94,19 @@ function hair(ctx, cx) {
 }
 
 // Mollet + pied d'une jambe, remontés de `lift` px (genou plus ou moins
-// plié). Les 4 frames du cycle de pédalage (PEDAL_FRAMES ci-dessous) ne sont
-// qu'une paire (liftGauche, liftDroite) différente à chaque fois — sans cette
-// variation, le personnage ne fait que tanguer d'un bloc, comme posé sur une
-// trottinette plutôt qu'à vélo. Semelle claire en pied de chaussure :
+// plié) ET décalés de `swing` px sur le côté. Les 4 frames du cycle de
+// pédalage (PEDAL_FRAMES ci-dessous) ne sont qu'une paire (lift, swing)
+// différente par jambe à chaque fois — `lift` seul ne faisait que tanguer le
+// personnage d'un bloc, comme posé sur une trottinette plutôt qu'à vélo
+// (retour direct : « mes jambes pédalent un peu sur le côté »). `swing`
+// écarte les jambes l'une de l'autre en milieu de course (genou remonté) et
+// les resserre en bas de course, pour lire "mouvement circulaire de pédale"
+// plutôt qu'un simple rebond vertical. Semelle claire en pied de chaussure :
 // contraste avec la roue derrière, pour bien lire "pied" et pas "roue".
-function drawLeg(ctx, calfX, footX, lift) {
-  blk(ctx, calfX, 31 - lift, 4, 3, PAL.pantsLo);
-  blk(ctx, footX, 33 - lift, 5, 1, PAL.shoe);
-  blk(ctx, footX, 34 - lift, 5, 1, PAL.shoeSole);
+function drawLeg(ctx, calfX, footX, lift, swing) {
+  blk(ctx, calfX + swing, 31 - lift, 4, 3, PAL.pantsLo);
+  blk(ctx, footX + swing, 33 - lift, 5, 1, PAL.shoe);
+  blk(ctx, footX + swing, 34 - lift, 5, 1, PAL.shoeSole);
 }
 
 // "Penché en avant" : buste tassé et plus large (épaules hunchées), prise de
@@ -110,7 +120,7 @@ function drawLeg(ctx, calfX, footX, lift) {
 // presque toute la roue) pour la laisser apparaître clairement en dessous,
 // comme un vrai arrière-plan — ordre de peinture : roue → cadre → cheveux →
 // torse → bras/guidon → bassin/short → jambes.
-function draw(ctx, liftLeft, liftRight) {
+function draw(ctx, liftLeft, liftRight, swingLeft, swingRight) {
   wheelEdge(ctx, 13, 21, 34);
   blk(ctx, 12, 19, 3, 3, PAL.frame);  // selle
   blk(ctx, 12, 16, 3, 5, PAL.frame);  // tube de selle
@@ -134,17 +144,17 @@ function draw(ctx, liftLeft, liftRight) {
   blk(ctx, 8, 20, 10, 4, PAL.green);  // bassin
   blk(ctx, 9, 24, 8, 5, PAL.pants);   // short
 
-  drawLeg(ctx, 9, 9, liftLeft);
-  drawLeg(ctx, 12, 12, liftRight);
+  drawLeg(ctx, 9, 9, liftLeft, swingLeft);
+  drawLeg(ctx, 12, 12, liftRight, swingRight);
 }
 
-function makeSprite(liftLeft, liftRight) {
+function makeSprite(liftLeft, liftRight, swingLeft, swingRight) {
   const c = document.createElement("canvas");
   c.width = SPRITE_W;
   c.height = SPRITE_H;
   const cctx = c.getContext("2d");
   cctx.imageSmoothingEnabled = false;
-  draw(cctx, liftLeft, liftRight);
+  draw(cctx, liftLeft, liftRight, swingLeft, swingRight);
   return c;
 }
 
@@ -152,11 +162,14 @@ function makeSprite(liftLeft, liftRight) {
 // fois. render() choisit celle qui correspond à la phase courante. Gardé à 4
 // frames (pas 2 comme les cyclistes) : c'est déjà le rendu le plus fluide
 // pour le personnage qu'on regarde en continu, pas de raison de dégrader.
+// swing : la jambe remontée (genou plié) s'écarte d'1 px vers l'extérieur,
+// celle en bas de course se resserre d'autant vers l'axe — dans les deux
+// frames de transition (genoux à mi-hauteur), les jambes reviennent alignées.
 const PEDAL_FRAMES = [
-  makeSprite(3, 0), // jambe gauche en haut, droite en bas
-  makeSprite(2, 1), // transition
-  makeSprite(0, 3), // jambe droite en haut, gauche en bas
-  makeSprite(1, 2), // transition (retour)
+  makeSprite(3, 0, -1, 1),  // jambe gauche en haut, droite en bas
+  makeSprite(2, 1, 0, 0),   // transition
+  makeSprite(0, 3, 1, -1),  // jambe droite en haut, gauche en bas
+  makeSprite(1, 2, 0, 0),   // transition (retour)
 ];
 
 // Dessine le sprite dans `ctx`, ancré par le bas (contact roue/sol) au point

@@ -123,12 +123,21 @@ const SIDE_SHADE = 0.68;
 // une atmosphère cohérente sur toute la scène.
 
 const ROOF_RATIO = 0.22;        // fraction de la hauteur (monde) occupée par le toit mansardé
-const WINDOW_MIN_PX = 9;        // sous cette largeur/hauteur écran, pas de fenêtres (trop petit pour se lire)
+// ⚠️ Seuils de détail abaissés le 12 août 2026 (retour direct : « les
+// bâtiments chargent très tard [...] je vois les lignes des bâtiments
+// apparaître au fur et à mesure, on dirait que le jeu n'a pas chargé »).
+// Chaque détail (fenêtres, lucarnes, balcons, bossage) n'apparaît qu'à partir
+// d'une taille écran minimale — pensé à l'origine pour rester lisible, mais
+// ça fait aussi POPER les détails un par un tard, tout près du joueur, ce qui
+// se lit comme du contenu qui finit de charger plutôt qu'un effet de
+// distance voulu. Seuils réduits pour que les bâtiments arrivent déjà
+// détaillés bien avant d'être proches (à confirmer visuellement, voir §12).
+const WINDOW_MIN_PX = 6;        // sous cette largeur/hauteur écran, pas de fenêtres (trop petit pour se lire) — 9 → 6
 // Lucarnes (dormer windows) : LE détail qui fait "toit mansardé parisien"
 // plutôt que "toit en pente générique" — sans elles le toit n'était qu'un
 // aplat sombre. Une par façade assez large, jamais sur le retour d'angle
 // (trop étroit pour rester lisible).
-const DORMER_MIN_ROOF_PX = 14;
+const DORMER_MIN_ROOF_PX = 8; // 14 → 8
 
 // Hash déterministe : un bâtiment garde toujours la même forme/teinte au
 // même endroit (sinon ça scintille en boucle quand on repasse dessus).
@@ -287,7 +296,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       // hash) — retour du 12 août 2026 avec les références Minecraft/
       // Haussmann : les façades montrées ont une ferronnerie quasi continue
       // sous chaque rangée de fenêtres, pas juste un ou deux étages isolés.
-      if (isFacade && !isGround && wallW > 16) {
+      if (isFacade && !isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
         const railY = rowY + winH + cellH * 0.06;
         ctx.fillStyle = balconyColor;
         ctx.fillRect(wallLeft + marginX * 0.4, railY, wallW - marginX * 0.8, Math.max(1, wallH * 0.012));
@@ -301,7 +310,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       // visuellement "commerce" et "étages" — un des repères les plus lisibles
       // d'une façade haussmannienne à cette échelle (retour direct : « revois
       // la manière dont c'est fait [...] immeuble parisien »).
-      if (isGround && wallW > 16) {
+      if (isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
         ctx.fillStyle = bandeauColor;
         ctx.fillRect(wallLeft, rowY - cellH * 0.06, wallW, Math.max(1, wallH * 0.012));
       }
@@ -360,7 +369,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     // sombre sur les deux arêtes verticales du mur, sur la hauteur des 2
     // premiers étages — signature très reconnaissable des références
     // envoyées, absente jusqu'ici (le mur était uni jusqu'en bas).
-    if (wallW > 20) {
+    if (wallW > 14) { // seuil abaissé 20 → 14, voir WINDOW_MIN_PX plus haut
       const quoinRows = Math.min(rows, 2);
       const quoinH = quoinRows * cellH + marginY;
       const quoinW = Math.min(wallW * 0.07, 6);
@@ -467,7 +476,13 @@ function faceCorners(xA, zA, xB, zB, wallHeight, roofHeight, width, height) {
 // matérialiser le bâtiment depuis la brume au lieu d'un pop-in. Toujours
 // dans la plage de projection valide (jamais z > HORIZON_Z, voir le culling
 // juste en dessous) — seule l'opacité change, pas la géométrie.
-const FADE_BAND = 16;
+// ⚠️ 16 → 36 le 12 août 2026 (même retour, une seconde fois : « les bâtiments
+// chargent très tard [...] trop proche de mon joueur »). La cause principale
+// mesurée était ailleurs (les seuils de détail par taille écran, voir
+// WINDOW_MIN_PX plus haut — fenêtres/lucarnes/balcons qui popent un par un
+// près du joueur), mais élargir aussi cette bande rend le tout début de
+// matérialisation plus doux et plus loin, en cohérence.
+const FADE_BAND = 36;
 
 // --- Feux de circulation, aux croisements -----------------------------------
 // Demandé le 12 août 2026 avec les croisements (« tu peux rajouter des feux
