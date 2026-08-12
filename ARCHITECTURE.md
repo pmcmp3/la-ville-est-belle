@@ -436,11 +436,13 @@ toit/faîtage zinc bleuté → brun chaud, corniche blanc cassé → crème dor�
 noir → bleu nuit indigo (contraste chaud/froid direct avec la référence), un des trois volets
 (gris ardoise, seule teinte froide de la palette) → cuivre. `WINDOW_LIT` (orange-rouge de charte)
 non touché — c'est un choix de DA antérieur, pas lié à cette référence.
-⚠️ Non vérifiée visuellement (preview navigateur a de nouveau refusé toute navigation vers le
-serveur de dev cette session — même symptôme que le 12 août 2026, voir §12) — seul `npm run
-build` a été vérifié (propre, mêmes avertissements inoffensifs qu'avant). À confirmer au
-prochain test réel. Changement à faible risque techniquement (constantes de couleur seules,
-aucune logique de rendu/placement touchée) mais **jamais vu à l'écran**.
+⚠️ La preview navigateur a de nouveau refusé toute navigation vers le serveur de dev cette
+session (même symptôme que le 12 août 2026, voir §12), donc pas de vérification locale possible.
+**Vérifiée en revanche sur le miroir GitHub Pages en prod, juste après le déploiement** (écran
+d'accueil, rue vue de dos) : pierre rosée/dorée, fenêtres bleu nuit, corniche crème, auvents —
+lisible et cohérent avec l'ambiance couchant. Reste à confirmer sur le site Netlify officiel
+(pas encore redéployé à cette date, voir CLAUDE.md/§9 — le déploiement GitHub ne le met pas à
+jour automatiquement) et par l'artiste directement.
 
 ---
 
