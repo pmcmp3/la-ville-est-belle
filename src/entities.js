@@ -252,12 +252,34 @@ const OBSTACLE_WEIGHTS = [
 // pickWeighted() plus bas). Table précalculée une seule fois au chargement.
 const CYCLIST_BOOST_SCORE = 10000;
 const CYCLIST_BOOST_FACTOR = 2;
-function scaleWeight(list, kind, factor) {
-  const scaled = list.map((item) => (item.kind === kind ? { kind, weight: item.weight * factor } : item));
+function scaleWeights(list, factors) {
+  const scaled = list.map((item) => (factors[item.kind] ? { kind: item.kind, weight: item.weight * factors[item.kind] } : item));
   const total = scaled.reduce((sum, item) => sum + item.weight, 0);
   return scaled.map((item) => ({ kind: item.kind, weight: item.weight / total }));
 }
-const BOOSTED_OBSTACLE_WEIGHTS = scaleWeight(OBSTACLE_WEIGHTS, "cycliste", CYCLIST_BOOST_FACTOR);
+const BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, { cycliste: CYCLIST_BOOST_FACTOR });
+
+// Intensification voitures/vélos à partir de 1:30 de course (demandé
+// explicitement le 13 août 2026, retour ami). Déclenchée par le TEMPS écoulé
+// (contrairement au boost vélo ci-dessus, déclenché par le SCORE) : c'est
+// donc, comme le reste de ce fichier, une fonction pure de slotIndex — pas
+// besoin d'un setter côté main.js. CAR_TIME_BOOST_SLOT convertit 90 s en
+// index de créneau via la même conversion temps→battement→créneau que
+// TOTAL_OBJECTS plus haut. « un petit peu plus de cyclistes » : facteur
+// modeste (1,3×), à ne pas confondre avec le doublement du score-boost — les
+// deux se cumulent si score ET temps sont franchis (vélo jusqu'à ×2,6).
+const CAR_TIME_BOOST_TIME_S = 90; // 1:30
+const CAR_TIME_BOOST_SLOT = Math.floor(clock.beatIndexAt(CAR_TIME_BOOST_TIME_S) / CADENCE);
+const CAR_TIME_BOOST_FACTOR = 2;
+const CYCLIST_TIME_BOOST_FACTOR = 1.3;
+const TIME_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
+  voiture: CAR_TIME_BOOST_FACTOR,
+  cycliste: CYCLIST_TIME_BOOST_FACTOR,
+});
+const TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
+  voiture: CAR_TIME_BOOST_FACTOR,
+  cycliste: CYCLIST_TIME_BOOST_FACTOR * CYCLIST_BOOST_FACTOR,
+});
 
 // Score de la partie en cours, pour la même raison que currentScore plus bas
 // dans ce fichier n'existe pas déjà : c'est la seule donnée de ce module qui
@@ -526,7 +548,15 @@ function computeRawSlotContent(slotIndex) {
   if (OPENING_KIND_OVERRIDE[slotIndex]) {
     return { isBonus: false, kind: OPENING_KIND_OVERRIDE[slotIndex] };
   }
-  const weights = currentScore >= CYCLIST_BOOST_SCORE ? BOOSTED_OBSTACLE_WEIGHTS : OBSTACLE_WEIGHTS;
+  const timeBoost = slotIndex >= CAR_TIME_BOOST_SLOT;
+  const scoreBoost = currentScore >= CYCLIST_BOOST_SCORE;
+  const weights = timeBoost && scoreBoost
+    ? TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS
+    : timeBoost
+    ? TIME_BOOSTED_OBSTACLE_WEIGHTS
+    : scoreBoost
+    ? BOOSTED_OBSTACLE_WEIGHTS
+    : OBSTACLE_WEIGHTS;
   const kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));

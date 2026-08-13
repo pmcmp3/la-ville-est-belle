@@ -66,6 +66,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
     risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
     voie. Choc fatal comme la voiture (`game.lives = 0` dans `main.js`), pas seulement −1 vie.
+  - ⚠️ **Intensification voitures/vélos à 1:30 de course** (demandé le 13 août 2026, retour ami) :
+    à partir de **90 s** (`CAR_TIME_BOOST_TIME_S`, `entities.js`), le poids `voiture` double et le
+    poids `cycliste` est multiplié par 1,3 (« un petit peu plus »), puis la table est renormalisée.
+    Déclenché par le TEMPS écoulé, contrairement au boost vélo à 10 000 points ci-dessus (déclenché
+    par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au modèle décrit
+    en `ARCHITECTURE.md` §5.2. Les deux boosts vélo se cumulent si score ET temps sont franchis
+    (jusqu'à ×2,6).
 - **200 étoiles exactement** par partie : le score maximum doit être un nombre connu — inchangé
   malgré le raccourcissement du parcours (205 s au lieu de 257 s) : c'est `TOTAL_OBSTACLES` qui
   encaisse, mécaniquement plus bas (voir `ARCHITECTURE.md` §5.4).
