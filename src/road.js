@@ -14,11 +14,23 @@ export const PLAYER_NEAR_Z = 13;   // profondeur à laquelle se tient le joueur 
 // sur la voie 1, soit 2, soit 3, soit 4 — jamais entre deux voies ni en dehors
 // de la route ». Tout le jeu (joueur, étoiles, voitures, bus, piétons) se
 // positionne désormais sur un INDEX de voie, plus sur un x continu.
-// La chaussée fait ROAD_HALF_WIDTH × 2 = 8 unités → 4 voies de 2 unités,
-// centres à -3, -1, +1, +3. C'est la source unique : road.js dessine les
-// séparateurs à partir des mêmes valeurs, donc les objets tombent forcément
-// au milieu du couloir qu'on voit à l'écran.
-export const LANE_COUNT = 4;
+// La chaussée fait ROAD_HALF_WIDTH × 2 = 8 unités, divisées en LANE_COUNT
+// voies égales. C'est la source unique : road.js dessine les séparateurs à
+// partir des mêmes valeurs, donc les objets tombent forcément au milieu du
+// couloir qu'on voit à l'écran.
+// 4 → 3 le 17 août 2026 (demandé explicitement). LANE_COUNT est LA seule
+// source : tout le reste du jeu (main.js, entities.js, entities-render.js)
+// s'y réfère par `road.LANE_COUNT`/`road.laneX()`, jamais par un "4" en dur —
+// sauf UN endroit qui supposait implicitement LANE_COUNT ≥ 4 : les rangées de
+// voitures pouvaient tirer un "kind: 3" (3 voitures de front), ce qui à 3
+// voies aurait occupé LES 3 voies à la fois — plus aucune voie de passage,
+// l'invariant documenté plus bas dans entities.js (« jamais les LANE_COUNT
+// voies à la fois ») aurait été violé. Corrigé dans entities.js : ce palier
+// est retiré (son poids rejoint la rangée de 2). Route physique inchangée
+// (ROAD_HALF_WIDTH reste 4) : 3 voies plus LARGES (2 → 2,67 unités) plutôt
+// qu'une route rétrécie — aucun autre objet (sol, façades, portique
+// d'arrivée) n'est ancré sur LANE_COUNT, tous le sont sur ROAD_HALF_WIDTH.
+export const LANE_COUNT = 3;
 export const LANE_WIDTH = (ROAD_HALF_WIDTH * 2) / LANE_COUNT; // 2 unités
 export function laneX(lane) {
   return (lane - (LANE_COUNT - 1) / 2) * LANE_WIDTH;
@@ -78,7 +90,9 @@ const SPEED_SMOOTHING = 3;  // vitesse de rattrapage de currentSpeed vers sa cib
 // « accélère un peu plus l'accélération », +20 % — le TAUX d'accélération
 // (1/temps de doublement) monte de 20 %, donc le temps de doublement est
 // divisé par 1,2 : 90 → 68 (playtest précédent) → 68/1,2 ≈ 57.
-const SPEED_DOUBLING_TIME = 57;
+// « ça doit s'accélérer 30 % plus vite » (17 août 2026) : même principe,
+// divisé par 1,3 cette fois — 57/1,3 ≈ 43,8.
+const SPEED_DOUBLING_TIME = 43.8;
 // Démarrage progressif (retour explicite : « on part de 0 km/h et on va à 5,
 // puis 7, puis 10... puis vitesse constante » — vitesseBase démarrait déjà
 // lancé, sans montée en régime perceptible). Voir update().
@@ -179,9 +193,10 @@ const lineGradient = buildHazeGradient("#ffffff");
 const crossingGradients = ["#d8d2c6", "#8f8879"].map((hex) => buildHazeGradient(hex));
 
 // --- Caméra qui suit latéralement ------------------------------------------
-// Avec 4 voies sur une chaussée de 8 unités, les voies extérieures tombent
-// hors de l'écran à la profondeur du joueur (constaté à l'écran : le sprite
-// sortait à moitié du cadre sur la voie 4). Plutôt que de rétrécir la route —
+// Avec les voies extérieures d'une chaussée de 8 unités, elles tombent
+// hors de l'écran à la profondeur du joueur (constaté à l'écran, à 4 voies :
+// le sprite sortait à moitié du cadre sur la voie la plus extérieure).
+// Plutôt que de rétrécir la route —
 // ce qui aurait obligé à réduire toutes les tailles d'objets déjà réglées au
 // playtest — la caméra se décale latéralement vers le joueur, comme dans un
 // Subway Surfers. Bonus : la ville défile légèrement de côté quand on change

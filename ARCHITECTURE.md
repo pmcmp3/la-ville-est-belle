@@ -178,7 +178,8 @@ d'ouverture. Un seul créneau déplacé sur 143 obstacles, quota global inchang�
 
 ### 5.4 Le quota exact par diffusion d'erreur
 
-Contrainte produit : **exactement 200 étoiles par partie**, pour que le score maximum soit un
+Contrainte produit : **exactement 140 étoiles par partie** (200 avant le 17 août 2026 — réduit à
+la même proportion que `dureeCourse`, voir plus bas), pour que le score maximum soit un
 nombre connu et que « tout prendre » soit l'objectif.
 
 Un tirage probabiliste (`hash(slot) < ratio`) est déterministe mais ne donne pas un total rond.
@@ -187,28 +188,40 @@ accumule le ratio cible créneau après créneau, et un créneau est une étoile
 franchir un palier entier. Le total vaut alors exactement `floor(somme des ratios)`.
 
 ```
-TOTAL_STARS      = 200   ← LE réglage central (score max = 30 900, mesuré), inchangé
-TOTAL_OBJECTS    = 273   ← dérivé de dureeCourse (12 août 2026, deuxième révision)
-TOTAL_OBSTACLES  = 73    ← ce qui reste
+TOTAL_STARS      = 140   ← LE réglage central, réduit ×0,7 le 17 août 2026 avec dureeCourse (200 avant)
+TOTAL_OBJECTS    = 191   ← dérivé de dureeCourse (143,5 s depuis le 17 août 2026)
+TOTAL_OBSTACLES  = 51    ← ce qui reste
 ```
 
-⚠️ **Deuxième révision de la longueur du parcours, même jour** : la ligne d'arrivée n'est plus
-calée sur la fin du morceau mais sur `config.dureeCourse` (205 s = « 03:25 », demandé
-explicitement), un réglage **séparé** de `dureeMorceau` (257,9 s, la durée réelle du MP3). Le
-morceau continue de jouer après la ligne, jusqu'à sa fin réelle — l'écran de fin/le classement
-s'affichent avec ~53 s de morceau encore devant eux, ce qui sert directement l'objectif "donner
-envie d'écouter le morceau". `TOTAL_OBJECTS` dérive donc de `dureeCourse`, pas de `dureeMorceau`
-(`entities.js`). Avant cette révision (même jour) : 343 créneaux calés sur `dureeMorceau`
-(257,3 s) ; avant elle, 300 créneaux/225 s à la main, la musique continuant 33 s après la ligne.
-**`pauseDeriveMax` remonté de 8 s à 25 s** (`config.js`) : la marge morceau/course qui avait
-disparu (257,3 s de course pour 257,9 s de musique) est revenue en force (~53 s) avec ce
-changement.
+⚠️ **Deuxième révision de la longueur du parcours (12 août 2026)** : la ligne d'arrivée n'est plus
+calée sur la fin du morceau mais sur `config.dureeCourse`, un réglage **séparé** de `dureeMorceau`
+(257,9 s, la durée réelle du MP3). Le morceau continue de jouer après la ligne, jusqu'à sa fin
+réelle — l'écran de fin/le classement s'affichent avec du morceau encore devant eux, ce qui sert
+directement l'objectif "donner envie d'écouter le morceau". `TOTAL_OBJECTS` dérive donc de
+`dureeCourse`, pas de `dureeMorceau` (`entities.js`). Avant cette révision (même jour) : 343
+créneaux calés sur `dureeMorceau` (257,3 s) ; avant elle, 300 créneaux/225 s à la main, la musique
+continuant 33 s après la ligne. **`pauseDeriveMax` remonté de 8 s à 25 s** (`config.js`) : la
+marge morceau/course qui avait disparu (257,3 s de course pour 257,9 s de musique) est revenue en
+force avec ce changement.
 
-`TOTAL_STARS` reste fixé à 200 (décision verrouillée : score max = nombre connu) alors que
-`TOTAL_OBJECTS` baisse fortement (343→273, −20 %) : `TOTAL_OBSTACLES` encaisse tout le
-raccourcissement (143→73, −49 %) — la course est plus courte ET nettement moins dense en
-obstacles à quota d'étoiles égal. Si la densité de danger doit revenir à ce qu'elle était, c'est
-`TOTAL_STARS` qu'il faudrait revoir à la baisse (pas fait ici : non demandé).
+⚠️ **Troisième révision, 17 août 2026** : `dureeCourse` 205 → 143,5 s (×0,7, « course trop
+longue », demandé explicitement) — ~114 s de marge avant la fin réelle du morceau désormais,
+contre ~53 s après la révision du 12 août. Contrairement à cette révision-là (qui avait laissé
+`TOTAL_STARS` fixe pendant que `TOTAL_OBJECTS` baissait, voir juste en dessous), `TOTAL_STARS` a
+cette fois été réduit **à la même proportion** (200 → 140) — précisément pour ne pas reproduire le
+bug de dérivation décrit plus bas (`BONUS_RATIO_START` qui dépasse 1 quand le quota ne baisse pas
+avec le nombre de créneaux). `TOTAL_OBJECTS` 273 → 191, `TOTAL_OBSTACLES` 73 → 51 (même
+proportion ×0,7 partout) : la densité de danger par créneau ne change donc pas par ce changement
+seul — voir `BONUS_RATIO_END` plus bas pour le changement séparé qui, lui, redistribue QUAND les
+obstacles arrivent dans la course. Vérifié par balayage hors ligne (méthode §12, tous les
+`slotIndex` de 0 à 190 énumérés via `slotsFor()`) : exactement 140 étoiles / 51 obstacles, 0 trou.
+
+`TOTAL_STARS` était resté fixé à 200 après la révision du 12 août (décision verrouillée à
+l'époque : score max = nombre connu) alors que `TOTAL_OBJECTS` baissait fortement (343→273,
+−20 %) : `TOTAL_OBSTACLES` encaissait tout le raccourcissement (143→73, −49 %) — la course
+devenait plus courte ET nettement moins dense en obstacles à quota d'étoiles égal. Le paragraphe
+d'alors notait déjà : « si la densité de danger doit revenir à ce qu'elle était, c'est
+`TOTAL_STARS` qu'il faudrait revoir à la baisse ». **Fait le 17 août 2026** (voir ci-dessus).
 
 `BONUS_RATIO_START`/`BONUS_RATIO_END` sont **dérivés**, pas écrits à la main, pour que le quota
 tienne même si on retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
@@ -235,6 +248,15 @@ tienne même si on retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
 > curatée inclus) : voiture 39, cycliste 20, pieton 3, cone 4, pont 7 — échantillon beaucoup plus
 > petit qu'avant (73 obstacles contre 143), donc plus sensible au hasard du hash que les anciens
 > comptages ; à reconfirmer si `TOTAL_STARS`/`dureeCourse` rebougent.
+>
+> **Reconfirmé le 17 août 2026**, exactement comme prévu ci-dessus (`TOTAL_STARS`/`dureeCourse`
+> ont bougé) : 191 créneaux, **140 étoiles / 51 obstacles pile**, 0 trou dans les `slotIndex` —
+> aucun retour du bug. Distribution : voiture 33, cycliste 12, pieton 2, cone 0, pont 4 (`cone` à
+> 0 sur cet échantillon n'est pas un bug — 7 % de poids sur seulement 51 essais, variance normale
+> à cette taille d'échantillon, déjà signalée comme volatile ci-dessus). `BONUS_RATIO_END`
+> 0,92 → 0,84 le même jour (« plus d'obstacles quand ça avance », difficulté à doubler) : double la
+> part d'obstacles pile en fin de course (8 % → 16 %) sans changer `TOTAL_OBSTACLES` — `start` se
+> redérive automatiquement (~0,54 → ~0,62), la formule d'exact-quota n'a pas eu besoin d'y toucher.
 
 ### 5.5 La projection pseudo-3D est courbe, pas plate
 
@@ -254,21 +276,29 @@ Rien ne doit être dessiné au-delà : la projection s'y replierait. Tous les mo
 testent `z > HORIZON_Z` et sautent. Les objets « surgissent de derrière la courbe », ce qui est
 l'effet recherché.
 
-Repères : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 4`, donc une voie fait 2 unités.
+Repères : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 3` (4 avant le 17 août 2026), donc une voie fait
+2,67 unités (2 avant) — route physique inchangée, juste redécoupée en voies plus larges.
 `PLAYER_NEAR_Z = 13` (profondeur du joueur, fixe).
 
 ---
 
 ## 6. Gameplay — les chiffres actuels
 
-**Voies** : 4. La collision est un **test d'égalité de voie**, pas une distance latérale. C'est
-ce qui a réglé d'un coup « t'es short sur les hitbox » et « je peux rester entre deux voies
+**Voies** : 3 (4 avant le 17 août 2026, demandé explicitement — voir `road.js` pour le détail et
+le seul ajustement de logique que ça a exigé : les rangées de 3 voitures, qui auraient occupé les
+3 voies à la fois). La collision est un **test d'égalité de voie**, pas une distance latérale.
+C'est ce qui a réglé d'un coup « t'es short sur les hitbox » et « je peux rester entre deux voies
 indéfiniment ».
 
 **Rythme** : un objet tous les `cadenceSpawnBeats` = 1,5 temps, soit **0,75 s** à 120 BPM.
 
 **Vitesse** : `BASE_SPEED × vitesseBase` = 11 × 1,8 = **19,8 u/s** au départ, croissance
-exponentielle (doublement toutes les 57 s) plafonnée à `vitesseMax` = 6,0.
+exponentielle plafonnée à `vitesseMax` (`config.js`) = **9,0** (99 u/s) — 6,0 avant le 17 août
+2026, ×1,5 (« vitesse de fin », demandé explicitement). Doublement toutes les `SPEED_DOUBLING_TIME`
+(`road.js`) = **43,8 s** — 57 s avant, divisé par 1,3 (« accélère 30 % plus vite », même demande,
+même principe que les rampes précédentes : le TAUX d'accélération monte de 30 %, donc le temps de
+doublement est divisé par 1,3). Le plafond continue d'être atteint bien avant la ligne d'arrivée
+(vérifié par balayage hors ligne : ~103 s, contre `finishTime()` ≈ 143 s).
 
 **5 bonus** (le score est dans `config.js`) :
 
@@ -282,6 +312,16 @@ exponentielle (doublement toutes les 57 s) plafonnée à `vitesseMax` = 6,0.
 
 Les bonus aériens ne se ramassent **qu'en sautant**, avec une fenêtre de collision élargie
 (`Z_WINDOW_AIR = 2,2` contre `Z_WINDOW = 1,0`) — le timing du saut doit être tolérant.
+
+**Combo** (`comboMultiplier()`, `main.js`, ajouté le 17 août 2026) : `game.streak` compte les
+étoiles ramassées d'affilée depuis le dernier obstacle touché (tout obstacle, quel qu'il soit, le
+remet à 0 — voir la boucle d'événements dans `main.js`). Palier tous les `comboSeuil` (5,
+`config.js`) : `game.score += Math.round(points_du_bonus × (1 + comboBonusParPalier ×
+Math.floor(streak / comboSeuil)))` — 5 → ×1,5, 10 → ×2, 15 → ×2,5, etc. Ne s'applique JAMAIS à la
+pénalité de collision (`penaliteObstacle`), uniquement aux points de bonus. Affiché sous le score
+(`hud.js`, même position que le "-500" de pénalité — les deux ne sont jamais visibles en même
+temps dans les faits, puisqu'un obstacle remet `streak` à 0 au même instant où il déclenche la
+pénalité).
 
 **5 obstacles** (c'était 3, puis 4 avec la promotion du cycliste, voir plus bas). Poids revus le
 12 août 2026 (« beaucoup plus de gens qui font du vélo », « un peu plus de voiture »), puis
@@ -303,12 +343,11 @@ donc plus à lui, uniquement au piéton.
 
 `UNJUMPABLE_KINDS = {pieton}` : lui seul se contourne **latéralement uniquement**, `inAir` n'y
 change rien. Le pont n'est pas dans cet ensemble bien qu'infranchissable — sa branche de
-collision est dédiée (voir plus bas). Distribution mesurée sur les 273 créneaux (recensement hors
-ligne, voir §12, après le raccourcissement du parcours à `dureeCourse` = 205 s), après
-l'ouverture curatée (§5.3) : voiture 39, cycliste 20, pieton 3, cone 4, pont 7. Échantillon
-beaucoup plus petit qu'avant (73 obstacles contre 143 sur les 343 créneaux d'avant le
-raccourcissement) — plus sensible au hasard du hash, donc plus volatil d'une combinaison de
-réglages à l'autre ; à reconfirmer si `TOTAL_STARS`/`dureeCourse` rebougent.
+collision est dédiée (voir plus bas). Distribution mesurée sur les 191 créneaux actuels
+(`dureeCourse` = 143,5 s depuis le 17 août 2026) : voiture 33, cycliste 12, pieton 2, cone 0,
+pont 4 — voir §5.4 pour le détail complet et l'historique des révisions précédentes (273 puis
+343 créneaux). Échantillon petit et volatil par nature (51 obstacles au total) ; à reconfirmer si
+`TOTAL_STARS`/`dureeCourse` rebougent encore.
 
 ⚠️ **Intensification en fin de partie** (demandé explicitement le 12 août 2026 : « ×2 à partir de
 10 000 points ») : au-delà de `CYCLIST_BOOST_SCORE` (10 000 pts, `entities.js`), le poids

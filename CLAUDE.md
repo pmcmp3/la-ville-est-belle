@@ -40,12 +40,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   swipe haut = saut, swipe bas = glissade rapide. **Le gyroscope a été retiré** après plusieurs
   sessions à fiabiliser la permission iOS — ne pas le réintroduire.
 - Parcours **fini** : la ligne d'arrivée arrive quand le morceau atteint **`config.dureeCourse`
-  (205 s, "03:25")**, PAS à la fin du morceau — deuxième renversement du 12 août 2026 (même jour
-  que le premier : c'était d'abord 343 objets/257,3 s calé sur toute la durée du morceau, 257,9 s
-  de musique). Le morceau, lui, continue de jouer jusqu'à sa fin réelle (`dureeMorceau`) pendant
-  que le joueur est déjà sur l'écran de fin (~53 s de marge) — cohérent avec l'objectif "donner
-  envie d'écouter le morceau". `TOTAL_OBJECTS` (entities.js) dérive de `dureeCourse`, pas de
-  `dureeMorceau`. **120 BPM**, offset ~0,01 s.
+  (143,5 s, "02:23,5")**, PAS à la fin du morceau. 205 s → 143,5 s le 17 août 2026 (×0,7,
+  « course trop longue », demandé explicitement) — avant ça, deuxième renversement du 12 août
+  2026 (c'était d'abord 343 objets/257,3 s calé sur toute la durée du morceau, 257,9 s de
+  musique). Le morceau, lui, continue de jouer jusqu'à sa fin réelle (`dureeMorceau`) pendant
+  que le joueur est déjà sur l'écran de fin (~114 s de marge désormais, contre ~53 s avant) —
+  cohérent avec l'objectif "donner envie d'écouter le morceau". `TOTAL_OBJECTS` (entities.js)
+  dérive de `dureeCourse`, pas de `dureeMorceau`. **120 BPM**, offset ~0,01 s.
 - **3 vies**, **5 obstacles**, **5 bonus**.
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
@@ -66,16 +67,21 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
     risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
     voie. Choc fatal comme la voiture (`game.lives = 0` dans `main.js`), pas seulement −1 vie.
-  - ⚠️ **Intensification voitures/vélos à 1:30 de course** (demandé le 13 août 2026, retour ami) :
-    à partir de **90 s** (`CAR_TIME_BOOST_TIME_S`, `entities.js`), le poids `voiture` double et le
-    poids `cycliste` est multiplié par 1,3 (« un petit peu plus »), puis la table est renormalisée.
-    Déclenché par le TEMPS écoulé, contrairement au boost vélo à 10 000 points ci-dessus (déclenché
-    par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au modèle décrit
-    en `ARCHITECTURE.md` §5.2. Les deux boosts vélo se cumulent si score ET temps sont franchis
-    (jusqu'à ×2,6).
-- **200 étoiles exactement** par partie : le score maximum doit être un nombre connu — inchangé
-  malgré le raccourcissement du parcours (205 s au lieu de 257 s) : c'est `TOTAL_OBSTACLES` qui
-  encaisse, mécaniquement plus bas (voir `ARCHITECTURE.md` §5.4).
+  - ⚠️ **Intensification voitures/vélos à ~1/3 de course** (demandé le 13 août 2026, retour ami ;
+    facteurs intensifiés et seuil rescalé le 17 août 2026) : à partir de **63 s**
+    (`CAR_TIME_BOOST_TIME_S`, `entities.js` — 90 s à l'origine, rescalé ×0,7 avec `dureeCourse`
+    pour se déclencher au même moment RELATIF du parcours), le poids `voiture` est multiplié par
+    **2,5** (2 avant) et le poids `cycliste` par **1,6** (1,3 avant), puis la table est
+    renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost vélo à 10 000 points
+    ci-dessus (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une
+    exception au modèle décrit en `ARCHITECTURE.md` §5.2. Les deux boosts vélo se cumulent si
+    score ET temps sont franchis (jusqu'à **×3,2**, contre ×2,6 avant).
+- **140 étoiles exactement** par partie (200 avant le 17 août 2026) : le score maximum doit être
+  un nombre connu — réduit à la MÊME proportion que le raccourcissement du parcours (×0,7, 205 →
+  143,5 s) pour ne pas casser le calcul de quota exact (voir `entities.js`, `BONUS_RATIO_START`).
+  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut maintenant 51 (100 avant, voir
+  `ARCHITECTURE.md` §5.4) — la part d'obstacles en FIN de course a en plus été doublée
+  (`BONUS_RATIO_END` 0,92 → 0,84, « plus d'obstacles quand ça avance », demandé le 17 août 2026).
 - **Ligne d'arrivée en volume** (`finish.js`) : damier au sol + portique (deux pylônes + poutre à
   damier qui enjambe la route), façon Formule 1 — demandé explicitement le 12 août 2026 pour
   remplacer le simple damier plat d'origine.
@@ -83,6 +89,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
 - Image de partage **1080×1920 pixel art borne arcade 80s** — pas encore faite.
 - CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
+- **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
+  physique inchangée (`ROAD_HALF_WIDTH`), voies plus larges. Seul ajustement de logique exigé : les
+  rangées de 3 voitures (`entities.js`) auraient occupé les 3 voies à la fois, retirées.
+- **Combo** (demandé le 17 août 2026) : `comboSeuil`/`comboBonusParPalier` (`config.js`) — 5 étoiles
+  ramassées d'affilée (sans toucher d'obstacle entre-temps) → ×1,5 sur les points de bonus, 10 → ×2,
+  15 → ×2,5, etc. Remis à 0 au moindre obstacle touché. `main.js` (`comboMultiplier()`), affiché en
+  jeu sous le score (`hud.js`) quand actif.
 
 ## Assets
 

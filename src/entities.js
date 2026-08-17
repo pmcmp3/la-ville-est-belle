@@ -63,7 +63,14 @@ export const LEAD_IN =
 // atteindre — sous-entendu qu'il faut prendre toutes les étoiles »).
 // TOTAL_OBSTACLES fixe la difficulté en face (voitures tripées, voir plus
 // bas) ; TOTAL_OBJECTS (= la ligne d'arrivée) en découle.
-export const TOTAL_STARS = 200;
+// 200 → 140 le 17 août 2026 : dureeCourse a été raccourcie à 70 % (205 → 143,5
+// s, "course trop longue") — à quota FIXE, un parcours 30 % plus court aurait
+// laissé moins de créneaux totaux (TOTAL_OBJECTS) que d'étoiles à y caser,
+// rendant BONUS_RATIO_START > 1 (le cas dégénéré déjà rencontré une fois, qui
+// avait fait perdre une étoile en silence — voir isBonusQuota plus bas).
+// TOTAL_STARS baisse donc à la MÊME proportion (×0,7) pour garder la même
+// densité de jeu sur un parcours plus court, pas juste éviter le bug.
+export const TOTAL_STARS = 140;
 // ⚠️ Deuxième renversement (12 août 2026, même jour, retour ultérieur) : la
 // ligne d'arrivée n'est plus calée sur la fin du morceau (`dureeMorceau`) mais
 // sur `dureeCourse` (config.js, 205 s = "03:25"), un réglage séparé — demandé
@@ -138,10 +145,13 @@ const RAMP_SLOTS = TOTAL_OBJECTS - GRACE_SLOTS;
 // par créneau, et un créneau ne peut porter qu'UN SEUL objet — au-delà de 1,
 // un même créneau peut franchir plus d'un palier entier d'un coup, mais
 // l'étoile "en trop" n'a nulle part où se loger et disparaît en silence (voir
-// le bug ci-dessous). 0,92 plutôt que 1 pile : marge de sécurité + garde une
-// petite chance d'obstacle jusqu'au bout plutôt qu'une fin de course 100 %
-// étoiles.
-const BONUS_RATIO_END = 0.92;
+// le bug ci-dessous).
+// 0,92 → 0,84 le 17 août 2026 (« plus d'obstacles quand ça avance », difficulté
+// à doubler) : double la part d'obstacles pile en fin de course (8 % → 16 %),
+// sans changer TOTAL_OBSTACLES (fixe, = TOTAL_OBJECTS - TOTAL_STARS) — ça ne
+// fait que redistribuer LES MÊMES obstacles vers la fin plutôt que le début
+// (BONUS_RATIO_START se redérive automatiquement plus haut, voir plus bas).
+const BONUS_RATIO_END = 0.84;
 // BONUS_RATIO_START dérivé (pas une constante à la main) pour que la SOMME
 // EXACTE de la rampe (N·start + (end-start)·(N-1)/2, `t` = (i-GRACE)/N sur N
 // créneaux) retombe sur le quota d'étoiles restant — c'est ce qui garantit le
@@ -259,19 +269,27 @@ function scaleWeights(list, factors) {
 }
 const BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, { cycliste: CYCLIST_BOOST_FACTOR });
 
-// Intensification voitures/vélos à partir de 1:30 de course (demandé
-// explicitement le 13 août 2026, retour ami). Déclenchée par le TEMPS écoulé
-// (contrairement au boost vélo ci-dessus, déclenché par le SCORE) : c'est
-// donc, comme le reste de ce fichier, une fonction pure de slotIndex — pas
-// besoin d'un setter côté main.js. CAR_TIME_BOOST_SLOT convertit 90 s en
-// index de créneau via la même conversion temps→battement→créneau que
-// TOTAL_OBJECTS plus haut. « un petit peu plus de cyclistes » : facteur
-// modeste (1,3×), à ne pas confondre avec le doublement du score-boost — les
-// deux se cumulent si score ET temps sont franchis (vélo jusqu'à ×2,6).
-const CAR_TIME_BOOST_TIME_S = 90; // 1:30
+// Intensification voitures/vélos à partir d'1/3 de course écoulé (demandé
+// explicitement le 13 août 2026, retour ami — déclenché à l'origine à 1:30
+// sur une course de 205 s). Déclenchée par le TEMPS écoulé (contrairement au
+// boost vélo ci-dessus, déclenché par le SCORE) : c'est donc, comme le reste
+// de ce fichier, une fonction pure de slotIndex — pas besoin d'un setter côté
+// main.js. CAR_TIME_BOOST_SLOT convertit ce temps en index de créneau via la
+// même conversion temps→battement→créneau que TOTAL_OBJECTS plus haut.
+// 90 → 63 s le 17 août 2026 : dureeCourse a été raccourcie ×0,7 (205 → 143,5),
+// le seuil suit la même proportion pour se déclencher au même MOMENT relatif
+// de la course (≈ 44 % du parcours), pas 90 s absolues qui arriveraient
+// beaucoup plus tard proportionnellement sur un parcours plus court.
+const CAR_TIME_BOOST_TIME_S = 63;
 const CAR_TIME_BOOST_SLOT = Math.floor(clock.beatIndexAt(CAR_TIME_BOOST_TIME_S) / CADENCE);
-const CAR_TIME_BOOST_FACTOR = 2;
-const CYCLIST_TIME_BOOST_FACTOR = 1.3;
+// « un petit peu plus de cyclistes » (13 août) : facteur modeste (1,3×), à ne
+// pas confondre avec le doublement du score-boost — les deux se cumulent si
+// score ET temps sont franchis. Intensifiés le 17 août 2026 (« intensification
+// plus punitive » demandée avec le doublement de la difficulté) : voiture
+// 2× → 2,5×, cycliste 1,3× → 1,6× (vélo jusqu'à ×3,2 si score ET temps
+// franchis, contre ×2,6 avant).
+const CAR_TIME_BOOST_FACTOR = 2.5;
+const CYCLIST_TIME_BOOST_FACTOR = 1.6;
 const TIME_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
   voiture: CAR_TIME_BOOST_FACTOR,
   cycliste: CYCLIST_TIME_BOOST_FACTOR,
@@ -342,27 +360,25 @@ export function isAirBonus(kind) {
 // longueur, hauteur de carrosserie) sont purement visuelles et vivent dans
 // entities-render.js, avec le rendu faux-3D qui les consomme.
 export const CAR_ROOF_H = 1.35;
-// Nombre de voitures par rangée : surtout 1 ou 2, occasionnellement 3 (le
-// "rangée de trois" demandé reste possible mais reste le cas rare — avec 3
-// voitures sur 4 voies, il ne reste qu'UNE voie de passage). Signalé comme
-// risque avant tout playtest réel de cette mécanique : « à confirmer que ça
-// reste juste, pas injuste » (PLAN-ACTION.md). En l'absence de retour de
-// terrain, la rangée de 3 est mise sous la même rampe de difficulté que
-// BONUS_RATIO_START/END juste au-dessus (même `t` de progression du
-// parcours) plutôt que d'être une probabilité fixe dès le premier obstacle :
-// en tout début de course, seuls 1-2 voitures apparaissent (au moins 2 voies
-// toujours libres) ; la rangée de 3 (1 seule voie de passage) monte
-// progressivement jusqu'à 15 % seulement passé la moitié du parcours, quand
-// le joueur a eu le temps de prendre en main les 4 voies.
+// Nombre de voitures par rangée : 1 ou 2, jamais LANE_COUNT à la fois (voir
+// l'invariant de pickLanes plus bas — occuper TOUTES les voies ne laisserait
+// plus aucune voie de passage). C'était 1, 2 ou occasionnellement 3 tant que
+// LANE_COUNT valait 4 (3 voitures sur 4 voies laissait encore UNE voie
+// libre) ; le palier "3" a été retiré le 17 août 2026 quand LANE_COUNT est
+// passé à 3 (3 voitures sur 3 voies aurait occupé la route entière — plus
+// aucun dodge possible, seul le saut aurait pu sauver, ce qui n'était pas le
+// calibrage voulu). Son poids a rejoint la rangée de 2 (voir plus bas), la
+// rampe de difficulté garde la même forme : en tout début de course, surtout
+// des rangées de 1 (au moins 2 voies toujours libres) ; la rangée de 2 (1
+// seule voie de passage) monte progressivement en cours de route, quand le
+// joueur a eu le temps de prendre en main les voies.
 const CAR_ROW_EARLY = [
   { kind: 1, weight: 0.75 },
   { kind: 2, weight: 0.25 },
-  { kind: 3, weight: 0.0 },
 ];
 const CAR_ROW_LATE = [
   { kind: 1, weight: 0.45 },
-  { kind: 2, weight: 0.40 },
-  { kind: 3, weight: 0.15 },
+  { kind: 2, weight: 0.55 },
 ];
 function carRowSizesAt(slotIndex) {
   const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
@@ -391,8 +407,10 @@ const ROOF_LONG_TOLERANCE = 0.7;
 // visuelles et vivent dans entities-render.js avec renderBridge().
 //
 // Progression demandée : 2 voies ouvertes en début de course (précision
-// confortable, le temps d'apprendre les 4 voies), 1 seule en fin de course —
-// même rampe `t` que les rangées de voitures.
+// confortable, le temps d'apprendre les voies), 1 seule en fin de course —
+// même rampe `t` que les rangées de voitures. `kind` ici va jusqu'à 2, jamais
+// LANE_COUNT (voir la note LANE_COUNT dans road.js) : toujours au moins une
+// voie bloquée par le pont, quel que soit LANE_COUNT.
 const BRIDGE_OPEN_EARLY = [
   { kind: 1, weight: 0.15 },
   { kind: 2, weight: 0.85 },
@@ -585,7 +603,8 @@ function slotContent(slotIndex) {
     const alt = (lane + start + i) % road.LANE_COUNT;
     if (!blocked.has(alt)) return { ...raw, laneOverride: alt };
   }
-  return raw; // inatteignable à 4 voies pour 2 voisins, mais on ne renvoie jamais undefined
+  return raw; // inatteignable quel que soit LANE_COUNT ≥ 3 pour 2 voisins (≤2 voies bloquées,
+              // toujours ≥1 libre) ; garde-fou quand même, on ne renvoie jamais undefined
 }
 
 // Garde anti-piège, variante pont. Un piéton/cycliste n'a qu'UNE voie de
@@ -618,7 +637,8 @@ function bridgeGuard(slotIndex, raw) {
       return { ...raw, openLanesOverride: candidate };
     }
   }
-  return raw; // inatteignable à 4 voies pour 2 voisins de bonus, mais on ne renvoie jamais undefined
+  return raw; // inatteignable quel que soit LANE_COUNT ≥ 3 pour 2 voisins de bonus (même
+              // raisonnement que plus haut) ; garde-fou quand même, on ne renvoie jamais undefined
 }
 
 // Voies occupées par le contenu d'un créneau. Renvoie toujours un TABLEAU :

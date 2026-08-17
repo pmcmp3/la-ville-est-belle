@@ -95,11 +95,12 @@ const BRIDGE_IRON = { base: "#3d5c42", dark: "#243a29", hi: "#6b9370" };
 const ICON_SIZE = 40;
 // Taille de l'icône dans le monde (unités), au sol. 0.85 → 1.02 (+20 %) →
 // 2.04 (×2, demandé : "grossir les objets en fois deux").
-// ⚠️ Depuis le passage aux 4 voies, la taille de l'icône n'a plus AUCUN effet
+// ⚠️ Depuis le passage aux voies, la taille de l'icône n'a plus AUCUN effet
 // sur la collision : celle-ci est un test d'égalité de voie. La taille est
 // donc purement une question de lisibilité — un objet doit se lire comme
 // « il est dans cette voie-là », sans mordre visuellement sur les voisines
-// (une voie fait 2 unités de large).
+// (une voie fait `road.LANE_WIDTH` unités de large — 2 à l'origine (4 voies),
+// ≈2,67 depuis le passage à 3 voies le 17 août 2026, voir road.js).
 const ICON_WORLD = 2.04;
 // Les ÉTOILES bonus sont 30 % plus petites que les obstacles (demandé après
 // coup : « fais 30 % plus petit »). Elles restent nettement plus grosses

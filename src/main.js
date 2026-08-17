@@ -291,7 +291,20 @@ const game = {
   endReason: null, // "gameover" | "finished"
   penaltyTimer: 0,   // s restantes d'affichage du "-500" sous le score (hud.js)
   penaltyAmount: 0,  // montant du dernier malus, pour l'afficher tel quel
+  streak: 0,         // étoiles ramassées d'affilée depuis le dernier obstacle touché (combo, voir plus bas)
 };
+
+// Combo (demandé le 17 août 2026) : `streak` étoiles d'affilée → multiplicateur
+// par palier de `comboSeuil` (5 → ×1,5, 10 → ×2, 15 → ×2,5...), remis à 0 au
+// moindre obstacle touché. `Math.round` sur le résultat final : les points de
+// base (config.js, `bonus`) sont tous ronds, mais ×1,5/×2,5 ne le garde pas
+// forcément (ex. 150 × 1,5 = 225, mais 250 × 1,5 = 375 — jamais de décimale
+// affichée dans tous les cas ici, mais l'arrondi protège les futurs réglages
+// de comboBonusParPalier qui n'y donneraient pas forcément un entier).
+function comboMultiplier() {
+  const { comboSeuil, comboBonusParPalier } = window.CONFIG;
+  return 1 + comboBonusParPalier * Math.floor(game.streak / comboSeuil);
+}
 
 // Interface étroite vers screens.js (écrans hors-jeu) : main.js reste seul
 // maître de l'état de partie et de la boucle. screens.js ne peut pas importer
@@ -437,6 +450,7 @@ function restartGame() {
   game.score = 0;
   game.ended = false;
   game.endReason = null;
+  game.streak = 0;
 
   entities.reset();
   road.reset();
@@ -618,9 +632,11 @@ function step(dt) {
       const events = entities.update(playerState.lane, jump.mode !== 'ground');
       for (const e of events) {
         if (e.type === "bonus") {
-          game.score += window.CONFIG.bonus[e.kind];
+          game.streak += 1;
+          game.score += Math.round(window.CONFIG.bonus[e.kind] * comboMultiplier());
           pickupFlash = 1;
         } else {
+          game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
           // Playtest : "quand on se prend une voiture, game over". La
           // voiture est traitée comme un choc fatal (3 vies perdues d'un
           // coup, endGame déclenché juste après dans le même step) — le

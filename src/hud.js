@@ -100,6 +100,24 @@ export function renderHud(ctx, width, height, game) {
     ctx.globalAlpha = 1;
   }
 
+  // Combo (demandé le 17 août 2026 : « 5 étoiles d'affilée multiplie le score
+  // par 1,5, encore 5 après fois 2, etc. », voir comboMultiplier() dans
+  // main.js). Affiché tant que le palier est actif, même position que la
+  // pénalité ci-dessus — jamais les deux en même temps dans les faits : un
+  // obstacle touché remet `streak` à 0 au même instant où il déclenche la
+  // pénalité (main.js), donc dès que l'un s'affiche l'autre est à son état
+  // neutre. Blanc, pas rouge : le rouge de charte est réservé au négatif
+  // (pénalité), le combo est une récompense.
+  if (game.streak >= window.CONFIG.comboSeuil) {
+    const palier = Math.floor(game.streak / window.CONFIG.comboSeuil);
+    const multiplier = 1 + window.CONFIG.comboBonusParPalier * palier;
+    ctx.font = `900 ${Math.round(SCORE_SIZE * 0.5)}px ${POLICE}`;
+    ctx.fillStyle = BLANC;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText(`COMBO ×${multiplier}`, width / 2, PAD + SCORE_SIZE * 1.2);
+    ctx.globalAlpha = 1;
+  }
+
   // Cœurs : en ligne, ancrés en haut à droite, alignés verticalement sur le
   // score. Plein (rouge) tant que la vie reste, vide (blanc translucide) une
   // fois perdue.

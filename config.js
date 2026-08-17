@@ -8,7 +8,7 @@ window.CONFIG = {
   bpm: 120,                 // Tempo mesuré sur le master (à affiner avec la grille de debug)
   premierTempsOffset: 0.01, // Décalage en secondes du 1er temps depuis le début du fichier
   dureeMorceau: 257.9,      // Durée du MORCEAU (audio) en secondes — sert au fondu de sortie et à la vérif de durée du MP3 (audio.js). Le morceau continue de jouer après la ligne d'arrivée (objectif "donner envie d'écouter le morceau") : voir dureeCourse, distinct, pour la longueur du PARCOURS.
-  dureeCourse: 205,         // ⚠️ Longueur du PARCOURS en secondes = quand la ligne d'arrivée atteint le joueur (demandé explicitement : "à 03:25"). Distinct de dureeMorceau : le morceau continue après, jusqu'à sa fin réelle, pendant que le joueur est déjà sur l'écran de fin. D'où dérive TOTAL_OBJECTS (entities.js) — donc le nombre d'obstacles rencontrés, PAS le quota de 200 étoiles qui reste fixe (voir TOTAL_STARS, entities.js).
+  dureeCourse: 143.5,       // ⚠️ Longueur du PARCOURS en secondes = quand la ligne d'arrivée atteint le joueur. 205 → 143,5 (×0,7, "course trop longue", demandé le 17 août 2026). Distinct de dureeMorceau : le morceau continue après, jusqu'à sa fin réelle, pendant que le joueur est déjà sur l'écran de fin — marge encore plus large maintenant (257,9 - 143,5 ≈ 114 s). D'où dérive TOTAL_OBJECTS (entities.js) — donc le nombre d'obstacles rencontrés. TOTAL_STARS (entities.js) a été réduit à la MÊME proportion (200 → 140) : à quota fixe, un parcours 30 % plus court n'aurait plus assez de créneaux pour caser 200 étoiles ET des obstacles (revit le bug de diffusion d'erreur déjà corrigé une fois en août, voir entities.js).
   fichierAudio: "assets/la-ville-est-belle.mp3", // MP3/AAC servi en prod (léger)
   fonduEntree: 1.2,         // Fondu à l'entrée, en secondes
   fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du MORCEAU, pas de la course), en secondes
@@ -18,7 +18,7 @@ window.CONFIG = {
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
-  vitesseMax: 6.0,          // Plafond de la courbe exponentielle (road.js). 4.0 → 5.0, puis +20% (même retour) — 5.0 → 6.0.
+  vitesseMax: 9.0,          // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (demandé explicitement le 17 août 2026) — 6.0 → 9.0.
   sensibiliteDirection: 2.2,// Sensibilité de la direction : plus haut = plus réactif — 1.0 → 1.375 → 2.75 → 2.2 (playtest : "un peu trop sensible, réduis de 20 %")
   zoneMorteGyro: 3,         // Angle mort du gyroscope en degrés (évite le tremblement)
   agressiviteVirages: 0.7,  // Amplitude/nervosité du déport latéral en virage (0 = mou, 1 = sec)
@@ -46,6 +46,17 @@ window.CONFIG = {
     collierPerles:250,      // Collier de perles (inchangé)
     guitare:      500,      // Guitare (rare, bonus aérien — se ramasse en sautant)
   },
+
+  // === COMBO ===
+  // Demandé le 17 août 2026 : « une personne qui prend 5 étoiles d'affilée
+  // multiplie son score par 1,5, et ensuite 5 étoiles après fois 2, etc. ».
+  // Un palier tous les comboSeuil étoiles ramassées SANS toucher d'obstacle
+  // entre-temps (un obstacle remet le compteur à 0, voir main.js) ; chaque
+  // palier ajoute comboBonusParPalier au multiplicateur (5 → ×1,5, 10 → ×2,
+  // 15 → ×2,5...). S'applique aux POINTS de bonus uniquement, jamais à la
+  // pénalité de collision.
+  comboSeuil: 5,
+  comboBonusParPalier: 0.5,
 
   // === OBSTACLES ===
   cadenceSpawnBeats: 1.5,   // Un événement (bonus/obstacle) tous les N temps (calage rythmique) — 2 → 1.5 (playtest : "un peu plus d'objets")
