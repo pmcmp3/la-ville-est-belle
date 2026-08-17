@@ -262,19 +262,34 @@ const OBSTACLE_WEIGHTS = [
   { kind: "pont", weight: 0.30 },
 ];
 
-// Intensification des vélos en fin de partie (demandé explicitement : « *2 à
-// partir de 10000 points »). Multiplie le poids `cycliste` puis renormalise
-// (sinon la somme dépasse 1 et pickWeighted() devient injuste — les derniers
-// types de la liste, cone/pont, deviendraient carrément inatteignables, voir
-// pickWeighted() plus bas). Table précalculée une seule fois au chargement.
-const CYCLIST_BOOST_SCORE = 10000;
-const CYCLIST_BOOST_FACTOR = 2;
 function scaleWeights(list, factors) {
   const scaled = list.map((item) => (factors[item.kind] ? { kind: item.kind, weight: item.weight * factors[item.kind] } : item));
   const total = scaled.reduce((sum, item) => sum + item.weight, 0);
   return scaled.map((item) => ({ kind: item.kind, weight: item.weight / total }));
 }
-const BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, { cycliste: CYCLIST_BOOST_FACTOR });
+
+// Intensification vélos/voitures/ponts par PALIERS DE SCORE, SANS PLAFOND
+// (demandé le 17 août 2026 : « ça manque d'obstacles dès que je suis à
+// 80000... où sont les ponts, les voitures ? complexifie et intensifie »).
+// Remplace l'ancien seuil unique (« ×2 cycliste à partir de 10 000 points ») :
+// celui-là arrêtait de faire quoi que ce soit une fois franchi, alors que le
+// combo (voir main.js, comboMultiplier()) permet désormais de monter bien
+// plus haut (jusqu'à ~195 000 en théorie) — un joueur doué restait ensuite
+// sur la même difficulté quel que soit son score. Ici, tous les
+// SCORE_TIER_SIZE points, TOUS les types dangereux (voiture, cycliste, pont)
+// voient leur poids multiplié un peu plus, cumulativement, comme le combo.
+// Composé dynamiquement (comme applyPontLateBoost plus bas) plutôt que
+// précalculé : une échelle continue n'a pas de table finie à figer d'avance.
+const SCORE_TIER_SIZE = 15000;
+const SCORE_TIER_FACTOR = 0.35; // +0,35 par palier, cumulatif : 15k→×1,35, 30k→×1,7, 80k→×2,85 (5 paliers)
+function scoreTierMultiplier() {
+  return 1 + SCORE_TIER_FACTOR * Math.floor(currentScore / SCORE_TIER_SIZE);
+}
+function applyScoreTierBoost(weights) {
+  const factor = scoreTierMultiplier();
+  if (factor <= 1) return weights;
+  return scaleWeights(weights, { voiture: factor, cycliste: factor, pont: factor });
+}
 
 // Intensification voitures/vélos à partir d'1/3 de course écoulé (demandé
 // explicitement le 13 août 2026, retour ami — déclenché à l'origine à 1:30
@@ -289,21 +304,18 @@ const BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, { cycliste: CYCL
 // beaucoup plus tard proportionnellement sur un parcours plus court.
 const CAR_TIME_BOOST_TIME_S = 63;
 const CAR_TIME_BOOST_SLOT = Math.floor(clock.beatIndexAt(CAR_TIME_BOOST_TIME_S) / CADENCE);
-// « un petit peu plus de cyclistes » (13 août) : facteur modeste (1,3×), à ne
-// pas confondre avec le doublement du score-boost — les deux se cumulent si
-// score ET temps sont franchis. Intensifiés le 17 août 2026 (« intensification
-// plus punitive » demandée avec le doublement de la difficulté) : voiture
-// 2× → 2,5×, cycliste 1,3× → 1,6× (vélo jusqu'à ×3,2 si score ET temps
-// franchis, contre ×2,6 avant).
+// « un petit peu plus de cyclistes » (13 août) : facteur modeste (1,3×).
+// Intensifiés le 17 août 2026 (« intensification plus punitive » demandée
+// avec le doublement de la difficulté) : voiture 2× → 2,5×, cycliste
+// 1,3× → 1,6×. Se cumule avec le palier de score ci-dessus (composé par
+// applyScoreTierBoost sur CETTE table, voir computeRawSlotContent plus bas) —
+// plus de table "temps ET score" séparée depuis que le score-boost est
+// devenu une échelle continue plutôt qu'un seuil unique.
 const CAR_TIME_BOOST_FACTOR = 2.5;
 const CYCLIST_TIME_BOOST_FACTOR = 1.6;
 const TIME_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
   voiture: CAR_TIME_BOOST_FACTOR,
   cycliste: CYCLIST_TIME_BOOST_FACTOR,
-});
-const TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
-  voiture: CAR_TIME_BOOST_FACTOR,
-  cycliste: CYCLIST_TIME_BOOST_FACTOR * CYCLIST_BOOST_FACTOR,
 });
 
 // Intensification `pont` en fin de course (« surtout sur la fin », demandé le
@@ -342,11 +354,12 @@ let currentScore = 0;
 export function setScore(score) { currentScore = score; }
 
 // Mémoïsation du tirage de créneau (voir rawSlotContent plus bas) : sans
-// elle, un score qui franchit CYCLIST_BOOST_SCORE pendant qu'un vélo est déjà
-// visible mais pas encore résolu lui ferait changer de nature EN COURS
-// D'APPROCHE (le tirage dépend de `currentScore`, relu à chaque appel). La
-// décision est donc figée au premier calcul de chaque créneau, comme si le
-// score qui compte était celui du moment où le créneau "apparaît" au joueur.
+// elle, un score qui franchit un palier (voir applyScoreTierBoost) pendant
+// qu'un vélo est déjà visible mais pas encore résolu lui ferait changer de
+// nature EN COURS D'APPROCHE (le tirage dépend de `currentScore`, relu à
+// chaque appel). La décision est donc figée au premier calcul de chaque
+// créneau, comme si le score qui compte était celui du moment où le créneau
+// "apparaît" au joueur.
 const rawContentCache = new Map();
 
 // Obstacles INFRANCHISSABLES AU SAUT : ils se contournent latéralement, point.
@@ -406,6 +419,32 @@ export const CAR_ROOF_H = 1.35;
 // des rangées de 1 (au moins 2 voies toujours libres) ; la rangée de 2 (1
 // seule voie de passage) monte progressivement en cours de route, quand le
 // joueur a eu le temps de prendre en main les voies.
+// Progression temporelle 0→1 (créneau de grâce exclu), PARTAGÉE par les
+// rangées de voitures et les ponts ci-dessous — c'était déjà la même formule
+// dupliquée deux fois, factorisée le 17 août 2026 en même temps que
+// scoreRampT() ci-dessous, son pendant côté score.
+function timeRampT(slotIndex) {
+  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
+  return remainingSlots > 0
+    ? Math.min(1, Math.max(0, (slotIndex - GRACE_SLOTS) / remainingSlots))
+    : 1;
+}
+
+// Complexité STRUCTURELLE par palier de score (demandé le 17 août 2026, avec
+// applyScoreTierBoost plus haut) : ce dernier ne fait que réattribuer le
+// MÊME nombre d'obstacles (TOTAL_OBSTACLES est fixe) entre les types déjà
+// mineurs (cône/piéton) et les dangereux — marge limitée puisque cône/piéton
+// pèsent déjà peu. Ici, à la place, on pousse les rangées de voitures et les
+// ponts vers leur configuration la plus dure (kind le plus élevé = le moins
+// de voies libres) EN AVANCE sur la rampe temporelle normale, sans attendre
+// la fin de la course : à score élevé, une rangée de voitures rencontrée tôt
+// se comporte déjà comme une rencontrée tard. `scoreRampT() = 0` tant que
+// currentScore < SCORE_TIER_SIZE (aucun changement en dessous du premier
+// palier) ; approche 1 (poussée maximale) vers le palier 6 (~90 000 pts).
+function scoreRampT() {
+  return Math.min(1, (scoreTierMultiplier() - 1) / 2);
+}
+
 const CAR_ROW_EARLY = [
   { kind: 1, weight: 0.75 },
   { kind: 2, weight: 0.25 },
@@ -415,10 +454,7 @@ const CAR_ROW_LATE = [
   { kind: 2, weight: 0.55 },
 ];
 function carRowSizesAt(slotIndex) {
-  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
-  const t = remainingSlots > 0
-    ? Math.min(1, Math.max(0, (slotIndex - GRACE_SLOTS) / remainingSlots))
-    : 1;
+  const t = Math.min(1, timeRampT(slotIndex) + scoreRampT());
   return CAR_ROW_EARLY.map((early, i) => ({
     kind: early.kind,
     weight: early.weight + (CAR_ROW_LATE[i].weight - early.weight) * t,
@@ -454,10 +490,7 @@ const BRIDGE_OPEN_LATE = [
   { kind: 2, weight: 0.25 },
 ];
 function bridgeOpenLanesAt(slotIndex) {
-  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
-  const t = remainingSlots > 0
-    ? Math.min(1, Math.max(0, (slotIndex - GRACE_SLOTS) / remainingSlots))
-    : 1;
+  const t = Math.min(1, timeRampT(slotIndex) + scoreRampT());
   return BRIDGE_OPEN_EARLY.map((early, i) => ({
     kind: early.kind,
     weight: early.weight + (BRIDGE_OPEN_LATE[i].weight - early.weight) * t,
@@ -558,15 +591,8 @@ function computeRawSlotContent(slotIndex) {
     return { isBonus: false, kind: OPENING_KIND_OVERRIDE[slotIndex] };
   }
   const timeBoost = slotIndex >= CAR_TIME_BOOST_SLOT;
-  const scoreBoost = currentScore >= CYCLIST_BOOST_SCORE;
-  const baseWeights = timeBoost && scoreBoost
-    ? TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS
-    : timeBoost
-    ? TIME_BOOSTED_OBSTACLE_WEIGHTS
-    : scoreBoost
-    ? BOOSTED_OBSTACLE_WEIGHTS
-    : OBSTACLE_WEIGHTS;
-  const weights = applyPontLateBoost(slotIndex, baseWeights);
+  const baseWeights = timeBoost ? TIME_BOOSTED_OBSTACLE_WEIGHTS : OBSTACLE_WEIGHTS;
+  const weights = applyPontLateBoost(slotIndex, applyScoreTierBoost(baseWeights));
   const kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));

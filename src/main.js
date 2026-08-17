@@ -776,14 +776,13 @@ function render(alpha) {
   world.render(ctx, width, height, renderDistance);
   if (gameStarted && !game.ended) {
     // Caméo Soberland (demandé le 17 août 2026) : purement décoratif, planté
-    // dans les 10 premières secondes de course — voir cameo.js. Passé en
-    // `extra` à entities-render.render() plutôt que dessiné séparément :
-    // sinon il se peindrait toujours au même endroit de la séquence (avant
-    // OU après tous les bonus/obstacles), indépendamment de sa profondeur
-    // réelle — bug remonté en jeu (apparaissait devant un pont plus proche).
-    const cameoZ = cameo.getZ(clock.now());
-    const extras = cameoZ != null ? [{ z: cameoZ, draw: () => cameo.render(ctx, width, height) }] : [];
-    entitiesRender.render(ctx, width, height, extras);
+    // dans les 10 premières secondes de course — voir cameo.js. Personnage
+    // ET table de mixage passés en `extras` à entities-render.render()
+    // plutôt que dessinés séparément : sinon ils se peindraient toujours au
+    // même endroit de la séquence (avant OU après tous les bonus/obstacles),
+    // indépendamment de leur profondeur réelle — bug remonté en jeu
+    // (Soberland apparaissait devant un pont pourtant plus proche).
+    entitiesRender.render(ctx, width, height, cameo.getExtras(ctx, width, height, clock.now()));
     // Ligne d'arrivée : rien pendant l'essentiel du morceau, apparaît à 5s
     // de la fin et arrive au niveau du joueur pile quand la partie se
     // termine (voir finish.js). Dessinée APRÈS les entités pour que

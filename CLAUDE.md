@@ -64,11 +64,18 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`). ⚠️ Le cycliste en est
     sorti le 12 août 2026 (demandé explicitement, il y était depuis sa promotion en obstacle) —
     ne pas le réintroduire dans `UNJUMPABLE_KINDS` sans redemander.
-  - ⚠️ **Intensification des vélos en fin de partie** (demandé le 12 août 2026) : au-delà de
-    **10 000 points**, le poids `cycliste` est doublé puis la table renormalisée
-    (`CYCLIST_BOOST_SCORE`/`CYCLIST_BOOST_FACTOR`, `entities.js`) — seule donnée de ce fichier qui
-    dépend du GAMEPLAY (score) plutôt que d'un hash pur par index de créneau, voir
-    `ARCHITECTURE.md` §5.2.
+  - ⚠️ **Intensification par palier de score, SANS PLAFOND** (12 août 2026, remplacée le 17 août
+    2026 — « ça manque d'obstacles dès que je suis à 80000... complexifie et intensifie ») :
+    l'ancien seuil unique (« ×2 cycliste à partir de 10 000 pts ») ne faisait plus rien une fois
+    franchi, alors que le combo (voir plus bas) permet de monter bien plus haut. Remplacé par
+    `SCORE_TIER_SIZE`/`SCORE_TIER_FACTOR` (`entities.js`, `applyScoreTierBoost()`) : tous les
+    15 000 pts, le poids de voiture/cycliste/**pont** (plus seulement cycliste) est multiplié
+    d'avantage, cumulativement (5 paliers à 80 000 pts → ×2,85). En plus de ça, `scoreRampT()`
+    pousse les rangées de voitures et les ponts vers leur configuration la plus dure (le moins de
+    voies libres) EN AVANCE sur la rampe temporelle normale — mesuré : à 80 000 pts, 67 % des
+    ponts n'ont plus qu'une seule voie ouverte (10 % à score nul), 54 % des rangées de voitures
+    sont à 2 voitures (35 % à score nul). Seule donnée de ce fichier qui dépend du GAMEPLAY
+    (score) plutôt que d'un hash pur par index de créneau, voir `ARCHITECTURE.md` §5.2.
   - ⚠️ **Le pont est un cas à part, revu le 12 août 2026** : sauter y est TOUJOURS dangereux,
     même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
     risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
@@ -78,10 +85,9 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     (`CAR_TIME_BOOST_TIME_S`, `entities.js` — 90 s à l'origine, rescalé ×0,7 avec `dureeCourse`
     pour se déclencher au même moment RELATIF du parcours), le poids `voiture` est multiplié par
     **2,5** (2 avant) et le poids `cycliste` par **1,6** (1,3 avant), puis la table est
-    renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost vélo à 10 000 points
-    ci-dessus (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une
-    exception au modèle décrit en `ARCHITECTURE.md` §5.2. Les deux boosts vélo se cumulent si
-    score ET temps sont franchis (jusqu'à **×3,2**, contre ×2,6 avant).
+    renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost par palier ci-dessus
+    (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au
+    modèle décrit en `ARCHITECTURE.md` §5.2. Les deux se cumulent avec le palier de score.
 - **140 étoiles exactement** par partie (200 avant le 17 août 2026) : le score maximum doit être
   un nombre connu — réduit à la MÊME proportion que le raccourcissement du parcours (×0,7, 205 →
   143,5 s) pour ne pas casser le calcul de quota exact (voir `entities.js`, `BONUS_RATIO_START`).
@@ -107,10 +113,16 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   parcours sans exception).
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
-  Purement décoratif — pas de collision, pas de créneau, pas de score. Casquette, lunettes
-  remontées, barbe, casque autour du cou, chemise à carreaux, table de mixage, notes de musique
-  qui montent vers le ciel. Voxel (`blk()`, `voxel.js`), même grammaire que joueur/cyclistes/
-  piétons.
+  Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de
+  `pedestrians.js` (retour direct sur le premier jet : « ressemble à rien ») : casquette, barbe,
+  casque, chemise à carreaux habillent le même squelette que les piétons plutôt qu'un design
+  inventé. Étiquette **« @soberland »** flottant au-dessus de sa tête (« comme ça on sait qui
+  c'est »). Table de mixage en PROP SÉPARÉ, sa propre profondeur (`TABLE_OFFSET_Z`, toujours
+  devant lui), pas intégrée à son sprite comme au premier jet. Voxel (`blk()`, `voxel.js`), même
+  grammaire que joueur/cyclistes/piétons. ⚠️ Lui ET sa table passent par `getExtras()` +
+  `entities-render.render(..., extras)`, jamais un rendu séparé : sinon ils se peignent toujours
+  au même endroit de la séquence peintre, indépendamment de leur profondeur réelle — bug vécu
+  (apparaissait devant un pont pourtant plus proche).
 
 ## Assets
 

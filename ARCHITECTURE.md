@@ -85,7 +85,7 @@ dépendances vont toujours vers le bas.
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
 | `pedestrians.js` | Sprites des piétons-obstacles | **Voxel** depuis le 12 août 2026, même `blk()` que joueur/cyclistes |
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
-| `cameo.js` | Soberland (DJ ami de l'artiste), planté dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision |
+| `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
 | `hud.js` | Score, vies, statut concours | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
@@ -333,7 +333,7 @@ prélevés une seconde fois au prorata pour faire de la place au pont (même jou
 | Obstacle | Poids | Coût | Le saut sauve ? |
 |---|---|---|---|
 | `voiture` | 0,47 | **fatal** (3 vies d'un coup) + **−500 pts** | ✅ (survol + atterrissage sur le toit) |
-| `cycliste` | 0,25 (0,40 au-delà de 10 000 pts, voir plus bas) | −1 vie + **−500 pts** | ✅ depuis le 12 août 2026 |
+| `cycliste` | 0,25 (voir palier de score plus bas — plus de seuil unique depuis le 17 août 2026) | −1 vie + **−500 pts** | ✅ depuis le 12 août 2026 |
 | `pieton` | 0,11 | −1 vie + **−500 pts** | ❌ |
 | `cone` | 0,07 | −1 vie + **−500 pts** | ✅ |
 | `pont` | 0,10 | **fatal** (3 vies d'un coup) + **−500 pts** | ❌❌ (sauter AGGRAVE : dangereux même voie ouverte) |
@@ -352,25 +352,34 @@ pont 4 — voir §5.4 pour le détail complet et l'historique des révisions pr�
 343 créneaux). Échantillon petit et volatil par nature (51 obstacles au total) ; à reconfirmer si
 `TOTAL_STARS`/`dureeCourse` rebougent encore.
 
-⚠️ **Intensification en fin de partie** (demandé explicitement le 12 août 2026 : « ×2 à partir de
-10 000 points ») : au-delà de `CYCLIST_BOOST_SCORE` (10 000 pts, `entities.js`), le poids
-`cycliste` est doublé puis toute la table `OBSTACLE_WEIGHTS` renormalisée (sinon la somme dépasse
-1 et `pickWeighted()` devient injuste — les derniers types de la liste, `cone`/`pont`,
-deviendraient carrément inatteignables). Mesuré : la part de `cycliste` passe de 25 % à 40 % des
-obstacles, le reste se répartissant dans les mêmes proportions relatives qu'avant. ⚠️ **Seule
-donnée de tout ce fichier qui dépend du GAMEPLAY (le score courant) plutôt que d'un hash pur par
-index de créneau** (voir §5.2) — `main.js` pousse `game.score` via `entities.setScore()` une fois
-par frame. Le tirage est **mémoïsé par créneau** (`rawContentCache`) dès son premier calcul : sans
-ça, un score qui franchit le seuil pile pendant qu'un vélo est déjà visible mais pas encore résolu
+⚠️ **Intensification par palier de score, sans plafond** (12 août 2026 : « ×2 à partir de
+10 000 points » ; remplacée le 17 août 2026 : « ça manque d'obstacles dès que je suis à
+80000... complexifie et intensifie »). L'ancien seuil unique arrêtait de faire quoi que ce soit
+une fois franchi — plus adapté depuis que le combo (main.js, `comboMultiplier()`) permet de monter
+bien plus haut (~195 000 en théorie). Remplacé par `SCORE_TIER_SIZE`/`SCORE_TIER_FACTOR`
+(`applyScoreTierBoost()`) : tous les 15 000 pts, le poids de `voiture`/`cycliste`/`pont` (plus
+seulement `cycliste`) est multiplié un peu plus, cumulativement (5 paliers à 80 000 → ×2,85), puis
+la table renormalisée. **En plus** : `scoreRampT()` pousse les rangées de voitures
+(`carRowSizesAt`) et les ponts (`bridgeOpenLanesAt`) vers leur configuration la plus dure (le
+moins de voies libres) EN AVANCE sur la rampe temporelle normale — sans dépasser le maximum déjà
+prévu par `CAR_ROW_LATE`/`BRIDGE_OPEN_LATE` (toujours ≥ 1 voie libre, invariant inchangé). Mesuré
+par balayage hors ligne : à 80 000 pts, 67 % des ponts n'ont plus qu'une voie ouverte (10 % à
+score nul), 54 % des rangées de voitures sont à 2 voitures (35 % à score nul) ; 0 slot bloquant
+les 3 voies à la fois, y compris testé au score max théorique (195 525). ⚠️ **Seule donnée de tout
+ce fichier qui dépend du GAMEPLAY (le score courant) plutôt que d'un hash pur par index de
+créneau** (voir §5.2) — `main.js` pousse `game.score` via `entities.setScore()` une fois par
+frame. Le tirage est **mémoïsé par créneau** (`rawContentCache`) dès son premier calcul : sans ça,
+un score qui franchit un palier pile pendant qu'un vélo est déjà visible mais pas encore résolu
 lui ferait changer de nature EN COURS D'APPROCHE. Vidé par `reset()` au rejeu, comme
 `resolved`/`consumed`/`debugOverrides`.
 
 **Pont (viaduc du métro parisien)**, ajouté le 12 août 2026 (inspiré d'une référence Subway
-Surfers envoyée par l'artiste — perspective à piliers, longue ligne de fuite). Bloque 2 ou 3
-voies sur 4 à la même profondeur, une seule résolution de collision pour tout le pont (même
-principe qu'une rangée de voitures, `entities.js`, mais en stockant les voies **bloquées**
-plutôt qu'occupées — voir `bridgeBlockedLanes()`). Progression : 2 voies ouvertes en début de
-course, 1 seule en fin de course (`bridgeOpenLanesAt()`, même rampe `t` que les rangées de
+Surfers envoyée par l'artiste — perspective à piliers, longue ligne de fuite). Bloque 1 ou 2
+voies sur 3 (2 ou 3 sur 4 avant le passage à 3 voies, 17 août 2026) à la même profondeur, une
+seule résolution de collision pour tout le pont (même principe qu'une rangée de voitures,
+`entities.js`, mais en stockant les voies **bloquées** plutôt qu'occupées — voir
+`bridgeBlockedLanes()`). Progression : 2 voies ouvertes en début de course, 1 seule en fin de
+course (`bridgeOpenLanesAt()`, même rampe `t` que les rangées de
 voitures). La garde anti-piège a sa propre variante pour le pont (`bridgeGuard()`) : un
 piéton/cycliste n'a qu'une voie de repli, un pont a plusieurs voies ouvertes à la fois — la
 question posée est « reste-t-il au moins une voie ouverte du pont qui ne coïncide pas avec un
