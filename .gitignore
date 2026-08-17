@@ -6,6 +6,13 @@ dist-pages/
 .netlify/
 .claude/settings.local.json
 
+# Jamais servis ni committés (CLAUDE.md, ARCHITECTURE.md §9) — retirés de tout
+# l'historique de gameplay-pause-voitures-etoiles le 17 août 2026 (65 Mo de
+# WAV maître + le MP3 320k d'origine). Ignorés pour ne pas les réintroduire
+# par un futur `git add -A`.
+assets/la-ville-est-belle-MASTER.wav
+assets/la-ville-est-belle-320k-original.mp3
+
 # Dossier sans rapport avec le jeu (outil reels, autre projet) — présent
 # incidemment dans ce répertoire, pas suivi ici.
 reels/

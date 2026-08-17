@@ -67,17 +67,19 @@ Elles viennent du brief et ne se renégocient pas sans l'artiste.
 
 ## 4. Carte des modules
 
-`src/` — 14 modules, ~5 900 lignes avec `index.html`. Aucun n'importe `main.js` : les
+`src/` — 16 modules, ~6 600 lignes avec `index.html`. Aucun n'importe `main.js` : les
 dépendances vont toujours vers le bas.
 
 | Module | Rôle | À savoir |
 |---|---|---|
-| `main.js` | Boucle de jeu, état de partie, câblage DOM, saut, pause, écrans | **1242 lignes, module fourre-tout** — dette connue, voir §11 |
+| `main.js` | Boucle de jeu à pas fixe, état de partie, physique (saut, latéral), pause | **847 lignes** (1349 avant extraction de `screens.js`, voir §11) |
+| `screens.js` | Écrans hors-jeu : onboarding pseudo/insta, décompte, panneau son, menu pause, classement | Extrait de `main.js` le 17 août 2026 — câblage DOM/présentation uniquement, aucune physique. Ne peut pas importer `main.js` (cycle) : reçoit `restartGame`/l'ouverture-fermeture de pause en callbacks via `init()` |
 | `clock.js` | Temps musical : `now()`, `beatIndexAt()`, `timeOfBeat()` | Source de temps injectable (`setTimeSource`) |
 | `audio.js` | Chargement, unlock iOS, lecture, 3 modes de pause | Le plus délicat du projet, voir §5.1 et §8 |
 | `road.js` | Projection pseudo-3D, vitesse, rendu du sol | Exporte `project()`, que tout le reste consomme |
 | `world.js` | Façades haussmanniennes, ciel, croisements, feux | Purement décoratif ; source de `isCrossingSlot` co-exportée par `road.js` |
-| `entities.js` | Bonus/obstacles calés sur les beats, collisions | Le cœur du gameplay ; inclut le pont (viaduc) |
+| `entities.js` | Bonus/obstacles calés sur les beats : spawn, difficulté, collisions | **872 lignes** (1442 avant extraction de `entities-render.js`, voir §11) — le cœur du gameplay ; inclut le pont (viaduc). Zéro logique de rendu |
+| `entities-render.js` | Rendu des bonus/obstacles : icônes pixel art, voitures/pont en faux-3D | Extrait de `entities.js` le 17 août 2026 — importe `entities.js` (jamais l'inverse) pour lire `slotsFor`/`isConsumed`/`hash` etc. |
 | `voxel.js` | Primitif de cube extrudé (`blk`/`shade`/`parseColor`) | Partagé par `player.js` et `cyclists.js`, zéro logique d'orientation |
 | `player.js` | Sprite du cycliste joueur (vu de dos), pédalage | **Voxel** (blocs extrudés) depuis le 12 août 2026 — même grammaire que `cyclists.js`, voir §11 |
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
@@ -85,7 +87,7 @@ dépendances vont toujours vers le bas.
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `hud.js` | Score, vies, statut concours | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
-| `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence |
+| `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
 | `debug.js` | Overlay FPS, grille rythmique | Activé par `?debug` |
 
 ---
@@ -584,7 +586,15 @@ concours se fait au screenshot envoyé par le joueur.
   protégé, la clé anon est forcément dans le bundle.
 - `net.js` ne lève jamais d'exception : backend absent, réseau coupé ou migration non appliquée
   → il renvoie `[]` et l'écran de fin reste fonctionnel.
-- Schéma dans `supabase-schema.sql`, migration dans `supabase-migration-pseudo-insta.sql`.
+- Schéma dans `supabase-schema.sql`, migrations dans `supabase-migration-pseudo-insta.sql` et
+  `supabase-migration-best-score.sql`.
+- **Un seul score par personne** (identité = `pseudo_insta` normalisé, minuscules + sans `@`) :
+  `postScore()` continue de faire un simple INSERT côté client, mais un trigger Postgres
+  (`supabase-migration-best-score.sql`) ne garde que le MEILLEUR score de chaque personne — un
+  score plus faible est ignoré en silence, un meilleur remplace l'ancien. Sans ça, rejouer
+  plusieurs fois créait une ligne par partie et le classement affichait la même personne
+  plusieurs fois (constaté en vrai, ex. "guigzman" en double). Migration à exécuter une fois
+  dans Supabase avant de relancer le concours.
 
 **Cache HTTP** (`public/_headers`) — deux régimes opposés :
 - Sans hash dans le nom (`index.html`, `config.js`) → `no-store`, jamais périmé.
@@ -602,12 +612,23 @@ version antérieure de ce fichier est maintenant le site officiel). `CLAUDE.md` 
 - Branche `main` (source) et branche `gh-pages` (build statique servi sur
   **https://pmcmp3.github.io/la-ville-est-belle/**) sont toutes les deux des **snapshots sans
   historique** : un unique commit racine (`git checkout --orphan`), généré à neuf à chaque mise à
-  jour, jamais un merge/rebase de l'historique local. L'historique complet de développement reste
-  uniquement dans le dépôt local (`.git`), jamais poussé sur ce remote public.
+  jour, jamais un merge/rebase de l'historique local.
 - **Exclus du snapshot `main`** : `assets/la-ville-est-belle-MASTER.wav` et
   `assets/la-ville-est-belle-320k-original.mp3` (jamais servis tels quels, voir plus haut) et le
   dossier `3D assets/` (hors sujet, sans rapport avec le jeu — voir le contexte de session sur les
   assets FBX).
+- ⚠️ **Corrigé le 17 août 2026** : contrairement à ce que disait ce fichier avant cette date,
+  `gameplay-pause-voitures-etoiles` (l'historique COMPLET de développement, avec ses 37 commits)
+  est bien poussé sur `origin` — `git branch -a` le montre en `remotes/origin/...`, distinct des
+  snapshots `main`/`gh-pages`. Conséquence concrète : le commit racine de cette branche avait
+  committé le WAV maître (65 Mo) ET `la-ville-est-belle-320k-original.mp3`, tous deux exposés
+  publiquement sur `pmcmp3/la-ville-est-belle` (repo public) depuis le tout premier push, malgré
+  la règle "jamais servis tels quels" — l'exclusion documentée ci-dessus ne protégeait que les
+  snapshots `main`/`gh-pages`, pas la branche de dev elle-même. **Retiré de tout l'historique**
+  via `git filter-repo --path ... --invert-paths` + force-push (dépôt local passé de 82 Mo à
+  4,5 Mo) ; les deux fichiers sont maintenant dans `.gitignore` pour ne pas revenir. Sauvegarde
+  complète de l'historique pré-purge conservée hors du dépôt (bundle `git bundle create --all`)
+  le temps de confirmer qu'aucun autre poste n'a besoin de l'ancien historique.
 - ⚠️ **`index.html` utilise des chemins RELATIFS** (`config.js`, `src/main.js`, `fonts/*.ttf`/
   `.otf` — jamais de `/config.js` en absolu) pour que le site reste servable sous un sous-chemin
   (`/la-ville-est-belle/`) sans divergence de code selon la cible. Vérifié : Vite laisse ces
@@ -701,9 +722,16 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
 **Dette structurelle :**
-- `main.js` (1242 lignes) est un module fourre-tout : pause, DOM, onboarding, classement,
-  physique du saut, boucle, collisions, séquence de fin. À découper — mais **comme passe
-  séparée**, jamais mélangé à un changement de gameplay.
+- ~~`main.js` module fourre-tout~~ — **découpé le 17 août 2026** : les écrans hors-jeu
+  (onboarding pseudo/insta, décompte, panneau son, menu pause, classement) sont passés dans
+  `screens.js` (581 lignes). `main.js` reste seul maître de l'état de partie et de la boucle à
+  pas fixe (847 lignes, contre 1349 avant). Fait **comme passe séparée**, sans changement de
+  gameplay — vérifié par build propre + lecture ligne à ligne, voir §12 pour la limite de ce qui
+  a pu être testé en interactif (l'écran d'onboarding avant le premier geste audio, uniquement).
+- ~~`entities.js` mélangeait spawn/collision et rendu~~ — **découpé le 17 août 2026** : les
+  icônes pixel art et le rendu faux-3D (voitures, pont) sont passés dans `entities-render.js`
+  (615 lignes). `entities.js` (872 lignes, contre 1442 avant) ne fait plus que la logique pure
+  (spawn, quota, collisions) — `entities-render.js` en dépend, jamais l'inverse.
 - `PLAN-ACTION.md` (850+ lignes) est un journal append-only que `CLAUDE.md` impose de lire en
   entier à chaque session. C'est le plus gros coût fixe par session. Ce fichier-ci est censé
   le remplacer pour le quotidien.
