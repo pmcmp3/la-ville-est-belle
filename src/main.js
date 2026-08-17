@@ -10,6 +10,7 @@ import * as player from "./player.js";
 import * as entities from "./entities.js";
 import * as entitiesRender from "./entities-render.js";
 import * as finish from "./finish.js";
+import * as cameo from "./cameo.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -775,6 +776,14 @@ function render(alpha) {
   world.render(ctx, width, height, renderDistance);
   if (gameStarted && !game.ended) {
     entitiesRender.render(ctx, width, height);
+    // Caméo Soberland (demandé le 17 août 2026) : purement décoratif, planté
+    // dans les 10 premières secondes de course — voir cameo.js pour le
+    // principe (même technique que la ligne d'arrivée ci-dessous, mais tôt
+    // dans la course plutôt qu'à la fin). Dessiné après les entités, comme la
+    // ligne d'arrivée, pour la même raison : pas de collision propre, donc
+    // pas de véritable ordre de profondeur à respecter avec les
+    // bonus/obstacles qui le croisent.
+    cameo.render(ctx, width, height);
     // Ligne d'arrivée : rien pendant l'essentiel du morceau, apparaît à 5s
     // de la fin et arrive au niveau du joueur pile quand la partie se
     // termine (voir finish.js). Dessinée APRÈS les entités pour que

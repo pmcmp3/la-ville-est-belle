@@ -245,14 +245,21 @@ const BONUS_TYPES = [
 // il ne devait juste plus être le seul obstacle humain.
 // `pont` (5e type, viaduc du métro) ajouté ensuite : poids pris SUR les
 // quatre autres au prorata (même convention que pour le cycliste plus haut),
-// TOTAL_OBSTACLES ne bouge pas. 10 % de départ, à confirmer/ajuster par le
-// recensement hors ligne décrit en ARCHITECTURE.md §12 plutôt qu'à l'œil.
+// TOTAL_OBSTACLES ne bouge pas. 10 % de départ, confirmé/ajusté par le
+// recensement hors ligne décrit en ARCHITECTURE.md §12.
+// 0,10 → 0,30 le 17 août 2026 (« beaucoup plus de ponts », demandé
+// explicitement) : même convention, pris au prorata sur les quatre autres
+// (facteur ×0,7̄ appliqué à chacun pour que la somme retombe pile sur 1).
+// Voir aussi PONT_TIME_BOOST_FACTOR plus bas pour l'intensification
+// supplémentaire en fin de course (« surtout sur la fin »), composée
+// par-dessus CETTE table (et par-dessus les boosts voiture/cycliste
+// existants) plutôt que d'être une 5e table nommée séparée.
 const OBSTACLE_WEIGHTS = [
-  { kind: "voiture", weight: 0.47 },
-  { kind: "cycliste", weight: 0.25 },
-  { kind: "pieton", weight: 0.11 },
-  { kind: "cone", weight: 0.07 },
-  { kind: "pont", weight: 0.10 },
+  { kind: "voiture", weight: 0.366 },
+  { kind: "cycliste", weight: 0.194 },
+  { kind: "pieton", weight: 0.086 },
+  { kind: "cone", weight: 0.054 },
+  { kind: "pont", weight: 0.30 },
 ];
 
 // Intensification des vélos en fin de partie (demandé explicitement : « *2 à
@@ -298,6 +305,33 @@ const TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS = scaleWeights(OBSTACLE_WEIGHTS, {
   voiture: CAR_TIME_BOOST_FACTOR,
   cycliste: CYCLIST_TIME_BOOST_FACTOR * CYCLIST_BOOST_FACTOR,
 });
+
+// Intensification `pont` en fin de course (« surtout sur la fin », demandé le
+// 17 août 2026, en même temps que le triplement du poids de base ci-dessus).
+// Seuil plus TARDIF que CAR_TIME_BOOST_TIME_S (63 s, ≈44 % du parcours) :
+// ≈95 s, ≈66 % de dureeCourse (143,5 s) — le dernier tiers de la course,
+// cohérent avec « surtout sur la fin ». Composé PAR-DESSUS la table déjà
+// choisie (une des 4 ci-dessus) plutôt que d'ajouter une 5e table nommée :
+// scaleWeights() renormalise à chaque composition, donc l'ordre ne casse
+// jamais l'invariant "la somme vaut 1" quel que soit le nombre de boosts
+// cumulés (voir applyPontLateBoost() plus bas, appelé depuis
+// computeRawSlotContent()).
+const PONT_TIME_BOOST_TIME_S = 95;
+const PONT_TIME_BOOST_SLOT = Math.floor(clock.beatIndexAt(PONT_TIME_BOOST_TIME_S) / CADENCE);
+// ×2 initial jugé trop discret : la renormalisation qui suit le boost
+// voiture/cycliste (×2,5/×1,6, voir TIME_BOOSTED_OBSTACLE_WEIGHTS plus haut)
+// écrase déjà mécaniquement la part de `pont` avant même que ce facteur-ci
+// s'applique (30 % de base → 18 % une fois voiture/cycliste boostés) — un
+// simple ×2 ne faisait que la ramener à ~30 %, pas "beaucoup plus" comme
+// demandé. ×4 pousse la part réelle de fin de course à ~47 % (vérifié par
+// balayage hors ligne) : sur un tout petit échantillon (~12 obstacles après
+// le seuil), ×2 pouvait statistiquement tomber presque à 0 pont par malchance
+// du hash ; ×4 rend ce cas quasi impossible (< 0,3 % de probabilité).
+const PONT_TIME_BOOST_FACTOR = 4;
+function applyPontLateBoost(slotIndex, weights) {
+  if (slotIndex < PONT_TIME_BOOST_SLOT) return weights;
+  return scaleWeights(weights, { pont: PONT_TIME_BOOST_FACTOR });
+}
 
 // Score de la partie en cours, pour la même raison que currentScore plus bas
 // dans ce fichier n'existe pas déjà : c'est la seule donnée de ce module qui
@@ -525,13 +559,14 @@ function computeRawSlotContent(slotIndex) {
   }
   const timeBoost = slotIndex >= CAR_TIME_BOOST_SLOT;
   const scoreBoost = currentScore >= CYCLIST_BOOST_SCORE;
-  const weights = timeBoost && scoreBoost
+  const baseWeights = timeBoost && scoreBoost
     ? TIME_AND_SCORE_BOOSTED_OBSTACLE_WEIGHTS
     : timeBoost
     ? TIME_BOOSTED_OBSTACLE_WEIGHTS
     : scoreBoost
     ? BOOSTED_OBSTACLE_WEIGHTS
     : OBSTACLE_WEIGHTS;
+  const weights = applyPontLateBoost(slotIndex, baseWeights);
   const kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
   if (kind === "voiture") {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));

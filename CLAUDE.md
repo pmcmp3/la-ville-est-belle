@@ -52,8 +52,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
     (« on fait en sorte que les cyclistes deviennent tous des obstacles »).
-  - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 4
-    à la même profondeur (2 voies ouvertes en début de course, 1 seule en fin de course).
+  - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 3
+    (4 avant le 17 août 2026) à la même profondeur (2 voies ouvertes en début de course, 1 seule
+    en fin de course).
+  - ⚠️ **Beaucoup plus de ponts, surtout en fin de course** (demandé le 17 août 2026) : poids de
+    base 0,10 → 0,30 (`OBSTACLE_WEIGHTS`, `entities.js`), plus un boost supplémentaire ×4 à partir
+    de `PONT_TIME_BOOST_TIME_S` (95 s, ≈66 % du parcours) — ~43 % de chance qu'un obstacle soit un
+    pont une fois ce seuil franchi, contre ~10 % avant. Composé par-dessus les boosts voiture/
+    cycliste existants (`applyPontLateBoost()`), jamais une 5e table nommée séparée.
   - Voiture, cône **et cycliste** se franchissent au saut ; seul le piéton se contourne
     **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`). ⚠️ Le cycliste en est
     sorti le 12 août 2026 (demandé explicitement, il y était depuis sa promotion en obstacle) —
@@ -95,7 +101,16 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 - **Combo** (demandé le 17 août 2026) : `comboSeuil`/`comboBonusParPalier` (`config.js`) — 5 étoiles
   ramassées d'affilée (sans toucher d'obstacle entre-temps) → ×1,5 sur les points de bonus, 10 → ×2,
   15 → ×2,5, etc. Remis à 0 au moindre obstacle touché. `main.js` (`comboMultiplier()`), affiché en
-  jeu sous le score (`hud.js`) quand actif.
+  jeu sous le score (`hud.js`) quand actif. Score maximum théorique (run parfait, 140/140 étoiles,
+  0 obstacle touché, combo jamais cassé) : **195 525 points**, combo final ×15 — vérifié par
+  balayage hors ligne, jamais atteignable en pratique (suppose d'éviter les 51 obstacles du
+  parcours sans exception).
+- **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
+  planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
+  Purement décoratif — pas de collision, pas de créneau, pas de score. Casquette, lunettes
+  remontées, barbe, casque autour du cou, chemise à carreaux, table de mixage, notes de musique
+  qui montent vers le ciel. Voxel (`blk()`, `voxel.js`), même grammaire que joueur/cyclistes/
+  piétons.
 
 ## Assets
 
