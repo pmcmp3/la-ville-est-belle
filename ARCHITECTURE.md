@@ -265,13 +265,15 @@ tienne même si on retouche `TOTAL_STARS` / `TOTAL_OBJECTS` / `GRACE_SLOTS`.
 sous le plan de la caméra, ce qui donne un horizon **réellement atteignable** :
 
 ```
-HORIZON_Z = √(CAMERA_HEIGHT / CURVATURE) ≈ 119 unités-monde
+HORIZON_Z = √(CAMERA_HEIGHT / CURVATURE) ≈ 136 unités-monde
 ```
 
 `CURVATURE` retouchée une seconde fois le 12 août 2026 (0,0004 → 0,00034, HORIZON_Z ≈ 110 → 119,
 +8 %), inspirée d'un screen Subway Surfers envoyé par l'artiste (perspective de pont très longue).
-⚠️ Non vérifiée visuellement dans la session qui l'a posée — preview navigateur inaccessible ce
-jour-là, voir §12. À confirmer/ajuster au prochain test réel avant d'aller plus loin dans ce sens.
+Une troisième fois le 17 août 2026 (0,00034 → 0,00026, HORIZON_Z ≈ 119 → 136, +14 %, « charge plus
+de distance », demandé explicitement) — même sens, pas à pas comme les fois précédentes. Au-delà,
+l'effet de courbure « Terre ronde » qui est la raison d'être de `CURVATURE` se dilue ; ne pas
+redescendre sous ~0,0002 sans reconfirmer que la sensation reste perceptible en jeu.
 
 Rien ne doit être dessiné au-delà : la projection s'y replierait. Tous les modules de rendu
 testent `z > HORIZON_Z` et sautent. Les objets « surgissent de derrière la courbe », ce qui est

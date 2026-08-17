@@ -66,11 +66,16 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // perspective de pont/viaduc avec un horizon très long) — même sens et même
 // ordre de grandeur que l'ajustement précédent, un pas à la fois plutôt qu'un
 // gros saut puisque cette valeur a déjà été retouchée une fois sur retour
-// terrain. HORIZON_Z ≈ 110 → ≈ 119 unités-monde, +8 %. ⚠️ Non vérifié
-// visuellement dans cette session (preview navigateur inaccessible, voir
-// ARCHITECTURE.md §12) — à confirmer/ajuster sur le prochain test réel.
-const CURVATURE = 0.00034;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 119 unités-monde
+// terrain. HORIZON_Z ≈ 110 → ≈ 119 unités-monde, +8 %.
+// 0.00034 → 0.00026 (demandé le 17 août 2026 : « charge plus de distance ») —
+// même sens que les deux réglages précédents, pas à pas. HORIZON_Z
+// ≈ 119 → ≈ 136 unités-monde, +14 % (≈ 13-14 bâtiments au lieu de 10-11,
+// SPACING = 10 dans world.js). Arbitrage : au-delà, l'effet de courbure
+// « la Terre est ronde » (raison d'être de CURVATURE, voir plus haut) se
+// dilue — ne pas redescendre sous ~0,0002 sans reconfirmer que la sensation
+// de courbure reste perceptible.
+const CURVATURE = 0.00026;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 136 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {

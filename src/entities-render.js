@@ -502,7 +502,99 @@ function fillPoly(ctx, pts, color) {
   ctx.fill();
 }
 
-export function render(ctx, width, height) {
+// Peint UN créneau (bonus/obstacle/pont/voiture/pieton/cycliste) déjà résolu
+// en x/z. Extrait de render() pour pouvoir l'intercaler avec des éléments
+// hors créneaux (extras, voir plus bas) dans le même ordre du peintre.
+function paintSlot(ctx, width, height, now, e) {
+  // Pont : un pilier par voie BLOQUÉE (e.lanes), plus une poutre sur toute
+  // la largeur de la route — voir renderBridge().
+  if (isBridgeSlot(e)) {
+    renderBridge(ctx, e.lanes, e.z, width, height);
+    return;
+  }
+
+  // Rangée de voitures : un volume faux-3D par voie occupée, toutes à la
+  // même profondeur (plus de convoi étagé en Z) — l'ordre entre elles
+  // n'a pas d'importance, leurs empans en x ne se recouvrent pas.
+  if (isCarSlot(e)) {
+    for (let i = 0; i < e.lanes.length; i++) {
+      const color = carColorFor(e.slotIndex, i);
+      const lit = carLitFor(e.slotIndex, i);
+      renderCar3D(ctx, road.laneX(e.lanes[i]), e.z, width, height, color, lit);
+    }
+    return;
+  }
+
+  // Cyclistes en sens inverse : même traitement que le piéton (projeté au
+  // sol, variante déterministe tirée du slot pour qu'elle ne change jamais
+  // en cours d'approche). `now` pilote l'animation de pédalage.
+  if (!e.isBonus && e.kind === "cycliste") {
+    const p = road.project(e.x, e.z, width, height);
+    const outfitIndex = Math.abs(hash(e.slotIndex * 71 + 3) * cyclists.OUTFIT_COUNT) % cyclists.OUTFIT_COUNT;
+    cyclists.render(ctx, Math.floor(outfitIndex), p.x, p.y, p.scale, now);
+    return;
+  }
+
+  // Piétons animés : jambes qui alternent au fil du temps, avec des outfits.
+  if (!e.isBonus && e.kind === "pieton") {
+    const p = road.project(e.x, e.z, width, height);
+    // Outfit déterministe basé sur le slot du piéton (jamais aléatoire une
+    // fois spawné, pour stabilité à l'écran). Hash du slot divise par
+    // nombre d'outfits disponibles.
+    const outfitIndex = Math.abs(hash(e.slotIndex * 7)) % Object.keys(pedestrians.PEDESTRIAN_ICONS).length;
+    const outfitType = Object.keys(pedestrians.PEDESTRIAN_ICONS)[outfitIndex];
+    const pedestrianDrawer = pedestrians.makePedestrianIcon(outfitType, clock.now());
+    // p.y = point au SOL de la projection, et le dessinateur attend
+    // justement les pieds du piéton en y (voir pedestrians.js). On passait
+    // `p.y - largeur` jusqu'ici, ce qui le faisait flotter au-dessus de la
+    // chaussée — d'autant plus visible depuis que les piétons ont doublé
+    // de taille.
+    pedestrianDrawer(ctx, p.x, p.y, p.scale);
+    return;
+  }
+
+  const p = road.project(e.x, e.z, width, height);
+  const icon = e.isBonus ? BONUS_ICONS[e.kind] : OBSTACLE_ICONS[e.kind];
+  const size = (e.isBonus ? BONUS_ICON_WORLD : ICON_WORLD) * p.scale;
+  const aerien = e.isBonus && isAirBonus(e.kind);
+  // Surélevé à la hauteur du pic de saut du joueur (même formule que le hop
+  // du personnage dans main.js, mais figée à son maximum : l'étoile ne
+  // rebondit pas, elle flotte pile où la tête du joueur arrive en sautant).
+  // Flottement lent ajouté avec les nouveaux bonus aériens : à distance,
+  // l'ombre au sol se confond avec le bitume sombre et rien ne disait
+  // « celui-là est en hauteur ». Une oscillation de ±8 % de la hauteur de
+  // saut suffit à le lire ; elle est calée sur l'horloge musicale (donc
+  // synchrone entre tous les objets à l'écran) et n'entre dans AUCUN test
+  // de collision — le ramassage ne dépend que de x et de `inAir`.
+  const airBase = window.CONFIG.hauteurSaut * HEIGHT_WORLD * p.scale * 0.6;
+  const airOffset = aerien
+    ? airBase * (1 + 0.08 * Math.sin(now * 3 + e.slotIndex))
+    : 0;
+
+  if (aerien) {
+    // Ombre au sol : seul indice visuel qu'il "manque" quelque chose entre
+    // l'icône et la route — le signal universel "il faut sauter ici".
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = "#000000";
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, size * 0.4, size * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);
+}
+
+// `extras` : éléments décoratifs hors créneaux (ex. cameo.js) à intercaler
+// dans le MÊME ordre du peintre que les bonus/obstacles, chacun sous la
+// forme `{ z, draw(ctx) }`. Sans ça, un élément hors créneaux se peint
+// toujours au même endroit de la séquence (avant ou après TOUT le reste),
+// quelle que soit sa profondeur réelle — signalé en jeu : Soberland
+// (cameo.js) apparaissait devant un pont pourtant plus proche. Un objet trop
+// gros ou trop lent pour ce mécanisme (ex. un futur second créneau simultané)
+// resterait hors de propos ici : ceci ne fusionne qu'UN point de profondeur
+// par extra, pas un volume étendu en z.
+export function render(ctx, width, height, extras = []) {
   const now = clock.now();
   const speed = road.getSpeed();
   ctx.imageSmoothingEnabled = false;
@@ -527,6 +619,9 @@ export function render(ctx, width, height) {
   // plus loin au plus près — d'où le parcours à rebours. Même principe que le
   // convoi de voitures, déjà peint de la dernière à la première.
   const slots = slotsFor(now, speed);
+  const sortedExtras = extras.filter((x) => x.z <= road.HORIZON_Z).sort((a, b) => b.z - a.z);
+  let ei = 0;
+
   for (let i = slots.length - 1; i >= 0; i--) {
     const e = slots[i];
     if (isConsumed(e.slotIndex)) continue;
@@ -535,82 +630,15 @@ export function render(ctx, width, height) {
     // de derrière la courbe, ce qui est justement l'effet recherché.
     if (e.z > road.HORIZON_Z) continue;
 
-    // Pont : un pilier par voie BLOQUÉE (e.lanes), plus une poutre sur toute
-    // la largeur de la route — voir renderBridge().
-    if (isBridgeSlot(e)) {
-      renderBridge(ctx, e.lanes, e.z, width, height);
-      continue;
+    // Tout extra plus loin que ce créneau se peint avant lui (loin → près).
+    while (ei < sortedExtras.length && sortedExtras[ei].z > e.z) {
+      sortedExtras[ei].draw(ctx);
+      ei++;
     }
-
-    // Rangée de voitures : un volume faux-3D par voie occupée, toutes à la
-    // même profondeur (plus de convoi étagé en Z) — l'ordre entre elles
-    // n'a pas d'importance, leurs empans en x ne se recouvrent pas.
-    if (isCarSlot(e)) {
-      for (let i = 0; i < e.lanes.length; i++) {
-        const color = carColorFor(e.slotIndex, i);
-        const lit = carLitFor(e.slotIndex, i);
-        renderCar3D(ctx, road.laneX(e.lanes[i]), e.z, width, height, color, lit);
-      }
-      continue;
-    }
-
-    // Cyclistes en sens inverse : même traitement que le piéton (projeté au
-    // sol, variante déterministe tirée du slot pour qu'elle ne change jamais
-    // en cours d'approche). `now` pilote l'animation de pédalage.
-    if (!e.isBonus && e.kind === "cycliste") {
-      const p = road.project(e.x, e.z, width, height);
-      const outfitIndex = Math.abs(hash(e.slotIndex * 71 + 3) * cyclists.OUTFIT_COUNT) % cyclists.OUTFIT_COUNT;
-      cyclists.render(ctx, Math.floor(outfitIndex), p.x, p.y, p.scale, now);
-      continue;
-    }
-
-    // Piétons animés : jambes qui alternent au fil du temps, avec des outfits.
-    if (!e.isBonus && e.kind === "pieton") {
-      const p = road.project(e.x, e.z, width, height);
-      // Outfit déterministe basé sur le slot du piéton (jamais aléatoire une
-      // fois spawné, pour stabilité à l'écran). Hash du slot divise par
-      // nombre d'outfits disponibles.
-      const outfitIndex = Math.abs(hash(e.slotIndex * 7)) % Object.keys(pedestrians.PEDESTRIAN_ICONS).length;
-      const outfitType = Object.keys(pedestrians.PEDESTRIAN_ICONS)[outfitIndex];
-      const pedestrianDrawer = pedestrians.makePedestrianIcon(outfitType, clock.now());
-      // p.y = point au SOL de la projection, et le dessinateur attend
-      // justement les pieds du piéton en y (voir pedestrians.js). On passait
-      // `p.y - largeur` jusqu'ici, ce qui le faisait flotter au-dessus de la
-      // chaussée — d'autant plus visible depuis que les piétons ont doublé
-      // de taille.
-      pedestrianDrawer(ctx, p.x, p.y, p.scale);
-      continue;
-    }
-
-    const p = road.project(e.x, e.z, width, height);
-    const icon = e.isBonus ? BONUS_ICONS[e.kind] : OBSTACLE_ICONS[e.kind];
-    const size = (e.isBonus ? BONUS_ICON_WORLD : ICON_WORLD) * p.scale;
-    const aerien = e.isBonus && isAirBonus(e.kind);
-    // Surélevé à la hauteur du pic de saut du joueur (même formule que le hop
-    // du personnage dans main.js, mais figée à son maximum : l'étoile ne
-    // rebondit pas, elle flotte pile où la tête du joueur arrive en sautant).
-    // Flottement lent ajouté avec les nouveaux bonus aériens : à distance,
-    // l'ombre au sol se confond avec le bitume sombre et rien ne disait
-    // « celui-là est en hauteur ». Une oscillation de ±8 % de la hauteur de
-    // saut suffit à le lire ; elle est calée sur l'horloge musicale (donc
-    // synchrone entre tous les objets à l'écran) et n'entre dans AUCUN test
-    // de collision — le ramassage ne dépend que de x et de `inAir`.
-    const airBase = window.CONFIG.hauteurSaut * HEIGHT_WORLD * p.scale * 0.6;
-    const airOffset = aerien
-      ? airBase * (1 + 0.08 * Math.sin(now * 3 + e.slotIndex))
-      : 0;
-
-    if (aerien) {
-      // Ombre au sol : seul indice visuel qu'il "manque" quelque chose entre
-      // l'icône et la route — le signal universel "il faut sauter ici".
-      ctx.globalAlpha = 0.32;
-      ctx.fillStyle = "#000000";
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, size * 0.4, size * 0.14, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);
+    paintSlot(ctx, width, height, now, e);
+  }
+  while (ei < sortedExtras.length) {
+    sortedExtras[ei].draw(ctx);
+    ei++;
   }
 }

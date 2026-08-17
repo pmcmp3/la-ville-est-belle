@@ -38,8 +38,10 @@ import {
 // tombent toujours sur la même grille sans jamais pouvoir diverger.
 const SPACING = WORLD_GRID_SPACING;
 const SIDEWALK_MARGIN = 0.5; // marge entre le bord de route et le pied des bâtiments
-// Plus rien n'est visible au-delà de l'horizon courbe (HORIZON_Z ≈ 95, soit
-// une dizaine de bâtiments à SPACING = 10) : inutile d'en préparer davantage.
+// Plus rien n'est visible au-delà de l'horizon courbe (HORIZON_Z ≈ 136 depuis
+// le 17 août 2026, soit ≈ 13-14 bâtiments à SPACING = 10) : inutile d'en
+// préparer davantage. Calculé à partir de HORIZON_Z (road.js), jamais en dur
+// — suit automatiquement si CURVATURE rebouge encore.
 const DEPTH_COUNT = Math.ceil(HORIZON_Z / SPACING) + 1;
 // Profondeur du bloc le long de la route (< SPACING pour laisser tout juste
 // un filet — une ruelle latérale — entre deux bâtiments) et largeur

@@ -775,15 +775,15 @@ function render(alpha) {
   road.render(ctx, width, height, renderDistance);
   world.render(ctx, width, height, renderDistance);
   if (gameStarted && !game.ended) {
-    entitiesRender.render(ctx, width, height);
     // Caméo Soberland (demandé le 17 août 2026) : purement décoratif, planté
-    // dans les 10 premières secondes de course — voir cameo.js pour le
-    // principe (même technique que la ligne d'arrivée ci-dessous, mais tôt
-    // dans la course plutôt qu'à la fin). Dessiné après les entités, comme la
-    // ligne d'arrivée, pour la même raison : pas de collision propre, donc
-    // pas de véritable ordre de profondeur à respecter avec les
-    // bonus/obstacles qui le croisent.
-    cameo.render(ctx, width, height);
+    // dans les 10 premières secondes de course — voir cameo.js. Passé en
+    // `extra` à entities-render.render() plutôt que dessiné séparément :
+    // sinon il se peindrait toujours au même endroit de la séquence (avant
+    // OU après tous les bonus/obstacles), indépendamment de sa profondeur
+    // réelle — bug remonté en jeu (apparaissait devant un pont plus proche).
+    const cameoZ = cameo.getZ(clock.now());
+    const extras = cameoZ != null ? [{ z: cameoZ, draw: () => cameo.render(ctx, width, height) }] : [];
+    entitiesRender.render(ctx, width, height, extras);
     // Ligne d'arrivée : rien pendant l'essentiel du morceau, apparaît à 5s
     // de la fin et arrive au niveau du joueur pile quand la partie se
     // termine (voir finish.js). Dessinée APRÈS les entités pour que
