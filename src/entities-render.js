@@ -507,6 +507,10 @@ function fillPoly(ctx, pts, color) {
 // Peint UN créneau (bonus/obstacle/pont/voiture/pieton/cycliste) déjà résolu
 // en x/z. Extrait de render() pour pouvoir l'intercaler avec des éléments
 // hors créneaux (extras, voir plus bas) dans le même ordre du peintre.
+// Exporté sous le nom `peindreObjet` pour le tutoriel (tutorial.js), qui pose
+// ses objets de démonstration hors grille : c'est le MÊME rendu que le jeu,
+// donc le tuto montre exactement ce que le joueur va rencontrer.
+export { paintSlot as peindreObjet };
 function paintSlot(ctx, width, height, now, e) {
   // Pont : un pilier par voie BLOQUÉE (e.lanes), plus une poutre sur toute
   // la largeur de la route — voir renderBridge().

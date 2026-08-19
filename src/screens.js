@@ -19,6 +19,7 @@ import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
 import * as share from "./share.js";
+import * as tutorial from "./tutorial.js";
 
 let deps = null;
 
@@ -97,7 +98,7 @@ export function showOverlayOnLoad() {
 // de fin. Une seule "vue" active à la fois dans #overlay, et à l'intérieur
 // de l'onboarding une seule "étape" à la fois. L'étape "inclinaison" a été
 // retirée avec le gyroscope (voir input.js) — le tutoriel du contrôle
-// tactile se fait maintenant pendant le décompte (voir runCountdown()).
+// tactile se fait maintenant pendant le tutoriel interactif (runTutorial()).
 const onboardingEl = document.getElementById("onboarding");
 const countdownEl = document.getElementById("countdown");
 const endScreenEl = document.getElementById("end-screen");
@@ -164,92 +165,66 @@ function setView(view) {
   refreshCtaVisibility();
 }
 
-// --- Décompte avant course -----------------------------------------------
-// "Réalise le meilleur score, et gagne le vinyl de l'EP" pendant 20 → 1,
-// entre le tap JOUER et le vrai début (demandé explicitement, allongé de
-// 15s à 20s après un premier test réel avec un joueur externe — le temps de
-// bien lire chaque message). Le geste iOS (déblocage audio) a déjà eu lieu
-// au tap — voir startGame() plus bas — donc ce décompte n'a besoin d'aucun
-// geste supplémentaire à la fin. Sert aussi de tutoriel : la bande de
-// pilotage et le bouton saut sont déjà affichés et utilisables pendant le
-// compte à rebours (voir CSS #steer-control, le personnage y répond en
-// direct — demandé explicitement, "garder le bonhomme visible tant que le
-// décompte n'est pas fini").
-const COUNTDOWN_START = 20;
-let countdownTimer = null;
-// Bouton "Passer l'intro" (demandé explicitement, pour qui a déjà joué) :
-// apparaît après un délai plutôt que d'emblée, pour ne pas parasiter le tout
-// début du décompte pour un premier joueur qui découvre le jeu.
+// --- Tutoriel interactif avant course --------------------------------------
+// ⚠️ Remplace le compte à rebours « 20 → 1 » le 19 août 2026 (demandé : « on
+// peut remplacer les 20 secondes de début avec des exemples de swipe, comme un
+// jeu Mario »). La vue DOM du décompte est réutilisée telle quelle — même
+// voile, même légende, même bouton « Passer l'intro » — mais le contenu est
+// piloté par tutorial.js : le joueur fait VRAIMENT les gestes (l'overlay est
+// déjà en pointer-events:none, donc les swipes atteignent le canvas), et
+// chaque étape se valide quand le geste est fait, pas quand le temps passe.
+// Le gros chiffre devient la progression (« 1/4 »).
+//
+// Plafond de sécurité : un joueur qui n'arrive à rien part quand même en
+// course au bout de TUTO_PLAFOND_S — un tutoriel ne doit jamais être un mur.
+const TUTO_PLAFOND_S = 30;
+let tutoDeadline = 0;
+let tutoDernierTexte = "";
+// Bouton "Passer l'intro" (demandé explicitement, pour qui a déjà joué).
 const SKIP_BUTTON_DELAY = 4000;
 let skipButtonTimer = null;
 
-// Légende du décompte : une phrase à la fois, en fondu, plutôt que les 3
-// empilées d'un coup (retour de test : illisible, ça débordait sur le
-// personnage). ~7s hype, ~7s tuto du contrôle tactile, ~6s rappel son.
-// Icônes/flèches ajoutées explicitement après le premier vrai test (« les
-// instructions un peu plus grosses, avec des icônes, des flèches ») —
-// notamment sur le message de tuto, où les flèches remplacent une partie du
-// texte (plus rapide à lire d'un coup d'œil qu'une phrase).
-const COUNTDOWN_MESSAGES = [
-  "Réalise le meilleur score, gagne le vinyl de l'EP",
-  "Swipe gauche ou droite pour changer de voie, swipe vers le haut pour sauter",
-  "Attrape les étoiles et évite les obstacles",
-];
-const CAPTION_FADE_MS = 300;
-let captionTimeout = null;
-let captionIndex = -1;
-
-function setCaption(text) {
-  countdownCaption.classList.add("hidden");
-  clearTimeout(captionTimeout);
-  captionTimeout = setTimeout(() => {
-    countdownCaption.textContent = text;
-    countdownCaption.classList.remove("hidden");
-  }, CAPTION_FADE_MS);
-}
-
-function updateCaption(n) {
-  const elapsed = COUNTDOWN_START - n; // 0..19
-  const idx = elapsed < 7 ? 0 : elapsed < 14 ? 1 : 2;
-  if (idx === captionIndex) return;
-  captionIndex = idx;
-  setCaption(COUNTDOWN_MESSAGES[idx]);
-}
-
-function runCountdown() {
+function runTutorial() {
   setView("countdown");
-  let n = COUNTDOWN_START;
-  countdownNum.textContent = String(n);
-  captionIndex = -1;
-  updateCaption(n);
+  tutorial.demarrer();
+  tutoDeadline = performance.now() + TUTO_PLAFOND_S * 1000;
+  tutoDernierTexte = "";
+  countdownCaption.classList.remove("hidden");
   skipCountdownBtn.classList.remove("visible");
   clearTimeout(skipButtonTimer);
   skipButtonTimer = setTimeout(() => skipCountdownBtn.classList.add("visible"), SKIP_BUTTON_DELAY);
-  countdownTimer = setInterval(() => {
-    n -= 1;
-    if (n <= 0) {
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-      clearTimeout(captionTimeout);
-      beginRun();
-      return;
-    }
-    countdownNum.textContent = String(n);
-    updateCaption(n);
-  }, 1000);
 }
 
-// Sur clic : coupe le décompte en cours (timer + légende) et enchaîne
-// directement sur beginRun(), comme si le "20 → 1" venait de finir tout seul.
+// Appelée à chaque frame par main.js (comme syncLoadingUi) : reflète l'état du
+// tutoriel dans le DOM du décompte, et déclenche la course quand il est fini.
+export function syncTutorialUi() {
+  if (!tutorial.estActif()) return;
+
+  if (tutorial.estFini() || performance.now() >= tutoDeadline) {
+    tutorial.arreter();
+    beginRun();
+    return;
+  }
+
+  const a = tutorial.affichage();
+  if (!a) return;
+  countdownNum.textContent = `${a.index}/${a.total}`;
+  if (a.texte !== tutoDernierTexte) {
+    tutoDernierTexte = a.texte;
+    countdownCaption.textContent = a.texte;
+    countdownCaption.style.color = a.couleur;
+  }
+}
+
+// Sur clic : coupe le tutoriel en cours et enchaîne directement sur la course.
 function skipCountdown() {
-  if (countdownTimer === null) return; // décompte déjà fini ou pas démarré
-  clearInterval(countdownTimer);
-  countdownTimer = null;
-  clearTimeout(captionTimeout);
+  if (!tutorial.estActif()) return; // déjà fini ou pas démarré
+  tutorial.arreter();
   beginRun();
 }
 
 function beginRun() {
+  clearTimeout(skipButtonTimer);
   hideOverlay();
   showPauseButton();
   clearTimeout(skipButtonTimer);
@@ -263,11 +238,11 @@ function beginRun() {
 }
 
 function startGame() {
-  if (deps.isGameStartRequested() || countdownTimer !== null) return;
+  if (deps.isGameStartRequested() || tutorial.estActif()) return;
   // audio.unlock() a déjà eu lieu au nextStep() de l'étape pseudo. Idempotent
   // de toute façon (armed = true dès le 1er appel), donc on ne re-tente pas
   // pour éviter la moindre confusion.
-  runCountdown();
+  runTutorial();
 }
 
 // --- Progression du chargement --------------------------------------------

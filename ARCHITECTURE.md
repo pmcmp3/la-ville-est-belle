@@ -89,6 +89,7 @@ dépendances vont toujours vers le bas.
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
 | `share.js` | Image de partage **carrée 1080×1080** (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
 | `hud.js` | Score, vies, statut concours, bandeau de palier | |
+| `tutorial.js` | Tutoriel interactif d'avant-course (remplace le décompte 20 → 1) | Machine à états à 4 étapes, OBSERVE l'état du joueur (voie/saut) au lieu de lire l'input — main.js consomme déjà les gestes, un 2e consommateur les lui volerait. Objets de démo rendus par `peindreObjet` (entities-render.js). Ne bloque jamais : démo auto après ~3 s d'inaction, « Passer l'intro », plafond 30 s (screens.js) |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
 | `debug.js` | Overlay FPS, grille rythmique | Activé par `?debug` |
@@ -820,6 +821,24 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Sixième passe du 19 août 2026 — tutoriel interactif (Plan A).**
+- Le décompte « 20 → 1 » est remplacé par un **tutoriel guidé et interactif** (`tutorial.js`) —
+  voir `CLAUDE.md` pour le détail des 4 étapes et des arbitrages (GIF écartés ; démo auto qui
+  valide l'étape d'un joueur passif, assumé). Points de couture à connaître :
+  - `screens.js` : `runTutorial()` remplace `runCountdown()`, le DOM du décompte est réutilisé
+    (le gros chiffre devient « 1/4 », la légende porte la consigne), `syncTutorialUi()` est
+    appelée chaque frame par `main.js` comme `syncLoadingUi()`.
+  - `main.js` : pendant le tutoriel, `road.update(dt, 0)` fait défiler la route à la vitesse de
+    départ ; les objets de démo + le joueur sont triés par profondeur et peints à la main — PAS
+    via `entitiesRender.render()`, qui parcourrait la grille musicale de la future course.
+  - ⚠️ `road.reset()` ajouté dans `requestGameStart()` : sans lui, les ~400 unités défilées
+    pendant le tutoriel décalaient la rampe des véhicules traversants (calée sur la DISTANCE)
+    vers le début de course.
+  - Vérifié en vrai : machine à états (les 4 étapes, l'échec du pont avec seconde chance, la
+    démo après inaction), swipes souris qui valident l'étape 1, sortie par « Passer l'intro »,
+    distance remise à 0, course démarrée. Piège n°2 recroisé pendant le test : après une édition
+    de fichier, Vite sert `?t=` et un `import()` console crée une seconde instance morte.
 
 **Cinquième passe du 19 août 2026 — deux retours sur ce qui venait d'être livré.**
 - 🐛 **Véhicules traversants visibles beaucoup trop tôt** (capture à l'appui : ils flottaient

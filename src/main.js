@@ -12,6 +12,7 @@ import * as entitiesRender from "./entities-render.js";
 import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
 import * as crosstraffic from "./crosstraffic.js";
+import * as tutorial from "./tutorial.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -234,6 +235,9 @@ document.addEventListener("visibilitychange", () => {
 });
 
 const START_LANE = 1; // voie de départ (0..LANE_COUNT-1)
+// Saut déclenché par la démonstration du tutoriel (voir tutorial.prendreCommande) :
+// consommé au même endroit que le vrai geste, pour suivre le même chemin d'état.
+let demoJump = false;
 
 const playerState = {
   lane: START_LANE,
@@ -388,6 +392,12 @@ function formatMultiplicateur(m) {
 // main.js (dépendance circulaire, voir ARCHITECTURE.md §4), donc les quelques
 // actions qu'il doit pouvoir déclencher lui sont passées ici en callbacks.
 function requestGameStart() {
+  // La route a défilé pendant le tutoriel (road.update avec temps 0) : on la
+  // remet à zéro pour que la course parte de la distance 0 — la rampe des
+  // véhicules traversants (crosstraffic.js) est calée sur la DISTANCE
+  // parcourue, et ~20 s de tutoriel décaleraient leurs premiers passages
+  // d'autant vers le début de course, ce qui changerait l'équilibrage mesuré.
+  road.reset();
   startRequested = true;
   startRequestedAt = perfClock();
 }
@@ -622,6 +632,16 @@ function step(dt) {
   if (move && !game.ended && !finishing.active) {
     playerState.lane = Math.max(0, Math.min(road.LANE_COUNT - 1, playerState.lane + move));
   }
+  // Démonstration automatique du tutoriel : quand le joueur ne bouge pas,
+  // tutorial.js émet une commande et le personnage la joue lui-même — même
+  // chemin d'état que le vrai geste, appliqué juste après lui.
+  if (tutorial.estActif()) {
+    const cmd = tutorial.prendreCommande();
+    if (cmd) {
+      if (cmd.saut) demoJump = true;
+      else playerState.lane = Math.max(0, Math.min(road.LANE_COUNT - 1, playerState.lane + cmd.lane));
+    }
+  }
   // x court après le centre de la voie visée.
   const targetX = road.laneX(playerState.lane);
   const tween = Math.min(1, LANE_TWEEN * window.CONFIG.sensibiliteDirection * dt);
@@ -671,7 +691,8 @@ function step(dt) {
   // constante — accélération descendante nette, comme demandé au playtest.
   jump.prevY = jump.y;
   const { vJump, g } = jumpPhysics();
-  const jumpPressed = consumeJumpPress();
+  const jumpPressed = consumeJumpPress() || demoJump;
+  demoJump = false;
   const slamDown = consumeSlamDown();
 
   if (jumpPressed && (jump.mode === 'ground' || jump.mode === 'onCar')) {
@@ -814,6 +835,17 @@ function step(dt) {
     } else {
       road.update(dt, now);
     }
+  } else if (tutorial.estActif()) {
+    // Pendant le tutoriel, la route défile à la vitesse de DÉPART (temps
+    // écoulé = 0 dans la courbe d'accélération) : la scène vit, le personnage
+    // pédale, les objets de démonstration approchent — mais la course, elle,
+    // n'a pas commencé (l'horloge musicale ne pilote encore rien).
+    road.update(dt, 0);
+    tutorial.avancer(dt, {
+      voie: playerState.lane,
+      auSol: jump.mode === 'ground',
+      vientDeSauter: jumpPressed && jump.mode === 'air',
+    });
   }
 
   updateHealthFilterIfChanged();
@@ -967,6 +999,21 @@ function render(alpha) {
     // dans le plan : « ligne d'arrivée cosmétique » plutôt que d'inventer
     // une nouvelle condition de fin).
     finish.render(ctx, width, height);
+  } else if (tutorial.estActif()) {
+    // Tutoriel : les objets de démonstration et le joueur sont triés par
+    // profondeur et peints du plus loin au plus près — même ordre du peintre
+    // que la course (un pont de démo doit passer devant le joueur une fois
+    // dépassé, exactement comme le vrai). PAS via entitiesRender.render() :
+    // celui-ci parcourt la grille musicale (slotsFor), qui n'a pas encore
+    // démarré — on peindrait les créneaux de la future course.
+    const elements = tutorial.getExtras(ctx, width, height, clock.now());
+    elements.push({
+      z: road.PLAYER_NEAR_Z,
+      draw: () => renderPlayer(renderX, renderLean, renderPedalPhase, renderY),
+    });
+    elements.sort((a, b) => b.z - a.z);
+    for (const e of elements) e.draw(ctx);
+    tutorial.dessinerGeste(ctx, width, height);
   } else {
     // Hors course (menu d'accueil, écran de fin) : aucune entité n'est peinte,
     // donc personne pour porter le joueur dans la séquence du peintre — on le
@@ -1044,6 +1091,7 @@ function frame(nowMs) {
   }
 
   screens.syncLoadingUi();
+  screens.syncTutorialUi();
   render(accumulator / FIXED_DT);
   requestAnimationFrame(frame);
 }
