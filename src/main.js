@@ -304,6 +304,20 @@ let pickupFlash = 0;
 //   2. le passage d'un PALIER de combo (« quand on passe de ×3,5 à ×4, tu peux
 //      mettre un truc au-dessus du bonhomme pour dire que ça s'améliore ») —
 //      un événement rare, donc un message qui garde sa valeur.
+// --- Bandeau de palier de score (19 août 2026) ---------------------------
+// Version NON BLOQUANTE du « mur » évoqué par l'artiste (« quand quelqu'un
+// arrive à 50 000, le jeu se met en pause, il doit presser le lien »). Deux
+// raisons de ne pas mettre le mur ici : à 50 000 sur un maximum théorique de
+// 61 400, le seuil n'aurait quasiment jamais été atteint ; et interrompre une
+// course pour envoyer le joueur sur une page externe, sur mobile, c'est risquer
+// un onglet rechargé et un run perdu au meilleur moment (voir aussi
+// pauseDeriveMax dans config.js — au-delà de 25 s d'absence, le morceau se
+// rembobine). Le mur existe donc, mais sur l'ÉCRAN DE FIN (screens.js), là où
+// il n'y a plus de partie à casser. Ici il ne reste qu'un rappel qui passe et
+// s'efface, calé sur un seuil réellement atteignable.
+const MILESTONE_SCORE = 12000;
+const MILESTONE_DUREE = 4;
+
 const PICKUP_POPUP_DURATION = 1.1;
 const PICKUP_POPUP_RISE = 46;   // px parcourus vers le haut sur toute la durée
 const PICKUP_POPUP_MAX = 3;
@@ -332,6 +346,14 @@ const game = {
   penaltyTimer: 0,   // s restantes d'affichage du "-500" sous le score (hud.js)
   penaltyAmount: 0,  // montant du dernier malus, pour l'afficher tel quel
   streak: 0,         // étoiles ramassées d'affilée depuis le dernier obstacle touché (combo, voir plus bas)
+  // Deux compteurs de bilan, pour l'image de partage (share.js) : ils ne
+  // pilotent aucune mécanique, ils racontent la partie une fois finie.
+  stars: 0,          // étoiles ramassées sur toute la partie
+  bestCombo: 1,      // plus haut multiplicateur atteint, même s'il a été cassé depuis
+  // Palier de score déjà annoncé (bandeau « va écouter le morceau ») — évite
+  // de le rejouer à chaque frame une fois le seuil franchi.
+  milestoneShown: 0,
+  milestoneTimer: 0,
 };
 
 // Combo (demandé le 17 août 2026) : `streak` étoiles d'affilée → multiplicateur
@@ -383,6 +405,7 @@ function closePauseMenuState() {
 
 screens.init({
   game,
+  etoilesTotal: entities.TOTAL_STARS, // pour le « x/y étoiles » de l'image de partage
   requestGameStart,
   isGameStartRequested,
   restartGame,
@@ -506,6 +529,10 @@ function restartGame() {
   game.ended = false;
   game.endReason = null;
   game.streak = 0;
+  game.stars = 0;
+  game.bestCombo = 1;
+  game.milestoneShown = 0;
+  game.milestoneTimer = 0;
 
   entities.reset();
   crosstraffic.reset(); // sinon les carrefours déjà traversés resteraient « résolus » au rejeu
@@ -616,6 +643,9 @@ function step(dt) {
   if (game.penaltyTimer > 0) {
     game.penaltyTimer = Math.max(0, game.penaltyTimer - dt);
   }
+  if (game.milestoneTimer > 0) {
+    game.milestoneTimer = Math.max(0, game.milestoneTimer - dt);
+  }
 
   if (pickupFlash > 0) {
     pickupFlash = Math.max(0, pickupFlash - dt / PICKUP_FLASH_DURATION);
@@ -709,6 +739,8 @@ function step(dt) {
           game.score += gagne;
           pickupFlash = 1;
           etoilesRamassees += 1;
+          game.stars += 1;
+          game.bestCombo = Math.max(game.bestCombo, comboMultiplier());
           const palierApres = Math.floor(game.streak / window.CONFIG.comboSeuil);
           if (palierApres > palierAvant && palierApres > 0) {
             // Passage de palier : LE moment qui mérite une annonce (« pour dire
@@ -749,6 +781,11 @@ function step(dt) {
           damageFlash = DAMAGE_FLASH_DURATION;
         }
       }
+    }
+
+    if (game.milestoneShown === 0 && game.score >= MILESTONE_SCORE) {
+      game.milestoneShown = MILESTONE_SCORE;
+      game.milestoneTimer = MILESTONE_DUREE;
     }
 
     const now = clock.now();
@@ -948,6 +985,7 @@ function render(alpha) {
     ctx.save();
     ctx.globalAlpha = hudAlpha;
     hud.renderHud(ctx, width, height, game);
+    hud.renderMilestone(ctx, width, height, game);
     if (audioFallback) hud.renderAudioWarning(ctx, width, height);
     ctx.restore();
   }

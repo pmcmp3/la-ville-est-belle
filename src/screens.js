@@ -18,6 +18,7 @@
 import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
+import * as share from "./share.js";
 
 let deps = null;
 
@@ -45,6 +46,38 @@ const ctaLink = document.getElementById("cta-link");
 // Même lien, deux emplacements : le CTA flottant (menu) et l'action principale
 // de la carte de fin. C'est toujours config.js qui fait foi (lienEP).
 const endCta = document.getElementById("end-cta");
+const shareButton = document.getElementById("share-button");
+const replayLockNote = document.getElementById("replay-lock-note");
+
+// --- Verrou de rejeu (19 août 2026) --------------------------------------
+// Version retenue du « mur » demandé par l'artiste : il voulait mettre la
+// partie en pause à 50 000 points pour forcer un passage sur le lien du
+// morceau. Deux problèmes rédhibitoires à cet endroit-là — le seuil n'était
+// quasiment jamais atteignable (maximum théorique 61 400), et quitter la page
+// en pleine course sur mobile fait perdre le run (onglet rechargé, ou morceau
+// rembobiné au-delà de pauseDeriveMax). Le mur est donc posé ICI, sur l'écran
+// de fin : il n'y a plus de partie à casser, et c'est déjà une pause naturelle.
+// Mémorisé une fois pour toutes : on ne redemande pas à chaque game over.
+const CLE_MORCEAU_OUVERT = "morceauOuvert";
+
+function morceauDejaOuvert() {
+  try { return localStorage.getItem(CLE_MORCEAU_OUVERT) === "1"; } catch (e) { return true; }
+}
+
+function marquerMorceauOuvert() {
+  try { localStorage.setItem(CLE_MORCEAU_OUVERT, "1"); } catch (e) { /* navigation privée : on n'insiste pas */ }
+  syncVerrouRejeu();
+}
+
+// ⚠️ Le verrou se lève au CLIC sur le lien, pas à un retour effectif sur la
+// page : sur iOS le lien s'ouvre dans un autre onglet et rien ne garantit
+// qu'on repasse par ici. Le lier à une preuve de lecture enfermerait le joueur
+// dans un écran sans issue — ce qui coûterait bien plus que le clic gagné.
+function syncVerrouRejeu() {
+  const verrouille = !morceauDejaOuvert();
+  replayButton.disabled = verrouille;
+  replayLockNote.classList.toggle("hidden", !verrouille);
+}
 
 export function showOverlay() {
   overlay.classList.add("visible");
@@ -489,6 +522,29 @@ export function showEndScreen(reason) {
   // écrans (demandé explicitement). Le morceau continue de tourner sur
   // l'écran de fin — c'est justement là qu'on peut vouloir le couper.
   leaderboard.classList.add("hidden"); // masqué le temps de la requête, évite d'afficher le classement de la partie précédente
+  syncVerrouRejeu();
+
+  // Image de partage fabriquée MAINTENANT, pas au clic : navigator.share()
+  // doit être appelé dans la pile d'appel du geste, et toute opération
+  // asynchrone avant lui (dont canvas.toBlob) fait perdre le geste sur iOS.
+  // Voir l'en-tête de share.js.
+  shareButton.disabled = true;
+  shareButton.textContent = "PRÉPARATION…";
+  share.prepare({
+    score: deps.game.score,
+    pseudo: getPseudo(),
+    etoiles: deps.game.stars,
+    etoilesTotal: deps.etoilesTotal,
+    meilleurCombo: deps.game.bestCombo,
+    termine: finished,
+  }).then(() => {
+    shareButton.disabled = !share.estPret();
+    shareButton.textContent = share.estPret() ? "PARTAGER MON SCORE" : "PARTAGE INDISPONIBLE";
+  }).catch(() => {
+    shareButton.disabled = true;
+    shareButton.textContent = "PARTAGE INDISPONIBLE";
+  });
+
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
 }
 
@@ -515,7 +571,20 @@ export function init(d) {
   });
 
   playButton.addEventListener("click", startGame);
-  replayButton.addEventListener("click", deps.restartGame);
+  replayButton.addEventListener("click", () => {
+    if (replayButton.disabled) return;
+    deps.restartGame();
+  });
+
+  // Le lien du morceau lève le verrou de rejeu, sur les DEUX emplacements
+  // (carte de fin et CTA flottant du menu) : le geste compte, d'où qu'il vienne.
+  [endCta, ctaLink].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
+
+  shareButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    share.partager(); // synchrone : indispensable pour que le geste iOS tienne
+  });
+  syncVerrouRejeu();
   skipCountdownBtn.addEventListener("click", skipCountdown);
 
   // Entrée/espace au clavier : confort de test sur desktop uniquement.

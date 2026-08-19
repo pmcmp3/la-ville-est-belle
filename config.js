@@ -65,7 +65,7 @@ window.CONFIG = {
   cadenceSpawnBeats: 1.5,   // Un événement (bonus/obstacle) tous les N temps (calage rythmique) — 2 → 1.5 (playtest : "un peu plus d'objets")
 
   // === CONCOURS ===
-  dateOuverture:  "2026-08-05T00:00:00+02:00", // Ouverture du concours (heure de Paris). ⚠️ Fixée à aujourd'hui (dev) pour que l'artiste puisse envoyer des scores de test — À REMETTRE À "2026-08-17T00:00:00+02:00" avant de partager le lien public (lancement officiel demandé), et vider la table `scores` côté Supabase pour repartir sur un tableau propre.
+  dateOuverture:  "2026-08-17T00:00:00+02:00", // Ouverture du concours (heure de Paris). Remise à la date de lancement officiel le 19 août 2026 (elle était fixée au 5 août pour les tests). ⚠️ Il reste à VIDER LA TABLE `scores` côté Supabase : les scores enregistrés avant le 19 août l'ont été sous l'ancien barème (plafond 195 525 contre 61 400 aujourd'hui) et resteraient hors d'atteinte en tête du classement. Ça ne se fait pas depuis le jeu (la RLS interdit le DELETE avec la clé anon, et c'est une suppression définitive) — tableau de bord Supabase.
   dateFermeture:  "2026-10-11T23:59:59+02:00", // Fermeture du concours (heure de Paris)
   // Hors fenêtre : le jeu reste jouable, mais le score n'est pas comptabilisé au classement.
 

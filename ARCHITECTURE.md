@@ -87,7 +87,8 @@ dépendances vont toujours vers le bas.
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `crosstraffic.js` | Voitures/camions qui TRAVERSENT la chaussée aux carrefours | ⚠️ Fait basculer les croisements de décor à gameplay (19 août 2026). Vit sur la grille de DISTANCE (`road.isCrossingSlot`, partagée avec `world.js`), PAS sur la grille musicale d'`entities.js` — collisions et `Set` de résolus séparés. Densité nulle avant ~50 s, maximale après ~100 s : c'est le levier qui durcit la FIN sans toucher au début. Coût −1 vie, jamais fatal (voir l'en-tête du fichier) |
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
-| `hud.js` | Score, vies, statut concours | |
+| `share.js` | Image de partage 1080×1920 « borne arcade 80s » (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
+| `hud.js` | Score, vies, statut concours, bandeau de palier | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
 | `debug.js` | Overlay FPS, grille rythmique | Activé par `?debug` |
@@ -819,6 +820,26 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Quatrième passe du 19 août 2026 — conversion et partage.**
+- **Image de partage 1080×1920 faite** (`share.js`) — dernier élément du brief d'origine encore
+  ouvert. Voir la carte des modules et `CLAUDE.md` pour le détail. Deux pièges rencontrés et
+  corrigés en la regardant : le sprite du joueur était calé sur le bas de la scène, donc
+  entièrement **caché derrière le bandeau de score** ; et les guillemets français sortent en
+  chevrons très ouverts dans Stage Grotesk, illisibles à cette taille.
+- **Conversion vers le morceau, en deux temps.** L'artiste demandait une pause forcée à 50 000
+  points avec passage obligé par le lien. Écarté après chiffrage : le maximum théorique est de
+  61 400, donc 50 000 = 81 % de la perfection absolue, un seuil que presque personne n'atteint ;
+  et surtout, envoyer un joueur sur une page externe EN COURSE lui fait perdre son run sur mobile
+  (onglet rechargé par iOS, ou morceau rembobiné au-delà de `pauseDeriveMax` = 25 s). Retenu à la
+  place : un **bandeau non bloquant à 12 000 points** en course, et le **vrai verrou sur l'écran
+  de fin** (REJOUER inactif tant que le lien n'a pas été ouvert une fois, mémorisé en
+  localStorage). L'écran de fin est déjà une pause naturelle : il n'y a plus de partie à casser.
+- `dateOuverture` remise au **17 août 2026** (elle était au 5 août pour les tests).
+  ⚠️ **Reste à faire, côté Supabase et par l'artiste** : vider la table `scores`. Les scores
+  enregistrés avant le 19 août l'ont été sous l'ancien barème (plafond 195 525 contre 61 400
+  aujourd'hui) et resteraient hors d'atteinte en tête du classement. Impossible depuis le jeu —
+  la RLS interdit le DELETE avec la clé anon, et c'est une suppression définitive.
 
 **Troisième passe du 19 août 2026 — retours après un vrai test manette en main.**
 - **Voitures/camions qui TRAVERSENT aux carrefours** (`crosstraffic.js`, nouveau module) : demandé

@@ -111,7 +111,29 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   remplacer le simple damier plat d'origine.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
-- Image de partage **1080×1920 pixel art borne arcade 80s** — pas encore faite.
+- Image de partage **1080×1920 pixel art borne arcade 80s** — **faite le 19 août 2026**
+  (`share.js`), bouton « PARTAGER MON SCORE » sur l'écran de fin. Borne rouge de charte : marquee
+  au titre, écran CRT avec le ciel couchant + la route + le VRAI sprite du joueur (pas un dessin
+  refait), bandeau de score, ligne de stats (étoiles, combo max, fin), joystick/boutons, fente à
+  monnaie, et l'URL du jeu en pied. Tout est tracé sur une grille de 6 px (aucun dégradé lisse,
+  les fondus sont des bandes) ; seuls les textes sont hors grille, en Stage Grotesk — exactement
+  le mélange déjà utilisé en jeu (sprites pixel art + HUD en Stage Grotesk).
+  ⚠️ **L'image est fabriquée à l'affichage de l'écran de fin, pas au clic** : `navigator.share()`
+  doit être appelé dans la pile d'appel du geste (même règle qu'`AudioContext` sur iOS), or
+  `canvas.toBlob()` est asynchrone et ferait perdre le geste. Repli en téléchargement quand le
+  partage de fichiers n'existe pas.
+- **Conversion vers le morceau** (demandé le 19 août 2026 : « quand quelqu'un arrive à 50 000, le
+  jeu se met en pause, il doit presser le lien »). Réalisé en DEUX temps, après arbitrage — le
+  mur en pleine course a été écarté (à 50 000 sur un maximum de 61 400 le seuil n'était quasiment
+  jamais atteint, et quitter la page en course sur mobile fait perdre le run : onglet rechargé, ou
+  morceau rembobiné au-delà de `pauseDeriveMax`) :
+  - **En course** : un bandeau NON BLOQUANT à 12 000 points (`MILESTONE_SCORE`, `main.js` +
+    `hud.renderMilestone`), 4 s, bas de l'écran — « le morceau t'attend à l'arrivée ».
+  - **Sur l'écran de fin** : le vrai verrou. **REJOUER est désactivé tant que le joueur n'a pas
+    ouvert le lien du morceau une fois** (`morceauOuvert` en localStorage, donc une seule fois
+    dans sa vie). ⚠️ Le verrou se lève au CLIC, jamais à une preuve de lecture : sur iOS le lien
+    part dans un autre onglet et rien ne garantit qu'on revienne — l'exiger enfermerait le joueur
+    dans un écran sans issue.
 - CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
 - **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
   physique inchangée (`ROAD_HALF_WIDTH`), voies plus larges. Seul ajustement de logique exigé : les
