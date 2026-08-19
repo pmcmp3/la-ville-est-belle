@@ -11,6 +11,7 @@ import * as entities from "./entities.js";
 import * as entitiesRender from "./entities-render.js";
 import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
+import * as crosstraffic from "./crosstraffic.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -292,17 +293,27 @@ function jumpPhysics() {
 const PICKUP_FLASH_DURATION = 0.9;
 let pickupFlash = 0;
 
-// --- Points gagnés qui s'envolent (19 août 2026) -------------------------
-// Demandé avec l'intensification du halo : « une animation légère [...] pour
-// comprendre que l'étoile a bien été prise ». Le halo seul dit « il s'est
-// passé quelque chose » ; le chiffre dit COMBIEN, et surtout il rend le combo
-// lisible en jeu (une étoile à 50 qui rapporte 125 se voit immédiatement,
-// alors que le score global, lui, défile trop vite pour qu'on fasse la
-// différence). Monte en s'effaçant, comme un vrai retour d'arcade.
+// --- Messages qui s'envolent au-dessus du joueur -------------------------
+// ⚠️ Revu le 19 août 2026, deuxième passe. Le « +150 » à CHAQUE étoile a été
+// jugé « insupportable » — ce qui se comprend : à une étoile toutes les 0,75 s
+// en plein combo, le chiffre clignotait en permanence au milieu de l'écran.
+// Ne restent que deux usages, tous deux ponctuels :
+//   1. les TROIS PREMIÈRES étoiles de la partie (« tu peux le mettre à la
+//      limite sur les 3 premières pour que les gens comprennent, mais c'est
+//      tout ») — le rôle est pédagogique, pas décoratif ;
+//   2. le passage d'un PALIER de combo (« quand on passe de ×3,5 à ×4, tu peux
+//      mettre un truc au-dessus du bonhomme pour dire que ça s'améliore ») —
+//      un événement rare, donc un message qui garde sa valeur.
 const PICKUP_POPUP_DURATION = 1.1;
 const PICKUP_POPUP_RISE = 46;   // px parcourus vers le haut sur toute la durée
-const PICKUP_POPUP_MAX = 4;     // au-delà, ça devient illisible en plein combo
-const pickupPopups = [];        // { amount, age }
+const PICKUP_POPUP_MAX = 3;
+const POPUPS_PEDAGOGIQUES = 3;  // nombre d'étoiles en début de partie qui affichent encore leurs points
+const popups = [];              // { texte, couleur, age }
+
+function pousserPopup(texte, couleur) {
+  popups.push({ texte, couleur, age: 0 });
+  if (popups.length > PICKUP_POPUP_MAX) popups.shift();
+}
 
 // Fondu d'entrée du HUD : il apparaît avec la partie au lieu de surgir d'un
 // coup à la fermeture du menu. Même intention que les fondus CSS de l'overlay.
@@ -333,6 +344,21 @@ const game = {
 function comboMultiplier() {
   const { comboSeuil, comboBonusParPalier } = window.CONFIG;
   return 1 + comboBonusParPalier * Math.floor(game.streak / comboSeuil);
+}
+
+// Jaune des étoiles (STAR_FILL, entities-render.js) : le multiplicateur de
+// combo et son annonce de palier le reprennent, « pour que ce soit cohérent en
+// termes de couleurs » — c'est la teinte du gain dans ce jeu, le rouge de
+// charte restant celle du malus.
+const JAUNE_ETOILE = "#ffcf2e";
+// Compté sur la partie en cours : sert à n'afficher les points gagnés que sur
+// les toutes premières étoiles (voir POPUPS_PEDAGOGIQUES).
+let etoilesRamassees = 0;
+
+// « ×2,5 » plutôt que « ×2.5 » : virgule décimale française, et pas de « ,0 »
+// inutile sur les multiplicateurs entiers (×2, ×3).
+function formatMultiplicateur(m) {
+  return `×${String(m).replace(".", ",")}`;
 }
 
 // Interface étroite vers screens.js (écrans hors-jeu) : main.js reste seul
@@ -482,10 +508,13 @@ function restartGame() {
   game.streak = 0;
 
   entities.reset();
+  crosstraffic.reset(); // sinon les carrefours déjà traversés resteraient « résolus » au rejeu
   road.reset();
   resetFinish();
   damageFlash = 0;
   pickupFlash = 0;
+  popups.length = 0;      // sinon un « +150 » de la partie précédente survit au rejeu
+  etoilesRamassees = 0;   // les 3 popups pédagogiques reviennent à chaque nouvelle partie
   game.penaltyTimer = 0; // sinon le "-500" de la partie précédente survit au rejeu
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
 
@@ -594,9 +623,9 @@ function step(dt) {
   // Les points qui s'envolent vieillissent en temps RÉEL (dt), comme le "-500"
   // de pénalité : c'est un retour d'interface, il doit durer le même temps
   // montre en main quelle que soit la vitesse de la course.
-  for (let i = pickupPopups.length - 1; i >= 0; i--) {
-    pickupPopups[i].age += dt;
-    if (pickupPopups[i].age >= PICKUP_POPUP_DURATION) pickupPopups.splice(i, 1);
+  for (let i = popups.length - 1; i >= 0; i--) {
+    popups[i].age += dt;
+    if (popups[i].age >= PICKUP_POPUP_DURATION) popups.splice(i, 1);
   }
   if (damageFlash > 0) {
     damageFlash = Math.max(0, damageFlash - dt);
@@ -665,17 +694,32 @@ function step(dt) {
       // voitures (mais pas au piéton/cône — voir entities.js pour le
       // comportement par kind).
       entities.setScore(game.score); // intensification des vélos au-delà de CYCLIST_BOOST_SCORE (entities.js)
-      const events = entities.update(playerState.lane, jump.mode !== 'ground');
+      // Deux sources de collisions, deux grilles indépendantes : la grille
+      // MUSICALE (entities.js, bonus/obstacles calés sur les beats) et la
+      // grille de DISTANCE (crosstraffic.js, véhicules qui traversent aux
+      // carrefours — même grille que les bâtiments et les feux). Leurs
+      // événements ont le même format et sont traités par la même boucle.
+      const events = entities.update(playerState.lane, jump.mode !== 'ground')
+        .concat(crosstraffic.update(playerState.lane, jump.mode !== 'ground'));
       for (const e of events) {
         if (e.type === "bonus") {
+          const palierAvant = Math.floor(game.streak / window.CONFIG.comboSeuil);
           game.streak += 1;
-          // Le combo est appliqué AVANT de connaître le gain affiché : c'est
-          // exactement ce chiffre-là (combo compris) qu'on veut voir s'envoler.
           const gagne = Math.round(window.CONFIG.bonus[e.kind] * comboMultiplier());
           game.score += gagne;
           pickupFlash = 1;
-          pickupPopups.push({ amount: gagne, age: 0 });
-          if (pickupPopups.length > PICKUP_POPUP_MAX) pickupPopups.shift();
+          etoilesRamassees += 1;
+          const palierApres = Math.floor(game.streak / window.CONFIG.comboSeuil);
+          if (palierApres > palierAvant && palierApres > 0) {
+            // Passage de palier : LE moment qui mérite une annonce (« pour dire
+            // que ça s'améliore »). Même jaune que les étoiles et que le
+            // multiplicateur du HUD — c'est la couleur du gain dans ce jeu.
+            pousserPopup(`COMBO ${formatMultiplicateur(comboMultiplier())}`, JAUNE_ETOILE);
+          } else if (etoilesRamassees <= POPUPS_PEDAGOGIQUES) {
+            // Les toutes premières étoiles seulement : on montre une fois ce
+            // que rapporte un ramassage, puis on se tait.
+            pousserPopup(`+${gagne}`, "#ffffff");
+          }
         } else {
           game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
           // Playtest : "quand on se prend une voiture, game over". La
@@ -818,7 +862,7 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
 const POPUP_POLICE = '"Stage Grotesk", system-ui, sans-serif';
 
 function renderPickupPopups(ctx, renderX) {
-  if (!pickupPopups.length) return;
+  if (!popups.length) return;
   const p = road.project(renderX, road.PLAYER_NEAR_Z, width, height);
   const base = p.y - player.HEIGHT_WORLD * p.scale * 1.15;
 
@@ -827,7 +871,7 @@ function renderPickupPopups(ctx, renderX) {
   ctx.textBaseline = "bottom";
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 6;
-  for (const popup of pickupPopups) {
+  for (const popup of popups) {
     const t = popup.age / PICKUP_POPUP_DURATION; // 0 à l'impact → 1 à la fin
     // Montée qui décélère (racine) : vif au départ, posé à l'arrivée — c'est
     // ce profil qui se lit comme « ça décolle » plutôt qu'un glissement plat.
@@ -838,9 +882,9 @@ function renderPickupPopups(ctx, renderX) {
     // Léger sursaut d'échelle à l'impact, qui retombe tout de suite. Taille en
     // pixels fixes, comme tout le HUD (hud.js) : un chiffre d'interface doit
     // garder la même taille à l'écran, il ne s'éloigne pas avec la route.
-    ctx.font = `900 ${t < 0.15 ? 30 : 24}px ${POPUP_POLICE}`;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(`+${popup.amount}`, p.x, base - monte);
+    ctx.font = `900 ${t < 0.15 ? 28 : 23}px ${POPUP_POLICE}`;
+    ctx.fillStyle = popup.couleur;
+    ctx.fillText(popup.texte, p.x, base - monte);
   }
   ctx.restore();
 }
@@ -872,7 +916,8 @@ function render(alpha) {
     // séquence du peintre à sa vraie profondeur suffit : tout ce qui a un z
     // plus petit que PLAYER_NEAR_Z se peint désormais par-dessus lui. Même
     // mécanisme exactement que le caméo, pour la même raison.
-    const extras = cameo.getExtras(ctx, width, height, clock.now());
+    const extras = cameo.getExtras(ctx, width, height, clock.now())
+      .concat(crosstraffic.getExtras(ctx, width, height));
     extras.push({
       z: finishing.active ? finishing.playerZ : road.PLAYER_NEAR_Z,
       draw: () => renderPlayer(renderX, renderLean, renderPedalPhase, renderY),

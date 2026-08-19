@@ -489,7 +489,7 @@ function faceCorners(xA, zA, xB, zB, wallHeight, roofHeight, width, height) {
 // (« que le chargement soit plus progressif »), et il faut que décor et objets
 // se matérialisent au même rythme, sinon l'un des deux a l'air en retard sur
 // l'autre — c'est précisément ce décalage qui a fait remonter le problème.
-const FADE_BAND = 48;
+const FADE_BAND = 62;
 
 // --- Feux de circulation, aux croisements -----------------------------------
 // Demandé le 12 août 2026 avec les croisements (« tu peux rajouter des feux

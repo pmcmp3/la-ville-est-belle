@@ -20,7 +20,7 @@ const CADENCE = window.CONFIG.cadenceSpawnBeats; // un événement tous les N te
 // juste, sans marge pour le facteur d'approche des cyclistes (×1,35, qui les
 // place plus loin). En manquer aurait fait apparaître les objets en plein
 // milieu du champ au lieu de l'horizon, exactement le défaut qu'on corrige.
-const LOOKAHEAD_SLOTS = 16;
+const LOOKAHEAD_SLOTS = 18;
 
 // Distance (unités-monde) au-delà de laquelle un créneau n'est pas encore
 // pris en compte par visibleSlots() — la vraie limite de visibilité utilisée
@@ -33,14 +33,21 @@ const LOOKAHEAD_SLOTS = 16;
 // bien après le décor, ce qui se lit comme « ils chargent en retard ». Recalé
 // juste sous le nouvel HORIZON_Z (≈ 155) pour que les objets sortent de la
 // courbe en même temps que le reste de la scène.
-export const VISIBLE_Z_MAX = 145;
+// 145 → 170 le 19 août 2026 (deuxième passe : « charger encore plus loin »),
+// en même temps que l'horizon repoussé à ≈179 (road.js). Reste sous HORIZON_Z :
+// au-delà, la projection se replie.
+export const VISIBLE_Z_MAX = 170;
 // Fondu d'apparition des objets sur les dernières unités avant VISIBLE_Z_MAX
 // (« il faut que le chargement soit plus progressif »). Même principe que
 // FADE_BAND pour les bâtiments (world.js) : sans lui, un objet apparaît d'un
 // coup à pleine opacité pile sur le seuil de coupure — un pop-in, d'autant
 // plus visible maintenant que le seuil est loin. Consommé par
 // entities-render.js, qui est seul à savoir peindre.
-export const FADE_BAND = 34;
+// 34 → 50 avec l'allongement de la distance de vue : c'est ce fondu qui
+// remplace désormais le repli de la courbe (voir CURVATURE, road.js) pour
+// éviter « la ligne d'horizon » — un objet doit se dissoudre dans la brume,
+// jamais apparaître d'un coup sur une limite nette.
+export const FADE_BAND = 50;
 // Petite marge pour que le créneau 0 soit franchement DANS la fenêtre dès la
 // première frame, pas pile sur le seuil de coupure (évite tout flottement).
 const LEAD_IN_VISIBILITY_MARGIN = 2;

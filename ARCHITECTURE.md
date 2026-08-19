@@ -85,6 +85,7 @@ dépendances vont toujours vers le bas.
 | `cyclists.js` | Cyclistes-obstacles en sens inverse (vus de face) | DA voxel, 5 variantes |
 | `pedestrians.js` | Sprites des piétons-obstacles | **Voxel** depuis le 12 août 2026, même `blk()` que joueur/cyclistes |
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
+| `crosstraffic.js` | Voitures/camions qui TRAVERSENT la chaussée aux carrefours | ⚠️ Fait basculer les croisements de décor à gameplay (19 août 2026). Vit sur la grille de DISTANCE (`road.isCrossingSlot`, partagée avec `world.js`), PAS sur la grille musicale d'`entities.js` — collisions et `Set` de résolus séparés. Densité nulle avant ~50 s, maximale après ~100 s : c'est le levier qui durcit la FIN sans toucher au début. Coût −1 vie, jamais fatal (voir l'en-tête du fichier) |
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
 | `hud.js` | Score, vies, statut concours | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
@@ -818,6 +819,33 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Troisième passe du 19 août 2026 — retours après un vrai test manette en main.**
+- **Voitures/camions qui TRAVERSENT aux carrefours** (`crosstraffic.js`, nouveau module) : demandé
+  tel quel, et c'est aussi la réponse à « ça fait plus facile la fin que le début ». ⚠️ Fait
+  tomber l'invariant « les croisements sont purement décoratifs » (§6bis), en connaissance de
+  cause. Densité **nulle avant ~50 s**, maximale après ~100 s — précisément pour ne rien changer à
+  l'ouverture, jugée bonne (« la quantité et la densité d'objets au tout début, c'est très très
+  bien », et « je ne veux pas que les premières étoiles arrivent plus vite au tout départ »).
+  Mesuré sur une course simulée au pas fixe : **45 traversées**, 0 avant 50 s, puis 5 / 10 / 19 /
+  11 par tranche de 25 s — l'essentiel dans le dernier tiers. **Chacune ne bloque qu'UNE voie**
+  (vérifié : jamais 2, donc jamais de mort inévitable), et la position latérale est calculée en
+  TEMPS restant avant le joueur, pas en profondeur : sans ça le véhicule aurait surgi 0,2 s avant
+  l'impact en fin de course (99 u/s) au lieu de ~1,5 s. Coût **−1 vie, jamais fatal** : les deux
+  grilles étant indépendantes, un véhicule peut coïncider avec le seul passage laissé par un pont,
+  cas rare qu'on ne peut pas exclure par construction — il coûte un cœur, pas la course.
+- **Le « +150 » à chaque étoile est retiré** (« insupportable » — à une étoile toutes les 0,75 s en
+  plein combo, le chiffre clignotait en permanence). Ne restent que les **3 premières étoiles** de
+  la partie (rôle pédagogique) et l'**annonce de palier de combo** au-dessus du personnage, un
+  événement rare qui garde donc sa valeur.
+- **Combo réduit au multiplicateur seul**, en jaune étoile, sans pastille (la pastille de la passe
+  précédente était « beaucoup trop grosse »). « ×2,5 » sous le score suffit ; le mot COMBO
+  n'apprenait rien de plus.
+- **Distance de vue encore allongée** : `CURVATURE` 0,0002 → 0,00015 (HORIZON_Z ≈ 155 → 179),
+  `VISIBLE_Z_MAX` 145 → 170, fondus élargis (50 côté objets, 62 côté décor). ⚠️ **Premier réglage
+  sous le plancher de 0,0002** annoncé en §5.5 : franchi sciemment, sur demande explicite de
+  « charger encore plus loin sans la ligne d'horizon » — la courbure s'aplatit, mais c'est
+  justement le repli net dont le joueur ne veut plus, et le fondu de brume prend le relais.
 
 **Deuxième passe du 19 août 2026 — six retours de jeu.** Tout vérifié en exécutant le jeu
 (harnais console + frame composée sur canvas superposé, la preview refusant de compositer quand

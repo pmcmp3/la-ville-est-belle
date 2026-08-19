@@ -11,11 +11,12 @@
 // avec :root dans index.html.
 const BLANC = "#ffffff";
 const ROUGE = "#e13e26";
-// Crème de la charte (fond des cartes de menu) et encre sombre : le duo du tag
-// de combo, voir renderHud. Repris d'index.html, dupliqué ici pour la même
-// raison que le reste — le canvas ne lit pas les variables CSS.
-const CREME = "#f0ead9";
-const ENCRE = "#141419";
+// Jaune des étoiles (STAR_FILL dans entities-render.js) : le multiplicateur de
+// combo le reprend, demandé explicitement « pour que ce soit cohérent en termes
+// de couleurs ». Dupliqué ici plutôt qu'importé — hud.js ne dépend d'aucun
+// module de rendu du monde, et ce fichier duplique déjà toute la charte pour
+// la même raison (le canvas ne lit pas les variables CSS).
+const JAUNE_ETOILE = "#ffcf2e";
 const PANNEAU = "rgba(13,13,16,0.72)"; // fond des panneaux d'interface
 const POLICE = '"Stage Grotesk", system-ui, sans-serif';
 
@@ -116,31 +117,22 @@ export function renderHud(ctx, width, height, game) {
   // pénalité (main.js), donc dès que l'un s'affiche l'autre est à son état
   // neutre. Blanc, pas rouge : le rouge de charte est réservé au négatif
   // (pénalité), le combo est une récompense.
-  // ⚠️ Passé en TAG le 19 août 2026 (« que le combo soit dans un tag un peu
-  // plus gros pour qu'on comprenne comment ça marche ») : c'était un texte
-  // blanc nu, qui se confondait avec le décor et ne se lisait pas comme un
-  // état actif du jeu. Une pastille pleine crème à texte sombre se détache sur
-  // n'importe quel fond (ciel clair comme bitume) et dit « il se passe quelque
-  // chose en ce moment ». Volontairement PAS rouge : le rouge de charte
-  // signale le négatif (la pénalité juste au-dessus), le combo est une
-  // récompense.
+  // ⚠️ Deuxième révision le 19 août 2026, le même jour que le passage en tag —
+  // qui était « beaucoup trop gros » (« j'ai peut-être un peu abusé »). Retour
+  // à un texte nu, sans pastille, plus petit, et surtout RÉDUIT AU
+  // MULTIPLICATEUR SEUL : « au lieu d'écrire COMBO, tu mets juste ×2,5 en
+  // dessous du score ». Le mot n'apprenait rien qu'un « ×2,5 » sous un score
+  // ne dise déjà — et l'annonce de PALIER, elle, s'affiche au-dessus du
+  // personnage au moment où ça change (main.js), là où l'information est utile.
+  // Jaune des étoiles plutôt que blanc, demandé explicitement « pour que ce
+  // soit cohérent en termes de couleurs » : c'est la teinte du gain, quand le
+  // rouge de charte reste celle du malus juste au-dessus.
   if (game.streak >= window.CONFIG.comboSeuil) {
     const palier = Math.floor(game.streak / window.CONFIG.comboSeuil);
     const multiplier = 1 + window.CONFIG.comboBonusParPalier * palier;
-    const texte = `COMBO ×${multiplier}`;
-    const taille = Math.round(SCORE_SIZE * 0.55);
-    ctx.font = `900 ${taille}px ${POLICE}`;
-    const padX = 14;
-    const padY = 7;
-    const tagW = ctx.measureText(texte).width + padX * 2;
-    const tagH = taille + padY * 2;
-    const tagX = width / 2 - tagW / 2;
-    const tagY = PAD + SCORE_SIZE * 1.15;
-    ctx.fillStyle = CREME;
-    roundRect(ctx, tagX, tagY, tagW, tagH, tagH / 2);
-    ctx.fill();
-    ctx.fillStyle = ENCRE;
-    ctx.fillText(texte, width / 2, tagY + padY);
+    ctx.font = `900 ${Math.round(SCORE_SIZE * 0.42)}px ${POLICE}`;
+    ctx.fillStyle = JAUNE_ETOILE;
+    ctx.fillText(`×${String(multiplier).replace(".", ",")}`, width / 2, PAD + SCORE_SIZE * 1.1);
   }
 
   // Cœurs : en ligne, ancrés en haut à droite, alignés verticalement sur le

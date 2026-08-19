@@ -83,8 +83,19 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // du joueur » : les bonus/obstacles étaient coupés bien avant l'horizon par
 // VISIBLE_Z_MAX (entities.js, 90 u quand l'horizon en faisait déjà 136) — le
 // vrai goulot était là, pas ici.
-const CURVATURE = 0.0002;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 155 unités-monde
+// 0.0002 → 0.00015 le 19 août 2026, deuxième passe du même jour (« le
+// chargement au loin, c'est beaucoup mieux si t'arrives à charger encore plus
+// loin sans la ligne d'horizon »). HORIZON_Z ≈ 155 → ≈ 179 unités-monde
+// (≈ 18 bâtiments). ⚠️ C'est le premier réglage qui passe SOUS le plancher de
+// 0,0002 annoncé plus haut : franchi sciemment, sur demande explicite et
+// répétée d'aller plus loin. La contrepartie annoncée se vérifie — la courbure
+// « Terre ronde » s'aplatit — mais c'est précisément ce que veut la demande :
+// « sans la ligne d'horizon », donc sans le repli net qui donnait justement
+// cette courbure. Le fondu de brume (FADE_BAND, ici et dans entities.js) fait
+// désormais le travail que faisait le repli : le lointain se dissout au lieu
+// de se couper.
+const CURVATURE = 0.00015;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 179 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {

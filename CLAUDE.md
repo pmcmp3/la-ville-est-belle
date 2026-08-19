@@ -129,6 +129,15 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
   enregistrés l'ont été sous l'ancien barème (plafond 195 525) et écraseraient définitivement
   ceux du nouveau (plafond 61 400).
+- **Voitures/camions qui traversent aux carrefours** (`crosstraffic.js`, demandé le 19 août 2026).
+  ⚠️ Les croisements ne sont donc PLUS purement décoratifs — invariant tombé sciemment. Vit sur la
+  grille de DISTANCE (celle des bâtiments/feux), pas sur la grille musicale d'`entities.js` :
+  collisions et résolution séparées, fusionné au rendu par `extras`. **Aucun véhicule avant ~50 s**
+  et densité maximale après ~100 s : c'est le levier qui durcit la FIN de course sans toucher à
+  l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
+  que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. Coût −1 vie,
+  **jamais fatal** — les deux grilles étant indépendantes, une coïncidence avec le seul passage
+  laissé par un pont est possible et ne doit pas terminer la course.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de
