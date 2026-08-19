@@ -69,6 +69,12 @@ function laneBlurMax() {
 const FINISH_BLUR_WINDOW = 3; // s de part et d'autre de la ligne
 const FINISH_BLUR_MAX = 3.5;  // px, au plus fort (pile sur la ligne)
 function finishBlur(now) {
+  // 🐛 Uniquement en course. Avant le départ, clock.now() compte le temps
+  // écoulé depuis le CHARGEMENT de la page (voir clock.js) : un joueur qui
+  // reste ~143 s sur le menu ou le décompte traversait la fenêtre de
+  // finishTime() et voyait son personnage se flouter sur l'écran d'accueil,
+  // sans qu'aucune course ait commencé.
+  if (!gameStarted || game.ended) return 0;
   const remaining = entities.finishTime() - now;
   const t = Math.abs(remaining) / FINISH_BLUR_WINDOW;
   if (t >= 1) return 0;
@@ -194,9 +200,19 @@ function applyPauseState() {
   if (next !== "running") {
     if (pauseStartedAt === 0) pauseStartedAt = perfClock();
   } else {
-    if (pauseStartedAt > 0 && !audioDrivesClock) {
+    if (pauseStartedAt > 0) {
       const ecart = perfClock() - pauseStartedAt;
-      clock.jumpBy(-Math.round(ecart / clock.beatPeriod) * clock.beatPeriod);
+      if (!audioDrivesClock) {
+        clock.jumpBy(-Math.round(ecart / clock.beatPeriod) * clock.beatPeriod);
+      }
+      // La partie n'a pas encore démarré (décompte terminé pendant que l'appli
+      // était en arrière-plan, par exemple) : le délai d'attente de l'audio ne
+      // doit pas courir pendant ce temps-là. Sinon, au retour, les
+      // AUDIO_START_TIMEOUT secondes sont déjà écoulées alors que le contexte
+      // vient tout juste de reprendre (resume() est asynchrone) — la partie
+      // basculait sur l'horloge de secours et se jouait en silence, sans
+      // retour en arrière possible, pour un incident qui n'en était pas un.
+      if (startRequested && !gameStarted) startRequestedAt += ecart;
     }
     pauseStartedAt = 0;
   }

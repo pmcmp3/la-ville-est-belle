@@ -56,7 +56,11 @@ export const PEDESTRIAN_ICONS = {
   brique: { top: ROUGE_SOMBRE, topShade: "#7d2011", stripe: CREME, pants: PANTS, hair: "#3c2712" },
 };
 
-const OUTFIT_TYPES = Object.keys(PEDESTRIAN_ICONS);
+// Exporté : entities-render.js tire l'outfit d'un piéton là-dedans. Il
+// refaisait un Object.keys() de son côté — même liste, mais deux sources pour
+// une seule vérité, et c'est en la reconstruisant qu'il a fini par l'indexer
+// avec un flottant (voir le tirage dans paintSlot).
+export const OUTFIT_TYPES = Object.keys(PEDESTRIAN_ICONS);
 
 // Vue de face/dos, jambes écartées selon `step` (-1, 0, +1) : c'est le seul
 // paramètre du cycle de marche. Deux frames extrêmes + une neutre suffisent à

@@ -16,3 +16,10 @@ assets/la-ville-est-belle-320k-original.mp3
 # Dossier sans rapport avec le jeu (outil reels, autre projet) — présent
 # incidemment dans ce répertoire, pas suivi ici.
 reels/
+
+# Assets FBX hors sujet (2,4 Mo), déjà exclus à la main des snapshots main/
+# gh-pages (ARCHITECTURE.md §9). Ignorés ici pour la même raison que le WAV
+# maître plus haut : c'est un `git add -A` distrait qui a mis 65 Mo de binaires
+# dans l'historique public la dernière fois, et il a fallu réécrire tout le
+# dépôt pour les en sortir.
+3D assets/

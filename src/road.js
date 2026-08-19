@@ -31,7 +31,7 @@ export const PLAYER_NEAR_Z = 13;   // profondeur à laquelle se tient le joueur 
 // qu'une route rétrécie — aucun autre objet (sol, façades, portique
 // d'arrivée) n'est ancré sur LANE_COUNT, tous le sont sur ROAD_HALF_WIDTH.
 export const LANE_COUNT = 3;
-export const LANE_WIDTH = (ROAD_HALF_WIDTH * 2) / LANE_COUNT; // 2 unités
+export const LANE_WIDTH = (ROAD_HALF_WIDTH * 2) / LANE_COUNT; // ≈2,67 unités à 3 voies (2 du temps des 4 voies)
 export function laneX(lane) {
   return (lane - (LANE_COUNT - 1) / 2) * LANE_WIDTH;
 }
@@ -288,13 +288,14 @@ export function update(dt, elapsedSeconds) {
   prevDistanceScrolled = distanceScrolled;
 
   // Courbe exponentielle : la vitesse DOUBLE toutes les SPEED_DOUBLING_TIME
-  // secondes (fondu continu, pas de palier sec).
-  // Période raccourcie 90 → 68 s au playtest (« accélère un peu plus vite le
-  // rythme »). La vitesse de DÉPART ne bouge pas — un playtest précédent
-  // avait justement fait baisser vitesseBase (« trop intense au début ») — ce
-  // qui change, c'est la pente :
-  //   t=30 s → ×1,36 (avant ×1,26)   t=60 s → ×1,84 (×1,59)
-  //   t=112 s (ligne d'arrivée) → ×3,12 (×2,37)
+  // secondes (fondu continu, pas de palier sec). La vitesse de DÉPART ne bouge
+  // pas — un playtest avait justement fait baisser vitesseBase (« trop intense
+  // au début ») — ce qui change au fil des réglages, c'est la pente.
+  // Repères recalculés le 19 août 2026 (les précédents dataient d'un calage à
+  // 68 s de doublement et d'une ligne d'arrivée à 112 s, tous deux périmés) :
+  //   t=30 s → ×1,61   t=60 s → ×2,58
+  //   plafond vitesseMax (×5, soit 99 u/s) atteint à ~102 s
+  //   ligne d'arrivée à 143,5 s — donc franchie à vitesse plafonnée.
   // Plafonnée à vitesseMax pour ne pas partir en vrille sur la dernière
   // portion du parcours.
   const { vitesseBase, vitesseMax } = window.CONFIG;

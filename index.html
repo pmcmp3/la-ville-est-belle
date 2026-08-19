@@ -667,7 +667,7 @@
     }
 
     /* --- Chargement : barre + pourcentage ---------------------------------
-       Le morceau pèse ~10 Mo : sur data mobile l'attente est réelle. Un
+       Le morceau pèse 3,9 Mo : sur data mobile l'attente est réelle. Un
        pourcentage qui monte dit que ça avance, là où « Chargement… » laisse
        croire que c'est bloqué. */
     #loading {
@@ -681,6 +681,18 @@
 
     #loading.done {
       display: none;
+    }
+
+    /* Échec de chargement du morceau (voir syncLoadingUi dans screens.js) : le
+       bloc RESTE visible pour porter le message, seule la barre disparaît —
+       elle n'a plus rien à montrer. Le bouton JOUER est débloqué en même
+       temps : la course tourne sans le morceau. */
+    #loading.failed #loading-track {
+      display: none;
+    }
+
+    #loading.failed #loading-label {
+      color: var(--rouge);
     }
 
     #loading-track {

@@ -31,6 +31,13 @@ let armed = false;
 let started = false;
 let startCtxTime = 0;
 let loadError = null;
+// Décodage hors-ligne en échec alors qu'on a toujours les octets : ce n'est
+// PAS fatal, le décodage sera retenté avec le contexte de sortie au moment du
+// geste (vieux WebKit, voir waitForRunningThenPlay). Mais `buffer` reste null
+// d'ici là — et sans ce drapeau, l'écran de chargement n'avait aucun moyen de
+// distinguer "ça arrive" de "ça n'arrivera jamais", donc restait bloqué à 90 %
+// avec le bouton JOUER grisé pour toujours (voir isReadyToStart plus bas).
+let decodeDeferred = false;
 
 // Trois gains en série, chacun avec sa propre raison d'exister, pour qu'ils
 // ne se marchent jamais dessus : envelopeGain fait le fade in/out du morceau
@@ -75,9 +82,9 @@ function onDecoded(decoded) {
 }
 
 // Progression 0..1 du chargement, pour l'afficher en pourcentage à l'écran :
-// le morceau pèse ~10 Mo, sur data mobile l'attente est longue et un simple
-// « Chargement… » ne dit pas si ça avance. On réserve les 10 derniers pour
-// cent au décodage, qui n'expose aucune progression.
+// le morceau pèse 3,9 Mo (128 kbps), sur data mobile l'attente est réelle et
+// un simple « Chargement… » ne dit pas si ça avance. On réserve les 10
+// derniers pour cent au décodage, qui n'expose aucune progression.
 const PART_TELECHARGEMENT = 0.9;
 let progress = 0;
 
@@ -138,6 +145,7 @@ fetchAvecProgression(window.CONFIG.fichierAudio)
     // au moment du geste (voir waitForRunningThenPlay).
     console.warn("[audio] décodage hors-ligne impossible, retentera au démarrage :", err);
     if (!rawCopy) loadError = err;
+    else decodeDeferred = true;
   });
 
 // `offset` = seconde du morceau où démarrer la lecture. 0 au premier
@@ -309,6 +317,29 @@ export function isLoading() {
   return !buffer && !loadError;
 }
 
+// Erreur fatale de chargement (téléchargement impossible, ou décodage en
+// échec des deux côtés), ou null tant que tout va bien. Exporté pour que
+// l'écran de chargement puisse SORTIR de son attente : sans ça, `progress`
+// n'atteignait jamais 1, le bouton JOUER restait grisé pour toujours et le
+// joueur n'avait aucun moyen de savoir pourquoi — le seul état du jeu dont
+// on ne pouvait pas sortir, alors que la course, elle, sait tourner sans le
+// morceau (horloge de secours, voir l'en-tête et main.js).
+export function getLoadError() {
+  return loadError;
+}
+
+// Peut-on lancer une partie ? Vrai dès que le morceau est décodé — mais AUSSI
+// quand le décodage hors-ligne a échoué et sera retenté au geste : dans ce
+// cas les octets sont là, il n'y a plus rien à attendre côté écran de
+// chargement. Sans cette seconde branche, `buffer` restait null pour toujours
+// et le bouton JOUER ne s'activait jamais, y compris quand la lecture aurait
+// parfaitement démarré au tap suivant. Et si le décodage rate aussi cette
+// fois-là, la partie part sur l'horloge de secours avec son bandeau « Son
+// indisponible » (main.js/hud.js) — jamais sur un menu qui ne répond plus.
+export function isReadyToStart() {
+  return Boolean(buffer) || decodeDeferred;
+}
+
 // État lisible pour l'overlay de debug (indispensable pour diagnostiquer à
 // distance sur un téléphone, où il n'y a ni console ni clavier).
 export function getStatus() {
@@ -386,10 +417,17 @@ export function getVolume() {
 // petit sursaut de la course à la reprise, dans un sens ou dans l'autre.
 //
 // Seule contrepartie : le morceau finit `clockShift` secondes plus tôt dans la
-// course. Il y a ~33 s de marge (course 225 s, morceau 257,9 s) — au-delà de
-// `pauseDeriveMax`, la soupape rembobine quand même, sans quoi le joueur
-// terminerait en silence.
-const PAUSE_FADE = 0.5;
+// course. Il y a ~114 s de marge (course `dureeCourse` = 143,5 s, morceau
+// 257,9 s) — au-delà de `pauseDeriveMax` (25 s), la soupape rembobine quand
+// même, sans quoi le joueur terminerait en silence.
+// Durée du fondu des GAINS à l'entrée/sortie de pause. Lue dans config.js —
+// c'est ce que ce réglage promet ("à l'entrée comme à la sortie de la pause"),
+// alors qu'une constante locale figée à 0,5 vivait ici en parallèle : le
+// filtre suivait le réglage, les gains non. Les deux valeurs coïncidaient,
+// donc rien ne se voyait — jusqu'au jour où on aurait touché à pauseFondu.
+function pauseFade() {
+  return window.CONFIG.pauseFondu;
+}
 let mode = "running";
 let pauseAnchor = null; // temps de jeu gelé pendant la pause (null = horloge libre)
 let clockShift = 0;     // retard permanent de la course sur le morceau, en secondes
@@ -415,7 +453,7 @@ function rampFocus(target) {
   const t = audioCtx.currentTime;
   focusGain.gain.cancelScheduledValues(t);
   focusGain.gain.setValueAtTime(focusGain.gain.value, t);
-  focusGain.gain.linearRampToValueAtTime(target, t + PAUSE_FADE);
+  focusGain.gain.linearRampToValueAtTime(target, t + pauseFade());
 }
 
 export function setPlaybackMode(next) {
@@ -439,7 +477,7 @@ export function setPlaybackMode(next) {
     suspendTimer = setTimeout(() => {
       suspendTimer = null;
       if (mode === "silent" && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
-    }, PAUSE_FADE * 1000);
+    }, pauseFade() * 1000);
     return;
   }
 

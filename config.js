@@ -19,9 +19,12 @@ window.CONFIG = {
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
   vitesseMax: 9.0,          // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (demandé explicitement le 17 août 2026) — 6.0 → 9.0.
-  sensibiliteDirection: 2.2,// Sensibilité de la direction : plus haut = plus réactif — 1.0 → 1.375 → 2.75 → 2.2 (playtest : "un peu trop sensible, réduis de 20 %")
-  zoneMorteGyro: 3,         // Angle mort du gyroscope en degrés (évite le tremblement)
-  agressiviteVirages: 0.7,  // Amplitude/nervosité du déport latéral en virage (0 = mou, 1 = sec)
+  sensibiliteDirection: 2.2,// Sensibilité de la direction : plus haut = plus réactif — 1.0 → 1.375 → 2.75 → 2.2 (playtest : "un peu trop sensible, réduis de 20 %"). Module la vitesse de rattrapage de la voie visée (main.js, LANE_TWEEN).
+  // zoneMorteGyro / agressiviteVirages retirés le 19 août 2026 : plus aucun
+  // usage dans src/ depuis le retrait du gyroscope et le passage au pilotage
+  // par crans (un swipe = une voie). Ce fichier est LE fichier de réglages du
+  // jeu — y laisser des boutons qui ne branchent sur rien fait perdre du temps
+  // à qui les tourne en cherchant un effet.
 
   // === SAUT ===
   hauteurSaut: 2.0,         // Hauteur du saut (multiplicateur) — 1.0 → 2.0 (playtest : "le saut 2x plus haut", entraîne aussi la hauteur des bonus aériens, voir entities.js)

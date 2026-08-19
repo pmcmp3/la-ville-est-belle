@@ -165,8 +165,19 @@ window.addEventListener("mouseup", () => { if (activeId === "mouse") activeId = 
 
 // --- Clavier (dev) --------------------------------------------------------
 
+// Une frappe dans un champ de saisie n'est pas un contrôle de jeu. Sans cette
+// garde, taper son pseudo/son Insta au clavier (menu d'accueil) pilotait aussi
+// le personnage derrière l'overlay : les flèches et Q/D le déplaçaient de
+// voie, espace le faisait sauter. Même garde côté debug.js, pour la même
+// raison (la touche `d` y bascule le mode debug).
+export function isTypingTarget(target) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+}
+
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
+  if (isTypingTarget(e.target)) return;
   if (e.code === "ArrowLeft" || e.code === "KeyA") pushLane(-1);
   else if (e.code === "ArrowRight" || e.code === "KeyD") pushLane(1);
   else if (e.code === "Space" || e.code === "ArrowUp") triggerJump();

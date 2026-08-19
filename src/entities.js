@@ -82,13 +82,14 @@ export const TOTAL_STARS = 140;
 export const TOTAL_OBJECTS = Math.floor(
   (window.CONFIG.dureeCourse - window.CONFIG.premierTempsOffset) / (CADENCE * clock.beatPeriod)
 );
-// Les 200 étoiles ne bougent pas (décision verrouillée : le score maximum doit
-// rester un nombre connu). ⚠️ Conséquence directe du raccourcissement de la
-// course (343 → moins de créneaux) : TOTAL_OBSTACLES baisse mécaniquement
-// dans les mêmes proportions puisque TOTAL_STARS est fixe — la course est
-// plus courte ET moins dense en obstacles à nombre d'étoiles égal. Si la
-// densité de danger doit rester celle d'avant, c'est TOTAL_STARS qu'il faut
-// revoir à la baisse, pas ce calcul.
+// Ce qui reste une fois les étoiles placées. ⚠️ Commentaire remis à jour le
+// 19 août 2026 : il décrivait encore l'état du 12 août (« les 200 étoiles ne
+// bougent pas », course de 205 s) et concluait qu'il faudrait un jour baisser
+// TOTAL_STARS pour retrouver la densité de danger d'avant. C'est fait depuis
+// le 17 août — TOTAL_STARS est passé à 140, à la même proportion que
+// dureeCourse (×0,7), donc la densité par créneau ne bouge plus. Valeurs
+// actuelles : 191 créneaux, 140 étoiles, 51 obstacles (vérifié par balayage
+// hors ligne, voir ARCHITECTURE.md §5.4).
 export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
 export function finishBeatN() { return TOTAL_OBJECTS * CADENCE; }
 export function finishTime() { return clock.timeOfBeat(finishBeatN()); }

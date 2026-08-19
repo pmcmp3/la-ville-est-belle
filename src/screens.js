@@ -245,7 +245,27 @@ let loadingDone = false;
 
 export function syncLoadingUi() {
   if (loadingDone) return;
-  const p = audio.getProgress();
+
+  // Échec de chargement du morceau (réseau coupé, fichier absent, décodage
+  // impossible) : `progress` n'atteindra jamais 1, donc sans cette sortie le
+  // bouton JOUER restait désactivé indéfiniment derrière une barre figée,
+  // sans un mot d'explication. On débloque la partie — elle sait tourner sans
+  // le morceau (horloge de secours, main.js, qui affiche déjà son propre
+  // bandeau en jeu) — et on dit ce qui se passe. Même principe que partout
+  // ailleurs dans ce projet : un jeu muet reste jouable, un jeu figé non.
+  if (audio.getLoadError()) {
+    loadingDone = true;
+    loadingBlock.classList.add("failed"); // pas `done` : ça masque le bloc, or on a justement quelque chose à dire
+    loadingLabel.textContent = "Son indisponible — le jeu reste jouable";
+    playButton.disabled = false;
+    return;
+  }
+
+  // `isReadyToStart()` plutôt que la seule progression : le téléchargement
+  // peut être fini (90 %) avec un décodage repoussé au geste — il n'y a alors
+  // plus rien à attendre, et compter sur `getProgress()` seul laissait la
+  // barre plantée à 90 % indéfiniment (voir audio.js).
+  const p = audio.isReadyToStart() ? 1 : audio.getProgress();
   loadingFill.style.width = `${Math.round(p * 100)}%`;
   loadingLabel.textContent = `${Math.round(p * 100)} %`;
   if (p >= 1) {

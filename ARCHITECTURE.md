@@ -751,6 +751,23 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
    avant que le fichier soit prêt retombe silencieusement sur la police système et le texte déjà
    peint reste tel quel. D'où le `document.fonts.load()` explicite avant la première frame.
 
+9. **`hash()` renvoie un FLOTTANT — jamais l'indexer sans `Math.floor()`.** `hash(n) % k` reste
+   un flottant (0,45…), `tableau[0,45]` vaut `undefined`, et un `|| valeurParDéfaut` en aval
+   avale l'erreur sans un mot. Trouvé le 19 août 2026 sur les outfits de piétons
+   (`entities-render.js`) : `Math.abs(hash(slot * 7)) % 4` faisait retomber **199 slots sur 200**
+   sur l'outfit par défaut — les quatre variantes n'avaient jamais servi depuis leur écriture.
+   Même famille que le piège n°3 (`fillStyle` invalide) : un repli muet, invisible en jouant,
+   qui ne se voit qu'en comptant. Le tirage d'outfit des cyclistes, lui, multipliait AVANT le
+   modulo et n'a jamais eu le problème — comparer les deux si le doute revient.
+
+10. **Le serveur de dev Vite répond 200 à un fichier absent** (repli SPA), pas 404. Une
+    vérification d'échec réseau faite en local ne teste donc PAS le même chemin de code qu'en
+    prod : côté audio, un 200 avec des octets illisibles part dans la branche « décodage
+    impossible » et non « téléchargement impossible ». C'est en testant pour de vrai qu'on a
+    découvert la seconde route de blocage de l'écran de chargement (voir §11). Pour simuler une
+    vraie coupure réseau : pointer `fichierAudio` vers un hôte injoignable
+    (`http://127.0.0.1:9/…`), qui fait bien rejeter `fetch()`.
+
 ---
 
 ## 11. Dettes et points ouverts
@@ -771,6 +788,53 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Passe de revue de code du 19 août 2026** (demandée telle quelle : « jette un œil à la
+structure du code et aux erreurs possibles »). Sept correctifs, tous vérifiés en exécutant le
+jeu — la preview navigateur a fonctionné cette session, contrairement aux trois précédentes
+(§12) :
+- 🐛 **Outfits de piétons jamais utilisés** — indexation par un flottant, voir piège n°9. Les
+  quatre variantes sortent maintenant à parts égales (mesuré sur 400 slots) ; les 2 piétons du
+  parcours réel tirent `brique` et `sombre` au lieu du repli `rouge`.
+- 🐛 **Écran de chargement bloqué pour toujours si le morceau ne charge pas** — le bouton JOUER
+  n'était débloqué que par `progress >= 1`, donc jamais en cas d'échec : barre figée, aucun
+  message, aucune sortie. Contradiction directe avec le principe fondateur (« un jeu muet reste
+  jouable, un jeu figé non ») qui n'était appliqué qu'à la course, pas au menu. **DEUX routes
+  distinctes**, la seconde trouvée en testant la première : (a) `fetch` en échec → `loadError`,
+  message rouge + bouton débloqué ; (b) réponse 200 avec des octets illisibles (MP3 corrompu,
+  page d'erreur de proxy, portail captif — et le repli SPA de Vite en local, voir piège n°10) →
+  `loadError` reste `null` car `rawCopy` existe, le décodage est repoussé au geste et `buffer`
+  reste `null` : bloqué à 90 %. D'où `decodeDeferred`/`isReadyToStart()` (`audio.js`). Les deux
+  routes vérifiées de bout en bout, plus le chemin normal (non régressé).
+- 🐛 **La frappe clavier fuyait des champs pseudo/Insta vers le jeu** — ni `input.js` ni
+  `debug.js` ne regardaient `e.target`. Taper un pseudo contenant un « d » allumait le mode
+  debug (et ses raccourcis F = fin de course, G = game over) ; les flèches/espace déplaçaient et
+  faisaient sauter le personnage derrière l'overlay. D'où `isTypingTarget()` (`input.js`,
+  importée par `debug.js`). Vérifié : dans le champ, plus rien ne passe ; hors champ, tout
+  répond encore.
+- 🐛 **Flou d'arrivée appliqué sur le MENU** — `finishBlur()` tournait avant même le départ, et
+  `clock.now()` compte alors le temps depuis le CHARGEMENT de la page : un joueur qui traîne
+  ~143 s sur le menu voyait son personnage se flouter (3,5 px pile sur la ligne). Vérifié en
+  espionnant les affectations de `ctx.filter` avec l'horloge posée sur `finishTime()` : plus
+  aucun blur.
+- **Départ en silence à tort quand l'onglet est masqué** — les 3 s d'`AUDIO_START_TIMEOUT`
+  couraient pendant que l'appli était en arrière-plan ; au retour le délai était déjà écoulé
+  alors que le contexte venait de reprendre (`resume()` est asynchrone), et la partie basculait
+  définitivement sur l'horloge de secours. `startRequestedAt` est maintenant décalé de la durée
+  de la pause (`applyPauseState`, `main.js`).
+- **`pauseFondu` ne pilotait que le filtre**, pas les gains (une constante locale figée à 0,5
+  vivait en parallèle dans `audio.js`). Mêmes valeurs, donc invisible — jusqu'au jour où on
+  aurait touché au réglage.
+- **Ménage** : `zoneMorteGyro`/`agressiviteVirages` retirés de `config.js` (zéro usage depuis le
+  retrait du gyroscope), `3D assets/` ajouté au `.gitignore` (2,4 Mo à un `git add -A` de
+  l'historique public, cf. l'incident du WAV maître plus bas), et cinq blocs de commentaires aux
+  chiffres périmés remis à jour (morceau « ~10 Mo » → 3,9 Mo, marge de pause « ~33 s » → ~114 s,
+  « les 200 étoiles ne bougent pas » → 140, `LANE_WIDTH` « 2 unités » → ≈2,67, table des
+  vitesses de `road.js` recalculée : plafond atteint à ~102 s, ligne à 143,5 s).
+
+Invariants revérifiés après coup (balayage hors ligne, méthode §12) : **140 étoiles / 51
+obstacles pile sur 191 créneaux, 0 trou**, et **700 frames rendues sur toute la course sans une
+seule exception**.
 
 **Dette structurelle :**
 - ~~`main.js` module fourre-tout~~ — **découpé le 17 août 2026** : les écrans hors-jeu

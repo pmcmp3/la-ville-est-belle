@@ -539,10 +539,15 @@ function paintSlot(ctx, width, height, now, e) {
   if (!e.isBonus && e.kind === "pieton") {
     const p = road.project(e.x, e.z, width, height);
     // Outfit déterministe basé sur le slot du piéton (jamais aléatoire une
-    // fois spawné, pour stabilité à l'écran). Hash du slot divise par
-    // nombre d'outfits disponibles.
-    const outfitIndex = Math.abs(hash(e.slotIndex * 7)) % Object.keys(pedestrians.PEDESTRIAN_ICONS).length;
-    const outfitType = Object.keys(pedestrians.PEDESTRIAN_ICONS)[outfitIndex];
+    // fois spawné, pour stabilité à l'écran).
+    // 🐛 hash() renvoie un FLOTTANT dans [0,1) : `Math.abs(h) % 4` restait
+    // donc un flottant (0,45…), l'indexation du tableau donnait `undefined`,
+    // et makePedestrianIcon() retombait en silence sur son outfit par défaut.
+    // Mesuré : 199 slots sur 200 — les quatre outfits n'ont jamais servi.
+    // Même piège que le `fillStyle` invalide (ARCHITECTURE.md §10) : aucune
+    // erreur levée, juste un repli muet.
+    const outfitIndex = Math.floor(hash(e.slotIndex * 7) * pedestrians.OUTFIT_TYPES.length);
+    const outfitType = pedestrians.OUTFIT_TYPES[outfitIndex];
     const pedestrianDrawer = pedestrians.makePedestrianIcon(outfitType, clock.now());
     // p.y = point au SOL de la projection, et le dessinateur attend
     // justement les pieds du piéton en y (voir pedestrians.js). On passait

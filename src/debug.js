@@ -5,6 +5,7 @@
 
 import { clock } from "./clock.js";
 import { project, getSpeed, getDistanceScrolled, ROAD_HALF_WIDTH, PLAYER_NEAR_Z } from "./road.js";
+import { isTypingTarget } from "./input.js";
 
 const VISIBLE_BEATS = 8; // nombre de temps affichés à l'avance sur la grille
 
@@ -14,6 +15,10 @@ const VISIBLE_BEATS = 8; // nombre de temps affichés à l'avance sur la grille
 let enabled = new URLSearchParams(window.location.search).has("debug");
 
 window.addEventListener("keydown", (e) => {
+  // Pas pendant une saisie : `toucheDebug` vaut "d" par défaut, donc taper un
+  // pseudo contenant un "d" allumait le mode debug — et avec lui les
+  // raccourcis destructeurs de main.js (F = fin de course, G = game over).
+  if (isTypingTarget(e.target)) return;
   if (e.key.toLowerCase() === window.CONFIG.toucheDebug.toLowerCase()) {
     enabled = !enabled;
   }
