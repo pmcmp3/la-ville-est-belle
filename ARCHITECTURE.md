@@ -87,7 +87,7 @@ dépendances vont toujours vers le bas.
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `crosstraffic.js` | Voitures/camions qui TRAVERSENT la chaussée aux carrefours | ⚠️ Fait basculer les croisements de décor à gameplay (19 août 2026). Vit sur la grille de DISTANCE (`road.isCrossingSlot`, partagée avec `world.js`), PAS sur la grille musicale d'`entities.js` — collisions et `Set` de résolus séparés. Densité nulle avant ~50 s, maximale après ~100 s : c'est le levier qui durcit la FIN sans toucher au début. Coût −1 vie, jamais fatal (voir l'en-tête du fichier) |
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
-| `share.js` | Image de partage 1080×1920 « borne arcade 80s » (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
+| `share.js` | Image de partage **carrée 1080×1080** (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
 | `hud.js` | Score, vies, statut concours, bandeau de palier | |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
@@ -820,6 +820,18 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Cinquième passe du 19 août 2026 — deux retours sur ce qui venait d'être livré.**
+- 🐛 **Véhicules traversants visibles beaucoup trop tôt** (capture à l'appui : ils flottaient
+  au-dessus des trottoirs et par-dessus les façades, plusieurs secondes avant d'arriver). Cause :
+  la marge de rendu valait `ROAD_HALF_WIDTH + 9`, soit 13 unités de part et d'autre. Corrigé par un
+  **découpage sur la trouée de la rue** (`BORD_RUE` = bord de chaussée + `SIDEWALK_MARGIN`) : le
+  véhicule n'existe visuellement que dans l'ouverture entre les façades, donc il en émerge comme
+  d'une rue transversale. Ce sont bien les BÂTIMENTS qui masquent — dessinés avant les entités,
+  c'est le découpage et non l'ordre du peintre qui produit l'occultation.
+- **Image de partage refaite de zéro** : carrée et dépouillée, voir `CLAUDE.md` pour les deux
+  révisions du brief et leurs raisons. À retenir pour la suite : **l'usage visé n'est pas la story
+  mais le commentaire TikTok**, donc la vignette est le format de référence, pas le plein écran.
 
 **Quatrième passe du 19 août 2026 — conversion et partage.**
 - **Image de partage 1080×1920 faite** (`share.js`) — dernier élément du brief d'origine encore

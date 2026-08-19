@@ -50,6 +50,13 @@ const MAX_PROBABILITY = 0.7;
 // alors surgi 0,2 s avant l'impact — injouable. Ici il entre dans le champ
 // toujours ~1,5 s avant, quelle que soit la vitesse de la course.
 const CROSS_SPEED = 8;
+
+// Ligne des façades : au-delà, le véhicule est censé être DERRIÈRE les
+// immeubles. Même valeur que `SIDEWALK_MARGIN` dans world.js (0,5 unité au-delà
+// du bord de chaussée), qui fixe où commence le pied des bâtiments — recopiée
+// plutôt qu'importée, world.js ne l'exporte pas et c'est le seul lien entre les
+// deux fichiers.
+const BORD_RUE = road.ROAD_HALF_WIDTH + 0.5;
 // Fenêtre longitudinale de collision, alignée sur celle des obstacles de la
 // grille musicale (Z_WINDOW dans entities.js) pour que les deux se ressentent
 // pareil.
@@ -195,10 +202,27 @@ function dessiner(ctx, vehicule, z, width, height) {
 
   const xG = x - dims.demiLongueur;
   const xD = x + dims.demiLongueur;
-  // Entièrement hors de la rue (il arrive ou il est déjà reparti) : rien à
-  // peindre, et surtout pas de polygone géant hors cadre.
-  const limite = road.ROAD_HALF_WIDTH + 9;
-  if (xD < -limite || xG > limite) return;
+  // ⚠️ Rien ne se dessine au-delà de la ligne des immeubles (retour direct du
+  // 19 août 2026, capture à l'appui : « on les voit de trop loin, il faut
+  // qu'elles soient cachées derrière les bâtiments »). Au premier jet la marge
+  // valait ROAD_HALF_WIDTH + 9, soit 13 unités : le véhicule était donc peint
+  // en plein sur les trottoirs ET par-dessus les façades, flottant dans le
+  // décor plusieurs secondes avant d'arriver — au lieu de surgir d'une rue
+  // transversale. Il n'est visible que dans la trouée de la rue, exactement
+  // comme une voiture qui débouche d'un croisement.
+  if (xD < -BORD_RUE || xG > BORD_RUE) return;
+
+  // Découpe sur la trouée de la rue : tout ce qui dépasse la ligne des façades
+  // est masqué, donc le véhicule ÉMERGE de derrière l'immeuble au lieu d'être
+  // peint par-dessus. Les bâtiments étant dessinés avant les entités
+  // (world.render puis entities-render.render dans main.js), c'est bien ce
+  // découpage — et non l'ordre du peintre — qui produit l'occultation.
+  const bordGauche = road.project(-BORD_RUE, z, width, height);
+  const bordDroit = road.project(BORD_RUE, z, width, height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bordGauche.x, 0, bordDroit.x - bordGauche.x, height);
+  ctx.clip();
 
   const gNG = road.project(xG, zNear, width, height);
   const gND = road.project(xD, zNear, width, height);
@@ -258,6 +282,8 @@ function dessiner(ctx, vehicule, z, width, height) {
     ctx.arc(Math.min(gNG.x, gND.x) + largeur * f, gNG.y, rayon, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  ctx.restore(); // ferme la découpe sur la trouée de la rue
 }
 
 // Éléments à peindre pour cette frame, chacun avec sa profondeur — fusionnés

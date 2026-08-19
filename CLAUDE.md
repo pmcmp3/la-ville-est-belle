@@ -111,13 +111,19 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   remplacer le simple damier plat d'origine.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
-- Image de partage **1080×1920 pixel art borne arcade 80s** — **faite le 19 août 2026**
-  (`share.js`), bouton « PARTAGER MON SCORE » sur l'écran de fin. Borne rouge de charte : marquee
-  au titre, écran CRT avec le ciel couchant + la route + le VRAI sprite du joueur (pas un dessin
-  refait), bandeau de score, ligne de stats (étoiles, combo max, fin), joystick/boutons, fente à
-  monnaie, et l'URL du jeu en pied. Tout est tracé sur une grille de 6 px (aucun dégradé lisse,
-  les fondus sont des bandes) ; seuls les textes sont hors grille, en Stage Grotesk — exactement
-  le mélange déjà utilisé en jeu (sprites pixel art + HUD en Stage Grotesk).
+- Image de partage **carrée 1080×1080** (`share.js`), bouton « PARTAGER MON SCORE » sur l'écran de
+  fin. ⚠️ **Deux points du brief d'origine révisés le 19 août 2026**, après avoir vu la première
+  version tourner :
+  - **Format 9:16 → carré.** « Je pense pas que les gens vont mettre des stories, par contre sur
+    TikTok ils vont mettre en commentaire » — or une image en commentaire s'affiche en VIGNETTE
+    recadrée au carré : une 1080×1920 y perdait son haut et son bas, donc le titre et le lien,
+    c'est-à-dire tout ce qui permet de retrouver le jeu.
+  - **Borne d'arcade dessinée → affiche dépouillée.** « Pas trop mal mais beaucoup trop lourd,
+    faut le simplifier de fou ». Le premier jet dessinait la borne complète (marquee, écran CRT
+    avec le ciel/la route/le personnage, stats, joystick, fente à monnaie) : lisible à 1080 px,
+    illisible en vignette. Il ne reste que l'aplat rouge de charte, LE SCORE en énorme, le pseudo,
+    une ligne « x/80 étoiles » entre deux étoiles du jeu, et l'URL. Vérifié lisible jusqu'à 56 px.
+    96 Ko au lieu de 455.
   ⚠️ **L'image est fabriquée à l'affichage de l'écran de fin, pas au clic** : `navigator.share()`
   doit être appelé dans la pile d'appel du geste (même règle qu'`AudioContext` sur iOS), or
   `canvas.toBlob()` est asynchrone et ferait perdre le geste. Repli en téléchargement quand le
@@ -157,7 +163,7 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   collisions et résolution séparées, fusionné au rendu par `extras`. **Aucun véhicule avant ~50 s**
   et densité maximale après ~100 s : c'est le levier qui durcit la FIN de course sans toucher à
   l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
-  que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. Coût −1 vie,
+  que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. ⚠️ Le véhicule est **découpé sur la trouée de la rue** (`BORD_RUE`) : il émerge de derrière les façades comme d'une rue transversale, au lieu d'être peint par-dessus les trottoirs et les immeubles plusieurs secondes à l'avance — retour direct, capture à l'appui (« on les voit de trop loin »). Coût −1 vie,
   **jamais fatal** — les deux grilles étant indépendantes, une coïncidence avec le seul passage
   laissé par un pont est possible et ne doit pas terminer la course.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
