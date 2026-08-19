@@ -292,6 +292,18 @@ function jumpPhysics() {
 const PICKUP_FLASH_DURATION = 0.9;
 let pickupFlash = 0;
 
+// --- Points gagnés qui s'envolent (19 août 2026) -------------------------
+// Demandé avec l'intensification du halo : « une animation légère [...] pour
+// comprendre que l'étoile a bien été prise ». Le halo seul dit « il s'est
+// passé quelque chose » ; le chiffre dit COMBIEN, et surtout il rend le combo
+// lisible en jeu (une étoile à 50 qui rapporte 125 se voit immédiatement,
+// alors que le score global, lui, défile trop vite pour qu'on fasse la
+// différence). Monte en s'effaçant, comme un vrai retour d'arcade.
+const PICKUP_POPUP_DURATION = 1.1;
+const PICKUP_POPUP_RISE = 46;   // px parcourus vers le haut sur toute la durée
+const PICKUP_POPUP_MAX = 4;     // au-delà, ça devient illisible en plein combo
+const pickupPopups = [];        // { amount, age }
+
 // Fondu d'entrée du HUD : il apparaît avec la partie au lieu de surgir d'un
 // coup à la fermeture du menu. Même intention que les fondus CSS de l'overlay.
 const HUD_FADE_DURATION = 0.6;
@@ -579,6 +591,13 @@ function step(dt) {
   if (pickupFlash > 0) {
     pickupFlash = Math.max(0, pickupFlash - dt / PICKUP_FLASH_DURATION);
   }
+  // Les points qui s'envolent vieillissent en temps RÉEL (dt), comme le "-500"
+  // de pénalité : c'est un retour d'interface, il doit durer le même temps
+  // montre en main quelle que soit la vitesse de la course.
+  for (let i = pickupPopups.length - 1; i >= 0; i--) {
+    pickupPopups[i].age += dt;
+    if (pickupPopups[i].age >= PICKUP_POPUP_DURATION) pickupPopups.splice(i, 1);
+  }
   if (damageFlash > 0) {
     damageFlash = Math.max(0, damageFlash - dt);
   }
@@ -650,8 +669,13 @@ function step(dt) {
       for (const e of events) {
         if (e.type === "bonus") {
           game.streak += 1;
-          game.score += Math.round(window.CONFIG.bonus[e.kind] * comboMultiplier());
+          // Le combo est appliqué AVANT de connaître le gain affiché : c'est
+          // exactement ce chiffre-là (combo compris) qu'on veut voir s'envoler.
+          const gagne = Math.round(window.CONFIG.bonus[e.kind] * comboMultiplier());
+          game.score += gagne;
           pickupFlash = 1;
+          pickupPopups.push({ amount: gagne, age: 0 });
+          if (pickupPopups.length > PICKUP_POPUP_MAX) pickupPopups.shift();
         } else {
           game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
           // Playtest : "quand on se prend une voiture, game over". La
@@ -786,10 +810,51 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
   ctx.globalAlpha = wasAlpha;
 }
 
+// Points gagnés qui montent et s'effacent au-dessus du joueur. Ancrés sur sa
+// position projetée (donc ils suivent le changement de voie), mais peints
+// hors de la séquence du peintre : c'est de l'interface, elle ne doit jamais
+// passer derrière une voiture. Police du jeu, comme le HUD — le canvas ne lit
+// pas les variables CSS, d'où la constante dupliquée ici aussi.
+const POPUP_POLICE = '"Stage Grotesk", system-ui, sans-serif';
+
+function renderPickupPopups(ctx, renderX) {
+  if (!pickupPopups.length) return;
+  const p = road.project(renderX, road.PLAYER_NEAR_Z, width, height);
+  const base = p.y - player.HEIGHT_WORLD * p.scale * 1.15;
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 6;
+  for (const popup of pickupPopups) {
+    const t = popup.age / PICKUP_POPUP_DURATION; // 0 à l'impact → 1 à la fin
+    // Montée qui décélère (racine) : vif au départ, posé à l'arrivée — c'est
+    // ce profil qui se lit comme « ça décolle » plutôt qu'un glissement plat.
+    const monte = Math.sqrt(t) * PICKUP_POPUP_RISE;
+    // Pleine opacité sur le premier tiers, fondu ensuite : le chiffre a le
+    // temps d'être lu avant de disparaître.
+    ctx.globalAlpha = t < 0.33 ? 1 : Math.max(0, 1 - (t - 0.33) / 0.67);
+    // Léger sursaut d'échelle à l'impact, qui retombe tout de suite. Taille en
+    // pixels fixes, comme tout le HUD (hud.js) : un chiffre d'interface doit
+    // garder la même taille à l'écran, il ne s'éloigne pas avec la route.
+    ctx.font = `900 ${t < 0.15 ? 30 : 24}px ${POPUP_POLICE}`;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(`+${popup.amount}`, p.x, base - monte);
+  }
+  ctx.restore();
+}
+
 function render(alpha) {
   const renderDistance = road.getRenderDistance(alpha);
   road.render(ctx, width, height, renderDistance);
   world.render(ctx, width, height, renderDistance);
+
+  const renderX = playerState.prevX + (playerState.x - playerState.prevX) * alpha;
+  const renderLean = playerState.prevLean + (playerState.lean - playerState.prevLean) * alpha;
+  const renderPedalPhase = playerState.prevPedalPhase + (playerState.pedalPhase - playerState.prevPedalPhase) * alpha;
+  const renderY = jump.prevY + (jump.y - jump.prevY) * alpha;
+
   if (gameStarted && !game.ended) {
     // Caméo Soberland (demandé le 17 août 2026) : purement décoratif, planté
     // dans les 10 premières secondes de course — voir cameo.js. Personnage
@@ -798,7 +863,21 @@ function render(alpha) {
     // même endroit de la séquence (avant OU après tous les bonus/obstacles),
     // indépendamment de leur profondeur réelle — bug remonté en jeu
     // (Soberland apparaissait devant un pont pourtant plus proche).
-    entitiesRender.render(ctx, width, height, cameo.getExtras(ctx, width, height, clock.now()));
+    // 🐛 Le JOUEUR passe lui aussi par `extras` depuis le 19 août 2026 (retour
+    // direct : « quand je passe un pont et que je saute en l'air, on a
+    // l'impression que je saute par-dessus le pont, alors que je suis derrière
+    // le pont »). Il était peint APRÈS toute la scène, donc toujours au
+    // premier plan — y compris devant un pont/une voiture déjà DÉPASSÉS, donc
+    // physiquement plus proches de la caméra que lui. Le poser dans la
+    // séquence du peintre à sa vraie profondeur suffit : tout ce qui a un z
+    // plus petit que PLAYER_NEAR_Z se peint désormais par-dessus lui. Même
+    // mécanisme exactement que le caméo, pour la même raison.
+    const extras = cameo.getExtras(ctx, width, height, clock.now());
+    extras.push({
+      z: finishing.active ? finishing.playerZ : road.PLAYER_NEAR_Z,
+      draw: () => renderPlayer(renderX, renderLean, renderPedalPhase, renderY),
+    });
+    entitiesRender.render(ctx, width, height, extras);
     // Ligne d'arrivée : rien pendant l'essentiel du morceau, apparaît à 5s
     // de la fin et arrive au niveau du joueur pile quand la partie se
     // termine (voir finish.js). Dessinée APRÈS les entités pour que
@@ -806,13 +885,17 @@ function render(alpha) {
     // dans le plan : « ligne d'arrivée cosmétique » plutôt que d'inventer
     // une nouvelle condition de fin).
     finish.render(ctx, width, height);
+  } else {
+    // Hors course (menu d'accueil, écran de fin) : aucune entité n'est peinte,
+    // donc personne pour porter le joueur dans la séquence du peintre — on le
+    // dessine directement, comme avant.
+    renderPlayer(renderX, renderLean, renderPedalPhase, renderY);
   }
 
-  const renderX = playerState.prevX + (playerState.x - playerState.prevX) * alpha;
-  const renderLean = playerState.prevLean + (playerState.lean - playerState.prevLean) * alpha;
-  const renderPedalPhase = playerState.prevPedalPhase + (playerState.pedalPhase - playerState.prevPedalPhase) * alpha;
-  const renderY = jump.prevY + (jump.y - jump.prevY) * alpha;
-  renderPlayer(renderX, renderLean, renderPedalPhase, renderY);
+  // Points gagnés qui s'envolent au-dessus du joueur : c'est de l'interface,
+  // pas un objet du monde — donc peint APRÈS la scène, jamais masqué par une
+  // voiture ou un pont qui passerait devant.
+  renderPickupPopups(ctx, renderX);
 
   // Le menu et l'écran de fin sont en DOM (#overlay) : il ne reste ici que le
   // HUD de jeu, monté en fondu.

@@ -20,6 +20,8 @@ import {
   isBridgeSlot,
   isCarSlot,
   isAirBonus,
+  VISIBLE_Z_MAX,
+  FADE_BAND,
 } from "./entities.js";
 
 // Dimensions d'une voiture, en unités-monde (inchangées) : ~4 m × 1,8 m ×
@@ -640,7 +642,19 @@ export function render(ctx, width, height, extras = []) {
       sortedExtras[ei].draw(ctx);
       ei++;
     }
+
+    // Fondu d'apparition sur les dernières unités avant la coupure de
+    // visibilité (« il faut que le chargement soit plus progressif ») : l'objet
+    // se matérialise depuis la brume au lieu de surgir d'un coup à pleine
+    // opacité pile sur le seuil. Même recette que les bâtiments (world.js,
+    // FADE_BAND) — c'est d'ailleurs le contraste entre les deux qui rendait le
+    // pop-in des objets si voyant, le décor, lui, fondait déjà proprement.
+    const fade = Math.min(1, Math.max(0, (VISIBLE_Z_MAX - e.z) / FADE_BAND));
+    if (fade <= 0.02) continue;
+    const wasAlpha = ctx.globalAlpha;
+    if (fade < 1) ctx.globalAlpha = wasAlpha * fade;
     paintSlot(ctx, width, height, now, e);
+    ctx.globalAlpha = wasAlpha;
   }
   while (ei < sortedExtras.length) {
     sortedExtras[ei].draw(ctx);

@@ -74,8 +74,17 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // « la Terre est ronde » (raison d'être de CURVATURE, voir plus haut) se
 // dilue — ne pas redescendre sous ~0,0002 sans reconfirmer que la sensation
 // de courbure reste perceptible.
-const CURVATURE = 0.00026;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 136 unités-monde
+// 0.00026 → 0.0002 (demandé le 19 août 2026 : « il faut que ta ligne d'horizon
+// soit un peu plus loin »). HORIZON_Z ≈ 136 → ≈ 155 unités-monde, +14 % — même
+// sens et même pas que les trois réglages précédents. ⚠️ C'est le PLANCHER
+// annoncé à la ligne du dessus : ne pas descendre plus bas sans vérifier en jeu
+// que la courbure « Terre ronde » se sent encore.
+// ⚠️ Ce réglage seul ne réglait PAS la plainte « les objets chargent trop près
+// du joueur » : les bonus/obstacles étaient coupés bien avant l'horizon par
+// VISIBLE_Z_MAX (entities.js, 90 u quand l'horizon en faisait déjà 136) — le
+// vrai goulot était là, pas ici.
+const CURVATURE = 0.0002;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 155 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {

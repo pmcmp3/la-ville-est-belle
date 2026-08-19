@@ -69,8 +69,9 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     l'ancien seuil unique (« ×2 cycliste à partir de 10 000 pts ») ne faisait plus rien une fois
     franchi, alors que le combo (voir plus bas) permet de monter bien plus haut. Remplacé par
     `SCORE_TIER_SIZE`/`SCORE_TIER_FACTOR` (`entities.js`, `applyScoreTierBoost()`) : tous les
-    15 000 pts, le poids de voiture/cycliste/**pont** (plus seulement cycliste) est multiplié
-    d'avantage, cumulativement (5 paliers à 80 000 pts → ×2,85). En plus de ça, `scoreRampT()`
+    **5 000 pts** (15 000 avant le 19 août 2026 — remis à l'échelle du nouveau plafond de score,
+    61 400 au lieu de ~195 000, sinon les paliers ne se déclenchaient quasiment plus), le poids de
+    voiture/cycliste/**pont** est multiplié d'avantage, cumulativement. En plus de ça, `scoreRampT()`
     pousse les rangées de voitures et les ponts vers leur configuration la plus dure (le moins de
     voies libres) EN AVANCE sur la rampe temporelle normale — mesuré : à 80 000 pts, 67 % des
     ponts n'ont plus qu'une seule voie ouverte (10 % à score nul), 54 % des rangées de voitures
@@ -88,12 +89,23 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost par palier ci-dessus
     (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au
     modèle décrit en `ARCHITECTURE.md` §5.2. Les deux se cumulent avec le palier de score.
-- **140 étoiles exactement** par partie (200 avant le 17 août 2026) : le score maximum doit être
-  un nombre connu — réduit à la MÊME proportion que le raccourcissement du parcours (×0,7, 205 →
-  143,5 s) pour ne pas casser le calcul de quota exact (voir `entities.js`, `BONUS_RATIO_START`).
-  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut maintenant 51 (100 avant, voir
-  `ARCHITECTURE.md` §5.4) — la part d'obstacles en FIN de course a en plus été doublée
-  (`BONUS_RATIO_END` 0,92 → 0,84, « plus d'obstacles quand ça avance », demandé le 17 août 2026).
+- **Un nombre d'étoiles EXACT et identique à chaque partie**, pour que le score maximum soit un
+  nombre connu. ⚠️ **Ce nombre n'est plus 140 et n'est plus écrit à la main depuis le 19 août
+  2026** : il vaut **80** et il est DÉRIVÉ de la loi de difficulté (`TOTAL_STARS` se compte sur
+  `isBonusQuota`, `entities.js`). C'est la propriété qui est verrouillée (même total à chaque
+  partie, score max calculable), pas sa valeur. Historique : 200 → 140 (17 août) → 80 (19 août).
+  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut donc **111** (51 avant).
+- ⚠️ **Difficulté : la densité d'obstacles DOUBLE toutes les 25 s** (`OBSTACLE_DOUBLING_TIME_S`,
+  `entities.js`), de 38 % des créneaux au départ jusqu'à un plafond de **60 %**
+  (`OBSTACLE_RATIO_MAX`, atteint vers 16 s). Demandé le 19 août 2026 : « multiplie par deux le
+  nombre d'obstacles toutes les 25 secondes, c'est trop facile, il faut vraiment que ce soit
+  extrêmement difficile ». Remplace la rampe LINÉAIRE `BONUS_RATIO_START`/`BONUS_RATIO_END`
+  (supprimées), qui faisait *baisser* la densité d'obstacles de 38 % à 16 % au fil de la course —
+  la fin était devenue la portion la plus vide du jeu, exactement la plainte remontée deux fois.
+  ⚠️ **Arbitrage explicite de l'artiste** : un créneau porte soit une étoile soit un obstacle, et
+  il n'y en a que 191 — doubler les obstacles fait donc mécaniquement tomber le quota d'étoiles.
+  Trois scénarios chiffrés lui ont été soumis, il a choisi le plafond à 60 % (qui plus que double
+  les obstacles tout en gardant le combo atteignable) plutôt que 85 % (qui tuait le combo).
 - **Ligne d'arrivée en volume** (`finish.js`) : damier au sol + portique (deux pylônes + poutre à
   damier qui enjambe la route), façon Formule 1 — demandé explicitement le 12 août 2026 pour
   remplacer le simple damier plat d'origine.
@@ -107,10 +119,16 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 - **Combo** (demandé le 17 août 2026) : `comboSeuil`/`comboBonusParPalier` (`config.js`) — 5 étoiles
   ramassées d'affilée (sans toucher d'obstacle entre-temps) → ×1,5 sur les points de bonus, 10 → ×2,
   15 → ×2,5, etc. Remis à 0 au moindre obstacle touché. `main.js` (`comboMultiplier()`), affiché en
-  jeu sous le score (`hud.js`) quand actif. Score maximum théorique (run parfait, 140/140 étoiles,
-  0 obstacle touché, combo jamais cassé) : **195 525 points**, combo final ×15 — vérifié par
-  balayage hors ligne, jamais atteignable en pratique (suppose d'éviter les 51 obstacles du
-  parcours sans exception).
+  jeu sous le score (`hud.js`) quand actif, dans une **pastille crème** depuis le 19 août 2026
+  (« que le combo soit dans un tag un peu plus gros pour qu'on comprenne comment ça marche ») —
+  jamais rouge, le rouge de charte est réservé au négatif (la pénalité). Score maximum théorique
+  (run parfait, 80/80 étoiles, 0 obstacle touché, combo jamais cassé) : **61 400 points**, combo
+  final ×9 — recalculé le 19 août 2026 après le doublement de difficulté (195 525 / ×15 avant,
+  quand il y avait 140 étoiles). Vérifié par balayage hors ligne, jamais atteignable en pratique
+  (suppose d'éviter les 111 obstacles du parcours sans exception).
+  ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
+  enregistrés l'ont été sous l'ancien barème (plafond 195 525) et écraseraient définitivement
+  ceux du nouveau (plafond 61 400).
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de

@@ -244,7 +244,19 @@ function renderCharacter(ctx, width, height, now, z) {
   const w = (SPRITE_W / SPRITE_H) * h;
 
   renderNotes(ctx, p.x, p.y, p.scale, now);
-  drawLabel(ctx, p.x, p.y - h - 4 * p.scale, p.scale);
+  // ⚠️ 4 → 0,35 unité-monde au-dessus de la tête (19 août 2026, retour direct :
+  // « le nom de Soberland est beaucoup trop haut écrit dans le ciel, il doit
+  // être juste au-dessus du personnage »). À 4 unités, l'étiquette flottait à
+  // près de 3 fois sa hauteur au-dessus de lui — donc en plein ciel, où elle se
+  // superposait aux façades ET perdait tout lien avec le personnage qu'elle est
+  // censée nommer. La redescendre règle du même coup le second reproche
+  // (« il ne doit pas passer devant les bâtiments ») : l'étiquette vit
+  // désormais au ras de la route, dans la zone que le personnage occupe déjà.
+  // Le reste de l'ordre de profondeur était déjà correct — l'étiquette est
+  // peinte DANS le draw du personnage, donc à sa profondeur : une voiture ou un
+  // pont plus proche que lui se peint par-dessus (voir getExtras / le mécanisme
+  // `extras` d'entities-render.js).
+  drawLabel(ctx, p.x, p.y - h - 0.35 * p.scale, p.scale);
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;

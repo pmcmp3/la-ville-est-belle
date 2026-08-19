@@ -484,7 +484,12 @@ function faceCorners(xA, zA, xB, zB, wallHeight, roofHeight, width, height) {
 // WINDOW_MIN_PX plus haut — fenêtres/lucarnes/balcons qui popent un par un
 // près du joueur), mais élargir aussi cette bande rend le tout début de
 // matérialisation plus doux et plus loin, en cohérence.
-const FADE_BAND = 36;
+// 36 → 48 le 19 août 2026, avec l'horizon repoussé à ≈155 u (road.js) et le
+// fondu jumeau ajouté côté objets (entities.js, FADE_BAND) : même demande
+// (« que le chargement soit plus progressif »), et il faut que décor et objets
+// se matérialisent au même rythme, sinon l'un des deux a l'air en retard sur
+// l'autre — c'est précisément ce décalage qui a fait remonter le problème.
+const FADE_BAND = 48;
 
 // --- Feux de circulation, aux croisements -----------------------------------
 // Demandé le 12 août 2026 avec les croisements (« tu peux rajouter des feux

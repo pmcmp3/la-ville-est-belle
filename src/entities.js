@@ -14,13 +14,33 @@ import * as pedestrians from "./pedestrians.js";
 import * as cyclists from "./cyclists.js";
 
 const CADENCE = window.CONFIG.cadenceSpawnBeats; // un événement tous les N temps
-const LOOKAHEAD_SLOTS = 10;
+// 10 → 16 le 19 août 2026, avec la hausse de VISIBLE_Z_MAX ci-dessous : à la
+// vitesse de DÉPART (la plus contraignante, les créneaux n'y sont espacés que
+// de ~14,9 u), couvrir 145 u de champ demande ~8,9 créneaux — 10 passait tout
+// juste, sans marge pour le facteur d'approche des cyclistes (×1,35, qui les
+// place plus loin). En manquer aurait fait apparaître les objets en plein
+// milieu du champ au lieu de l'horizon, exactement le défaut qu'on corrige.
+const LOOKAHEAD_SLOTS = 16;
 
 // Distance (unités-monde) au-delà de laquelle un créneau n'est pas encore
 // pris en compte par visibleSlots() — la vraie limite de visibilité utilisée
 // par le jeu, indépendante du nombre de créneaux de lookahead (voir LEAD_IN
 // ci-dessous, qui vise CE repère plutôt qu'un compte de créneaux).
-const VISIBLE_Z_MAX = 90;
+// ⚠️ 90 → 145 le 19 août 2026 (« les objets chargent trop près du joueur, il
+// faut qu'on les voie apparaître un peu plus loin »). C'ÉTAIT LE VRAI GOULOT :
+// l'horizon valait déjà 136 u et les bâtiments s'y rendaient, mais les
+// bonus/obstacles étaient coupés à 90 — ils surgissaient donc à mi-chemin,
+// bien après le décor, ce qui se lit comme « ils chargent en retard ». Recalé
+// juste sous le nouvel HORIZON_Z (≈ 155) pour que les objets sortent de la
+// courbe en même temps que le reste de la scène.
+export const VISIBLE_Z_MAX = 145;
+// Fondu d'apparition des objets sur les dernières unités avant VISIBLE_Z_MAX
+// (« il faut que le chargement soit plus progressif »). Même principe que
+// FADE_BAND pour les bâtiments (world.js) : sans lui, un objet apparaît d'un
+// coup à pleine opacité pile sur le seuil de coupure — un pop-in, d'autant
+// plus visible maintenant que le seuil est loin. Consommé par
+// entities-render.js, qui est seul à savoir peindre.
+export const FADE_BAND = 34;
 // Petite marge pour que le créneau 0 soit franchement DANS la fenêtre dès la
 // première frame, pas pile sur le seuil de coupure (évite tout flottement).
 const LEAD_IN_VISIBILITY_MARGIN = 2;
@@ -70,7 +90,14 @@ export const LEAD_IN =
 // avait fait perdre une étoile en silence — voir isBonusQuota plus bas).
 // TOTAL_STARS baisse donc à la MÊME proportion (×0,7) pour garder la même
 // densité de jeu sur un parcours plus court, pas juste éviter le bug.
-export const TOTAL_STARS = 140;
+// ⚠️ N'est plus une constante écrite à la main depuis le 19 août 2026 : c'est
+// désormais le nombre d'étoiles que produit la loi de difficulté
+// (obstacleRatioAt, plus bas), COMPTÉ sur le parcours réel. Défini tout en bas
+// du fichier, une fois `isBonusQuota` construit — voir la note d'arbitrage
+// là-bas. La propriété produit ne bouge pas (« chaque partie a exactement le
+// même nombre d'étoiles, le score max est un nombre connu »), seule sa valeur
+// est maintenant une conséquence de la difficulté demandée au lieu d'une
+// contrainte qui la bridait.
 // ⚠️ Deuxième renversement (12 août 2026, même jour, retour ultérieur) : la
 // ligne d'arrivée n'est plus calée sur la fin du morceau (`dureeMorceau`) mais
 // sur `dureeCourse` (config.js, 205 s = "03:25"), un réglage séparé — demandé
@@ -90,7 +117,8 @@ export const TOTAL_OBJECTS = Math.floor(
 // dureeCourse (×0,7), donc la densité par créneau ne bouge plus. Valeurs
 // actuelles : 191 créneaux, 140 étoiles, 51 obstacles (vérifié par balayage
 // hors ligne, voir ARCHITECTURE.md §5.4).
-export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
+// (TOTAL_STARS / TOTAL_OBSTACLES sont définis plus bas, après isBonusQuota :
+// ils se COMPTENT sur le quota réellement produit par la loi de difficulté.)
 export function finishBeatN() { return TOTAL_OBJECTS * CADENCE; }
 export function finishTime() { return clock.timeOfBeat(finishBeatN()); }
 // Nombre d'objets déjà "passés" au sens du parcours (créneaux au niveau ou
@@ -141,36 +169,59 @@ const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoi
 // tard, de la VITESSE (66 u/s contre 19,8 au départ, soit 3,3× moins de temps
 // pour lire la route et se déporter). Les étoiles se font plus nombreuses au
 // moment précis où elles deviennent difficiles à aller chercher.
-const RAMP_SLOTS = TOTAL_OBJECTS - GRACE_SLOTS;
-// Plafond volontaire, PAS dérivé : un ratio est une probabilité de tramage
-// par créneau, et un créneau ne peut porter qu'UN SEUL objet — au-delà de 1,
-// un même créneau peut franchir plus d'un palier entier d'un coup, mais
-// l'étoile "en trop" n'a nulle part où se loger et disparaît en silence (voir
-// le bug ci-dessous).
-// 0,92 → 0,84 le 17 août 2026 (« plus d'obstacles quand ça avance », difficulté
-// à doubler) : double la part d'obstacles pile en fin de course (8 % → 16 %),
-// sans changer TOTAL_OBSTACLES (fixe, = TOTAL_OBJECTS - TOTAL_STARS) — ça ne
-// fait que redistribuer LES MÊMES obstacles vers la fin plutôt que le début
-// (BONUS_RATIO_START se redérive automatiquement plus haut, voir plus bas).
-const BONUS_RATIO_END = 0.84;
-// BONUS_RATIO_START dérivé (pas une constante à la main) pour que la SOMME
-// EXACTE de la rampe (N·start + (end-start)·(N-1)/2, `t` = (i-GRACE)/N sur N
-// créneaux) retombe sur le quota d'étoiles restant — c'est ce qui garantit le
-// total de TOTAL_STARS, quels que soient TOTAL_STARS/TOTAL_OBJECTS/
-// GRACE_SLOTS si on les retouche un jour. Symétrique de l'ancienne dérivation
-// (qui fixait `start` et calculait `end`) : elle a dû changer de sens le
-// 12 août 2026 quand `dureeCourse` (205 s au lieu de la durée du morceau,
-// 257,9 s) a resserré le parcours sans réduire le quota de 200 étoiles — le
-// même quota sur beaucoup moins de créneaux (273 contre 343) rend la rampe
-// bien plus dense, et calculer `end` à partir de `start = 0,45` (l'ancienne
-// constante) le faisait DÉPASSER 1 (mesuré : 1,011) — exactement le cas
-// dégénéré décrit plus haut. 🐛 Mesuré avant correction : 199 étoiles au lieu
-// de 200 (une perdue dans le dépassement), plus une longue fin de course
-// sans un seul obstacle. En fixant `end` sous 1 et en dérivant `start` dans
-// l'autre sens, le problème est réglé à la source pour toute combinaison
-// future de ces trois réglages, pas seulement celle d'aujourd'hui.
-const BONUS_RATIO_START =
-  (2 * (TOTAL_STARS - GRACE_SLOTS) - BONUS_RATIO_END * (RAMP_SLOTS - 1)) / (RAMP_SLOTS + 1);
+// ⚠️ RAMPE REMPLACÉE PAR UN DOUBLEMENT EXPONENTIEL (19 août 2026, demandé
+// explicitement : « multiplie par deux le nombre d'obstacles toutes les 25
+// secondes, parce que c'est trop facile, il faut vraiment que ce soit
+// extrêmement difficile »).
+//
+// Ce qu'il y avait avant : une rampe LINÉAIRE du ratio d'étoiles, de 0,62 à
+// 0,84 — autrement dit la densité d'OBSTACLES *baissait* de 38 % à 16 % au fil
+// de la course. Le raisonnement d'alors (la difficulté change de nature :
+// densité tôt, vitesse tard) ne tenait plus à l'usage : c'est exactement la
+// plainte remontée deux fois de suite (« ça manque d'obstacles dès que je suis
+// à 80000 », puis « c'est trop facile »). La fin de course était la portion la
+// plus vide du jeu.
+//
+// Maintenant : la densité d'obstacles DOUBLE toutes les 25 s, plafonnée. Elle
+// monte donc au lieu de descendre, ce qui est tout l'objet de la demande.
+//
+// ⚠️ Arbitrage tranché par l'artiste (les deux contraintes sont
+// mathématiquement incompatibles) : un créneau porte soit une étoile soit un
+// obstacle, et il y en a 191 — doubler les obstacles fait donc forcément
+// tomber le quota d'étoiles, qui était « verrouillé » à 140. Trois scénarios
+// chiffrés lui ont été soumis ; il a choisi le plafond à 60 %, qui plus que
+// DOUBLE les obstacles (51 → ~111) tout en gardant le combo atteignable —
+// à 85 % de plafond, enchaîner 5 étoiles devenait statistiquement impossible
+// et le combo, ajouté deux jours plus tôt, serait mort avec.
+// Le quota reste EXACT et connu d'avance (même mécanique de diffusion
+// d'erreur, voir plus bas) : c'est sa VALEUR qui change, pas la propriété.
+// TOTAL_STARS en est désormais DÉRIVÉ au lieu d'être écrit à la main.
+const OBSTACLE_DOUBLING_TIME_S = 25;
+// Densité d'obstacles au tout début : celle d'avant (0,381), pour que
+// l'ouverture de course garde exactement le rythme déjà validé au playtest —
+// c'est la SUITE qui change, en montant au lieu de descendre.
+const OBSTACLE_RATIO_START = 0.381;
+// Plafond : au-delà, la route n'offre plus assez d'étoiles pour que le combo
+// existe, et un ratio qui approcherait 1 ferait replonger dans le cas dégénéré
+// documenté plus bas (un créneau ne peut porter qu'UN objet). Atteint vers
+// 16 s de course, la densité reste donc à 60 % tout le reste du parcours.
+const OBSTACLE_RATIO_MAX = 0.60;
+
+// Densité d'obstacles visée au créneau `i`, d'après le temps musical où il
+// arrive (donc une fonction pure de l'index, comme tout ce fichier).
+function obstacleRatioAt(slotIndex) {
+  const t = clock.timeOfBeat(slotIndex * CADENCE);
+  const brut = OBSTACLE_RATIO_START * Math.pow(2, t / OBSTACLE_DOUBLING_TIME_S);
+  return Math.min(OBSTACLE_RATIO_MAX, brut);
+}
+// ⚠️ L'invariant qui compte n'a PAS changé : un ratio est une probabilité de
+// tramage par créneau, et un créneau ne peut porter qu'UN SEUL objet — au-delà
+// de 1, un même créneau franchirait plus d'un palier entier d'un coup et
+// l'étoile « en trop » disparaîtrait en silence (c'est le bug qui a coûté deux
+// sessions, voir l'historique en ARCHITECTURE.md §5.4). Ici le ratio d'étoiles
+// vaut 1 − obstacleRatioAt(), donc il vit entre 0,40 (plafond d'obstacles
+// atteint) et 0,62 (départ) : jamais près de 1, la marge est structurelle et
+// non plus le fruit d'une dérivation à surveiller.
 
 // Marge après la ligne d'arrivée : visibleSlots() peut regarder jusqu'à
 // LOOKAHEAD_SLOTS créneaux au-delà du dernier passé, il faut donc un tableau
@@ -180,12 +231,10 @@ const isBonusQuota = (() => {
   const arr = new Array(TOTAL_OBJECTS + QUOTA_MARGIN).fill(false);
   for (let i = 0; i < GRACE_SLOTS && i < arr.length; i++) arr[i] = true;
 
-  const remainingSlots = TOTAL_OBJECTS - GRACE_SLOTS;
   let cumul = 0;
   let prevFloor = 0;
   for (let i = GRACE_SLOTS; i < arr.length; i++) {
-    const t = Math.min(1, (i - GRACE_SLOTS) / remainingSlots);
-    const ratio = BONUS_RATIO_START + (BONUS_RATIO_END - BONUS_RATIO_START) * t;
+    const ratio = 1 - obstacleRatioAt(i);
     cumul += ratio;
     // Epsilon : le cumul final vaut EXACTEMENT le quota par construction, donc
     // il tombe pile sur un entier — l'endroit précis où une addition flottante
@@ -200,6 +249,18 @@ const isBonusQuota = (() => {
 function isBonusAt(slotIndex) {
   return slotIndex >= 0 && slotIndex < isBonusQuota.length && isBonusQuota[slotIndex];
 }
+
+// Quota réellement produit par la loi de difficulté, COMPTÉ sur les créneaux
+// du parcours (la marge de lookahead est exclue : ces créneaux-là sont
+// calculés mais jamais joués, visibleSlots() s'arrête à TOTAL_OBJECTS).
+// C'est ce comptage qui garantit la propriété produit : le nombre est le même
+// à chaque partie (tout est déterministe, ARCHITECTURE.md §5.2) et connu
+// d'avance, donc le score maximum reste calculable — c'est seulement sa VALEUR
+// qui a changé le 19 août 2026 avec le doublement de difficulté (140 → ~80).
+export const TOTAL_STARS = isBonusQuota
+  .slice(0, TOTAL_OBJECTS)
+  .reduce((n, estEtoile) => n + (estEtoile ? 1 : 0), 0);
+export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
 
 // Bonus musique/studio (voir config.js pour les scores). Poids inchangés
 // depuis les anciens noms (clementine→cd, clavier→piano, sourire→appareil,
@@ -281,8 +342,16 @@ function scaleWeights(list, factors) {
 // voient leur poids multiplié un peu plus, cumulativement, comme le combo.
 // Composé dynamiquement (comme applyPontLateBoost plus bas) plutôt que
 // précalculé : une échelle continue n'a pas de table finie à figer d'avance.
-const SCORE_TIER_SIZE = 15000;
-const SCORE_TIER_FACTOR = 0.35; // +0,35 par palier, cumulatif : 15k→×1,35, 30k→×1,7, 80k→×2,85 (5 paliers)
+// ⚠️ 15 000 → 5 000 le 19 août 2026, mis à l'échelle du nouveau plafond de
+// score. Ces paliers avaient été calibrés quand un run parfait montait à
+// ~195 000 ; le doublement de difficulté (voir obstacleRatioAt) fait tomber ce
+// plafond à ~61 400, et à 15 000 le pas n'aurait plus laissé que 4 paliers sur
+// une partie entière au lieu de 13 — l'intensification par score se serait
+// éteinte d'elle-même, exactement le défaut qu'elle avait été écrite pour
+// corriger le 17 août. Le rapport ancien/nouveau plafond (≈ 0,31) donne ~4 700,
+// arrondi à 5 000.
+const SCORE_TIER_SIZE = 5000;
+const SCORE_TIER_FACTOR = 0.35; // +0,35 par palier, cumulatif : 5k→×1,35, 10k→×1,7, 60k→×5,2 (12 paliers)
 function scoreTierMultiplier() {
   return 1 + SCORE_TIER_FACTOR * Math.floor(currentScore / SCORE_TIER_SIZE);
 }

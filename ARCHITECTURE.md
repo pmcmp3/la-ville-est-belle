@@ -189,10 +189,40 @@ accumule le ratio cible créneau après créneau, et un créneau est une étoile
 franchir un palier entier. Le total vaut alors exactement `floor(somme des ratios)`.
 
 ```
-TOTAL_STARS      = 140   ← LE réglage central, réduit ×0,7 le 17 août 2026 avec dureeCourse (200 avant)
 TOTAL_OBJECTS    = 191   ← dérivé de dureeCourse (143,5 s depuis le 17 août 2026)
-TOTAL_OBSTACLES  = 51    ← ce qui reste
+TOTAL_STARS      = 80    ← ⚠️ DÉRIVÉ depuis le 19 août 2026 : compté sur isBonusQuota, plus écrit à la main
+TOTAL_OBSTACLES  = 111   ← ce qui reste
 ```
+
+⚠️ **Renversement du 19 août 2026 — la rampe linéaire a disparu.** `TOTAL_STARS` n'est plus LE
+réglage central dont tout découle : c'est maintenant une CONSÉQUENCE de la loi de difficulté.
+La densité d'obstacles **double toutes les 25 s** (`OBSTACLE_DOUBLING_TIME_S`), de 38 % des
+créneaux au départ jusqu'au plafond `OBSTACLE_RATIO_MAX` = 60 % (atteint vers 16 s) ;
+`BONUS_RATIO_START`/`BONUS_RATIO_END` et `RAMP_SLOTS` sont supprimés. Demandé explicitement
+(« multiplie par deux le nombre d'obstacles toutes les 25 secondes [...] il faut vraiment que ce
+soit extrêmement difficile ») : l'ancienne rampe faisait *baisser* la densité d'obstacles de 38 %
+à 16 % au fil de la course, donc la fin était la portion la plus VIDE du jeu — la plainte exacte,
+remontée deux fois de suite.
+
+**La propriété produit est intacte, sa valeur a changé.** « Chaque partie a exactement le même
+nombre d'étoiles, donc le score max est un nombre connu » reste vrai (tout est déterministe,
+§5.2) ; simplement ce nombre se COMPTE désormais au lieu d'être imposé. Mesuré : **80 étoiles /
+111 obstacles pile sur 191 créneaux, 0 trou**, densité d'obstacles 50 % sur les 25 premières
+secondes puis ~60 % jusqu'à la fin. Nouveau score maximum théorique : **61 400 points**, combo
+final ×9 (contre 195 525 / ×15). ⚠️ **Le classement Supabase est donc à vider** : les scores
+enregistrés sous l'ancien barème sont hors d'atteinte du nouveau.
+
+⚠️ **L'arbitrage a été tranché par l'artiste, pas déduit.** Les deux contraintes (doubler les
+obstacles / garder 140 étoiles) sont mathématiquement incompatibles — 191 créneaux, un objet par
+créneau. Trois scénarios chiffrés lui ont été soumis : plafond 60 % (80 étoiles/111 obstacles,
+combo encore atteignable), plafond 85 % (40/151, mais 0 % de chance d'enchaîner 5 étoiles — le
+combo, ajouté deux jours plus tôt, serait mort), ou garder 140 étoiles en durcissant chaque
+obstacle sans en changer le nombre. Il a choisi le premier. **Ne pas revenir dessus sans le
+redemander.**
+
+Le cas dégénéré du ratio > 1 (voir plus bas) n'est plus une dérivation à surveiller mais une
+marge structurelle : le ratio d'étoiles vaut `1 − obstacleRatioAt()`, donc il vit entre 0,40 et
+0,62, jamais près de 1.
 
 ⚠️ **Deuxième révision de la longueur du parcours (12 août 2026)** : la ligne d'arrivée n'est plus
 calée sur la fin du morceau mais sur `config.dureeCourse`, un réglage **séparé** de `dureeMorceau`
@@ -279,7 +309,7 @@ Rien ne doit être dessiné au-delà : la projection s'y replierait. Tous les mo
 testent `z > HORIZON_Z` et sautent. Les objets « surgissent de derrière la courbe », ce qui est
 l'effet recherché.
 
-Repères : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 3` (4 avant le 17 août 2026), donc une voie fait
+Repères (HORIZON_Z ≈ 155 depuis le 19 août 2026, CURVATURE 0,0002) : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 3` (4 avant le 17 août 2026), donc une voie fait
 2,67 unités (2 avant) — route physique inchangée, juste redécoupée en voies plus larges.
 `PLAYER_NEAR_Z = 13` (profondeur du joueur, fixe).
 
@@ -788,6 +818,44 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Deuxième passe du 19 août 2026 — six retours de jeu.** Tout vérifié en exécutant le jeu
+(harnais console + frame composée sur canvas superposé, la preview refusant de compositer quand
+la pane est masquée) :
+- **Les objets apparaissaient trop près du joueur.** Vrai goulot trouvé en mesurant :
+  `VISIBLE_Z_MAX` valait 90 alors que l'horizon en faisait déjà 136 et que les bâtiments s'y
+  rendaient — les bonus/obstacles surgissaient donc à mi-chemin, bien après le décor. Porté à
+  **145**, `LOOKAHEAD_SLOTS` 10 → 16 (à la vitesse de départ il faut ~8,9 créneaux pour couvrir
+  ce champ, 10 ne laissait aucune marge). Horizon repoussé en plus (`CURVATURE` 0,00026 → 0,0002,
+  HORIZON_Z ≈ 136 → 155, le plancher documenté en §5.5). Et **fondu d'apparition ajouté aux
+  objets** (`FADE_BAND`, `entities.js` + `entities-render.js`), qu'ils n'avaient pas du tout,
+  contrairement au décor : c'est ce contraste qui rendait leur pop-in si voyant. `FADE_BAND` du
+  décor 36 → 48 pour que les deux se matérialisent au même rythme.
+- 🐛 **Le joueur se peignait par-dessus les ponts déjà dépassés** (« quand je passe un pont et que
+  je saute en l'air, on a l'impression que je saute par-dessus le pont, alors que je suis
+  derrière »). Il était dessiné APRÈS toute la scène, donc toujours au premier plan, même devant
+  un objet physiquement plus proche de la caméra que lui. Corrigé en le faisant passer par
+  `extras` — le mécanisme d'ordre du peintre déjà écrit pour le caméo (§4). Vérifié sur **les 36
+  ponts du parcours** : chacun se peint bien par-dessus le joueur une fois dépassé.
+- **Retour de ramassage d'étoile renforcé** : halo blanc du joueur intensifié (0,3 → 0,55) et
+  **points gagnés qui s'envolent** au-dessus de lui (`renderPickupPopups`, `main.js`), combo
+  compris — c'est ce chiffre-là qui rend le combo lisible en jeu, le score global défilant trop
+  vite pour qu'on voie la différence. Peints hors de la séquence du peintre : c'est de
+  l'interface, elle ne doit jamais passer derrière une voiture.
+- **Étiquette « @soberland » redescendue** de 4 à 0,35 unité-monde au-dessus de sa tête (« beaucoup
+  trop haut écrit dans le ciel »). Réglait du même coup le second reproche (« ne doit pas passer
+  devant les bâtiments ») : à 4 unités elle flottait en plein ciel par-dessus les façades. Son
+  ordre de profondeur, lui, était déjà correct (peinte dans le draw du personnage, donc à sa
+  profondeur).
+- **HUD** : score 31 → 38 px, et le combo passe d'un texte blanc nu à une **pastille crème à texte
+  sombre** — il se confondait avec le décor et ne se lisait pas comme un état actif.
+- **Difficulté doublée toutes les 25 s** — voir §5.4 pour le détail complet et l'arbitrage.
+  `SCORE_TIER_SIZE` 15 000 → 5 000 dans la foulée, remis à l'échelle du nouveau plafond de score
+  (sinon l'intensification par palier ne se déclenchait quasiment plus de toute la partie).
+
+Invariants revérifiés : **80 étoiles / 111 obstacles pile, 0 trou**, **700 frames rendues sans
+exception** (score poussé jusqu'au maximum théorique pendant le balayage), et **0 créneau bloquant
+les 3 voies à la fois** même au score max — il reste toujours un passage.
 
 **Passe de revue de code du 19 août 2026** (demandée telle quelle : « jette un œil à la
 structure du code et aux erreurs possibles »). Sept correctifs, tous vérifiés en exécutant le

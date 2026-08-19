@@ -11,6 +11,11 @@
 // avec :root dans index.html.
 const BLANC = "#ffffff";
 const ROUGE = "#e13e26";
+// Crème de la charte (fond des cartes de menu) et encre sombre : le duo du tag
+// de combo, voir renderHud. Repris d'index.html, dupliqué ici pour la même
+// raison que le reste — le canvas ne lit pas les variables CSS.
+const CREME = "#f0ead9";
+const ENCRE = "#141419";
 const PANNEAU = "rgba(13,13,16,0.72)"; // fond des panneaux d'interface
 const POLICE = '"Stage Grotesk", system-ui, sans-serif';
 
@@ -55,7 +60,10 @@ const PAD = 16;
 // « leur place est très bien » — donc PAD inchangé, seules les tailles
 // bougent : le score reste ancré à `width/2, PAD`, la rangée de cœurs reste
 // ancrée à `width - PAD` par la droite, voir plus bas).
-const SCORE_SIZE = 31;   // 26 → 31 (+20 %)
+// 26 → 31 (+20 %) → 38 le 19 août 2026 (« j'aimerais que le système de score
+// soit un tout petit peu plus gros »). Toujours ancré à `width/2, PAD` : seule
+// la taille bouge, la place est validée depuis longtemps.
+const SCORE_SIZE = 38;
 // Cœurs déjà agrandis une première fois (demandé explicitement : « pour que
 // les gens comprennent qu'ils ont trois cœurs ») — 13 → 20px. Puis +20 % le
 // 12 août 2026, même demande que le score.
@@ -108,14 +116,31 @@ export function renderHud(ctx, width, height, game) {
   // pénalité (main.js), donc dès que l'un s'affiche l'autre est à son état
   // neutre. Blanc, pas rouge : le rouge de charte est réservé au négatif
   // (pénalité), le combo est une récompense.
+  // ⚠️ Passé en TAG le 19 août 2026 (« que le combo soit dans un tag un peu
+  // plus gros pour qu'on comprenne comment ça marche ») : c'était un texte
+  // blanc nu, qui se confondait avec le décor et ne se lisait pas comme un
+  // état actif du jeu. Une pastille pleine crème à texte sombre se détache sur
+  // n'importe quel fond (ciel clair comme bitume) et dit « il se passe quelque
+  // chose en ce moment ». Volontairement PAS rouge : le rouge de charte
+  // signale le négatif (la pénalité juste au-dessus), le combo est une
+  // récompense.
   if (game.streak >= window.CONFIG.comboSeuil) {
     const palier = Math.floor(game.streak / window.CONFIG.comboSeuil);
     const multiplier = 1 + window.CONFIG.comboBonusParPalier * palier;
-    ctx.font = `900 ${Math.round(SCORE_SIZE * 0.5)}px ${POLICE}`;
-    ctx.fillStyle = BLANC;
-    ctx.globalAlpha = 0.85;
-    ctx.fillText(`COMBO ×${multiplier}`, width / 2, PAD + SCORE_SIZE * 1.2);
-    ctx.globalAlpha = 1;
+    const texte = `COMBO ×${multiplier}`;
+    const taille = Math.round(SCORE_SIZE * 0.55);
+    ctx.font = `900 ${taille}px ${POLICE}`;
+    const padX = 14;
+    const padY = 7;
+    const tagW = ctx.measureText(texte).width + padX * 2;
+    const tagH = taille + padY * 2;
+    const tagX = width / 2 - tagW / 2;
+    const tagY = PAD + SCORE_SIZE * 1.15;
+    ctx.fillStyle = CREME;
+    roundRect(ctx, tagX, tagY, tagW, tagH, tagH / 2);
+    ctx.fill();
+    ctx.fillStyle = ENCRE;
+    ctx.fillText(texte, width / 2, tagY + padY);
   }
 
   // Cœurs : en ligne, ancrés en haut à droite, alignés verticalement sur le

@@ -202,7 +202,14 @@ export function render(ctx, x, groundY, pxPerWorldUnit, lean = 0, pedalPhase = 0
 // doit confirmer le ramassage du coin de l'œil, pas éclairer la scène ni
 // masquer la route juste devant. `intensity` va de 1 (impact) à 0 (fini).
 const GLOW_COLOR = "255, 255, 255"; // suit l'anneau des bonus (entities.js), passé au blanc avec la nouvelle DA
-const GLOW_MAX_ALPHA = 0.3;         // le blanc éclaire plus fort que le vert à opacité égale
+// 0,3 → 0,55 le 19 août 2026 (« une animation légère au moment où je
+// réceptionne une étoile pour comprendre que l'étoile a bien été prise » —
+// le halo existait déjà mais restait trop discret pour se voir en pleine
+// course). Reste un halo additif court : il confirme le ramassage du coin de
+// l'œil, il n'éclaire pas la scène et ne masque pas la route juste devant.
+// Complété par les points qui s'envolent au-dessus du joueur (main.js,
+// renderPickupPopups) : le halo dit « pris », le chiffre dit « combien ».
+const GLOW_MAX_ALPHA = 0.55;
 
 // Enveloppe du halo à partir de `intensity` (1 à l'impact → 0 à la fin).
 // Montée rapide sur les 18 premiers pour cent puis longue descente en cosinus :
