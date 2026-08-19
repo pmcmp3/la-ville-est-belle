@@ -21,16 +21,17 @@
 // C'est aussi ce qui garantit qu'on enseigne le vrai contrôle et pas une
 // simulation qui pourrait s'en écarter.
 //
-// Repli pour qui ne bouge pas : au bout de `DELAI_DEMO` secondes sans action,
-// le tutoriel joue le geste tout seul (main fantôme + commande envoyée au
-// personnage), en boucle, jusqu'à ce que le joueur s'y mette ou que le
-// plafond de temps global tombe (screens.js).
+// ⚠️ La main fantôme MONTRE le geste, elle ne le joue jamais à la place du
+// joueur. La première version envoyait de vraies commandes au personnage après
+// ~3 s d'inaction — retour immédiat de l'artiste : « je ne fais rien, il bouge
+// tout seul » — et comme l'observateur ne distingue pas un geste démontré d'un
+// geste fait, les étapes se validaient toutes seules. Le tutoriel n'avance
+// donc QUE sur un geste du joueur ; les seules sorties sans geste sont le
+// bouton « Passer l'intro » et le plafond de temps global (screens.js).
 
 import * as road from "./road.js";
 import { peindreObjet } from "./entities-render.js";
 
-// Secondes d'inaction avant que le tutoriel fasse la démonstration lui-même.
-const DELAI_DEMO = 3.2;
 // Durée du petit temps de félicitation entre deux étapes.
 const DUREE_REUSSITE = 0.75;
 // Profondeur d'apparition des objets de démonstration : ~3,5 s de trajet à la
@@ -62,7 +63,9 @@ const ETAPES = [
     texte: "Swipe vers le haut pour sauter — les étoiles en l'air valent le plus",
     geste: "haut",
     objectifs: 1,
-    props: () => [prop({ isBonus: true, kind: "guitare", voie: 1 })],
+    // Dans la voie du joueur : le saut qu'il fait rencontre l'étoile, le geste
+    // et sa récompense se lisent d'un coup.
+    props: (voie) => [prop({ isBonus: true, kind: "guitare", voie })],
   },
   {
     cle: "pont",
@@ -71,20 +74,31 @@ const ETAPES = [
     texte: "Sous un pont, reste au sol — sauter y est fatal",
     geste: "lateral",
     objectifs: 1,
-    // Pont à une seule voie ouverte (la 1, au centre) : le joueur doit s'y
-    // placer ET rester au sol. Voies BLOQUÉES stockées, comme dans entities.js.
-    props: () => [prop({ isBonus: false, kind: "pont", voies: [0, 2] })],
+    // ⚠️ La voie ouverte est TOUJOURS une voie ADJACENTE à celle du joueur,
+    // jamais la sienne : la première version ouvrait la voie centrale, où le
+    // joueur se trouve déjà au départ — l'étape se validait sans le moindre
+    // geste (retour direct : « je ne fais rien, il bouge tout seul »). Voies
+    // BLOQUÉES stockées, comme dans entities.js.
+    props: (voie) => {
+      const ouverte = voie === 0 ? 1 : voie - 1;
+      return [prop({ isBonus: false, kind: "pont", voies: [0, 1, 2].filter((l) => l !== ouverte) })];
+    },
   },
   {
     cle: "combo",
     texte: "5 étoiles d'affilée : le combo multiplie tes points",
     geste: "lateral",
     objectifs: 2,
-    props: () => [
-      prop({ isBonus: true, kind: "cd", voie: 1, recul: 0 }),
-      prop({ isBonus: true, kind: "cd", voie: 1, recul: 16 }),
-      prop({ isBonus: true, kind: "cd", voie: 1, recul: 32 }),
-    ],
+    // Même règle que le pont : les étoiles arrivent dans une voie ADJACENTE,
+    // jamais celle du joueur — il doit aller les chercher.
+    props: (voie) => {
+      const cible = voie === 0 ? 1 : voie - 1;
+      return [
+        prop({ isBonus: true, kind: "cd", voie: cible, recul: 0 }),
+        prop({ isBonus: true, kind: "cd", voie: cible, recul: 16 }),
+        prop({ isBonus: true, kind: "cd", voie: cible, recul: 32 }),
+      ];
+    },
   },
 ];
 
@@ -117,8 +131,7 @@ const etat = {
   tempsInaction: 0,
   reussite: 0,      // secondes restantes du temps de félicitation
   echec: 0,         // secondes restantes du message d'échec (étape pont)
-  props: [],
-  commande: null,   // { lane, saut } à appliquer une fois par main.js
+  props: null,      // posés au premier pas de l'étape, PAR RAPPORT à la voie du joueur
   phaseGeste: 0,    // avance l'animation de la main fantôme
   fini: false,
   derniereVoie: null,
@@ -134,22 +147,21 @@ export function demarrer() {
   etat.echec = 0;
   etat.fini = false;
   etat.derniereVoie = null;
-  etat.commande = null;
   chargerEtape();
 }
 
 export function arreter() {
   etat.actif = false;
   etat.props = [];
-  etat.commande = null;
 }
 
 export function estActif() { return etat.actif; }
 export function estFini() { return etat.fini; }
 
 function chargerEtape() {
-  const etape = ETAPES[etat.index];
-  etat.props = etape ? etape.props() : [];
+  // `props` reste null jusqu'au premier pas de l'étape : leur placement dépend
+  // de la voie COURANTE du joueur (voir ETAPES), que seul avancer() connaît.
+  etat.props = null;
   etat.faits = 0;
   etat.tempsEtape = 0;
   etat.tempsInaction = 0;
@@ -171,13 +183,6 @@ export function affichage() {
   }
   if (!etape) return null;
   return { texte: etape.texte, couleur: CREME, index: etat.index + 1, total: ETAPES.length };
-}
-
-// Commande de démonstration, à consommer par main.js (une seule fois).
-export function prendreCommande() {
-  const c = etat.commande;
-  etat.commande = null;
-  return c;
 }
 
 function valider() {
@@ -220,6 +225,11 @@ export function avancer(dt, obs) {
   const etape = etapeCourante();
   if (!etape) return;
 
+  // Pose paresseuse des objets de l'étape : leur placement dépend de la voie
+  // où le joueur se trouve MAINTENANT (voir ETAPES) — chargerEtape() ne la
+  // connaît pas.
+  if (etat.props === null) etat.props = etape.props(obs.voie);
+
   // --- Détection du geste, par OBSERVATION de l'état du joueur -------------
   if (etat.derniereVoie === null) etat.derniereVoie = obs.voie;
   const aChangeDeVoie = obs.voie !== etat.derniereVoie;
@@ -241,42 +251,34 @@ export function avancer(dt, obs) {
         const voieLibre = !p.lanes.includes(obs.voie);
         if (voieLibre && obs.auSol) valider();
         else {
-          // Jamais de blocage : on rejoue l'étape une fois, puis on passe quoi
-          // qu'il arrive (le plafond de temps de screens.js reste le filet).
+          // Raté : le pont revient, replacé par rapport à la voie ACTUELLE du
+          // joueur, autant de fois qu'il faut. Pas d'auto-validation au bout
+          // d'un moment — l'étape n'avance que si le geste est fait ; le
+          // plafond de temps global (screens.js) reste la seule autre sortie.
           etat.echec = 1.4;
-          if (etat.tempsEtape > 12) valider();
-          else etat.props = etape.props();
+          etat.props = etape.props(obs.voie);
         }
       } else if (etape.cle === "combo" && p.isBonus) {
         if (p.lanes.includes(obs.voie)) valider();
       }
     }
   }
-  // Étape combo : si les étoiles sont toutes passées sans être prises, on
-  // n'enferme personne — la consigne a été lue, on avance.
-  if (etape.cle === "combo" && etat.props.every((p) => p.resolu) && etat.faits < etape.objectifs) {
-    valider();
-    etat.faits = etape.objectifs;
-    etat.reussite = DUREE_REUSSITE;
+  // Étape combo : des étoiles toutes passées sans être prises reviennent,
+  // replacées par rapport à la voie actuelle — même règle que le pont, jamais
+  // d'avancement sans geste.
+  if (etape.cle === "combo" && etat.props.length && etat.props.every((p) => p.resolu) && etat.faits < etape.objectifs) {
+    etat.faits = 0;
+    etat.props = etape.props(obs.voie);
   }
 
-  // --- Démonstration automatique après un temps d'inaction ----------------
-  // ⚠️ La démo joue le VRAI geste sur le VRAI personnage, donc l'observateur
-  // la compte comme un geste accompli et l'étape avance. C'est assumé : un
-  // joueur passif voit le tutoriel se dérouler tout seul (attract mode) au
-  // lieu de rester coincé devant une consigne — les trois publics sont
-  // servis (pressé → « Passer l'intro », passif → démo, engagé → il joue).
-  if (etat.tempsInaction >= DELAI_DEMO) {
-    etat.tempsInaction = 0;
-    if (etape.geste === "haut") etat.commande = { lane: 0, saut: true };
-    else etat.commande = { lane: obs.voie === 0 ? 1 : -1, saut: false };
-  }
 }
 
 // Objets à peindre, au format `extras` d'entities-render.js — donc triés par
 // profondeur avec le joueur et le reste de la scène, jamais posés par-dessus.
 export function getExtras(ctx, width, height, now) {
-  if (!etat.actif) return [];
+  // `props` peut encore valoir null : il n'est posé qu'au premier pas de
+  // simulation de l'étape, et le rendu peut passer avant.
+  if (!etat.actif || !etat.props) return [];
   return etat.props
     .filter((p) => p.z > 1 && p.z < road.HORIZON_Z)
     .map((p) => ({ z: p.z, draw: () => peindreObjet(ctx, width, height, now, p) }));
@@ -299,7 +301,10 @@ export function dessinerGeste(ctx, width, height) {
   if (alpha <= 0.01) return;
 
   const cx = width / 2;
-  const cy = height * 0.68;
+  // 0,68 → 0,80 : à 0,68 le doigt fantôme passait sur le sprite du joueur
+  // (vérifié à l'écran) — descendu dans la zone vide sous lui, là où le pouce
+  // du joueur se trouve réellement.
+  const cy = height * 0.80;
   const vertical = etape.geste === "haut";
   // Le geste latéral alterne gauche/droite d'un cycle à l'autre, pour montrer
   // les deux sens sans écrire deux consignes.

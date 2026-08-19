@@ -575,7 +575,12 @@
     #countdown-caption {
       display: none;
       position: absolute;
-      top: 50%;
+      /* 50 % → 27 % le 19 août 2026 (retour direct : « mets le texte plus
+         haut ») : centrée verticalement, la consigne recouvrait la route ET le
+         personnage — précisément ce que le tutoriel demande de regarder. Elle
+         se place maintenant sous la progression « 1/4 », le champ de jeu reste
+         dégagé. */
+      top: 27%;
       left: 50%;
       transform: translate(-50%, -50%);
       margin: 0;

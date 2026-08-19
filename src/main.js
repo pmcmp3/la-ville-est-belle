@@ -235,9 +235,6 @@ document.addEventListener("visibilitychange", () => {
 });
 
 const START_LANE = 1; // voie de départ (0..LANE_COUNT-1)
-// Saut déclenché par la démonstration du tutoriel (voir tutorial.prendreCommande) :
-// consommé au même endroit que le vrai geste, pour suivre le même chemin d'état.
-let demoJump = false;
 
 const playerState = {
   lane: START_LANE,
@@ -632,16 +629,10 @@ function step(dt) {
   if (move && !game.ended && !finishing.active) {
     playerState.lane = Math.max(0, Math.min(road.LANE_COUNT - 1, playerState.lane + move));
   }
-  // Démonstration automatique du tutoriel : quand le joueur ne bouge pas,
-  // tutorial.js émet une commande et le personnage la joue lui-même — même
-  // chemin d'état que le vrai geste, appliqué juste après lui.
-  if (tutorial.estActif()) {
-    const cmd = tutorial.prendreCommande();
-    if (cmd) {
-      if (cmd.saut) demoJump = true;
-      else playerState.lane = Math.max(0, Math.min(road.LANE_COUNT - 1, playerState.lane + cmd.lane));
-    }
-  }
+  // (La démonstration automatique du tutoriel a été retirée : elle jouait de
+  // vrais gestes que l'observateur comptait comme accomplis, donc les étapes
+  // se validaient sans le joueur — « je ne fais rien, il bouge tout seul ».
+  // La main fantôme de tutorial.js montre le geste, mais ne le fait plus.)
   // x court après le centre de la voie visée.
   const targetX = road.laneX(playerState.lane);
   const tween = Math.min(1, LANE_TWEEN * window.CONFIG.sensibiliteDirection * dt);
@@ -691,8 +682,7 @@ function step(dt) {
   // constante — accélération descendante nette, comme demandé au playtest.
   jump.prevY = jump.y;
   const { vJump, g } = jumpPhysics();
-  const jumpPressed = consumeJumpPress() || demoJump;
-  demoJump = false;
+  const jumpPressed = consumeJumpPress();
   const slamDown = consumeSlamDown();
 
   if (jumpPressed && (jump.mode === 'ground' || jump.mode === 'onCar')) {

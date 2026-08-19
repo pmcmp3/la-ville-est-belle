@@ -187,9 +187,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   sous un pont AU SOL, le combo), le joueur fait vraiment les gestes — l'overlay du décompte
   était déjà en `pointer-events:none`, donc les swipes atteignaient déjà le canvas. Objets de
   démonstration rendus par le VRAI moteur (`peindreObjet`, export de `paintSlot`), main fantôme
-  animée, « Bien ! »/« Raté » en retour immédiat. Un joueur inactif ~3 s voit la démo jouer le
-  geste À SA PLACE (et l'étape avance — assumé : personne ne reste coincé) ; « Passer l'intro »
-  reste là pour les habitués ; plafond de sécurité 30 s. ⚠️ L'étape pont est LA raison d'être du
+  animée, « Bien ! »/« Raté » en retour immédiat. ⚠️ **La main fantôme MONTRE le geste, elle ne le
+  joue jamais** (revu le jour même, retour direct : « je ne fais rien, il bouge tout seul » — la
+  première version pilotait le personnage après ~3 s d'inaction et les étapes se validaient
+  toutes seules). Une étape n'avance QUE sur un geste du joueur ; les objets (pont, étoiles) se
+  placent dans une voie ADJACENTE à la sienne pour qu'aucune étape ne se valide en restant
+  immobile, et les ratés font revenir l'objet, replacé, sans limite. Seules sorties sans geste :
+  « Passer l'intro » et le plafond de sécurité 30 s. ⚠️ L'étape pont est LA raison d'être du
   tuto : seul obstacle où le réflexe (sauter) est précisément ce qui tue, enseigné nulle part
   avant. ⚠️ La route défile pendant le tutoriel : `road.reset()` dans `requestGameStart()` pour
   que la course parte de distance 0 (la rampe des véhicules traversants est calée dessus).

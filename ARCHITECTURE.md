@@ -89,7 +89,7 @@ dépendances vont toujours vers le bas.
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
 | `share.js` | Image de partage **carrée 1080×1080** (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
 | `hud.js` | Score, vies, statut concours, bandeau de palier | |
-| `tutorial.js` | Tutoriel interactif d'avant-course (remplace le décompte 20 → 1) | Machine à états à 4 étapes, OBSERVE l'état du joueur (voie/saut) au lieu de lire l'input — main.js consomme déjà les gestes, un 2e consommateur les lui volerait. Objets de démo rendus par `peindreObjet` (entities-render.js). Ne bloque jamais : démo auto après ~3 s d'inaction, « Passer l'intro », plafond 30 s (screens.js) |
+| `tutorial.js` | Tutoriel interactif d'avant-course (remplace le décompte 20 → 1) | Machine à états à 4 étapes, OBSERVE l'état du joueur (voie/saut) au lieu de lire l'input — main.js consomme déjà les gestes, un 2e consommateur les lui volerait. Objets de démo rendus par `peindreObjet` (entities-render.js), placés en voie ADJACENTE au joueur (une étape ne se valide jamais sans geste ; la main fantôme montre, ne joue pas). Sorties sans geste : « Passer l'intro », plafond 30 s (screens.js) |
 | `input.js` | Gestes tactiles + clavier | Expose des **événements consommables**, pas un axe continu |
 | `net.js` | Supabase (POST score, GET classement) | Ne lève jamais : échoue en silence. Un seul score par personne (identité = Insta) garanti côté base, voir §9 |
 | `debug.js` | Overlay FPS, grille rythmique | Activé par `?debug` |
@@ -824,8 +824,10 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
 
 **Sixième passe du 19 août 2026 — tutoriel interactif (Plan A).**
 - Le décompte « 20 → 1 » est remplacé par un **tutoriel guidé et interactif** (`tutorial.js`) —
-  voir `CLAUDE.md` pour le détail des 4 étapes et des arbitrages (GIF écartés ; démo auto qui
-  valide l'étape d'un joueur passif, assumé). Points de couture à connaître :
+  voir `CLAUDE.md` pour le détail des 4 étapes et des arbitrages (GIF écartés ; la main fantôme
+  MONTRE sans jamais jouer le geste — la démo pilotée a été retirée le jour même, retour direct
+  « je ne fais rien, il bouge tout seul » ; objets placés en voie ADJACENTE au joueur pour
+  qu'aucune étape ne se valide sans geste). Points de couture à connaître :
   - `screens.js` : `runTutorial()` remplace `runCountdown()`, le DOM du décompte est réutilisé
     (le gros chiffre devient « 1/4 », la légende porte la consigne), `syncTutorialUi()` est
     appelée chaque frame par `main.js` comme `syncLoadingUi()`.
