@@ -666,19 +666,21 @@
          personnage juste en dessous, qui doit rester bien visible. */
       justify-content: flex-start;
       padding-top: calc(48px + var(--safe-top));
-      /* Assombri le 12 août 2026 (demandé explicitement : « assombrir le jeu
-         réel pour qu'on ait une meilleure visibilité des consignes ») — le
-         voile d'origine (0,05 → 0,55) restait très clair pour garder le
-         personnage bien visible ; il gardait aussi la légende, elle, en fond
-         propre (rgba(13,13,16,0.55) sur #countdown-caption) donc la lisait
-         déjà correctement, mais le RESTE de la scène (route, façades)
-         paraissait trop lumineux à côté. Le personnage reste visible (jamais
-         > 0,82), juste sur un fond nettement plus sombre. */
+      /* ⚠️ Rallégé le 19 août 2026 (retour direct : « le fond est trop sombre,
+         faut absolument que tu me le remontes pour qu'on voit ce qui se
+         passe »). L'assombrissement du 12 août (0,35/0,55/0,82) avait été
+         demandé pour l'ANCIEN décompte, un écran passif où on ne faisait que
+         lire des consignes — la scène derrière n'était qu'un décor. Le
+         tutoriel interactif renverse la logique : la scène EST le contenu
+         (le pont qui approche, les étoiles, le personnage qui répond aux
+         gestes), le voile ne doit plus faire écran. La lisibilité des textes
+         ne repose plus sur lui : la consigne a son propre panneau sombre
+         (#countdown-caption) et le « 1/4 » son ombre portée. */
       background: linear-gradient(
         180deg,
-        rgba(13, 13, 16, 0.35) 0%,
-        rgba(13, 13, 16, 0.55) 45%,
-        rgba(13, 13, 16, 0.82) 100%
+        rgba(13, 13, 16, 0.10) 0%,
+        rgba(13, 13, 16, 0.16) 45%,
+        rgba(13, 13, 16, 0.30) 100%
       );
       /* Le décompte sert de TUTORIEL : la bande de pilotage et le saut doivent
          vraiment répondre pendant qu'il tourne. Or #overlay (z-index 20)

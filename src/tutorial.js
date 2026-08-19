@@ -31,6 +31,7 @@
 
 import * as road from "./road.js";
 import { peindreObjet } from "./entities-render.js";
+import { isAirBonus } from "./entities.js";
 
 // Durée du petit temps de félicitation entre deux étapes.
 const DUREE_REUSSITE = 0.75;
@@ -60,7 +61,7 @@ const ETAPES = [
   },
   {
     cle: "saut",
-    texte: "Swipe vers le haut pour sauter — les étoiles en l'air valent le plus",
+    texte: "Swipe vers le haut pour sauter et attraper les étoiles en l'air",
     geste: "haut",
     objectifs: 1,
     // Dans la voie du joueur : le saut qu'il fait rencontre l'étoile, le geste
@@ -69,9 +70,7 @@ const ETAPES = [
   },
   {
     cle: "pont",
-    // Tiret plutôt que deux-points : vérifié à l'écran, le retour à la ligne
-    // tombait juste avant le « : », qui ouvrait la seconde ligne — illisible.
-    texte: "Sous un pont, reste au sol — sauter y est fatal",
+    texte: "Sous un pont, reste au sol. Sauter est fatal",
     geste: "lateral",
     objectifs: 1,
     // ⚠️ La voie ouverte est TOUJOURS une voie ADJACENTE à celle du joueur,
@@ -86,7 +85,7 @@ const ETAPES = [
   },
   {
     cle: "combo",
-    texte: "5 étoiles d'affilée : le combo multiplie tes points",
+    texte: "Enchaîne 5 étoiles d'affilée pour déclencher le combo",
     geste: "lateral",
     objectifs: 2,
     // Même règle que le pont : les étoiles arrivent dans une voie ADJACENTE,
@@ -179,7 +178,7 @@ export function affichage() {
     return { texte: "Bien !", couleur: JAUNE, index: etat.index + 1, total: ETAPES.length };
   }
   if (etat.echec > 0) {
-    return { texte: "Raté — au sol, dans la voie libre", couleur: ROUGE, index: etat.index + 1, total: ETAPES.length };
+    return { texte: "Raté ! Reste au sol dans la voie libre", couleur: ROUGE, index: etat.index + 1, total: ETAPES.length };
   }
   if (!etape) return null;
   return { texte: etape.texte, couleur: CREME, index: etat.index + 1, total: ETAPES.length };
@@ -201,6 +200,16 @@ function valider() {
 // lui volerait (voir consumeLaneMove dans input.js, qui vide une file).
 export function avancer(dt, obs) {
   if (!etat.actif || etat.fini) return;
+
+  // Les objets glissent en TOUTES circonstances, y compris pendant le
+  // « Bien ! » : la première version figeait tout pendant la félicitation, et
+  // l'étape 4 laissait des étoiles suspendues en plein écran (« trop bizarre,
+  // ça marche pas du tout ») — le monde ne doit jamais s'arrêter, seul le
+  // jugement des étapes fait des pauses.
+  if (etat.props) {
+    const vitesse = road.getSpeed();
+    for (const p of etat.props) p.z -= vitesse * dt;
+  }
 
   // Temps de félicitation : on laisse le « Bien ! » se lire, puis on enchaîne.
   if (etat.reussite > 0) {
@@ -238,28 +247,32 @@ export function avancer(dt, obs) {
   if (etape.cle === "voie" && aChangeDeVoie) valider();
   if (etape.cle === "saut" && obs.vientDeSauter) valider();
 
-  // --- Objets de démonstration : ils avancent à la vitesse de la route -----
-  const vitesse = road.getSpeed();
+  // --- Jugement au passage du joueur (le déplacement se fait plus haut) ----
   for (const p of etat.props) {
-    p.z -= vitesse * dt;
     if (p.resolu) continue;
+    if (p.z > road.PLAYER_NEAR_Z) continue;
+    p.resolu = true;
 
-    // Passage au niveau du joueur : c'est là qu'on juge.
-    if (p.z <= road.PLAYER_NEAR_Z) {
-      p.resolu = true;
-      if (etape.cle === "pont") {
-        const voieLibre = !p.lanes.includes(obs.voie);
-        if (voieLibre && obs.auSol) valider();
-        else {
-          // Raté : le pont revient, replacé par rapport à la voie ACTUELLE du
-          // joueur, autant de fois qu'il faut. Pas d'auto-validation au bout
-          // d'un moment — l'étape n'avance que si le geste est fait ; le
-          // plafond de temps global (screens.js) reste la seule autre sortie.
-          etat.echec = 1.4;
-          etat.props = etape.props(obs.voie);
-        }
-      } else if (etape.cle === "combo" && p.isBonus) {
-        if (p.lanes.includes(obs.voie)) valider();
+    if (p.isBonus) {
+      // Ramassage VISIBLE : une étoile prise disparaît, comme en course — la
+      // première version la laissait traverser le personnage, ce qui rendait
+      // l'étape 4 incompréhensible (rien ne disait que c'était gagné).
+      // Une aérienne ne se prend qu'en l'air, comme la vraie règle.
+      const prise = p.lanes.includes(obs.voie) && (!isAirBonus(p.kind) || !obs.auSol);
+      if (prise) {
+        p.pris = true;
+        if (etape.cle === "combo") valider();
+      }
+    } else if (etape.cle === "pont") {
+      const voieLibre = !p.lanes.includes(obs.voie);
+      if (voieLibre && obs.auSol) valider();
+      else {
+        // Raté : le pont revient, replacé par rapport à la voie ACTUELLE du
+        // joueur, autant de fois qu'il faut. Pas d'auto-validation au bout
+        // d'un moment ; le plafond global (screens.js) reste la seule autre
+        // sortie sans geste.
+        etat.echec = 1.4;
+        etat.props = etape.props(obs.voie);
       }
     }
   }
@@ -280,7 +293,7 @@ export function getExtras(ctx, width, height, now) {
   // simulation de l'étape, et le rendu peut passer avant.
   if (!etat.actif || !etat.props) return [];
   return etat.props
-    .filter((p) => p.z > 1 && p.z < road.HORIZON_Z)
+    .filter((p) => !p.pris && p.z > 1 && p.z < road.HORIZON_Z)
     .map((p) => ({ z: p.z, draw: () => peindreObjet(ctx, width, height, now, p) }));
 }
 

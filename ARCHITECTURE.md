@@ -822,7 +822,20 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
-**Sixième passe du 19 août 2026 — tutoriel interactif (Plan A).**
+**Sixième passe du 19 août 2026 — tutoriel interactif (Plan A).** Trois retours reçus dans
+l'heure qui a suivi la première livraison, tous corrigés le jour même :
+- « Je ne fais rien, il bouge tout seul » → la démo pilotée est retirée (la main fantôme montre,
+  ne joue plus), les objets se placent en voie ADJACENTE au joueur, et plus aucune étape ne se
+  valide sans geste (30 s immobile = toujours 1/4, vérifié).
+- « Le fond est trop sombre » → le voile du décompte (assombri le 12 août pour l'ANCIEN écran
+  passif) est rallégé (0,35/0,55/0,82 → 0,10/0,16/0,30) : la scène EST le contenu du tutoriel,
+  la lisibilité des textes repose sur le panneau de la consigne et l'ombre du « 1/4 », plus sur
+  le voile.
+- « Étape 4 trop bizarre, ça marche pas du tout » → deux causes : les étoiles ramassées ne
+  disparaissaient pas (elles traversaient le personnage — ramassage rendu VISIBLE, `p.pris`),
+  et tout se figeait pendant le « Bien ! » (le glissement des objets est sorti du jugement,
+  il tourne en toutes circonstances). Les tirets cadratins des consignes ont sauté au passage
+  (« typiques de message IA, j'aime pas »).
 - Le décompte « 20 → 1 » est remplacé par un **tutoriel guidé et interactif** (`tutorial.js`) —
   voir `CLAUDE.md` pour le détail des 4 étapes et des arbitrages (GIF écartés ; la main fantôme
   MONTRE sans jamais jouer le geste — la démo pilotée a été retirée le jour même, retour direct

@@ -264,7 +264,7 @@ export function syncLoadingUi() {
   if (audio.getLoadError()) {
     loadingDone = true;
     loadingBlock.classList.add("failed"); // pas `done` : ça masque le bloc, or on a justement quelque chose à dire
-    loadingLabel.textContent = "Son indisponible — le jeu reste jouable";
+    loadingLabel.textContent = "Son indisponible, le jeu reste jouable";
     playButton.disabled = false;
     return;
   }
