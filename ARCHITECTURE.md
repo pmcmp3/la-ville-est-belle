@@ -822,6 +822,20 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Dixième passe du 20 août 2026 — retours sur la neuvième.**
+- **Les pieds passent DERRIÈRE la roue arrière** (« mes pieds doivent être derrière la roue ») :
+  ordre de peinture inversé dans player.js — jambes, puis roue, puis bassin/short. Vue de dos le
+  pneu est l'objet le plus proche de la caméra : le pied en bas de course (qui rentre d'1 px vers
+  l'axe, via `swing`) se glisse visiblement derrière lui, et la roue émerge sous le cycliste
+  assis dessus. Du coup la tranche du pneu revient à **4 px** (l'élargissement à 8 px du 12 août
+  ne compensait que l'ancien ordre jambes-devant) et la jante passe en gris moyen (#989cab) —
+  à 50 % de la tranche, le reflet clair faisait lire la roue comme une colonne lumineuse.
+- **Balancement lent gauche-droite de tout le cycliste** (« fais moi balancer tout doucement ») :
+  ±0,045 rad à ~0,9 Hz autour du point de contact au sol (`SWAY_AMP`/`SWAY_HZ`, main.js),
+  ajouté au lean de virage APRÈS son clamp, sur l'horloge réelle (perfClock) — le personnage
+  vit aussi sur le menu et pendant le tutoriel. Indépendant du balancement du buste par frame
+  (player.js), qui suit la cadence de pédalage.
+
 **Neuvième passe du 20 août 2026 — « on doit voir que je fais du vélo ».**
 Refonte du bas du sprite joueur (player.js), le retour étant que le pédalage ne se lisait pas :
 - **Sprite 26×34 → 26×40** : les 6 px gagnés vont TOUS sous le corps — la roue arrière dépasse
