@@ -70,7 +70,11 @@ window.CONFIG = {
   // Hors fenêtre : le jeu reste jouable, mais le score n'est pas comptabilisé au classement.
 
   // === LIENS ===
-  lienEP: "https://li.sten.to/la-ville-est-belle", // "Aller écouter le morceau" — lien fourni par l'artiste (remplace le linktr.ee)
+  lienEP: "https://li.sten.to/la-ville-est-belle", // "Ajouter le morceau" — smartlink fourni par l'artiste (remplace le linktr.ee)
+  // ⚠️ À REMPLACER par le lien "suivre PMC" (profil Spotify de l'artiste) :
+  // sert au second verrou de conversion — après 3 parties, REJOUER demande de
+  // suivre PMC (une seule fois, mémorisé). En attendant, le smartlink fait foi.
+  lienSuivre: "https://li.sten.to/la-ville-est-belle",
 
   // === BACKEND (étape 7 — Supabase) ===
   apiScores: "https://lmlltogosjpxkgofpcdy.supabase.co/rest/v1/scores", // URL REST du projet Supabase

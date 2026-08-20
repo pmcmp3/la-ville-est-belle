@@ -56,7 +56,10 @@ const DEPTH_COUNT = Math.ceil(HORIZON_Z / SPACING) + 1;
 //    (le filet de ruelle reste, juste plus étroit).
 const DEPTH_MIN = 7.5, DEPTH_MAX = 9.3;
 const GIRTH_MIN = 5.5, GIRTH_MAX = 9;
-const MIN_HEIGHT = 16, MAX_HEIGHT = 19;
+// 16-19 → 12-14 le 20 août 2026 (« les façades sont très verticales ») : le
+// canyon écrasait la scène, un boulevard haussmannien fait 6-7 niveaux, pas
+// une tour. La ligne de corniche reste quasi uniforme (écart max 2 unités).
+const MIN_HEIGHT = 12, MAX_HEIGHT = 14;
 // En dessous de cette profondeur caméra, la projection (focal/z) explose —
 // même garde défensive que renderCar3D/renderBus3D dans entities.js.
 const NEAR_Z_CLAMP = 0.6;
@@ -169,6 +172,43 @@ function buildVariants(hex, shadeFactor = 1) {
 const facadeGradients = FACADE_PALETTE.map((hex) => buildVariants(hex, 1));
 const sideGradients = FACADE_PALETTE.map((hex) => buildVariants(hex, SIDE_SHADE));
 
+// --- Trottoirs + bordures ----------------------------------------------------
+// Ajoutés le 20 août 2026 (« on a l'impression que les façades sont en dessous
+// de la route ») : les immeubles posaient leurs pieds directement sur le même
+// bitume sombre que la chaussée — rien ne disait où finissait la route et où
+// commençait le sol des bâtiments, donc l'œil lisait les façades comme
+// enfoncées. Une bande de trottoir plus claire + une bordure encore plus
+// claire au ras de la chaussée ancrent les immeubles SUR un sol à eux.
+const SIDEWALK_W = 1.7;              // largeur du trottoir (les bâtiments commencent à +0,5)
+const SIDEWALK_COLOR = "#565049";    // pavé gris chaud, nettement plus clair que le bitume
+const CURB_COLOR = "#989083";        // bordure de pierre, le trait qui sépare route/trottoir
+const sidewalkGradient = buildHazeGradient(SIDEWALK_COLOR);
+const curbGradient = buildHazeGradient(CURB_COLOR);
+
+function renderSidewalks(ctx, width, height) {
+  // Segments de ~14 unités : le trottoir suit la même projection que tout le
+  // reste (assez court pour épouser la courbe de l'horizon, assez long pour
+  // rester bon marché — ~13 quads par côté).
+  const step = 14;
+  for (const side of [-1, 1]) {
+    const x0 = side * ROAD_HALF_WIDTH;
+    const xCurb = side * (ROAD_HALF_WIDTH + 0.22);
+    const x1 = side * (ROAD_HALF_WIDTH + SIDEWALK_W);
+    for (let z = SCENERY_MIN_Z; z < HORIZON_Z; z += step) {
+      const z2 = Math.min(z + step, HORIZON_Z);
+      const distT = Math.min(1, ((z + z2) / 2) / HAZE_MAX_Z);
+      const a = project(x0, z, width, height);
+      const b = project(x1, z, width, height);
+      const c = project(x1, z2, width, height);
+      const d = project(x0, z2, width, height);
+      fillPoly(ctx, [a, b, c, d], gradientStep(sidewalkGradient, distT));
+      const cb = project(xCurb, z, width, height);
+      const cc = project(xCurb, z2, width, height);
+      fillPoly(ctx, [a, cb, cc, d], gradientStep(curbGradient, distT));
+    }
+  }
+}
+
 const roofGradient = buildHazeGradient(ROOF_COLOR, HAZE_STRENGTH * 0.7);
 const roofRidgeGradient = buildHazeGradient(ROOF_RIDGE_COLOR, HAZE_STRENGTH * 0.7);
 const ironGradient = buildHazeGradient(IRON_COLOR);
@@ -192,7 +232,8 @@ function buildingShape(slotIndex, sideKey) {
   const height = MIN_HEIGHT + h2 * (MAX_HEIGHT - MIN_HEIGHT);
   const paletteIndex = Math.floor(h3 * FACADE_PALETTE.length);
   const brightnessIndex = Math.floor(h4 * BRIGHTNESS_STEPS);
-  const rows = Math.max(3, Math.min(7, Math.round(height / 3)));
+  // /3 → /2.4 avec la baisse de hauteur : garde 5-6 niveaux par immeuble.
+  const rows = Math.max(3, Math.min(7, Math.round(height / 2.4)));
 
   return {
     depth,
@@ -379,7 +420,16 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
   }
   ctx.restore();
 
-  // --- Toit mansardé + corniche --------------------------------------------
+  // --- Toit mansardé + corniche (partagés avec drawFacade3D) ----------------
+  drawRoofAndCornice(ctx, corners, distT, windowKey, isFacade, wallH);
+}
+
+// Toit mansardé (ardoise) + faîtage + cheminées + lucarnes + corniche, peints
+// depuis les coins projetés — extrait de drawFace pour être partagé avec la
+// façade 3D (drawFacade3D). `withDetail` = cheminées + lucarnes (façade
+// principale seulement, le pignon est trop étroit).
+function drawRoofAndCornice(ctx, corners, distT, windowKey, withDetail, wallH) {
+  const { eaveA, eaveB, ridgeA, ridgeB } = corners;
   const roofLeft = Math.min(eaveA.x, eaveB.x, ridgeA.x, ridgeB.x);
   const roofRight = Math.max(eaveA.x, eaveB.x, ridgeA.x, ridgeB.x);
   const roofTop = Math.min(ridgeA.y, ridgeB.y);
@@ -398,7 +448,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
   ctx.clip();
 
   // Cheminées, seulement sur la façade principale assez large à l'écran.
-  if (isFacade && roofW > 12) {
+  if (withDetail && roofW > 12) {
     const chimW = Math.max(2, roofW * 0.05);
     ctx.fillStyle = gradientStep(roofRidgeGradient, distT);
     ctx.fillRect(roofLeft + roofW * 0.2, roofTop, chimW, roofH * 0.7);
@@ -412,9 +462,8 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
 
   // Lucarnes : petites fenêtres qui percent le bas du toit, pignon
   // triangulaire au-dessus — LE détail qui distingue un vrai toit mansardé
-  // parisien d'un simple pan incliné uni (retour du 12 août 2026, avec les
-  // mêmes références Street View que les volets/façades).
-  if (isFacade && roofW > DORMER_MIN_ROOF_PX) {
+  // parisien d'un simple pan incliné uni (retour du 12 août 2026).
+  if (withDetail && roofW > DORMER_MIN_ROOF_PX) {
     const dormerW = roofW * 0.16;
     const dormerH = roofH * 0.42;
     const dormerY = roofBottom - roofH * 0.5;
@@ -603,6 +652,140 @@ function renderTrafficLight(ctx, n, side, distance, width, height) {
   ctx.globalAlpha = wasAlpha;
 }
 
+// --- Façade en VRAIE perspective (20 août 2026) ------------------------------
+// « Il faut que ce soit des bâtiments en 3D — là ils sont en 2D. » Le
+// diagnostic : drawFace peint fenêtres et balcons sur une GRILLE ÉCRAN plaquée
+// dans le quadrilatère projeté — les ouvertures ne fuient pas vers l'horizon
+// avec le mur qui les porte, donc l'œil lit un décor plat. Ici, chaque
+// fenêtre, vitrine, bandeau et balcon est positionné en COORDONNÉES MONDE
+// (hauteur h, profondeur z le long de la rue) et projeté individuellement —
+// même technique que les toits des voitures ou les piliers de pont. Les
+// balcons, eux, sont en VRAIE SAILLIE : une dalle qui avance vers la route
+// (x plus proche de l'axe), garde-corps de fer à son bord — c'est le relief
+// qui manquait. Le pignon (retour d'angle, à z constant) garde drawFace : sa
+// face est un vrai rectangle écran, la grille y est déjà juste.
+const BALCONY_DEPTH = 0.38; // saillie de la dalle vers la route, en unités-monde
+const BALCONY_RAIL_H = 0.7; // hauteur du garde-corps au bord de la dalle
+
+function drawBalcony(ctx, side, xInner, zA, zB, h, width, height, ironColor, slabColor) {
+  const xOut = xInner - side * BALCONY_DEPTH; // vers l'axe de la route
+  const gInA = project(xInner, zA, width, height);
+  const gInB = project(xInner, zB, width, height);
+  const gOutA = project(xOut, zA, width, height);
+  const gOutB = project(xOut, zB, width, height);
+  const at = (g, hh) => ({ x: g.x, y: g.y - hh * g.scale });
+
+  // Dalle : vue d'en bas (la caméra est au ras du sol), c'est son dessous qui
+  // se voit — un quad sombre qui AVANCE du mur vers la rue.
+  fillPoly(ctx, [at(gInA, h), at(gInB, h), at(gOutB, h), at(gOutA, h)], slabColor);
+
+  // Garde-corps au bord extérieur : main courante + barreaux interpolés entre
+  // les deux extrémités projetées (chaque barreau est droit à l'écran, mais
+  // leurs pieds suivent la fuite de la dalle — c'est ça qui "fait 3D").
+  const botA = at(gOutA, h);
+  const botB = at(gOutB, h);
+  const topA = at(gOutA, h + BALCONY_RAIL_H);
+  const topB = at(gOutB, h + BALCONY_RAIL_H);
+  ctx.strokeStyle = ironColor;
+  ctx.lineWidth = Math.max(1, gOutA.scale * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(topA.x, topA.y);
+  ctx.lineTo(topB.x, topB.y);
+  const bars = 9;
+  for (let i = 0; i <= bars; i++) {
+    const t = i / bars;
+    ctx.moveTo(botA.x + (botB.x - botA.x) * t, botA.y + (botB.y - botA.y) * t);
+    ctx.lineTo(topA.x + (topB.x - topA.x) * t, topA.y + (topB.y - topA.y) * t);
+  }
+  ctx.stroke();
+}
+
+function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHeight, distT, windowKey, width, height) {
+  const corners = faceCorners(xInner, zNear, xInner, zFar, wallHeight, roofHeight, width, height);
+  const { gA, gB, eaveA, eaveB } = corners;
+
+  // Mur de fond, sur le vrai quadrilatère projeté.
+  fillPoly(ctx, [gA, gB, eaveB, eaveA], gradientStep(shape.facadeGradient, distT));
+
+  const facadePxW = Math.abs(gB.x - gA.x);
+  const nearPxH = Math.abs(gA.y - eaveA.y);
+  drawRoofAndCornice(ctx, corners, distT, windowKey, facadePxW > DORMER_MIN_ROOF_PX, nearPxH);
+
+  // Trop loin : mur + toit suffisent, la brume fait le reste (même logique de
+  // seuils que WINDOW_MIN_PX pour l'ancienne grille).
+  if (facadePxW < 30 || nearPxH < 22) return;
+
+  // Point écran à (z, hauteur monde h) le long de la façade.
+  const at = (z, h) => {
+    const g = project(xInner, z, width, height);
+    return { x: g.x, y: g.y - h * g.scale, scale: g.scale };
+  };
+
+  const rows = shape.windowRows;             // r = 0 : rez-de-chaussée
+  const cols = shape.facadeWindowCols;
+  const rowH = wallHeight / rows;
+  const colD = (zFar - zNear) / cols;
+  const litColor = gradientStep(windowLitGradient, distT);
+  const darkColor = gradientStep(windowDarkGradient, distT);
+  const ironColor = gradientStep(ironGradient, distT);
+  const shopColor = gradientStep(shopfrontGradient, distT);
+  const bandeauColor = gradientStep(corniceGradient, distT);
+  const signColor = gradientStep(signGoldGradient, distT);
+  const slabColor = gradientStep(roofRidgeGradient, distT);
+  // Les garde-corps individuels sous les fenêtres ne se dessinent que quand la
+  // façade est assez proche — au loin, seuls les balcons filants restent.
+  const detail = facadePxW > 70;
+
+  for (let r = 0; r < rows; r++) {
+    const isGround = r === 0;
+    const hBot = r * rowH + (isGround ? 0.08 : rowH * 0.2);
+    const hTop = (r + 1) * rowH - rowH * (isGround ? 0.24 : 0.14);
+
+    for (let c = 0; c < cols; c++) {
+      const zA = zNear + c * colD + colD * (isGround ? 0.16 : 0.3);
+      const zB = zNear + (c + 1) * colD - colD * (isGround ? 0.16 : 0.3);
+      const pTL = at(zA, hTop), pTR = at(zB, hTop), pBR = at(zB, hBot), pBL = at(zA, hBot);
+      if (isGround) {
+        // Vitrine sombre pleine hauteur + enseigne (dorée une travée sur
+        // deux, store de couleur profonde sinon).
+        fillPoly(ctx, [pTL, pTR, pBR, pBL], shopColor);
+        const hSign = hTop - rowH * 0.16;
+        const bande = windowIsLit(windowKey, 3, 0, c) || c % 2 === 0
+          ? signColor
+          : gradientStep(shape.awningGradient, distT);
+        fillPoly(ctx, [at(zA, hTop), at(zB, hTop), at(zB, hSign), at(zA, hSign)], bande);
+      } else {
+        fillPoly(ctx, [pTL, pTR, pBR, pBL],
+          windowIsLit(windowKey, 0, r, c) ? litColor : darkColor);
+        // Garde-corps de fenêtre (ferronnerie devant le bas de l'ouverture).
+        if (detail) {
+          const hRail = hBot + (hTop - hBot) * 0.3;
+          ctx.strokeStyle = ironColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          const rA = at(zA, hRail), rB = at(zB, hRail);
+          ctx.moveTo(rA.x, rA.y);
+          ctx.lineTo(rB.x, rB.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Bandeau de pierre claire au-dessus du rez-de-chaussée.
+    if (isGround) {
+      const hBande = rowH;
+      fillPoly(ctx, [at(zNear, hBande + 0.1), at(zFar, hBande + 0.1), at(zFar, hBande), at(zNear, hBande)], bandeauColor);
+    }
+
+    // Balcon filant EN SAILLIE aux étages nobles (2e et dernier — c'est le
+    // rythme de la photo : deux lignes fortes, pas une grille sur chaque
+    // niveau, les autres étages gardant leurs garde-corps de fenêtre).
+    if (!isGround && (r === 2 || r === rows - 1) && facadePxW > 44) {
+      drawBalcony(ctx, side, xInner, zNear + colD * 0.12, zFar - colD * 0.12, r * rowH, width, height, ironColor, slabColor);
+    }
+  }
+}
+
 function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   if (isCrossingSlot(n)) return; // carrefour : pas de bâtiment ici, voir renderTrafficLight
   const shape = buildingShape(n, sideKey);
@@ -635,10 +818,9 @@ function renderBuilding(ctx, n, sideKey, side, distance, width, height) {
   drawFace(ctx, sideCorners, shape, distT, shape.sideWindowCols, windowKey, false);
 
   // Façade (le long mur qui longe la rue, à x = xInner, de zNear à zFar) —
-  // dessinée par-dessus : c'est le bord partagé avec le retour d'angle, pas
-  // de recouvrement fâcheux, juste la jointure du coin du bâtiment.
-  const facadeCorners = faceCorners(xInner, zNear, xInner, zFar, wallHeight, roofHeight, width, height);
-  drawFace(ctx, facadeCorners, shape, distT, shape.facadeWindowCols, windowKey, true);
+  // dessinée par-dessus, en VRAIE perspective (voir drawFacade3D) : chaque
+  // ouverture est projetée à sa position monde, les balcons sont en saillie.
+  drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHeight, distT, windowKey, width, height);
 
   ctx.globalAlpha = wasAlpha;
 }
@@ -657,6 +839,8 @@ function renderSide(ctx, width, height, distance, side) {
 }
 
 export function render(ctx, width, height, distance) {
+  // Trottoirs d'abord : les bâtiments (et les feux) se posent dessus.
+  renderSidewalks(ctx, width, height);
   renderSide(ctx, width, height, distance, -1);
   renderSide(ctx, width, height, distance, 1);
 }

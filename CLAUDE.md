@@ -150,13 +150,36 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   jeu sous le score (`hud.js`) quand actif, dans une **pastille crème** depuis le 19 août 2026
   (« que le combo soit dans un tag un peu plus gros pour qu'on comprenne comment ça marche ») —
   jamais rouge, le rouge de charte est réservé au négatif (la pénalité). Score maximum théorique
-  (run parfait, 80/80 étoiles, 0 obstacle touché, combo jamais cassé) : **61 400 points**, combo
-  final ×9 — recalculé le 19 août 2026 après le doublement de difficulté (195 525 / ×15 avant,
-  quand il y avait 140 étoiles). Vérifié par balayage hors ligne, jamais atteignable en pratique
-  (suppose d'éviter les 111 obstacles du parcours sans exception).
+  (run parfait, 80/80 étoiles, 0 obstacle touché, combo jamais cassé) : **68 925 points**
+  (**75 828** avec le boost fan ×1,1, voir plus bas), combo final ×9 — recalculé le 20 août 2026
+  avec les **12 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans `entities.js`, tirées au hash donc
+  identiques à chaque partie — l'invariant « score max = nombre connu » tient toujours ; teinte
+  blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
+  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). Vérifié par balayage hors ligne
+  (`slotPreview`), jamais atteignable en pratique.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
-  enregistrés l'ont été sous l'ancien barème (plafond 195 525) et écraseraient définitivement
-  ceux du nouveau (plafond 61 400).
+  enregistrés l'ont été sous d'anciens barèmes (195 525 puis 61 400) et écraseraient
+  définitivement ceux du nouveau (68 925 / 75 828).
+- **Conversion, mécaniques ajoutées le 20 août 2026** (priorité produit assumée) :
+  - **Boost fan ×1,1 permanent** sur les points de bonus dès que le morceau a été ajouté
+    (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
+    qu'il n'est pas acquis. La conversion est récompensée, pas seulement exigée.
+  - **Second verrou doux après 3 parties** : REJOUER exige « Suivre PMC sur Spotify »
+    (`lienSuivre` dans config.js — ⚠️ encore à remplacer par le vrai lien de profil).
+  - **Bandeau « Tu écoutes La ville est belle »** avec mini equalizer animé sur l'écran de fin
+    (le morceau y joue vraiment ~114 s) — cliquable, même smartlink.
+  - **CTA renommé « AJOUTER LE MORCEAU »** (lienEP est déjà un smartlink li.sten.to).
+  - **Balises OG/Twitter** avec la pochette (`public/assets/cover-ep-og.jpg`).
+  - **Compteur global de courses** (« X courses déjà jouées ») + **date de fin du concours**
+    sur l'écran de fin — table `courses` insert-only, migration
+    `supabase-migration-compteur-courses.sql` **à exécuter côté Supabase**.
+  - **Image de partage** : pochette de l'EP + badge disque (bronze/argent/or/platine) ; le
+    partage embarque désormais texte + lien du jeu.
+  - **Clip vidéo des 5-10 dernières secondes** (`clip.js`, MediaRecorder double-buffer, bouton
+    « PARTAGER LE CLIP » sur l'écran de fin quand un clip existe). ⚠️ Coût d'encodage en course
+    jamais mesuré sur téléphone — premier suspect si les fps chutent.
+  - **Vibrations Android** (`navigator.vibrate`, sans effet sur iOS) : légère au choc, forte
+    quand le choc termine la partie.
 - **Voitures/camions qui traversent aux carrefours** (`crosstraffic.js`, demandé le 19 août 2026).
   ⚠️ Les croisements ne sont donc PLUS purement décoratifs — invariant tombé sciemment. Vit sur la
   grille de DISTANCE (celle des bâtiments/feux), pas sur la grille musicale d'`entities.js` :

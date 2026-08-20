@@ -13,6 +13,7 @@ import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
 import * as crosstraffic from "./crosstraffic.js";
 import * as tutorial from "./tutorial.js";
+import * as clip from "./clip.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -530,6 +531,12 @@ function endGame(reason) {
     }
     screens.renderLeaderboard(await net.getTopScores());
   })();
+
+  // Compteur global de courses (preuve sociale, fire-and-forget) + clip des
+  // dernières secondes : le bouton « PARTAGER LE CLIP » n'apparaît que si
+  // l'enregistrement a abouti (voir clip.js — jamais bloquant).
+  net.postRun();
+  clip.terminer().then(() => screens.refreshClipButton());
 }
 
 function restartGame() {
@@ -584,6 +591,7 @@ function restartGame() {
 
   screens.hideOverlay();
   screens.showPauseButton(); // rejoue depuis l'écran de fin OU depuis le menu pause : dans les deux cas on repart en course active
+  clip.demarrer(); // nouveau replay buffer pour la nouvelle course
 }
 
 // Raccourcis debug (actifs uniquement si le mode debug est allumé — touche
@@ -632,7 +640,10 @@ function step(dt) {
     // Voir entities.LEAD_IN : sans ce recul, le premier lot de créneaux (la
     // période de grâce) apparaîtrait déjà à la position du joueur dès la
     // première frame au lieu de glisser depuis l'horizon.
-    if (gameStarted) clock.jumpBy(-entities.LEAD_IN);
+    if (gameStarted) {
+      clock.jumpBy(-entities.LEAD_IN);
+      clip.demarrer(); // replay buffer des dernières secondes (clip.js)
+    }
   }
 
   // Surveillance en cours de partie : si l'horloge audio cesse d'avancer, on
@@ -779,8 +790,18 @@ function step(dt) {
         if (e.type === "bonus") {
           const palierAvant = Math.floor(game.streak / window.CONFIG.comboSeuil);
           game.streak += 1;
-          const gagne = Math.round(window.CONFIG.bonus[e.kind] * comboMultiplier());
+          // Étoile dorée = ×2 (entities.js, GOLD_STAR_RATE). Boost fan = ×1,1
+          // permanent pour qui a ajouté le morceau (screens.estFan) — la
+          // conversion est récompensée, pas seulement exigée (20 août 2026).
+          const gagne = Math.round(
+            window.CONFIG.bonus[e.kind] * comboMultiplier() * (e.gold ? 2 : 1) * (screens.estFan() ? 1.1 : 1)
+          );
           game.score += gagne;
+          if (e.gold) {
+            // Une dorée est rare (~1 étoile sur 8) : son gain s'affiche
+            // toujours, en jaune — c'est ce qui apprend qu'elle vaut double.
+            pousserPopup(`+${gagne}`, JAUNE_ETOILE);
+          }
           pickupFlash = 1;
           etoilesRamassees += 1;
           game.stars += 1;
@@ -811,6 +832,11 @@ function step(dt) {
           // dans entities.js, où sauter dessous aggrave le risque au lieu de
           // le neutraliser. Les autres obstacles (piéton, cycliste, cône)
           // restent à -1 vie chacun.
+          // Vibration (Android uniquement — iOS Safari ignore navigator.vibrate,
+          // l'appel y est simplement sans effet) : légère au choc, forte quand
+          // le choc termine la partie (demandé le 20 août 2026).
+          const fatal = e.kind === "voiture" || e.kind === "pont" || game.lives <= 1;
+          if (navigator.vibrate) navigator.vibrate(fatal ? [90, 50, 150] : 35);
           if (e.kind === "voiture" || e.kind === "pont") {
             game.lives = 0;
             triggerShake(13, 0.5);

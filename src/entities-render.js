@@ -210,6 +210,53 @@ const BONUS_ICONS = {
   guitare:       starBonus(1.4),    // 500 pts — la plus grosse, aérienne (à sauter)
 };
 
+// Étoile DORÉE (×2, voir GOLD_STAR_RATE dans entities.js) : blanc doré
+// incandescent + halo chaud, « couleur particulière » demandée le 20 août
+// 2026 — elle doit se repérer en une fraction de seconde au milieu des jaunes.
+// Mêmes gabarits par kind que les étoiles normales.
+const GOLD_FILL = "#fff3c2";
+const GOLD_SHADE = "#f5c542";
+function starGold(tier) {
+  return makeIcon((ictx, cx, cy, r) => {
+    const R = r * tier;
+    // Halo doux autour de la pointe des branches : c'est lui qui la fait
+    // "briller" à distance, avant même que la teinte se lise.
+    const halo = ictx.createRadialGradient(cx, cy, R * 0.4, cx, cy, R * 1.5);
+    halo.addColorStop(0, "rgba(255,220,120,0.55)");
+    halo.addColorStop(1, "rgba(255,220,120,0)");
+    ictx.fillStyle = halo;
+    ictx.fillRect(cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+    star(ictx, cx, cy, R * 1.16, STAR_LINE);
+    star(ictx, cx, cy, R, GOLD_FILL);
+    ictx.save();
+    ictx.beginPath();
+    ictx.rect(cx - R, cy + R * 0.22, R * 2, R * 1.2);
+    ictx.clip();
+    star(ictx, cx, cy, R, GOLD_SHADE);
+    ictx.restore();
+    const eyeDx = R * 0.26, eyeY = cy - R * 0.02;
+    const eyeRx = R * 0.15, eyeRy = R * 0.26;
+    for (const s of [-1, 1]) {
+      ictx.fillStyle = STAR_EYE_WHITE;
+      ictx.beginPath();
+      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx * 1.35, eyeRy * 1.2, 0, 0, Math.PI * 2);
+      ictx.fill();
+      ictx.fillStyle = STAR_LINE;
+      ictx.beginPath();
+      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+      ictx.fill();
+    }
+  });
+}
+
+const GOLD_ICONS = {
+  cd:            starGold(0.85),
+  piano:         starGold(0.98),
+  appareil:      starGold(1.10),
+  collierPerles: starGold(1.22),
+  guitare:       starGold(1.4),
+};
+
 // Rouge de charte (+ une teinte plus sombre pour le modelé) : les obstacles
 // eux-mêmes signalent le danger, plus besoin d'un anneau superposé.
 // Playtest : « c'est quoi les trucs rouges qui font perdre, on ne comprend
@@ -565,7 +612,9 @@ function paintSlot(ctx, width, height, now, e) {
   }
 
   const p = road.project(e.x, e.z, width, height);
-  const icon = e.isBonus ? BONUS_ICONS[e.kind] : OBSTACLE_ICONS[e.kind];
+  const icon = e.isBonus
+    ? (e.gold ? GOLD_ICONS[e.kind] : BONUS_ICONS[e.kind])
+    : OBSTACLE_ICONS[e.kind];
   const size = (e.isBonus ? BONUS_ICON_WORLD : ICON_WORLD) * p.scale;
   const aerien = e.isBonus && isAirBonus(e.kind);
   // Surélevé à la hauteur du pic de saut du joueur (même formule que le hop
@@ -593,7 +642,21 @@ function paintSlot(ctx, width, height, now, e) {
     ctx.globalAlpha = 1;
   }
 
-  ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);
+  // Rotation continue des étoiles (20 août 2026 : « elles sont vraiment trop
+  // fixes [...] un tour complet toutes les deux secondes ») : 2 s = une mesure
+  // à 120 BPM, la rotation est donc calée sur la musique. L'étoile dorée
+  // tourne deux fois plus vite — son signal « je suis spéciale ». Les
+  // obstacles, eux, ne tournent jamais.
+  if (e.isBonus) {
+    const spin = now * Math.PI * (e.gold ? 2 : 1);
+    ctx.save();
+    ctx.translate(p.x, p.y - size / 2 - airOffset);
+    ctx.rotate(spin);
+    ctx.drawImage(icon, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  } else {
+    ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);
+  }
 }
 
 // `extras` : éléments décoratifs hors créneaux (ex. cameo.js) à intercaler

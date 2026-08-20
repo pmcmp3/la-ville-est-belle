@@ -102,6 +102,45 @@ export async function getTopScores(limit = window.CONFIG.apiScoresLimit || 10) {
   return rows || legacy || [];
 }
 
+// --- Compteur de courses (20 août 2026, preuve sociale) ---------------------
+// Table `courses` (insert-only, une ligne par course terminée — migration
+// supabase-migration-compteur-courses.sql à exécuter côté Supabase). Même
+// philosophie que le reste du fichier : jamais bloquant, jamais d'exception —
+// tant que la table n'existe pas, postRun() échoue en silence et
+// getRunsCount() renvoie null (la ligne ne s'affiche pas, c'est tout).
+function coursesUrl() {
+  return window.CONFIG.apiScores.replace(/\/scores$/, "/courses");
+}
+
+// Une course vient de se terminer (game over OU arrivée) : +1 au compteur.
+// Fire-and-forget, appelé depuis endGame() (main.js).
+export function postRun() {
+  if (!configured()) return;
+  fetch(coursesUrl(), {
+    method: "POST",
+    headers: headers({ Prefer: "return=minimal" }),
+    body: JSON.stringify({}),
+  }).catch(() => { /* table absente ou réseau coupé : tant pis, pas de compteur */ });
+}
+
+// Nombre total de courses jouées, ou null si indisponible. Le comptage
+// PostgREST passe par l'en-tête Content-Range (Prefer: count=exact) — on ne
+// rapatrie aucune ligne (Range 0-0), juste le total.
+export async function getRunsCount() {
+  if (!configured()) return null;
+  try {
+    const res = await fetch(`${coursesUrl()}?select=id`, {
+      headers: headers({ Prefer: "count=exact", Range: "0-0" }),
+    });
+    if (!res.ok && res.status !== 206) return null;
+    const range = res.headers.get("content-range"); // ex. "0-0/2431"
+    const total = range && range.includes("/") ? Number(range.split("/")[1]) : NaN;
+    return Number.isFinite(total) ? total : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchScores(base, select, limit) {
   const url = `${base}?select=${select}&order=score.desc&limit=${limit}`;
   try {

@@ -822,6 +822,41 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Douzième passe du 20 août 2026 — refonte 3D des façades + gros lot conversion.**
+- **Façades en VRAIE perspective** (world.js, `drawFacade3D`) : le diagnostic du « ça fait 2D »
+  était que drawFace plaquait fenêtres/balcons sur une grille ÉCRAN dans le quadrilatère
+  projeté — les ouvertures ne fuyaient pas vers l'horizon avec le mur. Désormais chaque
+  fenêtre/vitrine/bandeau est positionné en coordonnées MONDE (h, z) et projeté
+  individuellement ; **balcons en vraie SAILLIE** (dalle qui avance vers la route +
+  garde-corps interpolé, `drawBalcony`) aux 2e et dernier étages ; garde-corps fins sous les
+  autres fenêtres quand la façade est proche. Le pignon (z constant = vrai rectangle écran)
+  garde drawFace. Hauteurs 16-19 → **12-14** (« très verticales »), toit/corniche extraits en
+  `drawRoofAndCornice` (partagé).
+- **Trottoirs + bordures** (`renderSidewalks`) : bande claire + bordure pierre entre chaussée et
+  façades — corrige « on a l'impression que les façades sont en dessous de la route » (les
+  immeubles posaient leurs pieds sur le même bitume que la route).
+- **Étoiles** : rotation continue 1 tour/2 s (= une mesure à 120 BPM) ; **12 étoiles DORÉES**
+  ×2 par partie (hash déterministe, `GOLD_STAR_RATE` 0,12), blanc doré + halo + rotation ×2.
+  **Score max recalculé par balayage (`slotPreview`) : 68 925, et 75 828 avec boost fan** —
+  combo final ×9 inchangé. ⚠️ Classement Supabase toujours à vider avant lancement.
+- **Conversion** (voir CLAUDE.md pour la liste complète) : boost fan ×1,1 (screens.estFan →
+  main.js), verrou « suivre PMC » après 3 parties (`lienSuivre`, localStorage `pmcSuivi`/
+  `partiesJouees`), bandeau equalizer « Tu écoutes… », CTA « AJOUTER LE MORCEAU », balises OG
+  (cover-ep-og.jpg), compteur de courses (net.postRun/getRunsCount + migration
+  `supabase-migration-compteur-courses.sql` à exécuter), image de partage avec pochette +
+  badge disque, partage avec texte + lien.
+- **Clip TikTok** (`clip.js`) : replay buffer MediaRecorder à DEUX enregistreurs alternés
+  toutes les 5 s (un flux ne se découpe pas après coup — les chunks ne sont décodables que
+  depuis le début du conteneur) ; à la mort, on garde le plus ancien → clip de 5-10 s finissant
+  pile sur la fin. Feature-detect complet (Safari iOS enregistre en MP4), jamais bloquant.
+  ⚠️ **Coût d'encodage en course jamais mesuré sur téléphone** — si les fps chutent, couper =
+  ne pas appeler `clip.demarrer()` (main.js, 2 sites).
+- **Tuto étape 1** : pochette avec fondu entrée/sortie + verre dépoli derrière (le canvas se
+  redessine sur lui-même via ctx.filter blur — source en pixels DEVICE, d'où le ×dpr) ;
+  **transitions de consignes en fondu** (screens.js, aller-retour 0,2 s) et pop du « 1/4 »
+  (.step-pop, retrigger par reflow).
+- Vibrations Android (légère/forte), main.js.
+
 **Onzième passe du 20 août 2026 — photo haussmannienne, cover au tuto, traversées -30 %.**
 - **Façades refaites une TROISIÈME fois** (world.js), d'après une photo d'immeuble d'angle
   parisien fournie : pierre crème pâle (fini l'orangé « cathédrale »), toits mansardés en

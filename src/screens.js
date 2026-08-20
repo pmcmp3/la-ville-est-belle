@@ -19,9 +19,14 @@ import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
 import * as share from "./share.js";
+import * as clip from "./clip.js";
 import * as tutorial from "./tutorial.js";
 
 let deps = null;
+
+// Format « 11 octobre » pour la date de fin du concours (même recette que
+// dateFormatter dans hud.js, dupliquée — les deux fichiers ne s'importent pas).
+const dateFmtFin = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
 
 // --- Écrans hors-jeu (menu de démarrage / fin de partie) -----------------
 // Le même conteneur DOM sert aux deux, avec fondu à l'ouverture comme à la
@@ -49,6 +54,12 @@ const ctaLink = document.getElementById("cta-link");
 const endCta = document.getElementById("end-cta");
 const shareButton = document.getElementById("share-button");
 const replayLockNote = document.getElementById("replay-lock-note");
+const followCta = document.getElementById("follow-cta");
+const fanNote = document.getElementById("fan-note");
+const nowPlaying = document.getElementById("now-playing");
+const clipButton = document.getElementById("clip-button");
+const contestDeadline = document.getElementById("contest-deadline");
+const runsCount = document.getElementById("runs-count");
 
 // --- Verrou de rejeu (19 août 2026) --------------------------------------
 // Version retenue du « mur » demandé par l'artiste : il voulait mettre la
@@ -60,13 +71,39 @@ const replayLockNote = document.getElementById("replay-lock-note");
 // de fin : il n'y a plus de partie à casser, et c'est déjà une pause naturelle.
 // Mémorisé une fois pour toutes : on ne redemande pas à chaque game over.
 const CLE_MORCEAU_OUVERT = "morceauOuvert";
+// Second verrou doux (20 août 2026) : après 3 parties, REJOUER demande de
+// suivre PMC sur Spotify — même mécanique (clic = levée, mémorisé à vie).
+const CLE_PMC_SUIVI = "pmcSuivi";
+const CLE_PARTIES = "partiesJouees";
+const SEUIL_SUIVRE = 3;
 
 function morceauDejaOuvert() {
   try { return localStorage.getItem(CLE_MORCEAU_OUVERT) === "1"; } catch (e) { return true; }
 }
 
+// Boost fan (+10 % de score, voir main.js) : la même info que le verrou,
+// exposée à la boucle de jeu. Mise en cache — lue à chaque étoile ramassée,
+// pas question de taper localStorage dans la boucle.
+let fanCache = morceauDejaOuvert();
+export function estFan() { return fanCache; }
+
+function pmcDejaSuivi() {
+  try { return localStorage.getItem(CLE_PMC_SUIVI) === "1"; } catch (e) { return true; }
+}
+
+function partiesJouees() {
+  try { return Number(localStorage.getItem(CLE_PARTIES)) || 0; } catch (e) { return 0; }
+}
+
 function marquerMorceauOuvert() {
   try { localStorage.setItem(CLE_MORCEAU_OUVERT, "1"); } catch (e) { /* navigation privée : on n'insiste pas */ }
+  fanCache = true;
+  fanNote.classList.add("hidden"); // la promesse est tenue, plus rien à annoncer
+  syncVerrouRejeu();
+}
+
+function marquerPmcSuivi() {
+  try { localStorage.setItem(CLE_PMC_SUIVI, "1"); } catch (e) { /* idem */ }
   syncVerrouRejeu();
 }
 
@@ -75,9 +112,13 @@ function marquerMorceauOuvert() {
 // qu'on repasse par ici. Le lier à une preuve de lecture enfermerait le joueur
 // dans un écran sans issue — ce qui coûterait bien plus que le clic gagné.
 function syncVerrouRejeu() {
-  const verrouille = !morceauDejaOuvert();
-  replayButton.disabled = verrouille;
-  replayLockNote.classList.toggle("hidden", !verrouille);
+  const verrouMorceau = !morceauDejaOuvert();
+  // Le verrou « suivre » n'arrive qu'APRÈS le verrou morceau (jamais les deux
+  // en même temps) et seulement à partir de la 3e partie.
+  const verrouSuivre = !verrouMorceau && partiesJouees() >= SEUIL_SUIVRE && !pmcDejaSuivi();
+  replayButton.disabled = verrouMorceau || verrouSuivre;
+  replayLockNote.classList.toggle("hidden", !verrouMorceau);
+  followCta.classList.toggle("hidden", !verrouSuivre);
 }
 
 export function showOverlay() {
@@ -201,6 +242,13 @@ function runTutorial() {
 
 // Appelée à chaque frame par main.js (comme syncLoadingUi) : reflète l'état du
 // tutoriel dans le DOM du décompte, et déclenche la course quand il est fini.
+// ⚠️ Transitions revues le 20 août 2026 (« revois toutes les transitions entre
+// les phrases ») : le texte changeait d'un coup, sec. Maintenant chaque
+// changement de consigne passe par un fondu sortie → remplacement → fondu
+// entrée (transition CSS 0,2 s de #countdown-caption), et le « 1/4 » rejoue
+// une petite animation d'échelle à chaque changement d'étape (.step-pop).
+let captionSwapTimer = null;
+
 export function syncTutorialUi() {
   if (!tutorial.estActif()) return;
 
@@ -212,11 +260,26 @@ export function syncTutorialUi() {
 
   const a = tutorial.affichage();
   if (!a) return;
-  countdownNum.textContent = `${a.index}/${a.total}`;
+  const num = `${a.index}/${a.total}`;
+  if (num !== countdownNum.textContent) {
+    countdownNum.textContent = num;
+    // Retirer puis reposer la classe (avec un reflow entre les deux) rejoue
+    // l'animation CSS à chaque changement — technique standard.
+    countdownNum.classList.remove("step-pop");
+    void countdownNum.offsetWidth;
+    countdownNum.classList.add("step-pop");
+  }
   if (a.texte !== tutoDernierTexte) {
     tutoDernierTexte = a.texte;
-    countdownCaption.textContent = a.texte;
-    countdownCaption.style.color = a.couleur;
+    clearTimeout(captionSwapTimer);
+    countdownCaption.classList.add("hidden");
+    // Le remplacement attend la fin du fondu de sortie ; si une autre consigne
+    // arrive entre-temps, le timer est remplacé et c'est la dernière qui gagne.
+    captionSwapTimer = setTimeout(() => {
+      countdownCaption.textContent = a.texte;
+      countdownCaption.style.color = a.couleur;
+      countdownCaption.classList.remove("hidden");
+    }, 200);
   }
 }
 
@@ -493,6 +556,24 @@ export function showEndScreen(reason) {
   const finished = reason === "finished";
   endEyebrow.textContent = finished ? "Parcours terminé" : "Game Over";
   scoreNum.textContent = `${deps.game.score}`;
+
+  // Compteur de parties : nourrit le verrou « suivre PMC » (3 parties).
+  try { localStorage.setItem(CLE_PARTIES, String(partiesJouees() + 1)); } catch (e) { /* rien */ }
+
+  // Boost fan : annoncé tant que le morceau n'a pas été ajouté — le moment le
+  // plus lisible, c'est justement la fin de la première partie (« pour jouer,
+  // si tu ajoutes le morceau, tu gagnes un boost fan »).
+  fanNote.classList.toggle("hidden", estFan());
+
+  // Preuve sociale : total des courses jouées (toutes personnes confondues).
+  // Fire-and-forget des deux côtés — la ligne n'apparaît que si le compte est
+  // arrivé (voir net.getRunsCount, null si table absente/réseau coupé).
+  runsCount.classList.add("hidden");
+  net.getRunsCount().then((total) => {
+    if (total === null || total < 20) return; // sous 20 courses, un compteur fait vide plutôt que preuve
+    runsCount.textContent = `${total.toLocaleString("fr-FR")} courses déjà jouées — à toi de faire mieux`;
+    runsCount.classList.remove("hidden");
+  });
   // (L'ancienne bascule `cta-minimal` du CTA flottant a disparu avec lui :
   // sur l'écran de fin, le lien est maintenant le bouton principal de la
   // carte, aussi bien après un game over qu'après un parcours terminé.)
@@ -523,7 +604,17 @@ export function showEndScreen(reason) {
     shareButton.textContent = "PARTAGE INDISPONIBLE";
   });
 
+  // Le clip des dernières secondes n'est peut-être pas encore finalisé au
+  // moment où l'écran monte : caché par défaut, révélé par refreshClipButton()
+  // (appelée par main.js quand clip.terminer() a résolu).
+  clipButton.classList.add("hidden");
+
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
+}
+
+// Révèle le bouton clip si un clip partageable existe (voir clip.estPret).
+export function refreshClipButton() {
+  clipButton.classList.toggle("hidden", !clip.estPret());
 }
 
 // deps = { game, requestGameStart, isGameStartRequested, restartGame,
@@ -534,6 +625,16 @@ export function init(d) {
 
   ctaLink.href = window.CONFIG.lienEP;
   endCta.href = window.CONFIG.lienEP;
+  nowPlaying.href = window.CONFIG.lienEP;
+  followCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
+  followCta.addEventListener("click", marquerPmcSuivi);
+
+  // Date de fin du concours, sous le classement : « on a une semaine pour
+  // jouer » doit se lire sur l'écran, pas se deviner.
+  const fermeture = new Date(window.CONFIG.dateFermeture);
+  if (!Number.isNaN(fermeture.getTime())) {
+    contestDeadline.textContent = `Concours ouvert jusqu'au ${dateFmtFin.format(fermeture)}`;
+  }
 
   audio.setVolume(Number(volumeSlider.value) / 100);
   syncMuteIcon();
@@ -554,13 +655,18 @@ export function init(d) {
     deps.restartGame();
   });
 
-  // Le lien du morceau lève le verrou de rejeu, sur les DEUX emplacements
-  // (carte de fin et CTA flottant du menu) : le geste compte, d'où qu'il vienne.
-  [endCta, ctaLink].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
+  // Le lien du morceau lève le verrou de rejeu (et donne le boost fan), sur
+  // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau
+  // « Tu écoutes » : le geste compte, d'où qu'il vienne.
+  [endCta, ctaLink, nowPlaying].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
 
   shareButton.addEventListener("click", (e) => {
     e.stopPropagation();
     share.partager(); // synchrone : indispensable pour que le geste iOS tienne
+  });
+  clipButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clip.partagerClip(); // même règle : synchrone dans le geste
   });
   syncVerrouRejeu();
   skipCountdownBtn.addEventListener("click", skipCountdown);

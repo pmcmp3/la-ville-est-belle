@@ -50,6 +50,29 @@ function rect(ctx, x, y, w, h, couleur) {
   ctx.fillRect(px(x), px(y), px(w), px(h));
 }
 
+// Pochette de l'EP sur l'image de partage (20 août 2026 : « je veux l'image de
+// mon EP, je veux que ça rentre dans les mœurs ») — même fichier 480×480/16 Ko
+// que le tutoriel. Chargée au module, attendue par prepare() : l'image se
+// fabrique de toute façon en tâche de fond à l'écran de fin.
+const COVER = new Image();
+COVER.src = "assets/cover-ep.webp";
+
+// Badge « disque » selon le score (20 août 2026) : vocabulaire musique,
+// collectionnable — le palier atteint s'affiche sous la pochette et donne une
+// raison de reposter une meilleure image. Seuils sur un maximum théorique de
+// l'ordre de 70 000 (voir ARCHITECTURE.md, recalculé avec étoiles dorées et
+// boost fan).
+const BADGES = [
+  { seuil: 45000, texte: "DISQUE DE PLATINE", fond: "#e8e6f0", encre: "#3a3a44" },
+  { seuil: 30000, texte: "DISQUE D'OR", fond: "#ffcf2e", encre: "#4a3305" },
+  { seuil: 15000, texte: "DISQUE D'ARGENT", fond: "#c7c9d2", encre: "#333640" },
+  { seuil: 5000, texte: "DISQUE DE BRONZE", fond: "#c98a5b", encre: "#3a2410" },
+];
+
+function badgePour(score) {
+  return BADGES.find((b) => score >= b.seuil) || null;
+}
+
 function texte(ctx, contenu, x, y, taille, couleur, graisse = 900, align = "center") {
   ctx.font = `${graisse} ${taille}px ${POLICE}`;
   ctx.fillStyle = couleur;
@@ -119,33 +142,55 @@ function dessinerAffiche(ctx, etat) {
 
   // Titre, discret : l'information principale est le score, pas le nom du jeu.
   ctx.textAlign = "center";
-  texte(ctx, "LA VILLE EST BELLE", LARGEUR / 2, px(160), 46, CREME, 900);
-  texte(ctx, "PMC", LARGEUR / 2, px(212), 30, "rgba(240,234,217,0.75)", 500);
+  texte(ctx, "LA VILLE EST BELLE", LARGEUR / 2, px(120), 42, CREME, 900);
+  texte(ctx, "PMC", LARGEUR / 2, px(166), 28, "rgba(240,234,217,0.75)", 500);
+
+  // La POCHETTE DE L'EP, en haut au centre (« je veux que ça rentre dans les
+  // mœurs ») : cadre crème fin, comme une carte posée sur l'aplat rouge.
+  // L'image reste lisible en vignette — c'est un carré plein, pas un détail.
+  const coverS = px(252);
+  const coverX = (LARGEUR - coverS) / 2;
+  const coverY = px(204);
+  if (COVER.complete && COVER.naturalWidth) {
+    rect(ctx, coverX - P, coverY - P, coverS + P * 2, coverS + P * 2, CREME);
+    ctx.drawImage(COVER, coverX, coverY, coverS, coverS);
+  }
+
+  // Badge « disque » selon le score, à cheval sur le bas de la pochette.
+  const badge = badgePour(etat.score);
+  if (badge) {
+    ctx.font = `900 30px ${POLICE}`;
+    const bw = ctx.measureText(badge.texte).width + px(48);
+    const bx = (LARGEUR - bw) / 2;
+    const by = coverY + coverS - px(18);
+    rect(ctx, bx, by, bw, px(48), badge.fond);
+    texte(ctx, badge.texte, LARGEUR / 2, by + px(34), 30, badge.encre, 900);
+  }
 
   // Le pseudo, juste au-dessus du score : c'est la ligne qui personnalise le
   // partage (« c'est MON score »).
   if (etat.pseudo) {
-    texte(ctx, `@${etat.pseudo}`, LARGEUR / 2, px(384), 44, "rgba(255,255,255,0.9)", 500);
+    texte(ctx, `@${etat.pseudo}`, LARGEUR / 2, px(564), 40, "rgba(255,255,255,0.9)", 500);
   }
 
   // LE SCORE. Taille adaptée au nombre de chiffres pour qu'il remplisse
   // toujours la largeur sans jamais déborder du cadre.
   const chiffres = String(etat.score);
-  const taille = chiffres.length >= 6 ? 210 : chiffres.length >= 5 ? 250 : 290;
-  texte(ctx, chiffres, LARGEUR / 2, px(600), taille, "#ffffff", 900);
-  texte(ctx, "POINTS", LARGEUR / 2, px(672), 38, "rgba(255,255,255,0.75)", 500);
+  const taille = chiffres.length >= 6 ? 170 : chiffres.length >= 5 ? 200 : 230;
+  texte(ctx, chiffres, LARGEUR / 2, px(756), taille, "#ffffff", 900);
+  texte(ctx, "POINTS", LARGEUR / 2, px(816), 34, "rgba(255,255,255,0.75)", 500);
 
   // Une seule ligne de contexte, encadrée de deux étoiles du jeu : assez pour
   // que le score veuille dire quelque chose, pas assez pour encombrer.
-  const yStats = px(792);
-  etoileDuJeu(ctx, px(300), yStats - px(14), px(30));
-  etoileDuJeu(ctx, LARGEUR - px(300), yStats - px(14), px(30));
-  texte(ctx, `${etat.etoiles}/${etat.etoilesTotal} étoiles`, LARGEUR / 2, yStats, 40, CREME, 900);
+  const yStats = px(882);
+  etoileDuJeu(ctx, px(320), yStats - px(12), px(26));
+  etoileDuJeu(ctx, LARGEUR - px(320), yStats - px(12), px(26));
+  texte(ctx, `${etat.etoiles}/${etat.etoilesTotal} étoiles`, LARGEUR / 2, yStats, 36, CREME, 900);
 
   // L'adresse du jeu : la seule chose qui transforme une capture en joueur
   // supplémentaire. En crème sur le rouge, pleine largeur, impossible à rater.
-  texte(ctx, "BATS MON SCORE", LARGEUR / 2, px(936), 52, "#ffffff", 900);
-  texte(ctx, "pmcmp3.github.io/la-ville-est-belle", LARGEUR / 2, px(996), 34, JAUNE, 500);
+  texte(ctx, "BATS MON SCORE", LARGEUR / 2, px(960), 46, "#ffffff", 900);
+  texte(ctx, "pmcmp3.github.io/la-ville-est-belle", LARGEUR / 2, px(1010), 32, JAUNE, 500);
 }
 
 let fichierPret = null; // File prêt à partager (voir l'en-tête : le geste iOS)
@@ -176,6 +221,10 @@ export async function prepare(etat) {
       ]);
     }
   } catch (e) { /* police système en repli, l'image reste correcte */ }
+  // La pochette doit être décodée avant de peindre — decode() est instantané
+  // si l'image (16 Ko, préchargée) est déjà là, et l'échec n'est pas bloquant
+  // (l'affiche se dessine alors sans pochette, comme avant).
+  try { await COVER.decode(); } catch (e) { /* réseau : affiche sans pochette */ }
 
   const canvas = dessiner(etat);
   await new Promise((resolve) => {
@@ -197,12 +246,16 @@ export function estPret() {
 // le partage de fichiers n'existe pas (desktop, navigateurs anciens).
 export function partager() {
   if (!fichierPret) return false;
+  // Texte revu le 20 août 2026 (« Partager le jeu » : les gens envoient le jeu
+  // avec un petit screen) : le score + l'invitation + le LIEN, dans le texte
+  // lui-même — le champ `url` de navigator.share est souvent ignoré quand des
+  // fichiers sont joints, le texte, lui, passe toujours.
   const donnees = {
     files: [fichierPret],
     title: "La ville est belle",
     text: dernierEtat && dernierEtat.score
-      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle. Bats-moi.`
-      : "La ville est belle",
+      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle. Joue et tente de gagner le vinyle de l'EP de PMC : https://pmcmp3.github.io/la-ville-est-belle/`
+      : "Joue et tente de gagner le vinyle de l'EP de PMC : https://pmcmp3.github.io/la-ville-est-belle/",
   };
   if (navigator.canShare && navigator.canShare({ files: [fichierPret] }) && navigator.share) {
     navigator.share(donnees).catch(() => { /* partage annulé : rien à signaler */ });

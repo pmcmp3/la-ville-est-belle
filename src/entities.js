@@ -674,9 +674,20 @@ function rawSlotContent(slotIndex) {
   return content;
 }
 
+// Étoile DORÉE rare (20 août 2026, « excellente idée ») : ×2 sur les points de
+// l'étoile, teinte particulière et rotation plus rapide (entities-render.js).
+// Tirée au HASH par créneau — déterministe, comme tout le parcours : même
+// nombre d'étoiles dorées à chaque partie, le score maximum reste un nombre
+// connu (invariant CLAUDE.md). ~12 % des étoiles (≈ 9-10 sur 80).
+const GOLD_STAR_RATE = 0.12;
+
 function computeRawSlotContent(slotIndex) {
   if (isBonusAt(slotIndex)) {
-    return { isBonus: true, kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)) };
+    return {
+      isBonus: true,
+      kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)),
+      gold: hash(slotIndex * 3 + 77) < GOLD_STAR_RATE,
+    };
   }
   if (OPENING_KIND_OVERRIDE[slotIndex]) {
     return { isBonus: false, kind: OPENING_KIND_OVERRIDE[slotIndex] };
@@ -931,7 +942,7 @@ export function update(playerLane, inAir) {
       if (e.z < road.PLAYER_NEAR_Z - zw) { resolved.add(e.slotIndex); continue; }
       const inReach = sameLane(e);
       if (inReach && (!aerien || inAir)) {
-        events.push({ type: "bonus", kind: e.kind });
+        events.push({ type: "bonus", kind: e.kind, gold: !!e.gold });
         resolved.add(e.slotIndex);
         consumed.add(e.slotIndex);
       }
@@ -1034,6 +1045,14 @@ export function reset() {
 // beats — passe par le même chemin de code (slotContent/slotLanes/update/render)
 // que le spawn normal, pour tester la collision/le ramassage sans jouer une
 // partie entière.
+// Aperçu PUR du contenu d'un créneau (isBonus/kind/gold), sans effet de bord :
+// sert au balayage hors ligne qui recalcule le score maximum théorique
+// (méthode ARCHITECTURE.md §12) — les créneaux bonus ne dépendent ni du score
+// ni du temps, le résultat est donc le vrai parcours de chaque partie.
+export function slotPreview(slotIndex) {
+  return rawSlotContent(slotIndex);
+}
+
 export function forceSpawn(isBonus, kind, playerLane) {
   const now = clock.now();
   const slotIndex = Math.floor(clock.beatIndexAt(now) / CADENCE);

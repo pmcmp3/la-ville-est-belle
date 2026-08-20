@@ -319,17 +319,48 @@ export function getExtras(ctx, width, height, now) {
 // fantôme) : la pochette au centre de l'écran, la promesse juste en dessous.
 // Uniquement pendant l'étape 1 — ensuite le champ de jeu doit rester dégagé
 // (le pont et les étoiles des étapes suivantes arrivent au centre).
+// Durées du fondu d'entrée/sortie de la pochette (« mets fade in et fade
+// out ») : entrée sur la première demi-seconde de l'étape, sortie pendant le
+// « Bien ! » qui clôt l'étape 1.
+const RECOMPENSE_FADE_IN_S = 0.5;
+
 export function dessinerRecompense(ctx, width, height) {
   if (!etat.actif || etat.fini || etat.index !== 0) return;
   if (!COVER.complete || !COVER.naturalWidth) return;
 
+  // Fondu d'entrée (temps d'étape) et de sortie (temps de félicitation).
+  let alpha = Math.min(1, etat.tempsEtape / RECOMPENSE_FADE_IN_S);
+  if (etat.reussite > 0) alpha = Math.min(alpha, etat.reussite / DUREE_REUSSITE);
+  if (alpha <= 0.01) return;
+
   const size = Math.min(width * 0.34, 150);
   const cx = width / 2;
-  const top = height * 0.36;
+  const top = height * 0.30;
 
   ctx.save();
-  // Cadre crème fin + ombre portée : la pochette se détache de la route comme
-  // une carte posée, pas un aplat collé au décor.
+  ctx.globalAlpha = alpha;
+
+  // « Gros blur derrière » : la zone de scène derrière la carte est floutée
+  // (le canvas se redessine dessus lui-même à travers ctx.filter) — effet
+  // verre dépoli, la pochette se détache de la route au lieu d'y coller.
+  // ⚠️ drawImage lit les pixels SOURCE en coordonnées du backing store (le
+  // transform dpr ne s'applique qu'à la destination) — d'où la multiplication
+  // par l'échelle courante du contexte.
+  const pad = 16;
+  const bx = cx - size / 2 - pad;
+  const by = top - pad;
+  const bw = size + pad * 2;
+  const bh = size + pad * 2 + 38; // couvre aussi la pastille de promesse
+  const dpr = ctx.getTransform().a || 1;
+  ctx.filter = "blur(9px)";
+  ctx.drawImage(ctx.canvas, bx * dpr, by * dpr, bw * dpr, bh * dpr, bx, by, bw, bh);
+  ctx.filter = "none";
+  // Léger voile sombre par-dessus le flou : unifie la zone quel que soit le
+  // décor derrière (façades claires ou bitume).
+  ctx.fillStyle = "rgba(13,13,16,0.25)";
+  ctx.fillRect(bx, by, bw, bh);
+
+  // Cadre crème fin + ombre portée : la pochette se détache comme une carte.
   ctx.shadowColor = "rgba(0,0,0,0.45)";
   ctx.shadowBlur = 14;
   ctx.fillStyle = CREME;

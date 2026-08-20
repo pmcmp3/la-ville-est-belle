@@ -11,6 +11,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0d0d10" />
   <title>La ville est belle</title>
+  <!-- Balises de partage (Open Graph + Twitter) : chaque lien du jeu envoyé
+       sur un réseau social affiche la pochette de l'EP et la promesse du
+       concours — URLs ABSOLUES obligatoires (les crawlers ne résolvent pas les
+       chemins relatifs), et JPG plutôt que WebP (encore mal supporté par
+       certains crawlers). -->
+  <meta property="og:title" content="La ville est belle — le jeu" />
+  <meta property="og:description" content="Fonce dans Paris au coucher du soleil, attrape les étoiles. Meilleur score = le vinyle de l'EP de PMC à gagner." />
+  <meta property="og:image" content="https://pmcmp3.github.io/la-ville-est-belle/assets/cover-ep-og.jpg" />
+  <meta property="og:url" content="https://pmcmp3.github.io/la-ville-est-belle/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="La ville est belle — le jeu" />
+  <meta name="twitter:description" content="Meilleur score = le vinyle de l'EP de PMC à gagner." />
+  <meta name="twitter:image" content="https://pmcmp3.github.io/la-ville-est-belle/assets/cover-ep-og.jpg" />
   <style>
     /* Polices de la charte PMC, fournies par l'artiste.
        - Flawsome : police d'affichage, réservée au titre du jeu.
@@ -386,6 +400,78 @@
       width: 100%;
     }
 
+    /* « Tu écoutes La ville est belle » : bandeau discret avec un mini
+       equalizer animé (4 barres, façon Dynamic Island) — le morceau joue
+       vraiment pendant l'écran de fin, ce bandeau le fait remarquer. */
+    #now-playing {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      font: 500 12px var(--police);
+      color: rgba(0, 0, 0, 0.6);
+      text-decoration: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #now-playing strong { font-weight: 900; color: var(--noir); }
+
+    #now-playing .eq {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 14px;
+    }
+
+    #now-playing .eq i {
+      display: block;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--rouge);
+      animation: eq-bounce 1s ease-in-out infinite;
+    }
+
+    #now-playing .eq i:nth-child(1) { height: 6px;  animation-delay: 0s; }
+    #now-playing .eq i:nth-child(2) { height: 12px; animation-delay: 0.18s; }
+    #now-playing .eq i:nth-child(3) { height: 8px;  animation-delay: 0.36s; }
+    #now-playing .eq i:nth-child(4) { height: 11px; animation-delay: 0.54s; }
+
+    @keyframes eq-bounce {
+      0%, 100% { transform: scaleY(0.45); }
+      50% { transform: scaleY(1); }
+    }
+
+    /* Note « boost fan » : petite promesse sous le bouton principal, en rouge
+       très doux — disparaît une fois le morceau ajouté. */
+    #fan-note {
+      margin: -2px 0 2px;
+      font: 500 11px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    #fan-note.hidden, #now-playing.hidden, #clip-button.hidden,
+    #follow-cta.hidden, #runs-count.hidden {
+      display: none;
+    }
+
+    #contest-deadline {
+      margin: 8px 0 0;
+      font: 500 10px var(--police);
+      letter-spacing: 0.04em;
+      color: rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    #runs-count {
+      margin: 3px 0 0;
+      font: 500 10px var(--police);
+      color: rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
     #leaderboard-list {
       margin: 0;
       padding: 0;
@@ -615,6 +701,17 @@
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
     }
 
+    /* Pop du « 1/4 » quand l'étape change : la classe est retirée puis reposée
+       par screens.js (avec reflow entre les deux) pour rejouer l'animation. */
+    #countdown-num.step-pop {
+      animation: num-pop 0.4s ease;
+    }
+
+    @keyframes num-pop {
+      0% { transform: scale(1.25); }
+      100% { transform: scale(1); }
+    }
+
     /* Titre masqué pendant le décompte : redondant avec le numéro géant et
        la légende, et ça encombrait l'écran (retour direct : "il faut que tu
        revoies [ça]"). Reste affiché sur le menu et l'écran de fin. */
@@ -671,7 +768,10 @@
       font: 900 16px/1.45 var(--police);
       color: var(--blanc);
       opacity: 1;
-      transition: opacity 0.35s ease;
+      /* 0,35 s → 0,2 s : sert aussi de fondu ENTRE deux consignes (screens.js
+         masque, remplace le texte, réaffiche) — à 0,35 s l'aller-retour
+         faisait un trou de 0,7 s entre deux phrases. */
+      transition: opacity 0.2s ease;
     }
 
     #overlay.countdown-view #countdown-caption {
@@ -1437,7 +1537,19 @@
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>
             <ol id="leaderboard-list"></ol>
+            <!-- Deadline du concours + preuve sociale (nombre total de courses,
+                 Supabase) : deux petites lignes sous le classement. -->
+            <p id="contest-deadline"></p>
+            <p id="runs-count" class="hidden"></p>
           </div>
+          <!-- « Tu écoutes La ville est belle » : le morceau JOUE pendant
+               l'écran de fin (~114 s de marge après la ligne d'arrivée) — ce
+               bandeau le fait remarquer, façon Dynamic Island, et le clic va
+               au même smartlink que le bouton principal. -->
+          <a id="now-playing" href="#" target="_blank" rel="noopener noreferrer">
+            <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span>Tu écoutes <strong>La ville est belle</strong></span>
+          </a>
           <!-- Ordre volontaire : le lien vers le morceau EST l'action
                principale de cet écran, REJOUER passe dessous en secondaire
                (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent
@@ -1445,20 +1557,30 @@
                masqué sur cette vue, il ferait doublon. -->
           <div id="end-actions">
             <a id="end-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
-              <span>ÉCOUTER LE MORCEAU</span>
+              <span>AJOUTER LE MORCEAU</span>
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
                 <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
                 <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </a>
+            <!-- Boost fan : annoncé tant que le joueur n'a pas ajouté le
+                 morceau — la conversion est récompensée (+10 % de score),
+                 pas seulement exigée. -->
+            <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
             <button id="share-button" class="btn btn-secondary" type="button">PARTAGER MON SCORE</button>
+            <!-- Clip des dernières secondes de course (clip.js) : n'apparaît
+                 que si un clip a pu être enregistré (MediaRecorder dispo). -->
+            <button id="clip-button" class="btn btn-secondary hidden" type="button">PARTAGER LE CLIP</button>
             <button id="replay-button" class="btn btn-secondary" type="button">REJOUER</button>
             <!-- Message du verrou de rejeu : REJOUER n'est actif qu'après un
                  passage sur le lien du morceau (une seule fois, mémorisé).
                  Voir screens.js — c'est le « mur » demandé, posé ici plutôt
                  qu'en pleine course où il aurait coûté des parties. -->
-            <p id="replay-lock-note" class="hidden">Écoute le morceau pour débloquer une nouvelle course</p>
+            <p id="replay-lock-note" class="hidden">Ajoute le morceau pour débloquer une nouvelle course</p>
+            <!-- Second verrou doux (20 août 2026) : après 3 parties, suivre
+                 PMC débloque la suite — même mécanique localStorage. -->
+            <a id="follow-cta" class="link-minimal hidden" href="#" target="_blank" rel="noopener noreferrer">Suis PMC sur Spotify pour débloquer une nouvelle course →</a>
           </div>
         </div>
       </div>
