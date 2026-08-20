@@ -44,6 +44,15 @@ const LANE_TWEEN = 7;
 const CAMERA_FOLLOW = 0.55;
 const LATERAL_SPEED = 5.5;  // référence de vitesse latérale pour l'inclinaison du sprite
 const MAX_LEAN = 0.16;      // inclinaison max du sprite dans les virages, en radians
+// Balancement lent et continu de tout le cycliste, gauche-droite (demandé le
+// 20 août 2026 : « fais moi balancer tout doucement de gauche à droite ») :
+// une rotation de ±0,045 rad (~2,6°) autour du point de contact au sol, à
+// ~0,9 Hz. Ajouté APRÈS le clamp du lean de virage (il ne le limite pas), et
+// indépendant du balancement du buste pixel par pixel (player.js), qui suit
+// lui la cadence de pédalage. Sur l'horloge réelle (perfClock), pas l'horloge
+// de jeu : le personnage vit aussi sur le menu et pendant le tutoriel.
+const SWAY_AMP = 0.045;
+const SWAY_HZ = 0.9;
 // Flou de mouvement pendant le glissé de changement de voie (demandé
 // explicitement, validé une première fois puis "exagéré" sur retour :
 // « plus on va vite, plus intense »). Même référence de vitesse que le lean
@@ -944,7 +953,8 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
   const blurPx = Math.max(laneBlurPx, finishBlur(clock.now()));
   if (blurPx > 0.05) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   player.renderPickupGlow(ctx, p.x, p.y - hop - bob, p.scale, pickupFlash);
-  player.render(ctx, p.x, p.y - hop - bob, p.scale, renderLean, renderPedalPhase);
+  const sway = Math.sin(perfClock() * Math.PI * 2 * SWAY_HZ) * SWAY_AMP;
+  player.render(ctx, p.x, p.y - hop - bob, p.scale, renderLean + sway, renderPedalPhase);
   if (blurPx > 0.05) ctx.filter = "none";
   ctx.globalAlpha = wasAlpha;
 }

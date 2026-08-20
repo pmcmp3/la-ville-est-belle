@@ -67,7 +67,10 @@ const PAL = {
   tread: "#262635",
   // Liseré clair sur la jante (playtest/DA : « manque de contact/lisibilité
   // avec la route, jantes »).
-  rimHi: "#c7c9d2",
+  // #c7c9d2 → #989cab le 20 août 2026 : sur la tranche ramenée à 4 px, les
+  // 2 px de jante claire faisaient lire la roue comme une colonne lumineuse
+  // à taille de jeu — assombrie en gris moyen, elle redevient un reflet.
+  rimHi: "#989cab",
   tire: "#0e0e11",
   grip: "#33333b",
 };
@@ -93,17 +96,16 @@ function groundShadow(ctx, x, groundY, w) {
 // face avec ses crampons en quinconce) mais sa TRANCHE — un bloc étroit et
 // haut, sans crampons visibles par le côté. Bande claire fine au centre :
 // même intention que l'ancien reflet de jante en ellipse, traduite en bloc.
-// ⚠️ Élargie 5 → 8 px (12 août 2026, retour direct : « mes pieds ne bougent
-// pas dans le vide, on ne voit pas que je suis sur un vélo ») : à 5 px elle
-// était presque entièrement recouverte par les jambes qui pédalent devant
-// (voir drawLeg), donc quasi invisible en jeu malgré l'ordre de peinture
-// roue→jambes.
-// ⚠️ 20 août 2026 : elle descend maintenant jusqu'à y=40 (sprite agrandi) et
-// dépasse nettement sous les jambes — plus des crans de pneu (`treadShift`)
-// qui défilent vers le bas d'une frame à l'autre : la roue TOURNE, dans les
-// bandes visibles sous le pied levé et sous les pédales.
+// ⚠️ 20 août 2026 : elle descend jusqu'à y=40 (sprite agrandi), ses crans
+// (`treadShift`) défilent vers le bas d'une frame à l'autre (la roue TOURNE),
+// et surtout elle se peint maintenant PAR-DESSUS les jambes (« mes pieds
+// doivent être derrière la roue arrière ») : vue de dos, le pneu est l'objet
+// le plus proche de la caméra — le pied en bas de course se glisse
+// visiblement derrière lui. Du coup, plus besoin de la largeur artificielle
+// de 8 px (élargie le 12 août pour dépasser des jambes qui se peignaient
+// DEVANT) : retour à une tranche réaliste de 4 px.
 function wheelEdge(ctx, cx, yTop, yBot, treadShift) {
-  const w = 8;
+  const w = 4;
   blk(ctx, cx - w / 2, yTop, w, yBot - yTop, PAL.tire);
   // Crans : une rangée claire tous les 5 px, décalée de `treadShift` px vers
   // le bas à chaque frame — boucle sans couture (5 divise l'amplitude totale).
@@ -167,8 +169,6 @@ function draw(ctx, theta, frameIndex) {
   const swingR = liftR >= LIFT_MAX - 1 ? 1 : liftR <= 1 ? -1 : 0;
   const sway = Math.round(Math.sin(theta));
 
-  wheelEdge(ctx, 13, 23, 40, frameIndex);
-
   hair(ctx, 13 + sway);
   blk(ctx, 11 + sway, 9, 4, 2, PAL.skin);    // nuque
 
@@ -186,11 +186,18 @@ function draw(ctx, theta, frameIndex) {
   blk(ctx, 20, 13, 4, 3, PAL.green);
   blk(ctx, 21, 16, 4, 3, PAL.grip);
 
+  // Jambes d'abord, ROUE ensuite (« mes pieds doivent être derrière la roue
+  // arrière ») : le pneu, plus proche de la caméra, recouvre le bord intérieur
+  // du pied en bas de course — c'est ce chevauchement qui donne la profondeur.
+  // Le bassin et le short se peignent en dernier : le haut de la roue disparaît
+  // derrière le cycliste assis dessus, elle n'émerge que sous lui.
+  drawLeg(ctx, 7, liftL, swingL);
+  drawLeg(ctx, 15, liftR, swingR);
+
+  wheelEdge(ctx, 13, 23, 40, frameIndex);
+
   blk(ctx, 8, 20, 10, 4, PAL.green);  // bassin
   blk(ctx, 9, 24, 8, 5, PAL.pants);   // short
-
-  drawLeg(ctx, 8, liftL, swingL);
-  drawLeg(ctx, 14, liftR, swingR);
 }
 
 function makeSprite(theta, frameIndex) {
