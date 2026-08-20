@@ -61,11 +61,15 @@ const ETAPES = [
   },
   {
     cle: "saut",
-    texte: "Swipe vers le haut pour sauter et attraper les étoiles en l'air",
+    texte: "Swipe vers le haut pour attraper l'étoile en l'air",
     geste: "haut",
     objectifs: 1,
     // Dans la voie du joueur : le saut qu'il fait rencontre l'étoile, le geste
     // et sa récompense se lisent d'un coup.
+    // ⚠️ C'est l'étoile ATTRAPÉE qui valide, plus le saut lui-même (revu le
+    // 20 août 2026 : « faut attraper l'étoile pour valider l'étape 2 ») — un
+    // saut dans le vide n'apprend pas le timing, qui est tout l'enjeu des
+    // bonus aériens. Une étoile passée sans être prise revient, comme au pont.
     props: (voie) => [prop({ isBonus: true, kind: "guitare", voie })],
   },
   {
@@ -247,7 +251,8 @@ export function avancer(dt, obs) {
   if (aChangeDeVoie) etat.derniereVoie = obs.voie;
 
   if (etape.cle === "voie" && aChangeDeVoie) valider();
-  if (etape.cle === "saut" && obs.vientDeSauter) valider();
+  // (L'étape saut ne se valide plus ici : sauter dans le vide ne suffit pas,
+  // c'est le ramassage de l'étoile aérienne qui compte — voir plus bas.)
 
   // --- Jugement au passage du joueur (le déplacement se fait plus haut) ----
   for (const p of etat.props) {
@@ -263,7 +268,7 @@ export function avancer(dt, obs) {
       const prise = p.lanes.includes(obs.voie) && (!isAirBonus(p.kind) || !obs.auSol);
       if (prise) {
         p.pris = true;
-        if (etape.cle === "combo") valider();
+        if (etape.cle === "combo" || etape.cle === "saut") valider();
       }
     } else if (etape.cle === "pont") {
       const voieLibre = !p.lanes.includes(obs.voie);
@@ -278,10 +283,10 @@ export function avancer(dt, obs) {
       }
     }
   }
-  // Étape combo : des étoiles toutes passées sans être prises reviennent,
-  // replacées par rapport à la voie actuelle — même règle que le pont, jamais
-  // d'avancement sans geste.
-  if (etape.cle === "combo" && etat.props.length && etat.props.every((p) => p.resolu) && etat.faits < etape.objectifs) {
+  // Étapes à étoiles (saut, combo) : des étoiles toutes passées sans être
+  // prises reviennent, replacées par rapport à la voie actuelle — même règle
+  // que le pont, jamais d'avancement sans geste.
+  if ((etape.cle === "combo" || etape.cle === "saut") && etat.props.length && etat.props.every((p) => p.resolu) && etat.faits < etape.objectifs) {
     etat.faits = 0;
     etat.props = etape.props(obs.voie);
   }

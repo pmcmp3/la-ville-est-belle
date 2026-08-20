@@ -812,12 +812,19 @@ function step(dt) {
           // Pénalité de score, demandée avec la perte de cœur : une collision
           // ne coûtait qu'une vie, donc rien tant qu'il en restait — on
           // pouvait foncer dans le tas sans que le score s'en aperçoive.
-          // Une seule pénalité par collision, y compris pour la voiture (qui
-          // prend tous les cœurs d'un coup) : c'est le choc qui coûte, pas le
+          // Une seule pénalité par collision : c'est le choc qui coûte, pas le
           // décompte des cœurs. Jamais de score négatif.
-          game.penaltyAmount = window.CONFIG.penaliteObstacle;
-          game.score = Math.max(0, game.score - game.penaltyAmount);
-          game.penaltyTimer = window.CONFIG.penaliteDuree;
+          // ⚠️ Plus AUCUNE pénalité sur le choc qui TERMINE la partie (20 août
+          // 2026, « enlève le fait de perdre 500 points quand tu meurs
+          // définitivement ») : la partie est déjà perdue, raboter en plus le
+          // score affiché sur l'écran de fin ne punissait rien — un joueur
+          // finissait à 0 pour un score réel de quelques centaines. Couvre la
+          // voiture/le pont ET la dernière vie perdue sur un petit obstacle.
+          if (game.lives > 0) {
+            game.penaltyAmount = window.CONFIG.penaliteObstacle;
+            game.score = Math.max(0, game.score - game.penaltyAmount);
+            game.penaltyTimer = window.CONFIG.penaliteDuree;
+          }
           damageFlash = DAMAGE_FLASH_DURATION;
         }
       }

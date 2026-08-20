@@ -235,7 +235,35 @@
     #end-screen.active {
       width: 100%;
       align-items: center;
+      /* margin:auto + overlay défilable (voir .end-view) : centré quand la
+         carte tient dans l'écran, défilable depuis le HAUT quand elle ne
+         tient pas — le centrage flex seul TRONQUAIT le haut de la carte sans
+         aucun moyen de le voir (capture iPhone 16 à l'appui, 20 août 2026). */
+      margin: auto 0;
     }
+
+    /* Vue de fin : la carte est le plus grand écran du jeu (score + classement
+       + 3 boutons + note). Trois mesures pour qu'elle rentre sur TOUS les
+       écrans, y compris les petits (iPhone SE) :
+       1. le titre du jeu est masqué (le bandeau « Game Over » identifie déjà
+          l'écran, et le titre était de toute façon poussé hors cadre) ;
+       2. l'overlay devient défilable (secours universel) ;
+       3. le padding bas revient à une marge simple — les 72px réservaient la
+          place du CTA flottant, qui n'est pas affiché sur cette vue. */
+    #overlay.end-view {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
+      padding-bottom: calc(24px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      /* html/body sont en touch-action:none (gestes de jeu) : sans pan-y ici,
+         iOS refuse le défilement au doigt de cette vue. */
+      touch-action: pan-y;
+    }
+
+    #overlay.end-view #menu-title {
+      display: none;
+    }
+
 
     /* Fenêtre un peu plus petite (demandé explicitement, après un premier
        test) : la carte de l'écran de fin partage .panel/.panel-body avec le
@@ -259,8 +287,8 @@
       /* Padding latéral resserré : « ÉCOUTER LE MORCEAU » + icône doivent
          tenir sur UNE ligne dans les ~234px utiles de la carte (mesuré :
          170px de texte à 15px + 15px d'icône + 8px d'écart). */
-      padding-left: 10px;
-      padding-right: 10px;
+      padding: 11px 10px;
+      min-height: 46px; /* cible tactile toujours ≥ 44px (recommandation iOS) */
       white-space: nowrap;
     }
 
@@ -371,6 +399,16 @@
       -webkit-overflow-scrolling: touch;
       border-top: 1px solid rgba(0, 0, 0, 0.14);
       border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+    }
+
+    /* Petits écrans en hauteur (iPhone SE, Android compacts) : le classement
+       passe de 5 à 3 lignes visibles (nombre impair conservé, le centrage au
+       scroll en a besoin — voir scrollCurrentScoreIntoView). ⚠️ Doit rester
+       APRÈS la règle de base : à spécificité égale, c'est l'ordre qui tranche. */
+    @media (max-height: 700px) {
+      #leaderboard-list {
+        max-height: 96px;
+      }
     }
 
     #leaderboard-list li {

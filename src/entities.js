@@ -52,6 +52,20 @@ export const FADE_BAND = 50;
 // première frame, pas pile sur le seuil de coupure (évite tout flottement).
 const LEAD_IN_VISIBILITY_MARGIN = 2;
 
+// ⚠️ Profondeur de départ du créneau 0, raccourcie le 20 août 2026 (« à la fin
+// du tuto c'est trop long pour commencer le jeu vraiment ») : calé sur
+// VISIBLE_Z_MAX (≈168 u), le premier objet mettait ~7,8 s à atteindre le
+// joueur à la vitesse de départ (19,8 u/s) — huit secondes de route vide entre
+// la fin du tutoriel et la première étoile, et autant à chaque REJOUER. Ramené
+// à 80 u : ~3,4 s d'approche. Compromis assumé avec le vieux bug du pop-in
+// (« comme si tout était déjà chargé ») : les 2-3 créneaux entre 80 u et le
+// début du FADE_BAND apparaissent d'un coup à la première frame, mais LOIN
+// (petits, à 4+ secondes du joueur) — rien à voir avec l'époque où le créneau
+// 0 naissait À la position du joueur. Ne change rien au régime de croisière :
+// passé ce départ, tous les créneaux continuent de sortir de la brume à
+// VISIBLE_Z_MAX comme avant.
+const LEAD_IN_START_Z = 80;
+
 // Décalage à appliquer à l'horloge de jeu au tout début d'une course (voir
 // main.js, appelé juste après clock.setTimeSource) — corrige un vrai bug
 // visuel signalé au playtest : « animation bizarre au tout début, les
@@ -77,7 +91,7 @@ const LEAD_IN_VISIBILITY_MARGIN = 2;
 // dès la première frame, puis glisse normalement jusqu'au joueur comme tous
 // les créneaux suivants.
 export const LEAD_IN =
-  (VISIBLE_Z_MAX - LEAD_IN_VISIBILITY_MARGIN - road.PLAYER_NEAR_Z) / road.getSpeed() -
+  (LEAD_IN_START_Z - LEAD_IN_VISIBILITY_MARGIN - road.PLAYER_NEAR_Z) / road.getSpeed() -
   window.CONFIG.premierTempsOffset;
 
 // --- Ligne d'arrivée + quota exact d'étoiles -------------------------------

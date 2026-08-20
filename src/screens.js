@@ -162,6 +162,10 @@ function setView(view) {
   // Voile allégé pendant le décompte : le personnage doit rester visible
   // derrière (demandé explicitement), pas noyé sous le fond sombre standard.
   overlay.classList.toggle("countdown-view", view === "countdown");
+  // Vue de fin : le titre du jeu est masqué et l'overlay devient défilable —
+  // la carte (score + classement + 3 boutons) est le plus grand écran du jeu
+  // et débordait du cadre sur iPhone (voir #overlay.end-view dans index.html).
+  overlay.classList.toggle("end-view", view === "end");
   refreshCtaVisibility();
 }
 
@@ -456,7 +460,6 @@ export function renderLeaderboard(scores) {
 // est en overflow:hidden ici) et provoque des sauts de mise en page. On
 // positionne donc le scroll de la liste à la main.
 function scrollCurrentScoreIntoView(li) {
-  leaderboardList.style.paddingBottom = "";
   if (!li) return;
   // Après le repaint : tant que #leaderboard porte .hidden (display:none),
   // offsetTop/clientHeight valent 0 et le calcul serait faux.
@@ -467,16 +470,16 @@ function scrollCurrentScoreIntoView(li) {
     const rectListe = leaderboardList.getBoundingClientRect();
     const haut = li.getBoundingClientRect().top - rectListe.top + leaderboardList.scrollTop;
     const centre = haut - (leaderboardList.clientHeight - li.offsetHeight) / 2;
-    // Une liste ne défile pas au-delà de son contenu : sans ça, une ligne
-    // parmi les dernières du classement se colle en bas de la fenêtre au lieu
-    // d'être au milieu. On ajoute juste ce qu'il manque de vide sous la
-    // dernière ligne pour que le centrage soit atteignable — et seulement
-    // quand c'est nécessaire, donc aucun blanc visible dans les autres cas.
+    // ⚠️ Borné au contenu réel, SANS padding artificiel (revu le 20 août 2026,
+    // capture à l'appui) : l'ancien code ajoutait du padding-bottom pour
+    // rendre le centrage atteignable quand le joueur est en fin de classement
+    // — mais la liste est en box-sizing par défaut (content-box), donc ce
+    // padding s'AJOUTAIT à sa hauteur visible : un grand blanc apparaissait
+    // sous la dernière ligne, dans la carte. Une ligne parmi les dernières
+    // s'affiche donc près du bas de la fenêtre plutôt qu'au milieu — elle
+    // reste surlignée et visible, c'est ce qui compte.
     const maxScroll = leaderboardList.scrollHeight - leaderboardList.clientHeight;
-    if (centre > maxScroll) {
-      leaderboardList.style.paddingBottom = `${Math.ceil(centre - maxScroll)}px`;
-    }
-    leaderboardList.scrollTop = Math.max(0, centre);
+    leaderboardList.scrollTop = Math.min(Math.max(0, centre), Math.max(0, maxScroll));
   });
 }
 
