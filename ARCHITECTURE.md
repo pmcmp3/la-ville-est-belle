@@ -822,6 +822,22 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Onzième passe du 20 août 2026 — photo haussmannienne, cover au tuto, traversées -30 %.**
+- **Façades refaites une TROISIÈME fois** (world.js), d'après une photo d'immeuble d'angle
+  parisien fournie : pierre crème pâle (fini l'orangé « cathédrale »), toits mansardés en
+  ARDOISE gris-bleu (retour du froid — c'est le couple pierre claire/ardoise sombre qui fait la
+  photo), fenêtres redevenues RECTANGULAIRES hautes (les arcs lisaient « église »), garde-corps
+  fer forgé NOIRS peints devant le bas des fenêtres (après elles dans l'ordre de peinture),
+  devantures noires à enseigne DORÉE (une vitrine sur deux, l'autre garde un store),
+  **volets supprimés** (aucun sur la photo — `SHUTTER_PALETTE` retirée).
+- **Pochette de l'EP dans l'étape 1 du tutoriel** (`dessinerRecompense`, tutorial.js) +
+  « Le meilleur score gagne le vinyle de l'EP » : conversion annoncée dès la première seconde
+  de jeu. Fichier `public/assets/cover-ep.webp` — recompressée 4000×4000 → 480×480 / **16 Ko**
+  (cwebp -q 72) depuis le master `~/Downloads/4. EP#1 - LVEB ►/`, préchargée au chargement du
+  module (négligeable vs 3,9 Mo de MP3). Étape 1 uniquement : ensuite le centre de l'écran
+  appartient aux objets des étapes suivantes.
+- **Véhicules traversants ralentis de 30 %** (`CROSS_SPEED` 8 → 5,6, crosstraffic.js — demandé).
+
 **Dixième passe du 20 août 2026 — retours sur la neuvième.**
 - **Les pieds passent DERRIÈRE la roue arrière** (« mes pieds doivent être derrière la roue ») :
   ordre de peinture inversé dans player.js — jambes, puis roue, puis bassin/short. Vue de dos le
