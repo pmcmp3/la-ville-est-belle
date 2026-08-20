@@ -158,7 +158,16 @@ const Z_WINDOW_AIR = 2.2;  // fenêtre élargie pour les bonus aériens (le timi
 // C'est ce qui règle les deux reproches du playtest d'un coup — « t'es short
 // sur les hitbox » (on touchait à côté de ce qu'on voyait) et « je peux rester
 // là indéfiniment » (il n'existe plus de position hors-voie où camper).
-const GRACE_BEATS = 4;     // ~2s à 120 bpm sans obstacle, juste le temps de voir la route avant le premier danger
+// 4 → 8 le 21 août 2026 (« Soberland au tout début, rien autour de lui »,
+// cameo.js) : Soberland a été avancé à CAMEO_TIME_S = 3 s pour être la toute
+// première chose vue, visible jusqu'à ~3,6 s (SHOW_AFTER). L'ancienne grâce
+// (~2 s, GRACE_SLOTS = 3) se terminait AVANT qu'il ait fini de traverser
+// l'écran — le premier obstacle forcé (OPENING_KIND_OVERRIDE, un cycliste)
+// apparaissait donc pile pendant qu'il était encore là, d'où « difficile à
+// esquiver » alors qu'il est censé être purement décoratif. Remonté à ~4 s
+// (GRACE_SLOTS = 6, premier obstacle réel à ≈4,51 s) : ~0,9 s de marge après
+// sa disparition, aucun obstacle ne partage plus jamais l'écran avec lui.
+const GRACE_BEATS = 8;
 const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoile en tout début de course
 
 // --- Difficulté progressive + quota EXACT d'étoiles -----------------------
@@ -228,12 +237,29 @@ const OBSTACLE_RATIO_START = 0.381;
 // 16 s de course, la densité reste donc à 60 % tout le reste du parcours.
 const OBSTACLE_RATIO_MAX = 0.60;
 
+// ⚠️ Détente de FIN de course (21 août 2026 : « j'aimerais un peu plus
+// d'étoiles à la fin, ça va super vite mais il n'y a pas beaucoup d'étoiles
+// alors qu'il y a beaucoup d'obstacles ») : à partir de 100 s, le ratio
+// d'obstacles redescend linéairement de 0,60 vers 0,45 à la ligne d'arrivée.
+// Le contexte a changé depuis l'arbitrage du plafond à 60 % : les véhicules
+// traversants (crosstraffic.js, hors de ce quota) sont à densité MAXIMALE
+// après ~100 s — la fin de course cumule donc les deux sources de danger, et
+// c'est précisément la portion où le combo a besoin d'étoiles pour exister.
+// Le seuil de 100 s est calé sur cette rampe-là. L'invariant tient toujours :
+// le ratio d'étoiles reste entre 0,40 et 0,62, jamais près de 1.
+const OBSTACLE_END_TAPER_START_S = 100;
+const OBSTACLE_RATIO_END = 0.45;
+
 // Densité d'obstacles visée au créneau `i`, d'après le temps musical où il
 // arrive (donc une fonction pure de l'index, comme tout ce fichier).
 function obstacleRatioAt(slotIndex) {
   const t = clock.timeOfBeat(slotIndex * CADENCE);
   const brut = OBSTACLE_RATIO_START * Math.pow(2, t / OBSTACLE_DOUBLING_TIME_S);
-  return Math.min(OBSTACLE_RATIO_MAX, brut);
+  const ratio = Math.min(OBSTACLE_RATIO_MAX, brut);
+  if (t <= OBSTACLE_END_TAPER_START_S) return ratio;
+  const u = Math.min(1, (t - OBSTACLE_END_TAPER_START_S) /
+    (window.CONFIG.dureeCourse - OBSTACLE_END_TAPER_START_S));
+  return ratio + (OBSTACLE_RATIO_END - ratio) * u;
 }
 // ⚠️ L'invariant qui compte n'a PAS changé : un ratio est une probabilité de
 // tramage par créneau, et un créneau ne peut porter qu'UN SEUL objet — au-delà
@@ -820,6 +846,14 @@ function slotLanes(slotIndex, content) {
     return bridgeBlockedLanes(slotIndex, content);
   }
   const h = hash(slotIndex * 3 + 2);
+  // Créneaux de grâce (tous étoiles, début de course) : JAMAIS la voie
+  // centrale — c'est celle de Soberland (cameo.js), avancé au tout début le
+  // 21 août 2026 avec la consigne « rien autour de lui ». Leur fenêtre
+  // d'arrivée (jusqu'à ≈3,76 s) recouvre exactement sa fenêtre de visibilité
+  // (0 → 3,6 s) : les latérales seulement, tirées au même hash.
+  if (slotIndex < GRACE_SLOTS) {
+    return [h < 0.5 ? 0 : road.LANE_COUNT - 1];
+  }
   return [Math.min(Math.floor(h * road.LANE_COUNT), road.LANE_COUNT - 1)];
 }
 

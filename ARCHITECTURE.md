@@ -452,8 +452,10 @@ croissant = profondeur croissante, ce que `render()` suppose pour son ordre du p
 piège n°4). Un facteur d'approche différent par type casse cette égalité — `slotsFor()` trie
 maintenant explicitement par `z` avant de mettre en cache.
 
-**Période de grâce** : `GRACE_BEATS = 4` (~2 s) sans obstacle en début de course. C'était 16
-(~8 s), réduit après le retour « il y a juste plein d'étoiles, il se passe rien ».
+**Période de grâce** : `GRACE_BEATS = 8` (~4 s) sans obstacle en début de course. Historique :
+16 (~8 s) → 4 (~2 s, « il y a juste plein d'étoiles, il se passe rien ») → 8 le 21 août 2026,
+rallongée pour couvrir la fenêtre de Soberland avancé au tout début (voir seizième passe, §11) —
+ses étoiles sont en plus forcées sur les voies latérales, la voie centrale reste à lui.
 
 **La garde anti-piège** : un obstacle infranchissable au saut ne doit jamais partager sa voie
 avec un bonus au créneau voisin (±1) — sinon le joueur doit choisir entre rater l'étoile et
@@ -825,6 +827,35 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   direct : « tu dois me revoir [...] les piétons ») : conversion `px()` → `blk()` à layout
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
+
+**Seizième passe du 21 août 2026 — quatrième salve (retour jeu réel).**
+- 🐛 **Tranche 3D des étoiles invisible en jeu** (« elles disparaissent pareil, ça marche pas du
+  tout ») : le premier jet réutilisait la silhouette ÉTOILÉE pincée à 16 % de sa largeur — un
+  contour concave écrasé ne laisse presque rien, et à la taille réelle d'une icône (15-30 px)
+  ça faisait 2-5 px, sous le seuil de perception à vitesse de course. ⚠️ Leçon de méthode : la
+  preview (étoiles isolées, figées, grosses) validait un effet que le jeu réel ne montrait pas.
+  Remplacée par une **capsule pleine** (pilier arrondi ambre + liseré clair central, plancher
+  de largeur 0,42 au lieu de 0,16) — un bloc franc, lisible même petit et lancé.
+- **Soberland au TOUT début, seul à l'écran** (« j'insiste ») : `CAMEO_TIME_S` 7 → 3 s
+  (cameo.js — visible dès la première frame), `GRACE_BEATS` 4 → 8 (entities.js — premier
+  obstacle à ≈4,5 s, ~0,9 s après sa sortie d'écran), et les étoiles de grâce sont forcées sur
+  les voies LATÉRALES (slotLanes) — sa voie centrale reste vide tant qu'il est là.
+- **Étoiles aériennes réduites de 18 %** (`AERIAL_SIZE` 0,82, entities-render.js) — « en
+  perspective elles ont l'air gigantesques » : `guitare` (tier 1,4) débordait même de son
+  canvas d'icône. Réduction ciblée aux seuls bonus aériens, la hiérarchie taille↔valeur des
+  étoiles au sol ne bouge pas.
+- **« COMBO 0 » en rouge au choc** (main.js) quand un multiplicateur actif (streak ≥ 5) est
+  cassé — même mécanique de popup que les gains, rouge de charte (malus).
+- **Détente d'étoiles en fin de course** (`OBSTACLE_END_TAPER_START_S` = 100 s,
+  `OBSTACLE_RATIO_END` = 0,45, entities.js) — « plus d'étoiles à la fin, ça va super vite mais
+  il n'y a pas beaucoup d'étoiles ». Le ratio d'obstacles redescend linéairement de 0,60 à 0,45
+  entre 100 s et la ligne. Justification d'équilibre : depuis l'arbitrage du plafond à 60 %,
+  les véhicules traversants (HORS quota) sont venus s'ajouter à densité maximale après 100 s —
+  la fin cumulait les deux sources de danger. Mesuré après (balayage §12, 0 trou, 718 frames
+  sans exception) : **85 étoiles / 106 obstacles** (80/111 avant), dernières 30 s : 16 → 19
+  étoiles. **Nouveau score max : 81 525 (89 678 avec boost fan)** — la hausse vient de la
+  détente ET de la grâce allongée (le quota est décalé, donc dorées et types retirés
+  différemment). ⚠️ Classement Supabase toujours à vider avant lancement.
 
 **Quinzième passe du 21 août 2026 — troisième salve, testée depuis le navigateur Instagram.**
 - **Étoiles en VRAIE épaisseur 3D** (`entities-render.js`, `EDGE_ICONS`) — « quand elles sont à

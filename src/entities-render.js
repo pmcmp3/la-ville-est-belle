@@ -258,19 +258,45 @@ const GOLD_ICONS = {
 };
 
 // Tranche de l'étoile — l'ÉPAISSEUR du volume 3D (21 août 2026 : « quand
-// elles sont à 90° on ne les voit plus, donne-leur une dimension 3D, pas des
-// fichiers flats qui tournent »). Silhouette pleine dans un ambre dense
-// (assez sombre pour se détacher du jaune de la face, assez chaud pour se
-// détacher du bitume) : peinte SOUS la face pendant la rotation avec une
-// largeur plancher (EDGE_MIN_SCALE dans paintSlot), c'est elle qu'on voit
-// quand l'étoile est de profil — comme la tranche d'une pièce.
+// elles sont à 90° on ne les voit plus, donne-leur une dimension 3D »).
+// 🐛 **Premier jet raté, en jeu : la tranche restait invisible.** L'idée
+// d'origine réutilisait la silhouette ÉTOILÉE (10 pointes concaves) de la
+// face, juste pincée à EDGE_MIN_SCALE (0,16) de sa largeur. Un contour concave
+// écrasé à 16 % de sa largeur ne laisse quasiment plus rien : les pointes se
+// chevauchent et s'annulent, et à la taille réelle d'une icône en jeu (souvent
+// 15-30 px), 16 % ça fait 2-5 px de large — sous le seuil de perception à la
+// vitesse où défile la route. Ça se vérifiait bien en preview (étoiles isolées,
+// figées, zoomées) mais pas du tout en conditions réelles, ce qui explique
+// l'écart entre le test et le retour joueur.
+// Remplacé par une CAPSULE PLEINE (pas de concavité, donc rien à s'annuler) :
+// un pilier vertical aux bouts arrondis, large et net, avec un liseré clair au
+// centre qui suggère une facette qui accroche la lumière — c'est ce qui lit
+// « épaisseur d'une pièce qui tourne », pas juste une silhouette écrasée.
+// Plancher de largeur remonté à 0,42 (au lieu de 0,16) : même de profil pile,
+// la tranche reste un bloc de couleur franc, jamais un fil.
 const STAR_EDGE_COLOR = "#c07f0c";
 const GOLD_EDGE_COLOR = "#caa233";
+const EDGE_MIN_SCALE = 0.42;
 function starEdgeIcon(tier, color) {
   return makeIcon((ictx, cx, cy, r) => {
-    // Même gabarit que le contour de la face (R × 1,16) : à plat, la face la
-    // recouvre exactement — la tranche n'apparaît qu'en tournant.
-    star(ictx, cx, cy, r * tier * 1.16, color);
+    const R = r * tier;
+    const w = R * 0.85;             // large : reste un bloc net même écrasé à EDGE_MIN_SCALE
+    const h = R * 1.16 * 2;         // même enveloppe verticale que le contour de la face (R×1,16)
+    const x0 = cx - w / 2, y0 = cy - h / 2, rad = w / 2;
+    ictx.fillStyle = color;
+    ictx.beginPath();
+    ictx.moveTo(x0, y0 + rad);
+    ictx.arcTo(x0, y0, x0 + rad, y0, rad);
+    ictx.arcTo(x0 + w, y0, x0 + w, y0 + rad, rad);
+    ictx.lineTo(x0 + w, y0 + h - rad);
+    ictx.arcTo(x0 + w, y0 + h, x0 + w - rad, y0 + h, rad);
+    ictx.arcTo(x0, y0 + h, x0, y0 + h - rad, rad);
+    ictx.closePath();
+    ictx.fill();
+    // Liseré clair au centre : la facette qui capte la lumière, lecture
+    // "volume" plutôt qu'"aplat teinté".
+    ictx.fillStyle = "rgba(255,255,255,0.4)";
+    ictx.fillRect(cx - w * 0.14, y0 + h * 0.1, w * 0.28, h * 0.8);
   });
 }
 const EDGE_ICONS = {
@@ -646,8 +672,19 @@ function paintSlot(ctx, width, height, now, e) {
   const icon = e.isBonus
     ? (e.gold ? GOLD_ICONS[e.kind] : BONUS_ICONS[e.kind])
     : OBSTACLE_ICONS[e.kind];
-  const size = (e.isBonus ? BONUS_ICON_WORLD : ICON_WORLD) * p.scale;
   const aerien = e.isBonus && isAirBonus(e.kind);
+  // ⚠️ Réduites de 18 % le 21 août 2026 (« les étoiles en hauteur ont l'air
+  // gigantesques, en perspective ») : `guitare`/`collierPerles` sont déjà les
+  // tiers les plus grands (1,4 et 1,22, voir starBonus) dans une boîte de
+  // taille FIXE (BONUS_ICON_WORLD, identique pour tous les bonus) — à ces
+  // tiers, le contour (R×1,16) frôle ou dépasse le bord du canvas de l'icône
+  // (guitare : 1,4×1,16×0,34 ≈ 0,55 de demi-largeur, contre 0,5 disponible),
+  // donc l'étoile remplit toute la boîte, pointes rognées : elle se lit comme
+  // énorme. Réduction ciblée aux SEULS bonus aériens (le reproche portait
+  // spécifiquement sur eux) plutôt qu'une baisse des tiers, qui aurait cassé
+  // la hiérarchie visuelle valeur ↔ taille sur toute la gamme.
+  const AERIAL_SIZE = 0.82;
+  const size = (e.isBonus ? BONUS_ICON_WORLD : ICON_WORLD) * p.scale * (aerien ? AERIAL_SIZE : 1);
   // Surélevé à la hauteur du pic de saut du joueur (même formule que le hop
   // du personnage dans main.js, mais figée à son maximum : l'étoile ne
   // rebondit pas, elle flotte pile où la tête du joueur arrive en sautant).
@@ -692,7 +729,6 @@ function paintSlot(ctx, width, height, now, e) {
   if (e.isBonus) {
     const spin = now * Math.PI * (e.gold ? 2 : 1);
     const c = Math.cos(spin);
-    const EDGE_MIN_SCALE = 0.16;
     ctx.save();
     ctx.translate(p.x, p.y - size / 2 - airOffset);
     // Tranche : interpolée pour être exactement recouverte par la face à

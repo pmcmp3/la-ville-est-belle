@@ -43,10 +43,17 @@ const SPRITE_H = 26; // identique à pedestrians.js, jambes/chaussures pleinemen
 const HEIGHT_WORLD = 2.2;
 
 // Repère au sol (secondes de course) où Soberland est pile au niveau du
-// joueur — le milieu de la fenêtre "10 premières secondes" demandée, pour
-// laisser le temps de le voir approcher ET de le voir passer, tout ça avant
-// la barre des 10 s.
-const CAMEO_TIME_S = 7;
+// joueur. ⚠️ 7 → 3 le 21 août 2026 (« je veux que Soberland soit au tout
+// début et que y ait rien autour de lui, j'insiste ») : à 7 s il apparaissait
+// en PLEIN dans la fenêtre où le premier obstacle réel (un cycliste forcé,
+// voir OPENING_KIND_OVERRIDE dans entities.js) venait aussi d'apparaître —
+// confusion lue comme « difficile à esquiver » alors qu'il n'a aucune
+// collision. À 3 s, avec SHOW_BEFORE = 6 s, il est visible dès la toute
+// première frame de la course (remaining = 3 ≤ 6) : c'est littéralement la
+// première chose que le joueur voit. La période de grâce a été étirée en
+// vis-à-vis (GRACE_BEATS, entities.js) pour qu'aucun obstacle ne partage
+// jamais l'écran avec lui.
+const CAMEO_TIME_S = 3;
 const SHOW_BEFORE = 6; // s : apparaît au loin avant d'arriver au niveau du joueur
 const SHOW_AFTER = 0.6; // s : reste visible un instant après, comme la ligne d'arrivée
 

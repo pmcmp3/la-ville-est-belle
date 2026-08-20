@@ -393,6 +393,9 @@ function comboMultiplier() {
 // termes de couleurs » — c'est la teinte du gain dans ce jeu, le rouge de
 // charte restant celle du malus.
 const JAUNE_ETOILE = "#ffcf2e";
+// Rouge de charte (hud.js, index.html --rouge) : réservé au malus — utilisé
+// ici par le popup « COMBO 0 » quand un obstacle casse un combo actif.
+const ROUGE_CHARTE = "#e13e26";
 // Compté sur la partie en cours : sert à n'afficher les points gagnés que sur
 // les toutes premières étoiles (voir POPUPS_PEDAGOGIQUES).
 let etoilesRamassees = 0;
@@ -827,6 +830,15 @@ function step(dt) {
             pousserPopup(`+${gagne}`, "#ffffff");
           }
         } else {
+          // « COMBO 0 » en rouge à l'instant du choc (demandé le 21 août
+          // 2026) — seulement quand un multiplicateur était réellement actif
+          // (streak ≥ comboSeuil) : perdre une série de 2 étoiles n'est pas
+          // « arrêter un combo », et le popup garderait moins de valeur s'il
+          // sortait à chaque choc. Rouge de charte : c'est un malus, jamais
+          // le jaune du gain (règle de couleurs du projet).
+          if (game.streak >= window.CONFIG.comboSeuil) {
+            pousserPopup("COMBO 0", ROUGE_CHARTE);
+          }
           game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
           // Playtest : "quand on se prend une voiture, game over". La
           // voiture est traitée comme un choc fatal (3 vies perdues d'un

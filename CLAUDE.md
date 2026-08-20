@@ -91,10 +91,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     modèle décrit en `ARCHITECTURE.md` §5.2. Les deux se cumulent avec le palier de score.
 - **Un nombre d'étoiles EXACT et identique à chaque partie**, pour que le score maximum soit un
   nombre connu. ⚠️ **Ce nombre n'est plus 140 et n'est plus écrit à la main depuis le 19 août
-  2026** : il vaut **80** et il est DÉRIVÉ de la loi de difficulté (`TOTAL_STARS` se compte sur
+  2026** : il vaut **85** et il est DÉRIVÉ de la loi de difficulté (`TOTAL_STARS` se compte sur
   `isBonusQuota`, `entities.js`). C'est la propriété qui est verrouillée (même total à chaque
-  partie, score max calculable), pas sa valeur. Historique : 200 → 140 (17 août) → 80 (19 août).
-  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut donc **111** (51 avant).
+  partie, score max calculable), pas sa valeur. Historique : 200 → 140 (17 août) → 80 (19 août)
+  → 85 (21 août, détente de fin de course + grâce allongée, voir ci-dessous).
+  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut donc **106**.
 - ⚠️ **Difficulté : la densité d'obstacles DOUBLE toutes les 25 s** (`OBSTACLE_DOUBLING_TIME_S`,
   `entities.js`), de 38 % des créneaux au départ jusqu'à un plafond de **60 %**
   (`OBSTACLE_RATIO_MAX`, atteint vers 16 s). Demandé le 19 août 2026 : « multiplie par deux le
@@ -106,6 +107,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   il n'y en a que 191 — doubler les obstacles fait donc mécaniquement tomber le quota d'étoiles.
   Trois scénarios chiffrés lui ont été soumis, il a choisi le plafond à 60 % (qui plus que double
   les obstacles tout en gardant le combo atteignable) plutôt que 85 % (qui tuait le combo).
+  ⚠️ **Détente de FIN de course ajoutée le 21 août 2026** (« plus d'étoiles à la fin, ça va
+  super vite mais il n'y a pas beaucoup d'étoiles ») : de 100 s à la ligne, le ratio d'obstacles
+  redescend linéairement de 0,60 à **0,45** (`OBSTACLE_END_TAPER_START_S`/`OBSTACLE_RATIO_END`,
+  `entities.js`) — justifié par les véhicules traversants (HORS quota) à densité maximale après
+  100 s, qui cumulaient les deux sources de danger. Dernières 30 s : 16 → 19 étoiles.
 - **Ligne d'arrivée en volume** (`finish.js`) : damier au sol + portique (deux pylônes + poutre à
   damier qui enjambe la route), façon Formule 1 — demandé explicitement le 12 août 2026 pour
   remplacer le simple damier plat d'origine.
@@ -156,11 +162,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   jeu sous le score (`hud.js`) quand actif, dans une **pastille crème** depuis le 19 août 2026
   (« que le combo soit dans un tag un peu plus gros pour qu'on comprenne comment ça marche ») —
   jamais rouge, le rouge de charte est réservé au négatif (la pénalité). Score maximum théorique
-  (run parfait, 80/80 étoiles, 0 obstacle touché, combo jamais cassé) : **68 925 points**
-  (**75 828** avec le boost fan ×1,1, voir plus bas), combo final ×9 — recalculé le 20 août 2026
-  avec les **12 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans `entities.js`, tirées au hash donc
-  identiques à chaque partie — l'invariant « score max = nombre connu » tient toujours ; teinte
-  blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
+  (run parfait, 85/85 étoiles, 0 obstacle touché, combo jamais cassé) : **81 525 points**
+  (**89 678** avec le boost fan ×1,1, voir plus bas) — recalculé le 21 août 2026 après la
+  détente de fin de course, avec les **13 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans
+  `entities.js`, tirées au hash donc identiques à chaque partie — l'invariant « score max =
+  nombre connu » tient toujours ; teinte blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
   (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). ⚠️ **Axe de rotation corrigé le
   21 août 2026** (« le haut de l'étoile ne doit pas bouger [...] là c'est un salto ») : rotation
   autour de l'axe VERTICAL façon pièce de Mario (`ctx.scale(cos, 1)`), plus jamais `ctx.rotate()`
@@ -169,8 +175,8 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   l'étoile ne disparaît jamais. Vérifié par balayage hors ligne (`slotPreview`), jamais
   atteignable en pratique.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
-  enregistrés l'ont été sous d'anciens barèmes (195 525 puis 61 400) et écraseraient
-  définitivement ceux du nouveau (68 925 / 75 828).
+  enregistrés l'ont été sous d'anciens barèmes (195 525, 61 400, 68 925…) et écraseraient
+  définitivement ceux du nouveau (81 525 / 89 678).
 - **Conversion, mécaniques ajoutées le 20 août 2026** (priorité produit assumée) :
   - **Boost fan ×1,1 permanent** sur les points de bonus dès que le morceau a été ajouté
     (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
@@ -216,7 +222,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   faut qu'on ait la possibilité de les esquiver ou de sauter par-dessus »). Ne pas réintroduire
   le camion sans redemander.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
-  planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
+  planté dans la voie centrale **au TOUT début de la course** (`cameo.js`, `CAMEO_TIME_S` = 3 s —
+  7 s avant le 21 août 2026, avancé sur insistance : « au tout début et rien autour de lui »).
+  Visible dès la première frame jusqu'à ~3,6 s ; la période de grâce a été allongée en vis-à-vis
+  (`GRACE_BEATS` 4 → 8, premier obstacle à ≈4,5 s) et les étoiles de grâce sont forcées sur les
+  voies LATÉRALES (`slotLanes`, entities.js) pour que rien ne partage jamais l'écran avec lui.
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de
   `pedestrians.js` (retour direct sur le premier jet : « ressemble à rien ») : casquette, barbe,
   casque, chemise à carreaux habillent le même squelette que les piétons plutôt qu'un design
