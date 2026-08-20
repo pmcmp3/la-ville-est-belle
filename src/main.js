@@ -959,7 +959,10 @@ const POPUP_POLICE = '"Stage Grotesk", system-ui, sans-serif';
 function renderPickupPopups(ctx, renderX) {
   if (!popups.length) return;
   const p = road.project(renderX, road.PLAYER_NEAR_Z, width, height);
-  const base = p.y - player.HEIGHT_WORLD * p.scale * 1.15;
+  // 1,15 → 1,35 le 20 août 2026 : le sprite a gagné une roue sous le corps
+  // (player.js, BODY_H), la tête est donc plus haute — à 1,15 les popups
+  // naissaient pile dans les cheveux.
+  const base = p.y - player.HEIGHT_WORLD * p.scale * 1.35;
 
   ctx.save();
   ctx.textAlign = "center";

@@ -17,10 +17,23 @@
 import { blk } from "./voxel.js";
 
 const SPRITE_W = 26;
-const SPRITE_H = 34;
+// 34 → 40 le 20 août 2026 (« on doit absolument avoir la sensation que je
+// pédale ») : les 6 px gagnés vont TOUS sous le personnage — la roue arrière
+// dépasse maintenant nettement sous le short et les jambes, au lieu d'être
+// presque entièrement cachée derrière le bassin. Le CORPS garde exactement ses
+// pixels et sa taille monde d'avant (voir BODY_H ci-dessous).
+const SPRITE_H = 40;
+// Hauteur du CORPS en pixels sprite — c'est elle qui étalonne l'échelle
+// (HEIGHT_WORLD / BODY_H), pas SPRITE_H : le personnage garde sa taille, seul
+// le vélo gagne de la place en dessous. Le sprite complet fait donc
+// ~2,24 unités-monde de haut à l'écran.
+const BODY_H = 34;
 
-// Hauteur réelle du sprite dans le monde du jeu (unités-monde) — sert à
+// Hauteur réelle du PERSONNAGE dans le monde du jeu (unités-monde) — sert à
 // road.project() pour calculer sa taille à l'écran selon la profondeur.
+// ⚠️ NE PAS toucher en retouchant le sprite : la physique du saut (main.js,
+// jumpPhysics) et la hauteur des étoiles aériennes (entities-render.js) en
+// dérivent — c'est pour ça que l'agrandissement du sprite passe par BODY_H.
 export const HEIGHT_WORLD = 1.9;
 
 const PAL = {
@@ -32,15 +45,26 @@ const PAL = {
   skin: "#c98a5b",
   green: "#2f7a46",
   white: "#f0ead9",
-  pants: "#22242b",
-  pantsLo: "#20232b",
+  // Éclaircis le 20 août 2026 (ardoise moyenne au lieu de quasi-noir) : à
+  // #22242b le pantalon se fondait dans le pneu (#0e0e11) — jambes et roue ne
+  // faisaient qu'une masse sombre, et tout le pédalage se perdait. C'est LE
+  // contraste qui fait exister le vélo derrière les jambes.
+  pants: "#3a3e4e",
+  pantsLo: "#31353f",
   // Chaussures nettement plus claires que la roue (pneu très sombre) : au
   // rayon d'origine, les deux se confondaient (retour playtest : "on dirait
   // que j'ai deux roues à droite et à gauche"). semelle = liseré clair pour
   // renforcer la silhouette.
   shoe: "#565a66",
   shoeSole: "#e8dcc0",
+  // Plateforme de pédale sous la semelle, 1 px plus large que le pied de
+  // chaque côté : gris métal clair, nettement distinct du pneu ET de la
+  // chaussure — c'est elle qui dit « les pieds sont SUR des pédales ».
+  pedal: "#7c8090",
   frame: "#1b1b21",
+  // Crans du pneu qui défilent (1 px, à peine plus clair que le pneu) : le
+  // mouvement se lit du coin de l'œil dans les bandes de roue visibles.
+  tread: "#262635",
   // Liseré clair sur la jante (playtest/DA : « manque de contact/lisibilité
   // avec la route, jantes »).
   rimHi: "#c7c9d2",
@@ -73,11 +97,19 @@ function groundShadow(ctx, x, groundY, w) {
 // pas dans le vide, on ne voit pas que je suis sur un vélo ») : à 5 px elle
 // était presque entièrement recouverte par les jambes qui pédalent devant
 // (voir drawLeg), donc quasi invisible en jeu malgré l'ordre de peinture
-// roue→jambes. Assez large maintenant pour dépasser des deux côtés des
-// jambes (étroites, 4-5 px) même jambes écartées.
-function wheelEdge(ctx, cx, yTop, yBot) {
+// roue→jambes.
+// ⚠️ 20 août 2026 : elle descend maintenant jusqu'à y=40 (sprite agrandi) et
+// dépasse nettement sous les jambes — plus des crans de pneu (`treadShift`)
+// qui défilent vers le bas d'une frame à l'autre : la roue TOURNE, dans les
+// bandes visibles sous le pied levé et sous les pédales.
+function wheelEdge(ctx, cx, yTop, yBot, treadShift) {
   const w = 8;
   blk(ctx, cx - w / 2, yTop, w, yBot - yTop, PAL.tire);
+  // Crans : une rangée claire tous les 5 px, décalée de `treadShift` px vers
+  // le bas à chaque frame — boucle sans couture (5 divise l'amplitude totale).
+  for (let y = yTop + (treadShift % 5); y < yBot; y += 5) {
+    blk(ctx, cx - w / 2, y, w, 1, PAL.tread);
+  }
   blk(ctx, cx - 1, yTop + 2, 2, yBot - yTop - 4, PAL.rimHi);
 }
 
@@ -93,47 +125,60 @@ function hair(ctx, cx) {
   blk(ctx, cx + 4, 6, 3, 3, PAL.hairHi);
 }
 
-// Mollet + pied d'une jambe, remontés de `lift` px (genou plus ou moins
-// plié) ET décalés de `swing` px sur le côté. Les 4 frames du cycle de
-// pédalage (PEDAL_FRAMES ci-dessous) ne sont qu'une paire (lift, swing)
-// différente par jambe à chaque fois — `lift` seul ne faisait que tanguer le
-// personnage d'un bloc, comme posé sur une trottinette plutôt qu'à vélo
-// (retour direct : « mes jambes pédalent un peu sur le côté »). `swing`
-// écarte les jambes l'une de l'autre en milieu de course (genou remonté) et
-// les resserre en bas de course, pour lire "mouvement circulaire de pédale"
-// plutôt qu'un simple rebond vertical. Semelle claire en pied de chaussure :
-// contraste avec la roue derrière, pour bien lire "pied" et pas "roue".
-function drawLeg(ctx, calfX, footX, lift, swing) {
-  blk(ctx, calfX + swing, 31 - lift, 4, 3, PAL.pantsLo);
-  blk(ctx, footX + swing, 33 - lift, 5, 1, PAL.shoe);
-  blk(ctx, footX + swing, 34 - lift, 5, 1, PAL.shoeSole);
+// Une jambe complète : cuisse + mollet + pied + PÉDALE, remontés de `lift` px
+// (0 = pédale en bas de course, LIFT_MAX = pédale en haut) et décalés de
+// `swing` px sur le côté (genou remonté = légèrement écarté, comme un vrai
+// coup de pédale vu de dos). La cuisse ne suit que la moitié du mouvement
+// (elle pivote depuis la hanche, son extrémité bouge moins que le pied).
+// ⚠️ Refonte du 20 août 2026 (« on doit absolument avoir la sensation que je
+// pédale ») : l'amplitude passe de 3 à 6 px, la cuisse devient visible et
+// mobile, et une plateforme de pédale dépasse d'1 px de chaque côté du pied —
+// avant ça, seuls 3 px de mollet bougeaient et rien ne disait « vélo ».
+const LIFT_MAX = 6;
+
+function drawLeg(ctx, x, lift, swing) {
+  // Cuisse : suit la moitié du mouvement, en restant raccordée au haut du
+  // mollet à toutes les phases (bas de course comme genou remonté).
+  blk(ctx, x + swing, 27 + Math.round((LIFT_MAX - lift) / 2), 5, 3, PAL.pants);
+  blk(ctx, x + swing, 30 - lift, 4, 4, PAL.pantsLo);                                   // mollet
+  blk(ctx, x - 1 + swing, 33 - lift, 5, 2, PAL.shoe);                                  // chaussure
+  blk(ctx, x - 1 + swing, 35 - lift, 5, 1, PAL.shoeSole);                              // semelle
+  // Pédale en bas de course à y=36 : il reste 4 px de pneu dessous — le pied
+  // ne descend jamais au ras du sol, il tourne autour d'un pédalier.
+  blk(ctx, x - 2 + swing, 36 - lift, 7, 1, PAL.pedal);
 }
 
 // "Penché en avant" : buste tassé et plus large (épaules hunchées), prise de
 // guidon avancée et basse, jambes plus visibles que la silhouette assise.
-// `liftLeft`/`liftRight` (0..3 px) positionnent chaque jambe pour cette frame.
 //
-// Vue de dos : UNE seule roue (arrière), et les deux pieds pédalent devant
-// elle, resserrés près de l'axe central plutôt qu'écartés à ses deux bords —
-// demandé explicitement après playtest ("j'ai l'impression d'avoir deux roues
-// à droite et à gauche"). Bassin réduit et remonté (au lieu de recouvrir
-// presque toute la roue) pour la laisser apparaître clairement en dessous,
-// comme un vrai arrière-plan — ordre de peinture : roue → cadre → cheveux →
-// torse → bras/guidon → bassin/short → jambes.
-function draw(ctx, liftLeft, liftRight, swingLeft, swingRight) {
-  wheelEdge(ctx, 13, 21, 34);
-  blk(ctx, 12, 19, 3, 3, PAL.frame);  // selle
-  blk(ctx, 12, 16, 3, 5, PAL.frame);  // tube de selle
+// Vue de dos : UNE seule roue (arrière), les deux pieds pédalent devant elle.
+// Ordre de peinture : roue → cheveux → torse → bras/guidon → bassin/short →
+// jambes. `theta` est l'angle de manivelle de la frame (jambe gauche ; la
+// droite est en opposition de phase) ; il en sort :
+//   - lift par jambe (position verticale du pied sur le cercle de pédalier),
+//   - swing par jambe (genou remonté légèrement écarté),
+//   - un BALANCEMENT du buste de ±1 px à contretemps de la jambe qui pousse —
+//     le « tout petit mouvement » qui fait vivre le haut du corps,
+//   - le défilement des crans du pneu (la roue tourne au rythme du pédalage).
+function draw(ctx, theta, frameIndex) {
+  const liftL = Math.round(((1 + Math.cos(theta)) / 2) * LIFT_MAX);
+  const liftR = LIFT_MAX - liftL;
+  const swingL = liftL >= LIFT_MAX - 1 ? -1 : liftL <= 1 ? 1 : 0;
+  const swingR = liftR >= LIFT_MAX - 1 ? 1 : liftR <= 1 ? -1 : 0;
+  const sway = Math.round(Math.sin(theta));
 
-  hair(ctx, 13);
-  blk(ctx, 11, 9, 4, 2, PAL.skin);    // nuque
+  wheelEdge(ctx, 13, 23, 40, frameIndex);
+
+  hair(ctx, 13 + sway);
+  blk(ctx, 11 + sway, 9, 4, 2, PAL.skin);    // nuque
 
   // Torse rayé (maillot), taperé en escalier au lieu d'un dégradé continu de
   // largeur par ligne — c'est justement l'escalier qui fait "voxel" plutôt
-  // que "silhouette lissée".
-  blk(ctx, 5, 11, 16, 3, PAL.white);
-  blk(ctx, 6, 14, 14, 3, PAL.green);
-  blk(ctx, 7, 17, 12, 3, PAL.white);
+  // que "silhouette lissée". Balancé de `sway` px avec le pédalage ; les bras
+  // restent fixes (les mains tiennent le guidon, lui ne bouge pas).
+  blk(ctx, 5 + sway, 11, 16, 3, PAL.white);
+  blk(ctx, 6 + sway, 14, 14, 3, PAL.green);
+  blk(ctx, 7 + sway, 17, 12, 3, PAL.white);
 
   // Bras vers le guidon, en deux marches (épaule → poignée).
   blk(ctx, 2, 13, 4, 3, PAL.green);
@@ -144,33 +189,27 @@ function draw(ctx, liftLeft, liftRight, swingLeft, swingRight) {
   blk(ctx, 8, 20, 10, 4, PAL.green);  // bassin
   blk(ctx, 9, 24, 8, 5, PAL.pants);   // short
 
-  drawLeg(ctx, 9, 9, liftLeft, swingLeft);
-  drawLeg(ctx, 12, 12, liftRight, swingRight);
+  drawLeg(ctx, 8, liftL, swingL);
+  drawLeg(ctx, 14, liftR, swingR);
 }
 
-function makeSprite(liftLeft, liftRight, swingLeft, swingRight) {
+function makeSprite(theta, frameIndex) {
   const c = document.createElement("canvas");
   c.width = SPRITE_W;
   c.height = SPRITE_H;
   const cctx = c.getContext("2d");
   cctx.imageSmoothingEnabled = false;
-  draw(cctx, liftLeft, liftRight, swingLeft, swingRight);
+  draw(cctx, theta, frameIndex);
   return c;
 }
 
-// Cycle de pédalage à 4 frames (jambe gauche, jambe droite), pré-rendues une
-// fois. render() choisit celle qui correspond à la phase courante. Gardé à 4
-// frames (pas 2 comme les cyclistes) : c'est déjà le rendu le plus fluide
-// pour le personnage qu'on regarde en continu, pas de raison de dégrader.
-// swing : la jambe remontée (genou plié) s'écarte d'1 px vers l'extérieur,
-// celle en bas de course se resserre d'autant vers l'axe — dans les deux
-// frames de transition (genoux à mi-hauteur), les jambes reviennent alignées.
-const PEDAL_FRAMES = [
-  makeSprite(3, 0, -1, 1),  // jambe gauche en haut, droite en bas
-  makeSprite(2, 1, 0, 0),   // transition
-  makeSprite(0, 3, 1, -1),  // jambe droite en haut, gauche en bas
-  makeSprite(1, 2, 0, 0),   // transition (retour)
-];
+// Cycle de pédalage à 6 frames (4 avant le 20 août 2026) : l'amplitude ayant
+// doublé, 4 frames faisaient sauter les jambes de 3 px d'un coup — 6 lissent
+// le cercle sans coûter plus cher au rendu (toujours pré-rendues une fois).
+const FRAME_COUNT = 6;
+const PEDAL_FRAMES = Array.from({ length: FRAME_COUNT }, (_, k) =>
+  makeSprite((k / FRAME_COUNT) * Math.PI * 2, k)
+);
 
 // Dessine le sprite dans `ctx`, ancré par le bas (contact roue/sol) au point
 // écran (x, groundY), à l'échelle `pxPerWorldUnit`. `lean` (radians) incline
@@ -178,7 +217,10 @@ const PEDAL_FRAMES = [
 // cycle de pédalage — même phase que le rebond de pédalage dans main.js,
 // pour que jambes et rebond restent synchronisés.
 export function render(ctx, x, groundY, pxPerWorldUnit, lean = 0, pedalPhase = 0) {
-  const scale = (HEIGHT_WORLD / SPRITE_H) * pxPerWorldUnit;
+  // Échelle étalonnée sur le CORPS (BODY_H), pas sur le sprite complet : le
+  // personnage garde exactement sa taille d'avant l'agrandissement du canvas,
+  // les 6 px ajoutés (la roue sous lui) s'affichent EN PLUS vers le bas.
+  const scale = (HEIGHT_WORLD / BODY_H) * pxPerWorldUnit;
   const w = SPRITE_W * scale;
   const h = SPRITE_H * scale;
   const twoPi = Math.PI * 2;
@@ -232,9 +274,10 @@ export function renderPickupGlow(ctx, x, groundY, pxPerWorldUnit, intensity) {
   if (envelope <= 0.001) return;
 
   // Grossit légèrement tout au long de l'effet : l'œil lit une impulsion qui
-  // se dilate, pas un simple fondu. Centré sur le buste plutôt que sur la roue.
+  // se dilate, pas un simple fondu. Centré sur le buste plutôt que sur la roue
+  // (0,45 → 0,62 : le corps est monté avec la roue ajoutée sous lui).
   const radius = HEIGHT_WORLD * pxPerWorldUnit * (0.75 + (1 - intensity) * 0.5);
-  const cy = groundY - HEIGHT_WORLD * pxPerWorldUnit * 0.45;
+  const cy = groundY - HEIGHT_WORLD * pxPerWorldUnit * 0.62;
   const alpha = GLOW_MAX_ALPHA * envelope;
 
   const gradient = ctx.createRadialGradient(x, cy, 0, x, cy, radius);
