@@ -48,8 +48,11 @@ const MAX_PROBABILITY = 0.7;
 // profondeur : à z fixe, un même écart de distance représente 5 fois moins de
 // temps en fin de course qu'au début (19,8 → 99 u/s), et le véhicule aurait
 // alors surgi 0,2 s avant l'impact — injouable. Ici il entre dans le champ
-// toujours ~1,5 s avant, quelle que soit la vitesse de la course.
-const CROSS_SPEED = 8;
+// toujours ~2 s avant, quelle que soit la vitesse de la course.
+// 8 → 5,6 le 20 août 2026 (« ralentis de 30 % la vitesse des véhicules qui
+// traversent la route ») : traversée plus lente, donc visible plus longtemps
+// et plus lisible à l'approche.
+const CROSS_SPEED = 5.6;
 
 // Ligne des façades : au-delà, le véhicule est censé être DERRIÈRE les
 // immeubles. Même valeur que `SIDEWALK_MARGIN` dans world.js (0,5 unité au-delà

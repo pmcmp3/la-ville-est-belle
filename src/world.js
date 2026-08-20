@@ -88,32 +88,32 @@ const SCENERY_MIN_Z = 3;
 // immeuble en église (pas de tours jumelles ni de rosace généralisées, la
 // forme haussmannienne reste inchangée) — « la couleur de la pierre c'est ce
 // qui compte ». Seuls les tons ci-dessous bougent, la géométrie ne change pas.
-const FACADE_PALETTE = ["#e3ac7a", "#d69666", "#eec89a", "#c17f52"];
-// Brun chaud plutôt que zinc bleuté : cohérent avec la pierre rosée/dorée
-// (silhouette toujours nette sur le ciel, mais lit "pierre/cuivre" plutôt que
-// "métal froid").
-const ROOF_COLOR = "#2a1d15";
-const ROOF_RIDGE_COLOR = "#160f0a"; // faîtage + cheminées + balcons : le brun le plus dense
-const CORNICE_COLOR = "#f7ecd8";   // bandeau crème doré, le trait clair qui découpe la façade
-const WINDOW_DARK = "#1c2350";     // fenêtre non éclairée : verrière bleu nuit, contraste chaud/froid de la référence
+// ⚠️ Palette refaite une TROISIÈME fois le 20 août 2026, d'après une photo
+// d'immeuble haussmannien d'angle envoyée par l'artiste (« refais les
+// immeubles sur les côtés ») : pierre CRÈME PÂLE et dorée (bien moins orangée
+// que la version "cathédrale" précédente), toits mansardés en ARDOISE
+// gris-bleu (retour du froid, contraste net avec la pierre chaude — c'est le
+// couple pierre claire/ardoise sombre qui fait le boulevard parisien de la
+// photo), ferronnerie NOIRE des balcons filants, devantures sombres à
+// enseigne dorée au rez-de-chaussée.
+const FACADE_PALETTE = ["#ecdcb2", "#e0cb97", "#d6bf8c", "#c9ad77"];
+const ROOF_COLOR = "#3d434e";       // ardoise gris-bleu de la photo
+const ROOF_RIDGE_COLOR = "#252a33"; // faîtage + cheminées : l'ardoise la plus dense
+// Ferronnerie des balcons filants : quasi-noir, distinct du toit — sur la
+// photo c'est le réseau de lignes sombres qui strie toute la façade claire.
+const IRON_COLOR = "#1e2126";
+const CORNICE_COLOR = "#f7efdc";   // bandeau crème clair, le trait qui découpe la façade
+const WINDOW_DARK = "#242c3a";     // fenêtre non éclairée : vitre gris-bleu sombre (reflets de ciel)
 const WINDOW_LIT = "#ff5a34";      // rares fenêtres éclairées, orange-rouge de la charte
-// Volets (12 août 2026, retour direct après plusieurs références Street View
-// envoyées : « revois la manière dont c'est fait [...] immeuble parisien »).
-// C'est le détail le plus identifiable d'une façade haussmannienne à cette
-// échelle, avant même la pierre — vert bouteille/cuivre/brun, jamais la
-// couleur vive de charte (réservée aux objets à ramasser, voir plus haut).
-// Le gris ardoise d'origine (froid) a été remplacé par un cuivre pour rester
-// dans la même famille chaude que la nouvelle pierre.
-const SHUTTER_PALETTE = ["#2f4a3a", "#6b4a2a", "#4a3a2f"];
-// Rez-de-chaussée : vitrine plus sombre (jamais de volets, fenêtres hautes),
-// distinct des étages — signal "commerce au pied de l'immeuble" plutôt qu'un
-// mur de fenêtres identiques du sol au toit.
-const SHOPFRONT_COLOR = "#1b120c";
-// Auvents de commerce (référence Minecraft/Haussmann envoyée le 12 août
-// 2026) : vert bouteille, bordeaux, bleu nuit — la seule touche de couleur
-// franche au ras du sol, jamais le rouge/orange de charte (déjà partout sur
-// le ciel et les objets à ramasser).
-const AWNING_PALETTE = ["#2f6b52", "#6b2530", "#243a5e"];
+// Rez-de-chaussée : vitrine sombre (photo : devantures noires/vert très
+// profond), distinct des étages — signal "commerce au pied de l'immeuble".
+const SHOPFRONT_COLOR = "#15100c";
+// Auvents de commerce : teintes profondes de la photo (vert bouteille sombre,
+// bordeaux, bleu nuit) — jamais le rouge/orange de charte.
+const AWNING_PALETTE = ["#1f3d2f", "#471d26", "#1c2a44"];
+// Enseigne dorée au-dessus des vitrines : le liseré chaud des devantures de
+// la photo (lettres dorées sur fond noir) — un simple bandeau à cette échelle.
+const SIGN_GOLD = "#c9a24a";
 // Retour d'angle : plus sombre que la façade principale (face qui reçoit
 // moins la lumière rasante du couchant) — lit comme un vrai profil. Assombri
 // le 12 août 2026 (0,82 → 0,68) : retour direct « faut que tu fasses des
@@ -171,12 +171,13 @@ const sideGradients = FACADE_PALETTE.map((hex) => buildVariants(hex, SIDE_SHADE)
 
 const roofGradient = buildHazeGradient(ROOF_COLOR, HAZE_STRENGTH * 0.7);
 const roofRidgeGradient = buildHazeGradient(ROOF_RIDGE_COLOR, HAZE_STRENGTH * 0.7);
+const ironGradient = buildHazeGradient(IRON_COLOR);
 const corniceGradient = buildHazeGradient(CORNICE_COLOR);
 const windowLitGradient = buildHazeGradient(WINDOW_LIT, HAZE_STRENGTH * 0.5);
 const windowDarkGradient = buildHazeGradient(WINDOW_DARK);
-const shutterGradients = SHUTTER_PALETTE.map((hex) => buildHazeGradient(hex));
 const shopfrontGradient = buildHazeGradient(SHOPFRONT_COLOR);
 const awningGradients = AWNING_PALETTE.map((hex) => buildHazeGradient(hex));
+const signGoldGradient = buildHazeGradient(SIGN_GOLD);
 
 function buildingShape(slotIndex, sideKey) {
   const h1 = hash(slotIndex * 2 + sideKey);
@@ -185,7 +186,6 @@ function buildingShape(slotIndex, sideKey) {
   const h4 = hash(slotIndex * 11 + sideKey);
   const h5 = hash(slotIndex * 13 + sideKey);
   const h6 = hash(slotIndex * 17 + sideKey); // teinte de l'auvent
-  const h7 = hash(slotIndex * 19 + sideKey); // teinte des volets
 
   const depth = DEPTH_MIN + h1 * (DEPTH_MAX - DEPTH_MIN);   // le long de la route (façade)
   const girth = GIRTH_MIN + h5 * (GIRTH_MAX - GIRTH_MIN);   // perpendiculaire (retour d'angle)
@@ -200,7 +200,6 @@ function buildingShape(slotIndex, sideKey) {
     height,
     facadeGradient: facadeGradients[paletteIndex][brightnessIndex],
     sideGradient: sideGradients[paletteIndex][brightnessIndex],
-    shutterGradient: shutterGradients[Math.floor(h7 * shutterGradients.length)],
     awningGradient: awningGradients[Math.floor(h6 * awningGradients.length)],
     facadeWindowCols: Math.max(3, Math.min(7, Math.round(depth * 0.9))),
     sideWindowCols: Math.max(2, Math.min(3, Math.round(girth / 2.5))),
@@ -212,23 +211,10 @@ function windowIsLit(slotIndex, faceKey, r, c) {
   return hash(slotIndex * 131 + faceKey * 977 + r * 17 + c * 31) < 0.07;
 }
 
-// Trace un rectangle à sommet en plein cintre (arc en demi-cercle) — chaque
-// ouverture du bâtiment (vitrine ET fenêtres d'étage depuis le 12 août 2026,
-// références Minecraft/Haussmann envoyées) est taillée dans ce gabarit
-// plutôt qu'un simple rectangle, qui lisait "immeuble de bureaux".
-function archPath(ctx, x, top, w, h) {
-  const archR = w / 2;
-  ctx.beginPath();
-  if (h > archR) {
-    ctx.moveTo(x, top + archR);
-    ctx.arc(x + archR, top + archR, archR, Math.PI, 0);
-    ctx.lineTo(x + w, top + h);
-    ctx.lineTo(x, top + h);
-  } else {
-    ctx.rect(x, top, w, h);
-  }
-  ctx.closePath();
-}
+// (Les ouvertures en plein cintre du 12 août — référence cathédrale — ont été
+// abandonnées le 20 août 2026 avec la photo d'immeuble haussmannien : toutes
+// les fenêtres de la photo sont des rectangles hauts et droits, l'arc lisait
+// "église" plus que "boulevard". Les ouvertures redeviennent des fillRect.)
 
 // Peint une face (façade ou retour d'angle) déjà réduite à un quadrilatère
 // écran { gA, gB, eaveA, eaveB, ridgeA, ridgeB } — gA/gB = coins au sol,
@@ -275,17 +261,20 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     // du tout immeuble parisien », capture à l'appui) au lieu d'une grille de
     // fenêtres distinctes. Redescendu à 0,5 — bien plus de pierre visible
     // entre les étages, quitte à perdre un peu de l'effet "porte-fenêtre".
-    const winW = cellW * 0.42;
+    // Fenêtres HAUTES et droites (photo du 20 août 2026 : portes-fenêtres
+    // rectangulaires serrées, pas d'arc) — un peu plus larges qu'avant (0,42 →
+    // 0,46), les volets ayant disparu il reste de la pierre entre colonnes.
+    const winW = cellW * 0.46;
     const marginY = wallH * 0.1;
     const cellH = (wallH - marginY) / rows;
-    const winH = cellH * 0.5;
+    const winH = cellH * 0.58;
     const litColor = gradientStep(windowLitGradient, distT);
     const darkColor = gradientStep(windowDarkGradient, distT);
-    const balconyColor = gradientStep(roofRidgeGradient, distT);
-    const shutterColor = gradientStep(shape.shutterGradient, distT);
+    const balconyColor = gradientStep(ironGradient, distT);
     const shopfrontColor = gradientStep(shopfrontGradient, distT);
     const bandeauColor = gradientStep(corniceGradient, distT);
     const frameColor = gradientStep(corniceGradient, distT);
+    const signColor = gradientStep(signGoldGradient, distT);
     // Rez-de-chaussée = dernière rangée (r croît du toit vers le sol) —
     // traité à part (vitrine, pas de volets) seulement si l'immeuble a bien
     // un "étage" distinct au-dessus (sinon rows === 1, rien à séparer).
@@ -294,20 +283,6 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     for (let r = 0; r < rows; r++) {
       const rowY = wallTop + marginY + r * cellH;
       const isGround = r === groundRow;
-      // Balcon filant : désormais à CHAQUE étage (plus seulement 1-2 tirés au
-      // hash) — retour du 12 août 2026 avec les références Minecraft/
-      // Haussmann : les façades montrées ont une ferronnerie quasi continue
-      // sous chaque rangée de fenêtres, pas juste un ou deux étages isolés.
-      if (isFacade && !isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
-        const railY = rowY + winH + cellH * 0.06;
-        ctx.fillStyle = balconyColor;
-        ctx.fillRect(wallLeft + marginX * 0.4, railY, wallW - marginX * 0.8, Math.max(1, wallH * 0.012));
-        const ticks = Math.max(4, Math.floor(cols * 2));
-        const tickSpacing = (wallW - marginX * 0.8) / ticks;
-        for (let t = 0; t <= ticks; t++) {
-          ctx.fillRect(wallLeft + marginX * 0.4 + t * tickSpacing, railY, Math.max(1, wallH * 0.006), wallH * 0.03);
-        }
-      }
       // Bandeau : ligne claire juste au-dessus du rez-de-chaussée, sépare
       // visuellement "commerce" et "étages" — un des repères les plus lisibles
       // d'une façade haussmannienne à cette échelle (retour direct : « revois
@@ -319,50 +294,66 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       for (let c = 0; c < cols; c++) {
         const wx = wallLeft + marginX + c * cellW + (cellW - winW) / 2;
         if (isGround) {
-          // Vitrine en plein cintre — signal "devanture parisienne" bien plus
-          // net qu'une fenêtre carrée.
-          const shopH = Math.min(cellH * 0.92, winH * 1.7);
+          // Vitrine droite et sombre, presque toute la hauteur du
+          // rez-de-chaussée — les devantures de la photo sont des caissons
+          // noirs à peine plus étroits que la travée.
+          const shopW = cellW * 0.72;
+          const sx = wallLeft + marginX + c * cellW + (cellW - shopW) / 2;
+          const shopH = Math.min(cellH * 0.92, winH * 1.6);
           const shopTop = wallBottom - shopH;
-          archPath(ctx, wx, shopTop, winW, shopH);
           ctx.fillStyle = shopfrontColor;
-          ctx.fill();
-          // Auvent de commerce : petit pan coloré incliné au-dessus de la
-          // vitrine — détail direct des références envoyées, et ça casse la
-          // grille cream/ocre par une touche de couleur au ras du sol.
-          const awningH = cellH * 0.16;
-          const awningSlant = winW * 0.18;
-          ctx.fillStyle = shape.awningGradient ? gradientStep(shape.awningGradient, distT) : shopfrontColor;
-          ctx.beginPath();
-          ctx.moveTo(wx - 1, shopTop);
-          ctx.lineTo(wx + winW + 1, shopTop);
-          ctx.lineTo(wx + winW + 1 - awningSlant, shopTop + awningH);
-          ctx.lineTo(wx - 1 + awningSlant, shopTop + awningH);
-          ctx.closePath();
-          ctx.fill();
+          ctx.fillRect(sx, shopTop, shopW, shopH);
+          // Bandeau d'enseigne DORÉ en haut du caisson (photo : lettres d'or
+          // sur fond noir) — remplace l'auvent incliné une vitrine sur deux,
+          // l'autre garde son store de couleur profonde.
+          const signH = Math.max(1, cellH * 0.1);
+          if (windowIsLit(windowKey, 3, 0, c) || c % 2 === 0) {
+            ctx.fillStyle = signColor;
+            ctx.fillRect(sx + shopW * 0.08, shopTop + signH * 0.6, shopW * 0.84, signH * 0.8);
+          } else {
+            const awningH = cellH * 0.16;
+            const awningSlant = shopW * 0.14;
+            ctx.fillStyle = shape.awningGradient ? gradientStep(shape.awningGradient, distT) : shopfrontColor;
+            ctx.beginPath();
+            ctx.moveTo(sx - 1, shopTop);
+            ctx.lineTo(sx + shopW + 1, shopTop);
+            ctx.lineTo(sx + shopW + 1 - awningSlant, shopTop + awningH);
+            ctx.lineTo(sx - 1 + awningSlant, shopTop + awningH);
+            ctx.closePath();
+            ctx.fill();
+          }
           continue;
         }
-        // Fenêtre en plein cintre elle aussi (avant : rectangle nu, l'écart le
-        // plus net avec les références envoyées — chaque ouverture y est
-        // arquée, du rez-de-chaussée jusqu'au dernier étage).
-        archPath(ctx, wx, rowY, winW, winH);
+        // Fenêtre rectangulaire haute (photo du 20 août 2026 — l'arc en plein
+        // cintre de l'ancienne référence cathédrale lisait "église").
         ctx.fillStyle = windowIsLit(windowKey, isFacade ? 0 : 1, r, c) ? litColor : darkColor;
-        ctx.fill();
+        ctx.fillRect(wx, rowY, winW, winH);
         // Encadrement clair (pierre de taille autour de l'ouverture) — sans
         // lui la fenêtre se lisait comme un trou plaqué sur le mur plutôt
         // qu'une ouverture taillée dedans.
         if (winW >= 5 && winH >= 5) {
           ctx.strokeStyle = frameColor;
           ctx.lineWidth = 1;
-          ctx.stroke();
+          ctx.strokeRect(wx, rowY, winW, winH);
         }
-        // Volets, seulement si assez de place pour rester lisibles (pas de
-        // bouillie à distance) — deux blocs de part et d'autre de la fenêtre.
-        // Marge -3 (pas -1) pour garder de la pierre visible entre colonnes.
-        const shutterW = Math.min(winW * 0.35, (cellW - winW) / 2 - 3);
-        if (shutterW >= 2) {
-          ctx.fillStyle = shutterColor;
-          ctx.fillRect(wx - shutterW - 1, rowY, shutterW, winH);
-          ctx.fillRect(wx + winW + 1, rowY, shutterW, winH);
+      }
+
+      // Balcon filant en ferronnerie NOIRE à chaque étage : sur la photo du
+      // 20 août 2026 c'est le réseau de lignes sombres qui strie toute la
+      // façade claire. Le garde-corps passe DEVANT le bas des fenêtres (main
+      // courante + barreaux serrés) — peint APRÈS elles, sinon les vitres le
+      // recouvraient.
+      if (isFacade && !isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
+        const railH = wallH * 0.032;                  // hauteur du garde-corps
+        const railY = rowY + winH - railH;            // devant le BAS de la fenêtre
+        const railL = wallLeft + marginX * 0.4;
+        const railW = wallW - marginX * 0.8;
+        ctx.fillStyle = balconyColor;
+        ctx.fillRect(railL, railY, railW, Math.max(1, wallH * 0.008));
+        const ticks = Math.max(6, Math.floor(cols * 3));
+        const tickSpacing = railW / ticks;
+        for (let t = 0; t <= ticks; t++) {
+          ctx.fillRect(railL + t * tickSpacing, railY, Math.max(1, wallH * 0.005), railH);
         }
       }
     }

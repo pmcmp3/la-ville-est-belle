@@ -1064,6 +1064,7 @@ function render(alpha) {
     });
     elements.sort((a, b) => b.z - a.z);
     for (const e of elements) e.draw(ctx);
+    tutorial.dessinerRecompense(ctx, width, height); // pochette EP + promesse, étape 1 seulement
     tutorial.dessinerGeste(ctx, width, height);
   } else {
     // Hors course (menu d'accueil, écran de fin) : aucune entité n'est peinte,

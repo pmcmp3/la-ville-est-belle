@@ -44,6 +44,16 @@ const CREME = "#f0ead9";
 const ROUGE = "#e13e26";
 const POLICE = '"Stage Grotesk", system-ui, sans-serif';
 
+// Pochette de l'EP, affichée au centre pendant l'étape 1 avec la promesse du
+// concours (demandé le 20 août 2026 : « précise pendant la première étape du
+// tuto que celui qui gagne gagne l'EP, et tu peux mettre une image au
+// centre »). WebP recompressée à 480×480 / 16 Ko (l'original fait 4000×4000)
+// et préchargée dès le chargement du module — négligeable à côté des 3,9 Mo
+// de MP3, donc pas besoin de chargement progressif. Si elle ne charge pas
+// (réseau), l'étape s'affiche simplement sans image, jamais bloquante.
+const COVER = new Image();
+COVER.src = "assets/cover-ep.webp";
+
 // --- Les étapes ------------------------------------------------------------
 // Ordre voulu : on apprend à se déplacer, puis à sauter, puis la seule règle
 // contre-intuitive du jeu (le pont), puis la récompense (le combo).
@@ -302,6 +312,54 @@ export function getExtras(ctx, width, height, now) {
   return etat.props
     .filter((p) => !p.pris && p.z > 1 && p.z < road.HORIZON_Z)
     .map((p) => ({ z: p.z, draw: () => peindreObjet(ctx, width, height, now, p) }));
+}
+
+// --- Pochette + promesse du concours (étape 1 uniquement) -------------------
+// Peinte par main.js APRÈS la scène (c'est de l'interface, comme la main
+// fantôme) : la pochette au centre de l'écran, la promesse juste en dessous.
+// Uniquement pendant l'étape 1 — ensuite le champ de jeu doit rester dégagé
+// (le pont et les étoiles des étapes suivantes arrivent au centre).
+export function dessinerRecompense(ctx, width, height) {
+  if (!etat.actif || etat.fini || etat.index !== 0) return;
+  if (!COVER.complete || !COVER.naturalWidth) return;
+
+  const size = Math.min(width * 0.34, 150);
+  const cx = width / 2;
+  const top = height * 0.36;
+
+  ctx.save();
+  // Cadre crème fin + ombre portée : la pochette se détache de la route comme
+  // une carte posée, pas un aplat collé au décor.
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = CREME;
+  ctx.fillRect(cx - size / 2 - 3, top - 3, size + 6, size + 6);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.drawImage(COVER, cx - size / 2, top, size, size);
+
+  // La promesse, dans le même panneau sombre que la consigne du haut.
+  const texte = "Le meilleur score gagne le vinyle de l'EP";
+  ctx.font = `900 13px ${POLICE}`;
+  const largeur = ctx.measureText(texte).width + 28;
+  const py = top + size + 12;
+  // Tracé manuel plutôt que ctx.roundRect (Safari < 16.4 ne l'a pas — même
+  // choix que roundRect() dans hud.js).
+  const rx = cx - largeur / 2, rh = 26, rr = 13;
+  ctx.fillStyle = "rgba(13,13,16,0.7)";
+  ctx.beginPath();
+  ctx.moveTo(rx + rr, py);
+  ctx.arcTo(rx + largeur, py, rx + largeur, py + rh, rr);
+  ctx.arcTo(rx + largeur, py + rh, rx, py + rh, rr);
+  ctx.arcTo(rx, py + rh, rx, py, rr);
+  ctx.arcTo(rx, py, rx + largeur, py, rr);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = JAUNE;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(texte, cx, py + 13);
+  ctx.restore();
 }
 
 // --- Main fantôme ----------------------------------------------------------
