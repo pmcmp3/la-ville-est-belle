@@ -87,16 +87,18 @@ const ETAPES = [
     cle: "combo",
     texte: "Enchaîne 5 étoiles d'affilée pour déclencher le combo",
     geste: "lateral",
-    objectifs: 2,
+    // ⚠️ La consigne dit 5 étoiles : il doit y avoir EXACTEMENT 5 étoiles à
+    // ramasser et les 5 doivent l'être. La première version posait 3 étoiles
+    // et en validait 2 — retour direct : « le 4/4 te laisse pas ramasser le
+    // nombre d'étoiles écrit ».
+    objectifs: 5,
     // Même règle que le pont : les étoiles arrivent dans une voie ADJACENTE,
     // jamais celle du joueur — il doit aller les chercher.
     props: (voie) => {
       const cible = voie === 0 ? 1 : voie - 1;
-      return [
-        prop({ isBonus: true, kind: "cd", voie: cible, recul: 0 }),
-        prop({ isBonus: true, kind: "cd", voie: cible, recul: 16 }),
-        prop({ isBonus: true, kind: "cd", voie: cible, recul: 32 }),
-      ];
+      return [0, 14, 28, 42, 56].map((recul) =>
+        prop({ isBonus: true, kind: "cd", voie: cible, recul })
+      );
     },
   },
 ];

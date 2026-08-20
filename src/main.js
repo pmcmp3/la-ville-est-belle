@@ -355,6 +355,9 @@ const game = {
   // de le rejouer à chaque frame une fois le seuil franchi.
   milestoneShown: 0,
   milestoneTimer: 0,
+  // Durée totale du bandeau, exposée pour que hud.js puisse calculer l'âge
+  // de l'animation d'entrée (le timer seul ne dit pas d'où il part).
+  milestoneDuree: MILESTONE_DUREE,
 };
 
 // Combo (demandé le 17 août 2026) : `streak` étoiles d'affilée → multiplicateur
@@ -444,6 +447,23 @@ const FINISH_FADE = 1.0;
 // toute façon, il est marqué résolu dès la première collision).
 const DAMAGE_FLASH_DURATION = 0.9;
 let damageFlash = 0;
+
+// --- Secousse d'écran à l'impact (20 août 2026, validée « à 100 % ») --------
+// Complète le clignotement du sprite : le choc se ressent sur toute la scène,
+// pas seulement sur le personnage. Deux intensités — un choc fatal (voiture,
+// pont) secoue plus fort et plus longtemps qu'une collision à -1 vie.
+// Deux sinusoïdes désaccordées (x/y) plutôt qu'un aléatoire par frame : le
+// mouvement reste continu (pas de téléportation d'un pixel à l'autre) et
+// l'amplitude décroît en t² — sec à l'impact, s'éteint vite.
+// ⚠️ Appliquée au CANVAS seulement, jamais au HUD : le score doit rester
+// lisible pendant le choc (voir render()).
+const shake = { time: 0, duration: 1, amp: 0 };
+
+function triggerShake(amp, duration) {
+  shake.amp = amp;
+  shake.duration = duration;
+  shake.time = duration;
+}
 const finishing = {
   active: false,
   elapsed: 0,
@@ -546,6 +566,7 @@ function restartGame() {
   road.reset();
   resetFinish();
   damageFlash = 0;
+  shake.time = 0; // sinon la secousse d'un choc de fin de partie survit au rejeu
   pickupFlash = 0;
   popups.length = 0;      // sinon un « +150 » de la partie précédente survit au rejeu
   etoilesRamassees = 0;   // les 3 popups pédagogiques reviennent à chaque nouvelle partie
@@ -671,6 +692,9 @@ function step(dt) {
   if (damageFlash > 0) {
     damageFlash = Math.max(0, damageFlash - dt);
   }
+  if (shake.time > 0) {
+    shake.time = Math.max(0, shake.time - dt);
+  }
 
   if (gameStarted && hudAlpha < 1) {
     hudAlpha = Math.min(1, hudAlpha + dt / HUD_FADE_DURATION);
@@ -758,6 +782,9 @@ function step(dt) {
             // que ça s'améliore »). Même jaune que les étoiles et que le
             // multiplicateur du HUD — c'est la couleur du gain dans ce jeu.
             pousserPopup(`COMBO ${formatMultiplicateur(comboMultiplier())}`, JAUNE_ETOILE);
+            // Jingle 8-bit dans la tonalité du morceau (Ré♭ majeur, mesurée) —
+            // demandé le 20 août 2026. S'allonge d'une note par palier.
+            audio.playComboJingle(palierApres);
           } else if (etoilesRamassees <= POPUPS_PEDAGOGIQUES) {
             // Les toutes premières étoiles seulement : on montre une fois ce
             // que rapporte un ramassage, puis on se tait.
@@ -777,8 +804,10 @@ function step(dt) {
           // restent à -1 vie chacun.
           if (e.kind === "voiture" || e.kind === "pont") {
             game.lives = 0;
+            triggerShake(13, 0.5);
           } else {
             game.lives -= 1;
+            triggerShake(7, 0.32);
           }
           // Pénalité de score, demandée avec la perte de cœur : une collision
           // ne coûtait qu'une vie, donc rien tant qu'il en restait — on
@@ -949,6 +978,18 @@ function renderPickupPopups(ctx, renderX) {
 }
 
 function render(alpha) {
+  // Secousse d'impact : toute la scène (route, monde, entités, popups) est
+  // translatée, le HUD reste fixe — le ctx.restore() est plus bas, juste
+  // avant le bloc HUD.
+  const shakeActive = shake.time > 0;
+  if (shakeActive) {
+    const t = shake.time / shake.duration;         // 1 à l'impact → 0 à la fin
+    const k = shake.amp * t * t;                   // décroissance en t²
+    const phase = (shake.duration - shake.time) * 62; // ~10 oscillations/s
+    ctx.save();
+    ctx.translate(Math.sin(phase) * k, Math.cos(phase * 1.35) * k * 0.6);
+  }
+
   const renderDistance = road.getRenderDistance(alpha);
   road.render(ctx, width, height, renderDistance);
   world.render(ctx, width, height, renderDistance);
@@ -1015,6 +1056,8 @@ function render(alpha) {
   // pas un objet du monde — donc peint APRÈS la scène, jamais masqué par une
   // voiture ou un pont qui passerait devant.
   renderPickupPopups(ctx, renderX);
+
+  if (shakeActive) ctx.restore(); // fin de la secousse : le HUD ne bouge pas
 
   // Le menu et l'écran de fin sont en DOM (#overlay) : il ne reste ici que le
   // HUD de jeu, monté en fondu.

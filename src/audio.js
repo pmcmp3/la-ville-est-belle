@@ -383,6 +383,50 @@ export function getVolume() {
   return pendingVolume;
 }
 
+// --- Jingle de combo (demandé le 20 août 2026 : « quand y'a un combo, un
+// bruit de pixels dans la tonalité du morceau ») ------------------------------
+// Tonalité MESURÉE du morceau : Ré bémol majeur (chromagramme + corrélation de
+// Krumhansl sur le MP3, corrélation 0,89 — les trois classes de hauteur
+// dominantes sont exactement Ré♭/Fa/La♭, l'accord parfait de Ré♭ majeur).
+// L'arpège ne joue QUE ces trois notes (sur deux octaves) : quel que soit le
+// moment du morceau où le palier tombe, il reste consonant avec le fond.
+// Onde carrée = le timbre « console 8 bits » demandé. L'arpège s'allonge d'une
+// note par palier (4 notes au ×1,5, puis 5, puis 6) : le son lui-même dit que
+// ça monte. Branché sur volumeGain (donc le slider et le mute s'appliquent),
+// jamais sur envelopeGain (réservé au fondu du morceau).
+const JINGLE_NOTES = [554.37, 698.46, 830.61, 1108.73, 1396.91, 1661.22]; // Ré♭5 Fa5 La♭5 Ré♭6 Fa6 La♭6
+const JINGLE_PAS_S = 0.066;   // écart entre deux notes — débit « pièce de Mario »
+const JINGLE_GAIN = 0.16;     // crête par note : présent sans couvrir le morceau
+
+export function playComboJingle(palier) {
+  // Uniquement quand le son tourne vraiment : en secours silencieux (contexte
+  // jamais créé ou suspendu), un jingle seul dans le silence serait étrange.
+  if (!audioCtx || audioCtx.state !== "running" || mode !== "running") return;
+  const nNotes = Math.min(3 + Math.max(1, palier), JINGLE_NOTES.length);
+  const t0 = audioCtx.currentTime;
+  // Repli sur la destination si le graphe du morceau n'existe pas encore
+  // (partie lancée avant la fin du décodage) : le volume est alors appliqué
+  // à la main, pendingVolume étant la valeur que volumeGain aurait portée.
+  const versGraphe = Boolean(volumeGain);
+  const master = audioCtx.createGain();
+  master.gain.value = versGraphe ? 1 : pendingVolume;
+  master.connect(versGraphe ? volumeGain : audioCtx.destination);
+  for (let i = 0; i < nNotes; i++) {
+    const osc = audioCtx.createOscillator();
+    osc.type = "square";
+    osc.frequency.value = JINGLE_NOTES[i];
+    const g = audioCtx.createGain();
+    const t = t0 + i * JINGLE_PAS_S;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(JINGLE_GAIN, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    osc.connect(g);
+    g.connect(master);
+    osc.start(t);
+    osc.stop(t + 0.18);
+  }
+}
+
 // --- Modes de lecture (course / menu pause / onglet quitté) ------------------
 // Trois états, et un seul point d'entrée pour en changer : main.js calcule le
 // mode voulu à partir de ses deux drapeaux (menu pause ouvert, onglet caché)

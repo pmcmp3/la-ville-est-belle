@@ -211,7 +211,9 @@
 
     #menu-title {
       margin: 0 0 10px;
-      font: 400 48px/0.95 var(--titre);
+      /* 48px → 42px le 20 août 2026, même passe « polices plus petites » que
+         les boutons — le titre reste le plus gros élément de l'écran. */
+      font: 400 42px/0.95 var(--titre);
       color: var(--blanc);
       text-align: center;
       text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
@@ -245,7 +247,21 @@
     }
 
     #end-screen .panel-body {
-      padding: 20px 20px 22px;
+      padding: 16px 16px 18px;
+    }
+
+    /* ⚠️ Les .btn ont une largeur fixe de 240px, or l'intérieur de la carte de
+       fin ne fait que ~238px (270 − 2×16) : sans ça ils débordaient de la
+       carte (le panel les rognait via overflow:hidden — « ça déborde de
+       partout », capture à l'appui le 20 août 2026). */
+    #end-screen .btn {
+      width: 100%;
+      /* Padding latéral resserré : « ÉCOUTER LE MORCEAU » + icône doivent
+         tenir sur UNE ligne dans les ~234px utiles de la carte (mesuré :
+         170px de texte à 15px + 15px d'icône + 8px d'écart). */
+      padding-left: 10px;
+      padding-right: 10px;
+      white-space: nowrap;
     }
 
     /* « Il faut que ce soit calme, l'écran de fin. » Il y avait quatre aplats
@@ -257,7 +273,7 @@
        blanc : la hiérarchie se fait à la taille, pas à la couleur. */
     #end-hero {
       text-align: center;
-      margin: 4px 0 18px;
+      margin: 2px 0 12px;
     }
 
     /* Verrou de rejeu : REJOUER reste visible mais inactif tant que le joueur
@@ -292,7 +308,10 @@
     }
 
     #score-num {
-      font: 900 52px/0.9 var(--police);
+      /* 52px → 40px le 20 août 2026 (« ça déborde de partout ») : reste le
+         plus gros élément de la carte, mais dans l'échelle d'un « large
+         title » iOS (34-41px) plutôt qu'un affichage plein écran. */
+      font: 900 40px/0.95 var(--police);
       color: var(--noir);
       letter-spacing: -0.03em;
       font-variant-numeric: tabular-nums;
@@ -304,8 +323,8 @@
        signalé au playtest). Simple ligne muette, cohérente avec le vocabulaire
        déjà utilisé pendant le décompte ("gagne le vinyl de l'EP"). */
     #end-note {
-      margin: 12px 0 0;
-      font: 500 12px var(--police);
+      margin: 8px 0 0;
+      font: 500 11px var(--police);
       letter-spacing: 0.01em;
       color: rgba(0, 0, 0, 0.55);
       text-align: center;
@@ -315,7 +334,7 @@
        tabulaires. Le rouge reste réservé à la 1re place et au score courant. */
     #leaderboard {
       width: 100%;
-      margin: 0 0 22px;
+      margin: 0 0 14px;
     }
 
     #leaderboard.hidden {
@@ -335,18 +354,19 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      width: 100%;
     }
 
     #leaderboard-list {
       margin: 0;
       padding: 0;
       list-style: none;
-      /* Hauteur = 5 lignes pile. C'est ce qui permet de CENTRER la ligne du
-         joueur dans la fenêtre de scroll (demandé explicitement) : il faut
-         un nombre impair de lignes visibles pour qu'il y ait un vrai milieu.
-         Voir scrollCurrentScoreIntoView() dans main.js. */
-      max-height: 185px;
+      /* Hauteur = 5 lignes pile (5 × 32px). C'est ce qui permet de CENTRER la
+         ligne du joueur dans la fenêtre de scroll (demandé explicitement) : il
+         faut un nombre impair de lignes visibles pour qu'il y ait un vrai
+         milieu. Voir scrollCurrentScoreIntoView() dans main.js. */
+      max-height: 160px;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       border-top: 1px solid rgba(0, 0, 0, 0.14);
@@ -359,9 +379,9 @@
       align-items: baseline;
       gap: 10px;
       box-sizing: border-box;
-      height: 37px;              /* fixe : indispensable au centrage au scroll */
-      padding: 9px 6px;
-      font: 500 14px var(--police);
+      height: 32px;              /* fixe : indispensable au centrage au scroll */
+      padding: 7px 6px;
+      font: 500 13px var(--police);
       color: var(--noir);
       border-top: 1px solid rgba(0, 0, 0, 0.08);
     }
@@ -399,7 +419,7 @@
     }
 
     #leaderboard-list .points {
-      font: 900 15px var(--police);
+      font: 900 14px var(--police);
       font-variant-numeric: tabular-nums;
       color: var(--noir);
       letter-spacing: -0.01em;
@@ -546,10 +566,15 @@
        légende, ce qui le mettait pile au milieu de l'écran, en concurrence
        avec le personnage. Le repositionnement se fait sur #overlay.countdown-
        view (justify-content: flex-start) plus bas, pas ici. */
+    /* 104px → 56px le 20 août 2026 : le chiffre géant datait du décompte
+       « 20 → 1 » plein écran ; en « 1/4 » de progression du tutoriel, il
+       écrasait la consigne juste en dessous (retour capture à l'appui :
+       « le texte est par-dessus, ça va pas »). */
     #countdown-num {
-      font: 900 104px/1 var(--police);
+      font: 900 56px/1 var(--police);
       color: var(--blanc);
       font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
     }
 
     /* Titre masqué pendant le décompte : redondant avec le numéro géant et
@@ -575,36 +600,37 @@
     #countdown-caption {
       display: none;
       position: absolute;
-      /* 50 % → 27 % le 19 août 2026 (retour direct : « mets le texte plus
-         haut ») : centrée verticalement, la consigne recouvrait la route ET le
-         personnage — précisément ce que le tutoriel demande de regarder. Elle
-         se place maintenant sous la progression « 1/4 », le champ de jeu reste
-         dégagé. */
-      top: 27%;
+      /* ⚠️ Ancrée SOUS le « 1/4 », plus jamais centrée sur lui. L'ancien
+         top:27% + translate(-50%,-50%) centrait le panneau sur un point fixe
+         de l'écran : dès que la consigne faisait 3 lignes, elle remontait et
+         recouvrait le chiffre (retour capture à l'appui le 20 août 2026).
+         L'ancrage par le HAUT (translateX seul) fait pousser le texte vers le
+         bas quelle que soit sa longueur — le chiffre reste toujours dégagé.
+         114px = padding-top de .countdown-view (48px) + hauteur du chiffre
+         (56px) + 10px d'air. */
+      top: calc(114px + var(--safe-top));
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translateX(-50%);
       margin: 0;
       /* ⚠️ `width` explicite, pas juste `max-width` : un `left:50%` sans
          largeur posée fait calculer au navigateur une largeur "disponible"
          de 50% du conteneur (containing block width − left), donc ~187px
          sur un iPhone plutôt que les 320px voulus — bug trouvé en vérifiant
          (texte débordant de son fond, 6 lignes étroites au lieu de 4). */
-      width: min(320px, calc(100% - 48px));
+      width: min(300px, calc(100% - 48px));
       box-sizing: border-box;
-      padding: 14px 22px;
+      padding: 12px 18px;
       border-radius: 14px;
       /* 0,55 → 0,7 en même temps que le voile assombri (12 août 2026) : sur
          le fond désormais plus sombre du décompte, l'ancienne opacité rendait
          le panneau presque invisible, fondu dans le voile derrière. */
       background: rgba(13, 13, 16, 0.7);
       text-align: center;
-      /* 14px → 18px → 22px (retours explicites successifs : « je veux le
-         texte plus gros », puis « un peu plus gros, avec des icônes, des
-         flèches » après le test avec Antoine) — décompte allongé en même
-         temps (15s → 20s, COUNTDOWN_START dans main.js) pour laisser le
-         temps de lire. Les flèches/icônes vivent directement dans le texte
-         des messages (COUNTDOWN_MESSAGES, main.js), pas en HTML séparé. */
-      font: 900 22px/1.5 var(--police);
+      /* 22px → 16px le 20 août 2026 (« faut plus petit ») : les 22px dataient
+         de l'ANCIEN décompte passif où la consigne était seule à l'écran ; en
+         tutoriel elle cohabite avec le « 1/4 » et la scène à regarder. 16px
+         reste au-dessus du corps de texte standard iOS (15-17px). */
+      font: 900 16px/1.45 var(--police);
       color: var(--blanc);
       opacity: 1;
       transition: opacity 0.35s ease;
@@ -752,12 +778,16 @@
     .btn {
       display: block;
       width: 240px;
-      min-height: 54px;
+      /* 54px/17px → 50px/15px le 20 août 2026 (« polices plus petites, que
+         disent les standards ? ») : un libellé de bouton iOS fait 15-17pt, et
+         en CAPITALES Black il se lit une taille au-dessus — 15px suffit. La
+         cible tactile reste ≥ 44px (recommandation Apple). */
+      min-height: 50px;
       margin: 0;
-      padding: 15px 24px;
+      padding: 13px 20px;
       border-radius: 16px;
       border: 2px solid transparent;
-      font: 900 17px var(--police);
+      font: 900 15px var(--police);
       letter-spacing: 0.02em;
       text-align: center;
       touch-action: manipulation;
@@ -854,7 +884,7 @@
       border: 2px solid rgba(225, 62, 38, 0.55);
       border-radius: 12px;
       background: rgba(225, 62, 38, 0.12);
-      font: 500 15px/1.45 var(--police);
+      font: 500 14px/1.45 var(--police);
       color: var(--noir);
       text-align: center;
     }

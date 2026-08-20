@@ -154,15 +154,36 @@ export function renderHud(ctx, width, height, game) {
   ctx.textBaseline = "alphabetic";
 }
 
+// Étoile à 5 branches (même silhouette que les étoiles du jeu) : décore le
+// bandeau de palier, ancrée par son centre.
+function starPath(c, cx, cy, r) {
+  c.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rad = i % 2 === 0 ? r : r * 0.45;
+    const px = cx + Math.cos(ang) * rad;
+    const py = cy + Math.sin(ang) * rad;
+    if (i === 0) c.moveTo(px, py);
+    else c.lineTo(px, py);
+  }
+  c.closePath();
+}
+
 // Bandeau de palier : passe quelques secondes puis s'efface, sans jamais
 // interrompre la course (voir MILESTONE_SCORE dans main.js pour l'arbitrage
 // complet — c'est la version non bloquante du « mur » demandé). Posé BAS dans
 // l'écran, loin de l'axe de lecture de la route : à ce stade de la partie le
 // joueur est en pleine action, un panneau au milieu lui coûterait une vie.
+// ⚠️ Rendu plus mémorable le 20 août 2026 (validé « goooo ») : entrée en
+// rebond d'échelle, halo jaune, deux étoiles qui pulsent autour du chiffre —
+// même jaune que le gain partout ailleurs, jamais le rouge (réservé au malus).
 export function renderMilestone(ctx, width, height, game) {
   if (!game.milestoneTimer || game.milestoneTimer <= 0) return;
   const texteHaut = `${game.milestoneShown} POINTS`;
   const texteBas = "le morceau t'attend à l'arrivée";
+  // Âge du bandeau depuis son apparition (0 → milestoneDuree), pour
+  // l'animation d'entrée ; le fondu de sortie lit le timer directement.
+  const age = (game.milestoneDuree || 4) - game.milestoneTimer;
 
   ctx.save();
   // Fondu sur la dernière seconde plutôt qu'une disparition sèche.
@@ -170,14 +191,30 @@ export function renderMilestone(ctx, width, height, game) {
   ctx.font = `500 15px ${POLICE}`;
   const largeur = Math.max(ctx.measureText(texteBas).width, 190) + 40;
   const hauteur = 62;
-  const x = (width - largeur) / 2;
   // 0,72 → 0,78 : à 0,72 le bandeau mordait sur les pieds du personnage
   // (vérifié à l'écran). Assez bas pour ne rien cacher de la route à lire.
   const y = height * 0.78;
 
+  // Entrée en rebond : le bandeau surgit à 70 % de sa taille et dépasse
+  // brièvement 100 % avant de se poser (~0,35 s) — le sursaut d'échelle est le
+  // même vocabulaire que les popups de points, en plus ample.
+  const tPop = Math.min(1, age / 0.35);
+  const scale = 0.7 + 0.3 * tPop + 0.08 * Math.sin(tPop * Math.PI);
+  ctx.translate(width / 2, y + hauteur / 2);
+  ctx.scale(scale, scale);
+  ctx.translate(-width / 2, -(y + hauteur / 2));
+
+  const x = (width - largeur) / 2;
+
+  // Halo jaune derrière le panneau : c'est lui qui distingue ce bandeau de
+  // toutes les autres pastilles sombres du HUD. Il respire lentement.
+  ctx.shadowColor = "rgba(255, 207, 46, 0.55)";
+  ctx.shadowBlur = 22 + Math.sin(age * 3) * 6;
   ctx.fillStyle = PANNEAU;
   roundRect(ctx, x, y, largeur, hauteur, 16);
   ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
   ctx.fillStyle = JAUNE_ETOILE;
   roundRect(ctx, x, y, largeur, 3, 2);
   ctx.fill();
@@ -190,6 +227,17 @@ export function renderMilestone(ctx, width, height, game) {
   ctx.font = `500 14px ${POLICE}`;
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   ctx.fillText(texteBas, width / 2, y + 38);
+
+  // Deux étoiles qui pulsent de part et d'autre du chiffre, en léger
+  // contretemps l'une de l'autre pour que l'ensemble scintille.
+  ctx.font = `900 22px ${POLICE}`;
+  const demiTexte = ctx.measureText(texteHaut).width / 2;
+  const cyEtoile = y + 23;
+  ctx.fillStyle = JAUNE_ETOILE;
+  starPath(ctx, width / 2 - demiTexte - 18, cyEtoile, 8 + Math.sin(age * 6) * 1.5);
+  ctx.fill();
+  starPath(ctx, width / 2 + demiTexte + 18, cyEtoile, 8 + Math.sin(age * 6 + Math.PI) * 1.5);
+  ctx.fill();
   ctx.restore();
 }
 
