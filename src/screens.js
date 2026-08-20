@@ -155,10 +155,18 @@ function closeUnlockSheet() {
 
 export function showOverlay() {
   overlay.classList.add("visible");
+  syncEqLoop();
 }
 
 export function hideOverlay() {
   overlay.classList.remove("visible");
+  // 🐛 Sans cet appel, REJOUER depuis l'écran de fin (qui ne change PAS
+  // currentView, il ne fait que masquer l'overlay) laissait la boucle rAF de
+  // l'equalizer tourner pendant TOUTE la course suivante — getEqLevels +
+  // écritures de style chaque frame sur des barres invisibles. Trouvé à la
+  // revue de code du 21 août 2026 ; la boucle est désormais conditionnée à
+  // « vue de fin ET overlay visible ».
+  syncEqLoop();
 }
 
 // Le menu monte en fondu sur la scène déjà dessinée plutôt que sur du noir :
@@ -256,7 +264,7 @@ function eqTick() {
 }
 
 function syncEqLoop() {
-  const actif = currentView === "end";
+  const actif = currentView === "end" && overlay.classList.contains("visible");
   if (actif && !eqRafId) {
     eqTick();
   } else if (!actif && eqRafId) {

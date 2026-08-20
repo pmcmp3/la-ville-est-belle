@@ -128,21 +128,13 @@ const SIDE_SHADE = 0.68;
 // une atmosphère cohérente sur toute la scène.
 
 const ROOF_RATIO = 0.22;        // fraction de la hauteur (monde) occupée par le toit mansardé
-// ⚠️ Seuils de détail abaissés le 12 août 2026 (retour direct : « les
-// bâtiments chargent très tard [...] je vois les lignes des bâtiments
-// apparaître au fur et à mesure, on dirait que le jeu n'a pas chargé »).
-// Chaque détail (fenêtres, lucarnes, balcons, bossage) n'apparaît qu'à partir
-// d'une taille écran minimale — pensé à l'origine pour rester lisible, mais
-// ça fait aussi POPER les détails un par un tard, tout près du joueur, ce qui
-// se lit comme du contenu qui finit de charger plutôt qu'un effet de
-// distance voulu. Seuils réduits pour que les bâtiments arrivent déjà
-// détaillés bien avant d'être proches (à confirmer visuellement, voir §12).
-const WINDOW_MIN_PX = 6;        // sous cette largeur/hauteur écran, pas de fenêtres (trop petit pour se lire) — 9 → 6
-// Lucarnes (dormer windows) : LE détail qui fait "toit mansardé parisien"
-// plutôt que "toit en pente générique" — sans elles le toit n'était qu'un
-// aplat sombre. Une par façade assez large, jamais sur le retour d'angle
-// (trop étroit pour rester lisible).
-const DORMER_MIN_ROOF_PX = 8; // 14 → 8
+// ⚠️ Il n'existe PLUS de seuil de détail par taille écran (WINDOW_MIN_PX,
+// DORMER_MIN_ROOF_PX — supprimés à la revue de code du 21 août 2026, ils ne
+// branchaient plus sur rien depuis le passage au régime unique de façade,
+// « un seul type de façade, chargé le plus tôt possible »). Tout le détail se
+// peint à toute distance, seules restent des gardes à 2-3 px là où rien n'est
+// traçable. Si un « pop de détail » réapparaît un jour, ce n'est PAS ici
+// qu'il faut chercher — voir drawFacade3D/drawRoofAndCornice directement.
 
 // Hash déterministe : un bâtiment garde toujours la même forme/teinte au
 // même endroit (sinon ça scintille en boucle quand on repasse dessus).
@@ -641,7 +633,7 @@ function renderTrafficLight(ctx, n, side, distance, width, height) {
 
   const boxW = gNR.x - gN.x;
   // Trois pastilles seulement si la tête est assez large pour rester lisible
-  // (même garde que les autres détails fins du décor, voir WINDOW_MIN_PX).
+  // (garde dégénérée à 3 px — sous ça, trois cercles ne sont pas traçables).
   if (Math.abs(boxW) >= 3) {
     const dotR = Math.abs(boxW) * 0.28;
     const cx = (gN.x + gNR.x) / 2;

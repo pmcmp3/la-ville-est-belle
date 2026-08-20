@@ -54,7 +54,11 @@ const HEIGHT_WORLD = 2.2;
 // vis-à-vis (GRACE_BEATS, entities.js) pour qu'aucun obstacle ne partage
 // jamais l'écran avec lui.
 const CAMEO_TIME_S = 3;
-const SHOW_BEFORE = 6; // s : apparaît au loin avant d'arriver au niveau du joueur
+// ⚠️ 6 → 7 (revue de code du 21 août 2026) : l'horloge de course démarre à
+// −LEAD_IN (≈ −3,3 s, voir entities.js) — à SHOW_BEFORE = 6, `remaining`
+// valait ~6,3 s à la toute première frame et Soberland n'apparaissait que
+// ~0,4 s plus tard. À 7, il est là dès la frame 1 (z ≈ 137, dans le champ).
+const SHOW_BEFORE = 7; // s : apparaît au loin avant d'arriver au niveau du joueur
 const SHOW_AFTER = 0.6; // s : reste visible un instant après, comme la ligne d'arrivée
 
 // Distance FIXE (unités-monde) entre Soberland et sa table, toujours plus
@@ -246,7 +250,14 @@ function renderCharacter(ctx, width, height, now, z) {
   const laneX = road.laneX(1); // voie centrale à LANE_COUNT = 3 : "en plein milieu de la route"
   const p = road.project(laneX, z, width, height);
 
-  const frame = FRAMES[Math.floor(now * ANIM_RATE) % FRAMES.length];
+  // 🐛 Modulo NORMALISÉ (revue de code du 21 août 2026) : l'horloge de course
+  // démarre à −LEAD_IN, et depuis que Soberland est visible dès la première
+  // frame, `now` est NÉGATIF ici — or en JS `-6 % 4 === -2`, donc
+  // FRAMES[-2] = undefined et drawImage plantait TOUTE la boucle de rendu au
+  // départ de course. Trouvé par le balayage §12 (étendu à t = −LEAD_IN),
+  // invisible tant que le balayage partait de t = 0.
+  const brut = Math.floor(now * ANIM_RATE) % FRAMES.length;
+  const frame = FRAMES[(brut + FRAMES.length) % FRAMES.length];
   const h = HEIGHT_WORLD * p.scale;
   const w = (SPRITE_W / SPRITE_H) * h;
 

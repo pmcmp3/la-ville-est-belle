@@ -828,6 +828,35 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Revue de code du 21 août 2026** (demandée : « refais une étude de ton code et vois si tout
+est bien »). Trois trouvailles, dont une critique :
+- 🐛🐛 **CRITIQUE — la boucle de rendu plantait au départ de course** (`cameo.js`) : l'horloge
+  démarre à −LEAD_IN (≈ −3,3 s), et depuis que Soberland est visible dès la première frame
+  (seizième passe), son choix de frame d'animation `FRAMES[Math.floor(now × 1,6) % 4]`
+  recevait un `now` NÉGATIF — or en JS `-6 % 4 === -2`, donc `FRAMES[-2]` = undefined et
+  `drawImage` levait une exception à chaque frame. **La version déployée quelques heures plus
+  tôt était cassée au lancement de course.** Trouvé en étendant le balayage §12 à t = −LEAD_IN
+  avec les extras du caméo — les balayages précédents partaient de t = 0 SANS extras, et ne
+  pouvaient donc pas le voir. ⚠️ Règle §12 mise à jour : TOUJOURS balayer depuis −LEAD_IN et
+  passer les extras. Modulo normalisé ; `pedestrians`/`cyclists` étaient déjà protégés
+  (`Math.abs(time)`), `player` aussi (normalisation ((x%n)+n)%n), et les créneaux d'index
+  négatif sont exclus du rendu par `Math.max(0, …)` — le caméo était le seul exposé.
+- 🐛 **Boucle equalizer qui survivait au REJOUER** (`screens.js`) : REJOUER masque l'overlay
+  sans changer `currentView`, donc la boucle rAF de l'equalizer (conditionnée à `view ===
+  "end"` seulement) tournait pendant TOUTE la course suivante — getEqLevels + styles chaque
+  frame sur des barres invisibles. Conditionnée désormais à « vue de fin ET overlay visible »,
+  synchronisée dans show/hideOverlay.
+- **`SHOW_BEFORE` 6 → 7** (`cameo.js`) : à 6, `remaining` valait ~6,3 s à la première frame
+  (l'horloge part de −LEAD_IN) et Soberland n'apparaissait que ~0,4 s après le départ — à 7 il
+  est là dès la frame 1 (z ≈ 137, dans le champ), comme demandé.
+- Ménage : `WINDOW_MIN_PX`/`DORMER_MIN_ROOF_PX` (world.js) supprimées — mortes depuis le
+  régime unique de façade, elles auraient piégé un futur réglage de « pop de détail ».
+- Revérifié au passage : `OPENING_KIND_OVERRIDE` ne peut PAS voler une étoile au quota
+  (`isBonusAt` testé avant), l'image de partage suit `TOTAL_STARS` automatiquement (« x/85 »),
+  plus aucun import de `clip.js`, aucun console.log. Balayage complet −LEAD_IN → arrivée,
+  extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
+  mesurées toutes en voies latérales (la centrale reste à Soberland).
+
 **Seizième passe du 21 août 2026 — quatrième salve (retour jeu réel).**
 - 🐛 **Tranche 3D des étoiles invisible en jeu** (« elles disparaissent pareil, ça marche pas du
   tout ») : le premier jet réutilisait la silhouette ÉTOILÉE pincée à 16 % de sa largeur — un
@@ -1402,6 +1431,10 @@ depuis la console (`import('/src/entities.js')`, **sans query string**, cf. piè
 une horloge factice via `clock.setTimeSource(() => t)` et balayer toute la course. Permet de
 vérifier le rendu (aucune exception sur ~650 frames) et les collisions voie par voie (~75 objets
 rencontrés par voie sur 300).
+⚠️ **Balayer depuis t = −LEAD_IN, jamais depuis t = 0, et passer les extras (caméo,
+crosstraffic) à `render()`.** Un balayage 0 → arrivée sans extras a laissé passer un crash de
+la toute première frame de course (modulo négatif dans cameo.js, revue du 21 août 2026, §11) :
+la fenêtre d'horloge négative et les extras font partie du chemin réellement exécuté en jeu.
 
 Pour juger un sprite : le dessiner sur un canvas superposé à plusieurs échelles réelles
 (110 px au plus près jusqu'à 24 px au loin) — un sprite qui marche à 14× peut être illisible en jeu.
