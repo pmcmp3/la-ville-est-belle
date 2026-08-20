@@ -822,6 +822,29 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Septième passe du 20 août 2026 — retours sur test iPhone + « game feel ».**
+- **Tonalité du morceau MESURÉE : Ré bémol majeur** (chromagramme + corrélation de Krumhansl
+  sur le MP3, corrélation 0,89 — les trois classes dominantes sont exactement Ré♭/Fa/La♭).
+  C'est la référence pour tout futur son d'interface : rester sur l'accord Ré♭–Fa–La♭ garantit
+  la consonance quel que soit le moment du morceau.
+- **Jingle de combo 8-bit** (`playComboJingle`, audio.js) : arpège onde carrée sur cet accord,
+  une note de plus par palier (4 → 6). Branché sur `volumeGain` (slider/mute respectés), jamais
+  `envelopeGain` (réservé au fondu du morceau) ; muet si le contexte ne tourne pas.
+- **Secousse d'écran à l'impact** (main.js, `triggerShake`) : deux sinusoïdes désaccordées,
+  décroissance en t², fatal plus fort (13 px/0,5 s) que -1 vie (7 px/0,32 s). Le `ctx.restore()`
+  tombe AVANT le bloc HUD : le score ne bouge jamais.
+- **Bandeau 12 000 pts enrichi** (hud.js) : rebond d'entrée, halo jaune, étoiles qui pulsent.
+  `game.milestoneDuree` exposé pour que hud.js connaisse l'âge de l'animation.
+- 🐛 **Étape 4/4 du tutoriel réparée** : la consigne annonçait 5 étoiles, il n'y en avait que 3
+  posées et 2 comptées (`objectifs`) — désormais 5 posées, 5 exigées.
+- 🐛 **Consigne du tutoriel ancrée SOUS le « 1/4 »** (plus de `top:27%` centré qui remontait sur
+  le chiffre dès 3 lignes de texte), chiffre 104 → 56 px, consigne 22 → 16 px.
+- 🐛 **Écran de fin qui débordait** : les `.btn` de 240 px fixes dépassaient les ~234 px utiles
+  de la carte (rognés par `overflow:hidden`). Boutons en `width:100%`/`nowrap`, score 52 → 40 px,
+  lignes du classement 37 → 32 px (⚠️ `max-height` de la liste recalée à 5 × 32 = 160 px, le
+  centrage au scroll en dépend), passe générale « polices standards » (boutons 15 px/50 px,
+  titre 42 px).
+
 **Sixième passe du 19 août 2026 — tutoriel interactif (Plan A).** Trois retours reçus dans
 l'heure qui a suivi la première livraison, tous corrigés le jour même :
 - « Je ne fais rien, il bouge tout seul » → la démo pilotée est retirée (la main fantôme montre,
