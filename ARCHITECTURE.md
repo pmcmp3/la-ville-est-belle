@@ -822,6 +822,26 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Neuvième passe du 20 août 2026 — « on doit voir que je fais du vélo ».**
+Refonte du bas du sprite joueur (player.js), le retour étant que le pédalage ne se lisait pas :
+- **Sprite 26×34 → 26×40** : les 6 px gagnés vont TOUS sous le corps — la roue arrière dépasse
+  nettement sous le short et les jambes, au lieu d'être presque entièrement cachée.
+  ⚠️ **`HEIGHT_WORLD` (1,9) est INTACT et doit le rester** : la physique du saut (main.js,
+  `jumpPhysics`) et la hauteur des étoiles aériennes (entities-render.js) en dérivent. C'est
+  `BODY_H` (34) qui étalonne l'échelle — le corps garde exactement sa taille, le sprite complet
+  fait ~2,24 unités-monde à l'écran. Conséquences réglées : halo de ramassage recentré
+  (0,45 → 0,62) et popups remontés (1,15 → 1,35), le corps étant plus haut au-dessus du sol.
+- **Amplitude de pédalage 3 → 6 px** (`LIFT_MAX`), cuisses visibles et raccordées au genou à
+  toutes les phases, **6 frames** au lieu de 4 (l'amplitude doublée sautait par à-coups à 4).
+- **Pédales** : plateforme gris métal 1 px plus large que le pied de chaque côté ; en bas de
+  course elle reste à 4 px du sol — le pied tourne autour d'un pédalier, il ne racle pas la route.
+- **Balancement du buste ±1 px** à contretemps de la jambe qui pousse (les bras restent fixes,
+  les mains tiennent le guidon).
+- **La roue tourne** : crans du pneu qui défilent d'une frame à l'autre (`treadShift`).
+- 🐛 **Pantalon éclairci (ardoise #3a3e4e)** : à #22242b il se fondait dans le pneu (#0e0e11) —
+  jambes et roue ne faisaient qu'une seule masse sombre, C'ÉTAIT la cause principale du
+  « on ne voit pas que je pédale ». Vérifié frame par frame en preview (échelle ×8 et taille jeu).
+
 **Huitième passe du 20 août 2026 — deuxième salve de retours iPhone.**
 - **Départ de course raccourci** : `LEAD_IN_START_Z` (entities.js) = 80 u au lieu de
   VISIBLE_Z_MAX (≈168) — la première étoile atteint le joueur ~3,4 s après la fin du tutoriel
