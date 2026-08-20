@@ -822,6 +822,29 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Huitième passe du 20 août 2026 — deuxième salve de retours iPhone.**
+- **Départ de course raccourci** : `LEAD_IN_START_Z` (entities.js) = 80 u au lieu de
+  VISIBLE_Z_MAX (≈168) — la première étoile atteint le joueur ~3,4 s après la fin du tutoriel
+  (« c'est trop long pour commencer le jeu vraiment ») au lieu de ~7,8 s. Vaut aussi pour
+  REJOUER. Compromis pop-in assumé et documenté sur place.
+- **Plus de -500 sur le choc qui termine la partie** (main.js) : la pénalité ne s'applique que
+  si `game.lives > 0` après le choc — un joueur ne finit plus à 0 pour un score réel de
+  quelques centaines (« enlève le fait de perdre 500 points quand tu meurs définitivement »).
+- **Étape 2/4 du tutoriel : c'est l'étoile ATTRAPÉE qui valide**, plus le saut à vide
+  (« faut attraper l'étoile pour valider l'étape 2 »). Étoile ratée = elle revient, comme le
+  pont et le combo.
+- **Écran de fin qui rentre sur tous les écrans** (capture iPhone 16 : carte coupée en haut,
+  grand blanc sous la ligne du joueur). Deux causes racines :
+  - le centrage flex d'`#overlay` TRONQUE le haut d'un contenu plus grand que l'écran, sans
+    scroll possible → vue `end-view` (classe posée par setView) : titre masqué, overlay
+    défilable (`overflow-y:auto` + `touch-action:pan-y`, obligatoire car html/body sont en
+    `touch-action:none`), `margin:auto` sur la carte (centrée quand ça tient, défilable sinon),
+    padding bas réduit (les 72px réservaient le CTA flottant, absent de cette vue) ;
+  - le centrage du classement injectait un `padding-bottom` qui GONFLAIT la liste
+    (content-box) → supprimé, le scroll est simplement borné au contenu (screens.js).
+  Plus une media query `max-height:700px` → classement à 3 lignes (impair conservé, le
+  centrage en dépend) : vérifié en preview à 812 px et 667 px (SE), tout tient sans scroll.
+
 **Septième passe du 20 août 2026 — retours sur test iPhone + « game feel ».**
 - **Tonalité du morceau MESURÉE : Ré bémol majeur** (chromagramme + corrélation de Krumhansl
   sur le MP3, corrélation 0,89 — les trois classes dominantes sont exactement Ré♭/Fa/La♭).
