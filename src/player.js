@@ -35,6 +35,9 @@ const BODY_H = 34;
 // jumpPhysics) et la hauteur des étoiles aériennes (entities-render.js) en
 // dérivent — c'est pour ça que l'agrandissement du sprite passe par BODY_H.
 export const HEIGHT_WORLD = 1.9;
+// Facteur de taille VISUELLE du sprite (voir render()) — partagé avec le halo
+// de ramassage et l'ancrage des popups (main.js) pour qu'ils suivent le corps.
+export const DRAW_SCALE = 0.8;
 
 const PAL = {
   // Noir (retour direct : « je veux cheveux noirs »). Le highlight reste un
@@ -227,7 +230,12 @@ export function render(ctx, x, groundY, pxPerWorldUnit, lean = 0, pedalPhase = 0
   // Échelle étalonnée sur le CORPS (BODY_H), pas sur le sprite complet : le
   // personnage garde exactement sa taille d'avant l'agrandissement du canvas,
   // les 6 px ajoutés (la roue sous lui) s'affichent EN PLUS vers le bas.
-  const scale = (HEIGHT_WORLD / BODY_H) * pxPerWorldUnit;
+  // ⚠️ DRAW_SCALE (0,8) : réduction VISUELLE de 20 % demandée le 21 août 2026
+  // (« je suis quand même très très grand, rends-moi 20 % plus petit »).
+  // Purement cosmétique — HEIGHT_WORLD reste intact : la physique du saut
+  // (main.js) et la hauteur des étoiles aériennes (entities-render.js) en
+  // dérivent et ne doivent pas bouger avec la taille du sprite.
+  const scale = (HEIGHT_WORLD / BODY_H) * pxPerWorldUnit * DRAW_SCALE;
   const w = SPRITE_W * scale;
   const h = SPRITE_H * scale;
   const twoPi = Math.PI * 2;
@@ -283,8 +291,8 @@ export function renderPickupGlow(ctx, x, groundY, pxPerWorldUnit, intensity) {
   // Grossit légèrement tout au long de l'effet : l'œil lit une impulsion qui
   // se dilate, pas un simple fondu. Centré sur le buste plutôt que sur la roue
   // (0,45 → 0,62 : le corps est monté avec la roue ajoutée sous lui).
-  const radius = HEIGHT_WORLD * pxPerWorldUnit * (0.75 + (1 - intensity) * 0.5);
-  const cy = groundY - HEIGHT_WORLD * pxPerWorldUnit * 0.62;
+  const radius = HEIGHT_WORLD * DRAW_SCALE * pxPerWorldUnit * (0.75 + (1 - intensity) * 0.5);
+  const cy = groundY - HEIGHT_WORLD * DRAW_SCALE * pxPerWorldUnit * 0.62;
   const alpha = GLOW_MAX_ALPHA * envelope;
 
   const gradient = ctx.createRadialGradient(x, cy, 0, x, cy, radius);

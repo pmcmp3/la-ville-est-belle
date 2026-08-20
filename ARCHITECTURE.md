@@ -826,6 +826,38 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Quinzième passe du 21 août 2026 — troisième salve, testée depuis le navigateur Instagram.**
+- **Étoiles en VRAIE épaisseur 3D** (`entities-render.js`, `EDGE_ICONS`) — « quand elles sont à
+  90° on ne les voit plus, donne-leur une dimension 3D » : une TRANCHE (silhouette ambre au
+  gabarit exact du contour) est peinte sous la face avec une largeur plancher (`EDGE_MIN_SCALE`
+  0,16) — de profil l'étoile montre son épaisseur comme une pièce, à plat la face la recouvre
+  exactement. Dorées : tranche or. Vérifié en preview sur 8 phases du tour.
+- **UN SEUL régime de façade** (`world.js`) — « il y a trois types de façade selon la distance,
+  je veux un seul type, le plus proche, chargé le plus tôt possible » : TOUS les paliers de
+  détail par taille écran ont sauté (fenêtres, vitrines, garde-corps, balcons, croisillons,
+  lucarnes, cheminées, bossage — seule reste une garde à 2-3 px où rien n'est traçable). La
+  façade complète se peint dès la sortie de brume ; à 5 px de large la grille devient une
+  texture dense, et surtout elle ne CHANGE plus en approchant. ⚠️ Coût mesuré en preview :
+  ~2 ms/frame de décor sur desktop (×3-5 attendu sur téléphone) — premier suspect si les fps
+  chutent en course.
+- **Camions traversants SUPPRIMÉS** (`crosstraffic.js`) — « il faut pas qu'il y ait des camions
+  qui traversent, je veux que ce soient des voitures, sinon c'est trop » : `vehiculeAu()` ne
+  tire plus que des voitures (sautables), le rendu cabine/gabarit camion a disparu. Ne pas les
+  réintroduire sans redemander.
+- **Joueur réduit de 20 %** (`player.js`, `DRAW_SCALE` 0,8) — purement visuel : `HEIGHT_WORLD`
+  INTACT (physique du saut + étoiles aériennes en dérivent), le halo de ramassage et l'ancrage
+  des popups (main.js) suivent le facteur.
+- 🐛 **Equalizer muet dans le navigateur intégré d'Instagram** (« le visualiseur, il marche
+  pas ») : l'`AnalyserNode` était en DÉRIVATION de `focusGain` — sur WebKit, un analyseur hors
+  du chemin vers `destination` peut ne jamais recevoir de données. Inséré DANS la chaîne
+  (`focusGain → analyser → destination`, transparent au signal). À reconfirmer dans Instagram.
+- **Favicon + « Now Playing »** (demandé : « on peut travailler ce favicon ? ») :
+  `public/favicon.png` (64) et `public/apple-touch-icon.png` (180) — étoile Mario du jeu sur
+  rouge de charte, générés au canvas en preview ; liens RELATIFS dans le `<head>`. En plus,
+  `navigator.mediaSession.metadata` (audio.js, posé à chaque lecture) : titre « La ville est
+  belle », artiste PMC, pochette de l'EP — c'est ce qui habille la Dynamic Island / l'écran
+  verrouillé pendant que le morceau joue. Best-effort, jamais bloquant.
+
 **Quatorzième passe du 21 août 2026 — deuxième salve du même jour (screen à l'appui).**
 - 🐛 **Popups superposés** (`main.js`, `pousserPopup`) — « quand y'a marqué combo ça passe
   par-dessus l'autre texte » : une étoile DORÉE qui fait passer un palier pousse « +900 » puis

@@ -61,10 +61,14 @@ const FILTRE_OUVERT_HZ = 20000;
 // Analyseur de spectre pour l'equalizer de l'écran de fin (20 août 2026 :
 // « un égaliseur dynamique qui marche par rapport à la musique [...] même
 // modèle que le Dynamic Island : les basses à gauche, les aigus à droite »).
-// Branché en DÉRIVATION sur focusGain (un AnalyserNode n'a pas besoin d'être
-// relié à destination pour mesurer) : il voit donc exactement ce qui sort des
-// haut-parleurs — slider, mute et filtre de pause compris. Un equalizer qui
-// danserait sur un morceau coupé mentirait.
+// ⚠️ Inséré DANS la chaîne (focusGain → analyser → destination), jamais en
+// dérivation : sur WebKit (Safari iOS, et donc le navigateur intégré
+// d'Instagram), un AnalyserNode qui n'est pas sur le chemin vers destination
+// peut ne jamais recevoir de données — constaté le 21 août 2026 (« le
+// visualiseur, il marche pas » dans Instagram). Un AnalyserNode est
+// transparent au signal, la chaîne sonne pareil. Il voit exactement ce qui
+// sort des haut-parleurs — slider, mute et filtre de pause compris : un
+// equalizer qui danserait sur un morceau coupé mentirait.
 let analyser = null;
 let spectrum = null; // Uint8Array, allouée au premier getEqLevels()
 
@@ -184,18 +188,18 @@ function playNow(offset = 0) {
   lowpass.type = "lowpass";
   lowpass.frequency.value = mode === "muffled" ? window.CONFIG.pauseFiltreHz : FILTRE_OUVERT_HZ;
 
+  // Analyseur (equalizer de l'écran de fin) inséré dans la chaîne — voir le
+  // commentaire de déclaration : en dérivation, WebKit ne l'alimente pas.
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512; // 256 bins ≈ 93 Hz de résolution : assez fin pour séparer basses et aigus
+  analyser.smoothingTimeConstant = 0.75;
+
   sourceNode.connect(envelopeGain);
   envelopeGain.connect(volumeGain);
   volumeGain.connect(lowpass);
   lowpass.connect(focusGain);
-  focusGain.connect(audioCtx.destination);
-
-  // Dérivation vers l'analyseur (equalizer de l'écran de fin) — recréé avec
-  // le reste du graphe à chaque lecture, comme les gains.
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 512; // 256 bins ≈ 93 Hz de résolution : assez fin pour séparer basses et aigus
-  analyser.smoothingTimeConstant = 0.75;
   focusGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
 
   const { fonduEntree, fonduSortie } = window.CONFIG;
   const now = audioCtx.currentTime;
@@ -216,6 +220,20 @@ function playNow(offset = 0) {
   startCtxTime = now - offset; // now() doit renvoyer `offset` à cet instant précis
   clockShift = 0;              // la lecture repart calée sur la course : plus aucun retard à traîner
   started = true;
+
+  // Métadonnées « Now Playing » (21 août 2026, avec le favicon) : c'est ce qui
+  // habille la Dynamic Island / l'écran verrouillé pendant que le morceau
+  // joue — titre, artiste, pochette de l'EP. Purement déclaratif et
+  // best-effort : aucun navigateur n'en dépend pour jouer le son.
+  if ("mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: "La ville est belle",
+        artist: "PMC",
+        artwork: [{ src: "assets/cover-ep.webp", sizes: "480x480", type: "image/webp" }],
+      });
+    } catch (e) { /* MediaMetadata absent : tant pis, rien à faire */ }
+  }
 }
 
 // Attend que le contexte tourne VRAIMENT (et que le buffer soit prêt) avant

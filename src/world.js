@@ -289,7 +289,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
   ctx.fillStyle = facadeColor;
   ctx.fillRect(wallLeft, wallTop, wallW, wallH);
 
-  if (wallW >= WINDOW_MIN_PX && wallH >= WINDOW_MIN_PX) {
+  if (wallW >= 2 && wallH >= 2) { // plus de seuil WINDOW_MIN_PX (21 août 2026, « un seul type de façade »)
     const cols = windowCols;
     const rows = Math.max(1, Math.min(shape.windowRows, Math.floor(wallH / 6)));
     const marginX = wallW * 0.12;
@@ -328,7 +328,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       // visuellement "commerce" et "étages" — un des repères les plus lisibles
       // d'une façade haussmannienne à cette échelle (retour direct : « revois
       // la manière dont c'est fait [...] immeuble parisien »).
-      if (isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
+      if (isGround && wallW > 2) { // plus de seuil (21 août 2026)
         ctx.fillStyle = bandeauColor;
         ctx.fillRect(wallLeft, rowY - cellH * 0.06, wallW, Math.max(1, wallH * 0.012));
       }
@@ -384,7 +384,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
       // façade claire. Le garde-corps passe DEVANT le bas des fenêtres (main
       // courante + barreaux serrés) — peint APRÈS elles, sinon les vitres le
       // recouvraient.
-      if (isFacade && !isGround && wallW > 11) { // seuil abaissé 16 → 11, voir WINDOW_MIN_PX plus haut
+      if (isFacade && !isGround && wallW > 2) { // plus de seuil (21 août 2026)
         const railH = wallH * 0.032;                  // hauteur du garde-corps
         const railY = rowY + winH - railH;            // devant le BAS de la fenêtre
         const railL = wallLeft + marginX * 0.4;
@@ -403,7 +403,7 @@ function drawFace(ctx, corners, shape, distT, windowCols, windowKey, isFacade) {
     // sombre sur les deux arêtes verticales du mur, sur la hauteur des 2
     // premiers étages — signature très reconnaissable des références
     // envoyées, absente jusqu'ici (le mur était uni jusqu'en bas).
-    if (wallW > 14) { // seuil abaissé 20 → 14, voir WINDOW_MIN_PX plus haut
+    if (wallW > 3) { // plus de seuil (21 août 2026) — 3 px : sous ça les blocs alternés ne sont pas traçables
       const quoinRows = Math.min(rows, 2);
       const quoinH = quoinRows * cellH + marginY;
       const quoinW = Math.min(wallW * 0.07, 6);
@@ -447,8 +447,9 @@ function drawRoofAndCornice(ctx, corners, distT, windowKey, withDetail, wallH) {
   ctx.closePath();
   ctx.clip();
 
-  // Cheminées, seulement sur la façade principale assez large à l'écran.
-  if (withDetail && roofW > 12) {
+  // Cheminées, sur la façade principale (plus de seuil de taille depuis le
+  // 21 août 2026 — « un seul type de façade », voir drawFacade3D).
+  if (withDetail && roofW > 2) {
     const chimW = Math.max(2, roofW * 0.05);
     ctx.fillStyle = gradientStep(roofRidgeGradient, distT);
     ctx.fillRect(roofLeft + roofW * 0.2, roofTop, chimW, roofH * 0.7);
@@ -463,7 +464,7 @@ function drawRoofAndCornice(ctx, corners, distT, windowKey, withDetail, wallH) {
   // Lucarnes : petites fenêtres qui percent le bas du toit, pignon
   // triangulaire au-dessus — LE détail qui distingue un vrai toit mansardé
   // parisien d'un simple pan incliné uni (retour du 12 août 2026).
-  if (withDetail && roofW > DORMER_MIN_ROOF_PX) {
+  if (withDetail && roofW > 2) { // plus de seuil DORMER_MIN_ROOF_PX (21 août 2026)
     const dormerW = roofW * 0.16;
     const dormerH = roofH * 0.42;
     const dormerY = roofBottom - roofH * 0.5;
@@ -720,9 +721,10 @@ function drawBalcony(ctx, side, xInner, zA, zB, h, width, height, ironColor, sla
   }
   ctx.stroke();
   // Croisillons entre la lisse basse et ~70 % de la hauteur, un X par travée.
-  // Trait plus fin que les barreaux (la dentelle, pas la structure) — sauté
-  // quand le balcon est trop petit à l'écran pour que le motif reste lisible.
-  if (Math.abs(botB.x - botA.x) > bars * 3) {
+  // Trait plus fin que les barreaux (la dentelle, pas la structure). Plus de
+  // seuil de taille (21 août 2026, « un seul type de façade ») : au loin les X
+  // fusionnent en un liseré dense — la même ferronnerie, juste plus loin.
+  {
     ctx.lineWidth = Math.max(0.6, gOutA.scale * 0.025);
     ctx.beginPath();
     for (let i = 0; i < bars; i++) {
@@ -750,26 +752,22 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
 
   const facadePxW = Math.abs(gB.x - gA.x);
   const nearPxH = Math.abs(gA.y - eaveA.y);
-  drawRoofAndCornice(ctx, corners, distT, windowKey, facadePxW > DORMER_MIN_ROOF_PX, nearPxH);
+  drawRoofAndCornice(ctx, corners, distT, windowKey, true, nearPxH); // détail toujours, voir plus bas
 
-  // Trop loin : mur + toit suffisent, la brume fait le reste (même logique de
-  // seuils que WINDOW_MIN_PX pour l'ancienne grille).
-  // ⚠️ 30/22 → 14/10 le 20 août 2026 (retour direct : « ça charge beaucoup
-  // trop tardivement, il faut que ça charge vraiment largement devant ») :
-  // au-dessus de ces seuils-là, fenêtres et vitrines n'apparaissaient que sur
-  // les façades déjà proches — les immeubles arrivaient en boîtes nues puis
-  // s'habillaient d'un coup devant le joueur, exactement le « pop de détail »
-  // déjà corrigé deux fois sur l'ancienne grille (voir WINDOW_MIN_PX).
-  // 14/10 → 10/7 le 21 août 2026, même retour une troisième fois (« ça charge
-  // bcp trop tard !!! ») avec l'horizon repoussé à ≈209 (road.js). ⚠️ Mesuré
-  // en preview ce jour-là : la largeur écran d'une façade tombe à ~5 px dès
-  // z ≈ 120 (les façades fuient vers le point de fuite) — AUCUN seuil par
-  // pixel ne peut donc donner des fenêtres au loin, une grille de 3-7
-  // colonnes dans 5 px n'existe pas. D'où le régime « bandes d'étages »
-  // ci-dessous : sous le seuil de la vraie grille, chaque étage est peint en
-  // une seule bande sombre continue (le ruban de fenêtres vu de loin) — ce
-  // qui fait sortir les immeubles de la brume DÉJÀ habités, au lieu de murs
-  // nus qui s'habillent d'un coup à mi-parcours.
+  // ⚠️ UN SEUL régime de rendu depuis le 21 août 2026, plus aucun seuil de
+  // distance. Retour direct, le troisième sur le même sujet : « il y a un
+  // type de façade chargé à distance, un deuxième à distance intermédiaire et
+  // un troisième très proche — je veux UN SEUL type, le plus proche, chargé
+  // le plus tôt possible ». Les paliers de détail par taille écran (mur nu →
+  // grille de fenêtres → grille + garde-corps/balcons) faisaient exactement
+  // ces trois familles d'immeubles ; ils sautent tous : la façade complète
+  // (fenêtres, vitrines, enseignes, garde-corps, balcons en saillie) se peint
+  // dès que le bâtiment sort de la brume, à n'importe quelle distance. À 5 px
+  // de large, la grille devient une texture serrée — c'est voulu, ça se lit
+  // « immeuble habité » et surtout ça ne CHANGE plus en approchant. Seule
+  // garde restante : une façade sous 2 px, où rien n'est traçable.
+  if (facadePxW < 2 || nearPxH < 2) return;
+
   const at = (z, h) => {
     const g = project(xInner, z, width, height);
     return { x: g.x, y: g.y - h * g.scale, scale: g.scale };
@@ -778,22 +776,6 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
   const rows = shape.windowRows;             // r = 0 : rez-de-chaussée
   const rowH = wallHeight / rows;
   const darkColor = gradientStep(windowDarkGradient, distT);
-
-  if (facadePxW < 10 || nearPxH < 7) {
-    if (facadePxW >= 2.5 && nearPxH >= 4) {
-      const margeZ = (zFar - zNear) * 0.08;
-      for (let r = 1; r < rows; r++) {
-        const hBot = r * rowH + rowH * 0.3;
-        const hTop = (r + 1) * rowH - rowH * 0.24;
-        fillPoly(ctx, [
-          at(zNear + margeZ, hTop), at(zFar - margeZ, hTop),
-          at(zFar - margeZ, hBot), at(zNear + margeZ, hBot),
-        ], darkColor);
-      }
-    }
-    return;
-  }
-
   const cols = shape.facadeWindowCols;
   const colD = (zFar - zNear) / cols;
   const litColor = gradientStep(windowLitGradient, distT);
@@ -802,10 +784,7 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
   const bandeauColor = gradientStep(corniceGradient, distT);
   const signColor = gradientStep(signGoldGradient, distT);
   const slabColor = gradientStep(roofRidgeGradient, distT);
-  // Les garde-corps individuels sous les fenêtres ne se dessinent que quand la
-  // façade est assez proche — au loin, seuls les balcons filants restent.
-  // 70 → 40 le 20 août 2026, même retour que les seuils ci-dessus.
-  const detail = facadePxW > 40;
+  const detail = true; // plus de palier : garde-corps et balcons toujours peints
 
   for (let r = 0; r < rows; r++) {
     const isGround = r === 0;
@@ -859,10 +838,9 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
     // Balcon filant EN SAILLIE aux étages nobles (2e et dernier — c'est le
     // rythme de la photo : deux lignes fortes, pas une grille sur chaque
     // niveau, les autres étages gardant leurs garde-corps de fenêtre).
-    // Seuil 44 → 22 le 20 août 2026 puis 22 → 14 le 21 (« ça charge bcp trop
-    // tard !!! ») : les balcons doivent être déjà là quand la façade émerge
-    // de la brume, pas apparaître à mi-course.
-    if (!isGround && (r === 2 || r === rows - 1) && facadePxW > 14) {
+    // Plus aucun seuil de taille depuis le 21 août 2026 (« un seul type de
+    // façade, chargé le plus tôt possible ») — voir le commentaire de tête.
+    if (!isGround && (r === 2 || r === rows - 1)) {
       drawBalcony(ctx, side, xInner, zNear + colD * 0.12, zFar - colD * 0.12, r * rowH, width, height, ironColor, slabColor);
     }
   }

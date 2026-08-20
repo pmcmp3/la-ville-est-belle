@@ -164,8 +164,10 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). ⚠️ **Axe de rotation corrigé le
   21 août 2026** (« le haut de l'étoile ne doit pas bouger [...] là c'est un salto ») : rotation
   autour de l'axe VERTICAL façon pièce de Mario (`ctx.scale(cos, 1)`), plus jamais `ctx.rotate()`
-  dans le plan de l'écran. Vérifié par balayage hors ligne (`slotPreview`), jamais atteignable en
-  pratique.
+  dans le plan de l'écran. ⚠️ **Épaisseur 3D ajoutée le même jour** (« à 90° on ne les voit
+  plus ») : une TRANCHE ambre (`EDGE_ICONS`) reste visible de profil, comme une vraie pièce —
+  l'étoile ne disparaît jamais. Vérifié par balayage hors ligne (`slotPreview`), jamais
+  atteignable en pratique.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
   enregistrés l'ont été sous d'anciens barèmes (195 525 puis 61 400) et écraseraient
   définitivement ceux du nouveau (68 925 / 75 828).
@@ -179,9 +181,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   - **Bandeau « Tu écoutes La ville est belle »** sur l'écran de fin (le morceau y joue vraiment
     ~114 s) — cliquable, même smartlink. ⚠️ **Equalizer branché sur le VRAI spectre depuis le
     21 août 2026** (« même modèle que le Dynamic Island : basses à gauche, aigus à droite ») :
-    `AnalyserNode` en dérivation de la sortie (`audio.getEqLevels`), 5 barres pilotées en rAF
-    par `screens.js` — l'ancienne animation CSS ne subsiste qu'en secours (classe `.idle`)
-    quand le contexte audio ne tourne pas.
+    `AnalyserNode` DANS la chaîne de sortie (`focusGain → analyser → destination` — jamais en
+    dérivation : WebKit/navigateur Instagram n'alimente pas un analyseur hors du chemin vers
+    destination, bug vécu le jour même), `audio.getEqLevels`, 5 barres pilotées en rAF par
+    `screens.js` — l'ancienne animation CSS ne subsiste qu'en secours (classe `.idle`) quand le
+    contexte audio ne tourne pas.
   - **CTA renommé « AJOUTER LE MORCEAU »** (lienEP est déjà un smartlink li.sten.to).
   - **Balises OG/Twitter** avec la pochette (`public/assets/cover-ep-og.jpg`).
   - **Compteur global de courses** (« X courses déjà jouées ») + **date de fin du concours**
@@ -205,12 +209,12 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
   que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. ⚠️ Le véhicule est **découpé sur la trouée de la rue** (`BORD_RUE`) : il émerge de derrière les façades comme d'une rue transversale, au lieu d'être peint par-dessus les trottoirs et les immeubles plusieurs secondes à l'avance — retour direct, capture à l'appui (« on les voit de trop loin »). Coût −1 vie,
   **jamais fatal** — les deux grilles étant indépendantes, une coïncidence avec le seul passage
-  laissé par un pont est possible et ne doit pas terminer la course. ⚠️ **Tous franchissables au
-  saut depuis le 21 août 2026, CAMION COMPRIS** (« il faut qu'on ait la possibilité de les
-  esquiver ou de sauter par-dessus [...] un camion qui prenait toute la route avec un vélo,
-  j'ai été obligé de perdre ») : le camion était le seul insurvolable, et un camion coïncidant
-  avec un obstacle musical pouvait fermer toutes les issues — le saut redevient la porte de
-  sortie universelle, quitte à tricher sur sa hauteur.
+  laissé par un pont est possible et ne doit pas terminer la course. ⚠️ **Le CAMION a été
+  SUPPRIMÉ le 21 août 2026** (« il faut pas qu'il y ait des camions qui traversent, je veux que
+  ce soient des voitures, sinon c'est trop ») — d'abord rendu sautable le même jour, puis retiré
+  tout court : seules des voitures traversent désormais, toutes franchissables au saut (« il
+  faut qu'on ait la possibilité de les esquiver ou de sauter par-dessus »). Ne pas réintroduire
+  le camion sans redemander.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de

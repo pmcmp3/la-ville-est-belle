@@ -257,6 +257,37 @@ const GOLD_ICONS = {
   guitare:       starGold(1.4),
 };
 
+// Tranche de l'étoile — l'ÉPAISSEUR du volume 3D (21 août 2026 : « quand
+// elles sont à 90° on ne les voit plus, donne-leur une dimension 3D, pas des
+// fichiers flats qui tournent »). Silhouette pleine dans un ambre dense
+// (assez sombre pour se détacher du jaune de la face, assez chaud pour se
+// détacher du bitume) : peinte SOUS la face pendant la rotation avec une
+// largeur plancher (EDGE_MIN_SCALE dans paintSlot), c'est elle qu'on voit
+// quand l'étoile est de profil — comme la tranche d'une pièce.
+const STAR_EDGE_COLOR = "#c07f0c";
+const GOLD_EDGE_COLOR = "#caa233";
+function starEdgeIcon(tier, color) {
+  return makeIcon((ictx, cx, cy, r) => {
+    // Même gabarit que le contour de la face (R × 1,16) : à plat, la face la
+    // recouvre exactement — la tranche n'apparaît qu'en tournant.
+    star(ictx, cx, cy, r * tier * 1.16, color);
+  });
+}
+const EDGE_ICONS = {
+  cd:            starEdgeIcon(0.85, STAR_EDGE_COLOR),
+  piano:         starEdgeIcon(0.98, STAR_EDGE_COLOR),
+  appareil:      starEdgeIcon(1.10, STAR_EDGE_COLOR),
+  collierPerles: starEdgeIcon(1.22, STAR_EDGE_COLOR),
+  guitare:       starEdgeIcon(1.4, STAR_EDGE_COLOR),
+};
+const GOLD_EDGE_ICONS = {
+  cd:            starEdgeIcon(0.85, GOLD_EDGE_COLOR),
+  piano:         starEdgeIcon(0.98, GOLD_EDGE_COLOR),
+  appareil:      starEdgeIcon(1.10, GOLD_EDGE_COLOR),
+  collierPerles: starEdgeIcon(1.22, GOLD_EDGE_COLOR),
+  guitare:       starEdgeIcon(1.4, GOLD_EDGE_COLOR),
+};
+
 // Rouge de charte (+ une teinte plus sombre pour le modelé) : les obstacles
 // eux-mêmes signalent le danger, plus besoin d'un anneau superposé.
 // Playtest : « c'est quoi les trucs rouges qui font perdre, on ne comprend
@@ -653,11 +684,25 @@ function paintSlot(ctx, width, height, now, e) {
   // rotation voulue est autour de l'axe VERTICAL, façon pièce de Mario : en
   // 2D ça se fait en pinçant la largeur sur un cosinus (scaleX de 1 → 0 → −1),
   // la pointe haute reste plantée au même pixel pendant tout le tour.
+  // ⚠️ Épaisseur ajoutée le 21 août 2026 (« quand elles sont à 90° on ne les
+  // voit plus ») : la TRANCHE (EDGE_ICONS, silhouette ambre) est peinte sous
+  // la face avec une largeur qui ne descend jamais sous EDGE_MIN_SCALE — de
+  // profil, l'étoile montre son épaisseur au lieu de disparaître, comme une
+  // vraie pièce qui tourne.
   if (e.isBonus) {
     const spin = now * Math.PI * (e.gold ? 2 : 1);
+    const c = Math.cos(spin);
+    const EDGE_MIN_SCALE = 0.16;
     ctx.save();
     ctx.translate(p.x, p.y - size / 2 - airOffset);
-    ctx.scale(Math.cos(spin), 1);
+    // Tranche : interpolée pour être exactement recouverte par la face à
+    // plat (échelle égale) et rester à EDGE_MIN_SCALE de profil.
+    const edge = (e.gold ? GOLD_EDGE_ICONS : EDGE_ICONS)[e.kind];
+    ctx.save();
+    ctx.scale(Math.abs(c) * (1 - EDGE_MIN_SCALE) + EDGE_MIN_SCALE, 1);
+    ctx.drawImage(edge, -size / 2, -size / 2, size, size);
+    ctx.restore();
+    ctx.scale(c, 1);
     ctx.drawImage(icon, -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {

@@ -68,9 +68,13 @@ const Z_WINDOW = 1.0;
 // Dimensions en unités-monde. Le véhicule traverse, donc sa LONGUEUR court le
 // long de x et sa largeur le long de z — l'inverse d'une voiture de la
 // chaussée (entities-render.js).
+// ⚠️ Le CAMION a été retiré le 21 août 2026 (« il faut pas qu'il y ait des
+// camions qui traversent, je veux que ce soient des voitures, sinon c'est
+// trop ») : à 4,2 unités de long il couvrait plus d'une voie et demie et
+// rendait l'esquive latérale illisible. Ne pas le réintroduire sans
+// redemander — seule la voiture traverse désormais.
 const VEHICULES = {
   voiture: { demiLongueur: 1.35, demiLargeur: 0.8, hauteur: 1.25, toit: 0.62 },
-  camion: { demiLongueur: 2.1, demiLargeur: 0.95, hauteur: 2.35, toit: 0 },
 };
 
 // ⚠️ Volontairement SANS la variante noire qui existe pour les voitures de la
@@ -86,7 +90,6 @@ const COULEURS = [
   { base: "#e13e26", dark: "#a12c1c", hi: "#ff8a72" },
   { base: "#c8963a", dark: "#8f6a24", hi: "#f0cd7f" },
 ];
-const CABINE = { base: "#d8d3c6", dark: "#a49f93", hi: "#ffffff" };
 
 // Hash local (même recette que world.js/entities.js, multiplicateur distinct)
 // pour que ce module reste une fonction pure de l'index de carrefour, sans
@@ -107,9 +110,8 @@ function probabiliteAu(n) {
 function vehiculeAu(n) {
   if (!road.isCrossingSlot(n)) return null;
   if (hash(n * 3 + 11) >= probabiliteAu(n)) return null;
-  const h = hash(n * 7 + 23);
   return {
-    type: h < 0.32 ? "camion" : "voiture", // le camion reste le cas marquant, pas la norme
+    type: "voiture", // plus jamais de camion, voir VEHICULES ci-dessus
     voie: Math.min(road.LANE_COUNT - 1, Math.floor(hash(n * 13 + 5) * road.LANE_COUNT)),
     sens: hash(n * 17 + 3) < 0.5 ? -1 : 1,  // vient de la gauche ou de la droite
     couleur: COULEURS[Math.floor(hash(n * 29 + 7) * COULEURS.length) % COULEURS.length],
@@ -151,13 +153,12 @@ export function reset() {
 
 // Collisions du tick. Même contrat que entities.update() : renvoie les
 // événements survenus, à charge de main.js d'en tirer vies et score.
-// `inAir` sauve TOUJOURS, camion compris (revu le 20 août 2026, retour
-// direct : « il faut qu'on ait la possibilité de les esquiver ou de sauter
-// par-dessus [...] un camion qui prenait toute la route avec un vélo, j'ai
-// été obligé de perdre »). Le camion était « trop haut pour être survolé »,
-// mais les deux grilles étant indépendantes, un camion peut coïncider avec
-// un obstacle musical qui bloque les voies de repli — le saut doit rester
-// une porte de sortie universelle, quitte à tricher sur la hauteur.
+// `inAir` sauve TOUJOURS (« il faut qu'on ait la possibilité de les esquiver
+// ou de sauter par-dessus ») : les deux grilles étant indépendantes, un
+// véhicule traversant peut coïncider avec un obstacle musical qui bloque les
+// voies de repli — le saut doit rester une porte de sortie universelle.
+// (Le camion insurvolable a d'abord été rendu sautable le 20 août 2026, puis
+// carrément supprimé le 21 — voir VEHICULES.)
 export function update(playerLane, inAir) {
   const distance = road.getDistanceScrolled();
   const speed = road.getSpeed();
@@ -179,7 +180,7 @@ export function update(playerLane, inAir) {
     const sauteDessus = inAir;
 
     if (touche && !sauteDessus) {
-      events.push({ type: "obstacle", kind: vehicule.type === "camion" ? "camion" : "traversee" });
+      events.push({ type: "obstacle", kind: "traversee" });
       resolus.add(n);
     }
   }
@@ -260,22 +261,11 @@ function dessiner(ctx, vehicule, z, width, height) {
     gNG, gND, { x: gND.x, y: gND.y - hN }, { x: gNG.x, y: gNG.y - hN },
   ], couleur.base);
 
-  // Cabine claire à l'avant du camion : c'est ce qui le fait lire « camion de
-  // livraison » plutôt que « gros bloc coloré ».
-  if (vehicule.type === "camion") {
-    const avantX = vehicule.sens > 0 ? gND.x : gNG.x;
-    const largeurCabine = Math.abs(gND.x - gNG.x) * 0.3;
-    const cabX = vehicule.sens > 0 ? avantX - largeurCabine : avantX;
-    ctx.fillStyle = CABINE.base;
-    ctx.fillRect(cabX, gNG.y - hN * 0.62, largeurCabine, hN * 0.62);
-    ctx.fillStyle = "#141419"; // pare-brise
-    ctx.fillRect(cabX + largeurCabine * 0.18, gNG.y - hN * 0.55, largeurCabine * 0.64, hN * 0.26);
-  } else {
-    // Vitres latérales de la voiture
-    ctx.fillStyle = "#141419";
-    const w = Math.abs(gND.x - gNG.x);
-    ctx.fillRect(gNG.x + w * 0.22, gNG.y - hN * 0.92, w * 0.56, hN * 0.34);
-  }
+  // Vitres latérales de la voiture. (La cabine de camion a disparu avec le
+  // camion lui-même, voir VEHICULES.)
+  ctx.fillStyle = "#141419";
+  const wVitres = Math.abs(gND.x - gNG.x);
+  ctx.fillRect(gNG.x + wVitres * 0.22, gNG.y - hN * 0.92, wVitres * 0.56, hN * 0.34);
 
   // Bandeau clair sur l'arête haute : détache le véhicule du bitume sombre.
   ctx.fillStyle = couleur.hi;
