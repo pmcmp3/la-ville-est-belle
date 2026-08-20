@@ -151,8 +151,13 @@ export function reset() {
 
 // Collisions du tick. Même contrat que entities.update() : renvoie les
 // événements survenus, à charge de main.js d'en tirer vies et score.
-// `inAir` sauve, exactement comme pour une voiture de la chaussée — le
-// véhicule reste franchissable au saut, seul le camion est trop haut.
+// `inAir` sauve TOUJOURS, camion compris (revu le 20 août 2026, retour
+// direct : « il faut qu'on ait la possibilité de les esquiver ou de sauter
+// par-dessus [...] un camion qui prenait toute la route avec un vélo, j'ai
+// été obligé de perdre »). Le camion était « trop haut pour être survolé »,
+// mais les deux grilles étant indépendantes, un camion peut coïncider avec
+// un obstacle musical qui bloque les voies de repli — le saut doit rester
+// une porte de sortie universelle, quitte à tricher sur la hauteur.
 export function update(playerLane, inAir) {
   const distance = road.getDistanceScrolled();
   const speed = road.getSpeed();
@@ -169,9 +174,9 @@ export function update(playerLane, inAir) {
     const x = positionLaterale(vehicule, z, speed);
     const { demiLongueur } = VEHICULES[vehicule.type];
     const touche = Math.abs(road.laneX(playerLane) - x) < demiLongueur;
-    // Le camion est trop haut pour être survolé ; la voiture, non — même règle
-    // que sa cousine de la chaussée.
-    const sauteDessus = inAir && vehicule.type === "voiture";
+    // Sauter sauve toujours, camion compris — voir le commentaire au-dessus
+    // de la fonction.
+    const sauteDessus = inAir;
 
     if (touche && !sauteDessus) {
       events.push({ type: "obstacle", kind: vehicule.type === "camion" ? "camion" : "traversee" });

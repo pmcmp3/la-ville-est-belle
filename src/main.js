@@ -13,7 +13,6 @@ import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
 import * as crosstraffic from "./crosstraffic.js";
 import * as tutorial from "./tutorial.js";
-import * as clip from "./clip.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -336,7 +335,14 @@ const POPUPS_PEDAGOGIQUES = 3;  // nombre d'étoiles en début de partie qui aff
 const popups = [];              // { texte, couleur, age }
 
 function pousserPopup(texte, couleur) {
-  popups.push({ texte, couleur, age: 0 });
+  // 🐛 Deux popups poussés (quasi) en même temps se peignaient exactement au
+  // même point d'ancrage — vécu : une étoile DORÉE qui fait passer un palier
+  // pousse « +900 » puis « COMBO ×2 » dans la même frame, illisibles l'un sur
+  // l'autre (« quand y'a marqué combo ça passe par-dessus l'autre texte »,
+  // 21 août 2026). Chaque popup encore jeune décale le nouveau d'un cran vers
+  // le haut ; un popup plus vieux a déjà assez monté/fondu pour ne pas gêner.
+  const decalage = popups.filter((p) => p.age < 0.5).length * 26;
+  popups.push({ texte, couleur, age: 0, decalage });
   if (popups.length > PICKUP_POPUP_MAX) popups.shift();
 }
 
@@ -532,11 +538,13 @@ function endGame(reason) {
     screens.renderLeaderboard(await net.getTopScores());
   })();
 
-  // Compteur global de courses (preuve sociale, fire-and-forget) + clip des
-  // dernières secondes : le bouton « PARTAGER LE CLIP » n'apparaît que si
-  // l'enregistrement a abouti (voir clip.js — jamais bloquant).
+  // Compteur global de courses (preuve sociale, fire-and-forget).
+  // (Le clip des dernières secondes a été retiré le 20 août 2026 — « tu peux
+  // enlever Partager le clip » — et son enregistrement en course avec lui :
+  // son coût d'encodage sur téléphone n'avait jamais été mesuré, autant ne
+  // plus le payer pour un bouton qui n'existe plus. clip.js reste sur le
+  // disque mais n'est plus importé, donc plus bundlé.)
   net.postRun();
-  clip.terminer().then(() => screens.refreshClipButton());
 }
 
 function restartGame() {
@@ -591,7 +599,6 @@ function restartGame() {
 
   screens.hideOverlay();
   screens.showPauseButton(); // rejoue depuis l'écran de fin OU depuis le menu pause : dans les deux cas on repart en course active
-  clip.demarrer(); // nouveau replay buffer pour la nouvelle course
 }
 
 // Raccourcis debug (actifs uniquement si le mode debug est allumé — touche
@@ -642,7 +649,6 @@ function step(dt) {
     // première frame au lieu de glisser depuis l'horizon.
     if (gameStarted) {
       clock.jumpBy(-entities.LEAD_IN);
-      clip.demarrer(); // replay buffer des dernières secondes (clip.js)
     }
   }
 
@@ -1018,7 +1024,7 @@ function renderPickupPopups(ctx, renderX) {
     // garder la même taille à l'écran, il ne s'éloigne pas avec la route.
     ctx.font = `900 ${t < 0.15 ? 28 : 23}px ${POPUP_POLICE}`;
     ctx.fillStyle = popup.couleur;
-    ctx.fillText(popup.texte, p.x, base - monte);
+    ctx.fillText(popup.texte, p.x, base - monte - (popup.decalage || 0));
   }
   ctx.restore();
 }

@@ -58,6 +58,16 @@ let currentSource = null; // nœud en cours de lecture, pour pouvoir l'arrêter 
 let lowpass = null;
 const FILTRE_OUVERT_HZ = 20000;
 
+// Analyseur de spectre pour l'equalizer de l'écran de fin (20 août 2026 :
+// « un égaliseur dynamique qui marche par rapport à la musique [...] même
+// modèle que le Dynamic Island : les basses à gauche, les aigus à droite »).
+// Branché en DÉRIVATION sur focusGain (un AnalyserNode n'a pas besoin d'être
+// relié à destination pour mesurer) : il voit donc exactement ce qui sort des
+// haut-parleurs — slider, mute et filtre de pause compris. Un equalizer qui
+// danserait sur un morceau coupé mentirait.
+let analyser = null;
+let spectrum = null; // Uint8Array, allouée au premier getEqLevels()
+
 // Safari a longtemps n'accepté que la forme à callbacks de decodeAudioData ;
 // les navigateurs récents renvoient une Promise. On accepte les deux.
 function decodeWith(ctx, data) {
@@ -179,6 +189,13 @@ function playNow(offset = 0) {
   volumeGain.connect(lowpass);
   lowpass.connect(focusGain);
   focusGain.connect(audioCtx.destination);
+
+  // Dérivation vers l'analyseur (equalizer de l'écran de fin) — recréé avec
+  // le reste du graphe à chaque lecture, comme les gains.
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512; // 256 bins ≈ 93 Hz de résolution : assez fin pour séparer basses et aigus
+  analyser.smoothingTimeConstant = 0.75;
+  focusGain.connect(analyser);
 
   const { fonduEntree, fonduSortie } = window.CONFIG;
   const now = audioCtx.currentTime;
@@ -381,6 +398,33 @@ export function setVolume(v) {
 
 export function getVolume() {
   return pendingVolume;
+}
+
+// Niveaux de l'equalizer de l'écran de fin : `n` bandes 0→1, des BASSES (index
+// 0, à gauche) vers les AIGUS (à droite) — le modèle demandé est l'equalizer
+// du Dynamic Island iOS. Bandes réparties en log entre ~93 Hz et ~9 kHz (là où
+// vit le morceau), avec un léger gain vers les aigus : en linéaire les hautes
+// fréquences d'un mix portent bien moins d'énergie que les basses et les
+// barres de droite resteraient collées au sol. Renvoie null si le graphe
+// n'existe pas ou ne tourne pas — l'appelant garde alors ses barres au repos.
+export function getEqLevels(n) {
+  if (!analyser || !audioCtx || audioCtx.state !== "running") return null;
+  if (!spectrum || spectrum.length !== analyser.frequencyBinCount) {
+    spectrum = new Uint8Array(analyser.frequencyBinCount);
+  }
+  analyser.getByteFrequencyData(spectrum);
+  const minBin = 1;
+  const maxBin = Math.min(spectrum.length, 96); // ≈ 9 kHz à 48 kHz d'échantillonnage
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const b0 = Math.floor(minBin * Math.pow(maxBin / minBin, i / n));
+    const b1 = Math.max(b0 + 1, Math.floor(minBin * Math.pow(maxBin / minBin, (i + 1) / n)));
+    let sum = 0;
+    for (let b = b0; b < b1; b++) sum += spectrum[b];
+    const brut = sum / (b1 - b0) / 255;
+    out.push(Math.min(1, brut * (0.9 + i * 0.35)));
+  }
+  return out;
 }
 
 // --- Jingle de combo (demandé le 20 août 2026 : « quand y'a un combo, un

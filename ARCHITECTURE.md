@@ -312,7 +312,8 @@ Rien ne doit être dessiné au-delà : la projection s'y replierait. Tous les mo
 testent `z > HORIZON_Z` et sautent. Les objets « surgissent de derrière la courbe », ce qui est
 l'effet recherché.
 
-Repères (HORIZON_Z ≈ 155 depuis le 19 août 2026, CURVATURE 0,0002) : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 3` (4 avant le 17 août 2026), donc une voie fait
+Repères (HORIZON_Z ≈ 209 depuis le 21 août 2026, CURVATURE 0,00011 — voir l'historique complet
+des crans dans `road.js`) : `ROAD_HALF_WIDTH = 4`, `LANE_COUNT = 3` (4 avant le 17 août 2026), donc une voie fait
 2,67 unités (2 avant) — route physique inchangée, juste redécoupée en voies plus larges.
 `PLAYER_NEAR_Z = 13` (profondeur du joueur, fixe).
 
@@ -535,7 +536,10 @@ divergence entre les deux fichiers :
 
 **Feux de circulation** (`world.js`, `renderTrafficLight`) : poteau + tête tricolore (3 pastilles
 rouge/jaune/vert), posés au bord du trottoir sur les deux côtés à chaque créneau de croisement,
-même technique `project()`+fondu-brume que le reste du décor.
+même technique `project()`+fondu-brume que le reste du décor. ⚠️ **Position revue le 21 août
+2026** (« tu les as mis au milieu de la route quand ça croise ») : plantés à `n·SPACING − 0,3`
+(juste AVANT l'entrée du carrefour, côté joueur) au lieu du centre du créneau — voir la
+treizième passe en §11 pour le détail du −0,3.
 - ⚠️ **Revu le 12 août 2026** (« les poteaux des feux fais pareil », même retour que les
   bâtiments) : la première version était un simple `fillRect` plat, sans volume — lisait
   "carton", pas objet planté au sol. Le poteau (trop fin pour qu'un flanc projeté reste visible)
@@ -822,6 +826,73 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   identique (import direct de `voxel.js`, pas de duplication de primitif). Les quatre
   personnages du jeu (joueur, cyclistes, piétons) partagent maintenant la même grammaire voxel.
 
+**Quatorzième passe du 21 août 2026 — deuxième salve du même jour (screen à l'appui).**
+- 🐛 **Popups superposés** (`main.js`, `pousserPopup`) — « quand y'a marqué combo ça passe
+  par-dessus l'autre texte » : une étoile DORÉE qui fait passer un palier pousse « +900 » puis
+  « COMBO ×2 » dans la MÊME frame, même âge donc même ancrage, illisibles l'un sur l'autre.
+  Chaque popup encore jeune (< 0,5 s) décale le nouveau de 26 px vers le haut.
+- **Bâtiments encore plus tôt, troisième demande** (« faut que les bâtiments chargent bcp plus
+  tôt, ça charge bcp trop tard !!! ») — deux leviers :
+  - `CURVATURE` 0,00015 → 0,00011 (`road.js`), HORIZON_Z ≈ 179 → **≈ 209** ; pleine opacité
+    (HORIZON_Z − FADE_BAND) atteinte 30 unités plus tôt.
+  - ⚠️ **Mesuré en preview : les seuils par pixel ne pouvaient PAS suffire** — une façade ne
+    fait plus que ~5 px de large à l'écran dès z ≈ 120 (fuite vers le point de fuite), aucune
+    grille de fenêtres n'y tient. Nouveau régime « bandes d'étages » dans `drawFacade3D`
+    (world.js) : sous le seuil de la vraie grille (10/7 px, abaissé de 14/10), chaque étage est
+    peint en une bande sombre continue — le ruban de fenêtres vu de loin. Les immeubles sortent
+    de la brume déjà habités. Balcons en saillie dès 14 px (22 avant).
+  Vérifié en preview (écran d'accueil, rue en profondeur) : plus aucun mur nu au loin.
+
+**Treizième passe du 21 août 2026 — salve de retours après test iPhone (screen à l'appui).**
+- **Étoiles : axe de rotation corrigé** (`entities-render.js`) — « le haut de l'étoile ne doit
+  pas bouger [...] là c'est un salto ». `ctx.rotate()` tournait dans le plan de l'écran ;
+  remplacé par `ctx.scale(cos(spin), 1)` : rotation autour de l'axe VERTICAL façon pièce de
+  Mario, pointe haute immobile. Vitesses inchangées (1 tour/2 s, dorée ×2). Vérifié en preview
+  (6 phases dessinées côte à côte via `peindreObjet`).
+- **Camions traversants franchissables au saut** (`crosstraffic.js`) — « un camion qui prenait
+  toute la route avec un vélo, j'ai été obligé de perdre » : le camion était le seul véhicule
+  insurvolable, et les deux grilles (musicale/distance) étant indépendantes, un camion pouvait
+  fermer la seule issue laissée par les obstacles musicaux. `sauteDessus = inAir` pour tous les
+  types désormais — le saut est la porte de sortie universelle.
+- **Feux tricolores déplacés AVANT le carrefour** (`world.js`) — « tu les as mis au milieu de
+  la route quand ça croise » : ils étaient à `(n + 0,5)·SPACING`, le centre de l'avenue
+  transversale. Désormais à `n·SPACING − 0,3` : au bord du trottoir, juste avant l'entrée du
+  croisement, côté joueur. Le −0,3 les garde dans le filet de ruelle après le bâtiment du
+  créneau n−1 (profondeur max 9,3 sur 10 → 0,35 u de vide), donc jamais recouverts par une
+  façade peinte après eux dans l'ordre du peintre.
+- **Détail des façades chargé bien plus loin** (`world.js`) — « ça charge beaucoup trop
+  tardivement, il faut que ça charge vraiment largement devant » : seuils de `drawFacade3D`
+  30/22 px → 14/10 (fenêtres/vitrines), 70 → 40 (garde-corps de fenêtres), 44 → 22 (balcons
+  en saillie). Les immeubles arrivaient en boîtes nues et s'habillaient devant le joueur.
+- **Balcons plus parisiens** (`world.js`, `drawBalcony`) — lisse basse + CROISILLONS de fer
+  forgé (X entre les barreaux) sur les balcons filants ; garde-corps de fenêtres avec barreaux
+  (plus une ligne seule). Sauté quand trop petit à l'écran pour rester lisible.
+- **Bandeau 12 000 pts reformulé** (`hud.js`) — « j'ai pas compris pourquoi il est marqué
+  12 000 points » : titre « PREMIER PALIER ACTIVÉ ! » (19 px — 22 débordait de 375 px avec ce
+  libellé, mesuré), sous-titre « le morceau t'attend à l'arrivée ». Vérifié en preview.
+- **Écran de fin remanié** (« toutes les informations ne rentrent pas ») : bandeau « Votre
+  score » au lieu de « Game Over » (« Parcours terminé » conservé), ligne « Voici votre score »
+  supprimée, bouton « PARTAGER LE CLIP » supprimé — **et l'enregistrement clip.js coupé avec
+  lui** (plus d'import : plus bundlé, plus de coût d'encodage en course). Vérifié en preview
+  375×812 : tout tient sans scroll.
+- **Verrou de rejeu en pop-up depuis le bas** (`#unlock-sheet`, index.html + screens.js) —
+  « c'est quand les gens cliquent sur Rejouer que tu affiches ça en pop-up à partir du bas » :
+  REJOUER n'est plus `disabled`, il porte `.locked` (grisé) et son clic ouvre un panneau
+  voile + carte glissante (texte + CTA + « Plus tard ») qui sert les DEUX verrous (morceau,
+  puis suivre PMC). Hors de `#overlay` : `.view.active` porte un transform qui capturerait le
+  `position:fixed` (piège déjà vécu sur `#countdown-caption`). 🐛 Corrigé au passage : Entrée
+  au clavier sur l'écran de fin contournait le verrou (appel direct de `restartGame`).
+  Vérifié en preview : ouverture, fermeture, levée des deux verrous, textes et liens.
+- **Equalizer branché sur le vrai spectre** (`audio.js` `getEqLevels` + `screens.js`) —
+  « un égaliseur dynamique qui marche par rapport à la musique, même modèle que le Dynamic
+  Island : basses à gauche, aigus à droite ». `AnalyserNode` (fftSize 512) en dérivation de
+  `focusGain` — il voit ce qui SORT (slider/mute/filtre compris), un equalizer qui danse sur
+  du silence mentirait. 5 barres, bandes log ~93 Hz-9 kHz, léger gain vers les aigus (sinon
+  les barres de droite restent au sol), boucle rAF active uniquement sur la vue de fin.
+  L'animation CSS d'origine reste en secours (classe `.idle`) si l'analyse ne fournit rien.
+  ⚠️ **Le spectre réel n'a pas pu être vérifié en preview** (AudioContext y fige l'onglet,
+  piège n°1) — à confirmer sur téléphone.
+
 **Douzième passe du 20 août 2026 — refonte 3D des façades + gros lot conversion.**
 - **Façades en VRAIE perspective** (world.js, `drawFacade3D`) : le diagnostic du « ça fait 2D »
   était que drawFace plaquait fenêtres/balcons sur une grille ÉCRAN dans le quadrilatère
@@ -845,7 +916,9 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
   (cover-ep-og.jpg), compteur de courses (net.postRun/getRunsCount + migration
   `supabase-migration-compteur-courses.sql` à exécuter), image de partage avec pochette +
   badge disque, partage avec texte + lien.
-- **Clip TikTok** (`clip.js`) : replay buffer MediaRecorder à DEUX enregistreurs alternés
+- **Clip TikTok** (`clip.js`) — ⚠️ **RETIRÉ le 21 août 2026, voir treizième passe** (bouton
+  supprimé, enregistrement coupé, module plus importé). Historique de sa conception :
+  replay buffer MediaRecorder à DEUX enregistreurs alternés
   toutes les 5 s (un flux ne se découpe pas après coup — les chunks ne sont décodables que
   depuis le début du conteneur) ; à la mort, on garde le plus ancien → clip de 5-10 s finissant
   pile sur la fin. Feature-detect complet (Safari iOS enregistre en MP4), jamais bloquant.

@@ -647,11 +647,17 @@ function paintSlot(ctx, width, height, now, e) {
   // à 120 BPM, la rotation est donc calée sur la musique. L'étoile dorée
   // tourne deux fois plus vite — son signal « je suis spéciale ». Les
   // obstacles, eux, ne tournent jamais.
+  // ⚠️ Axe corrigé le 20 août 2026 (retour direct : « le haut de l'étoile ne
+  // doit pas bouger [...] là c'est un salto ») : ctx.rotate() tournait dans le
+  // plan de l'écran, comme une roue — la pointe balayait tout le tour. La
+  // rotation voulue est autour de l'axe VERTICAL, façon pièce de Mario : en
+  // 2D ça se fait en pinçant la largeur sur un cosinus (scaleX de 1 → 0 → −1),
+  // la pointe haute reste plantée au même pixel pendant tout le tour.
   if (e.isBonus) {
     const spin = now * Math.PI * (e.gold ? 2 : 1);
     ctx.save();
     ctx.translate(p.x, p.y - size / 2 - airOffset);
-    ctx.rotate(spin);
+    ctx.scale(Math.cos(spin), 1);
     ctx.drawImage(icon, -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {

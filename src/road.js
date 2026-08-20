@@ -94,8 +94,17 @@ const HORIZON_RATIO = 0.30; // horizon *théorique* d'un sol plat (asymptote) �
 // cette courbure. Le fondu de brume (FADE_BAND, ici et dans entities.js) fait
 // désormais le travail que faisait le repli : le lointain se dissout au lieu
 // de se couper.
-const CURVATURE = 0.00015;
-export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 179 unités-monde
+// 0.00015 → 0.00011 le 21 août 2026, troisième demande dans le même sens et la
+// plus insistante (« faut que les bâtiments chargent bcp plus tôt, ça charge
+// bcp trop tard !!! », screen à l'appui). HORIZON_Z ≈ 179 → ≈ 209 unités-monde
+// (≈ 21 bâtiments par côté) : à 99 u/s en fin de course, une façade vit
+// désormais ~2,1 s à l'écran au lieu de ~1,8 s, et atteint sa pleine opacité
+// (HORIZON_Z − FADE_BAND, world.js) 30 unités plus tôt. Combiné à la baisse
+// des seuils de détail (world.js, même jour) : les immeubles émergent de la
+// brume DÉJÀ habillés. Même arbitrage assumé que le cran précédent — la
+// courbure s'aplatit encore, la brume fait le travail du repli.
+const CURVATURE = 0.00011;
+export const HORIZON_Z = Math.sqrt(CAMERA_HEIGHT / CURVATURE); // ≈ 209 unités-monde
 
 // Enfoncement du sol à la distance z, en unités-monde.
 function groundDrop(z) {

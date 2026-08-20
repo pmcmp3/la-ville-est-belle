@@ -177,9 +177,18 @@ function starPath(c, cx, cy, r) {
 // ⚠️ Rendu plus mémorable le 20 août 2026 (validé « goooo ») : entrée en
 // rebond d'échelle, halo jaune, deux étoiles qui pulsent autour du chiffre —
 // même jaune que le gain partout ailleurs, jamais le rouge (réservé au malus).
+// Taille du titre du bandeau : 19 px (22 faisait déborder « PREMIER PALIER
+// ACTIVÉ ! » + ses deux étoiles d'un écran de 375 px, mesuré).
+const TITRE_PALIER_PX = 19;
+
 export function renderMilestone(ctx, width, height, game) {
   if (!game.milestoneTimer || game.milestoneTimer <= 0) return;
-  const texteHaut = `${game.milestoneShown} POINTS`;
+  // ⚠️ Reformulé le 20 août 2026 (retour direct : « j'ai pas compris pourquoi
+  // il est marqué 12 000 points [...] il faut dire un truc genre premier
+  // palier activé, pour donner aux gens envie de rejouer ») : le chiffre brut
+  // sans explication ne se lisait pas comme une récompense. Le PALIER devient
+  // le titre, le chiffre passe en sous-titre.
+  const texteHaut = "PREMIER PALIER ACTIVÉ !";
   const texteBas = "le morceau t'attend à l'arrivée";
   // Âge du bandeau depuis son apparition (0 → milestoneDuree), pour
   // l'animation d'entrée ; le fondu de sortie lit le timer directement.
@@ -188,8 +197,13 @@ export function renderMilestone(ctx, width, height, game) {
   ctx.save();
   // Fondu sur la dernière seconde plutôt qu'une disparition sèche.
   ctx.globalAlpha = Math.min(1, game.milestoneTimer);
+  // Largeur : le titre (19px — 22 débordait d'un écran de 375 avec ce
+  // libellé, mesuré) plus les deux étoiles, ou le sous-titre : le plus large
+  // des deux gagne.
+  ctx.font = `900 ${TITRE_PALIER_PX}px ${POLICE}`;
+  const largeurHaut = ctx.measureText(texteHaut).width + 58; // 2 × (18 + rayon d'étoile)
   ctx.font = `500 15px ${POLICE}`;
-  const largeur = Math.max(ctx.measureText(texteBas).width, 190) + 40;
+  const largeur = Math.max(largeurHaut, ctx.measureText(texteBas).width, 190) + 40;
   const hauteur = 62;
   // 0,72 → 0,78 : à 0,72 le bandeau mordait sur les pieds du personnage
   // (vérifié à l'écran). Assez bas pour ne rien cacher de la route à lire.
@@ -221,22 +235,22 @@ export function renderMilestone(ctx, width, height, game) {
 
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.font = `900 22px ${POLICE}`;
+  ctx.font = `900 ${TITRE_PALIER_PX}px ${POLICE}`;
   ctx.fillStyle = JAUNE_ETOILE;
-  ctx.fillText(texteHaut, width / 2, y + 12);
+  ctx.fillText(texteHaut, width / 2, y + 13);
   ctx.font = `500 14px ${POLICE}`;
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   ctx.fillText(texteBas, width / 2, y + 38);
 
-  // Deux étoiles qui pulsent de part et d'autre du chiffre, en léger
+  // Deux étoiles qui pulsent de part et d'autre du titre, en léger
   // contretemps l'une de l'autre pour que l'ensemble scintille.
-  ctx.font = `900 22px ${POLICE}`;
+  ctx.font = `900 ${TITRE_PALIER_PX}px ${POLICE}`;
   const demiTexte = ctx.measureText(texteHaut).width / 2;
-  const cyEtoile = y + 23;
+  const cyEtoile = y + 22;
   ctx.fillStyle = JAUNE_ETOILE;
-  starPath(ctx, width / 2 - demiTexte - 18, cyEtoile, 8 + Math.sin(age * 6) * 1.5);
+  starPath(ctx, width / 2 - demiTexte - 18, cyEtoile, 7 + Math.sin(age * 6) * 1.5);
   ctx.fill();
-  starPath(ctx, width / 2 + demiTexte + 18, cyEtoile, 8 + Math.sin(age * 6 + Math.PI) * 1.5);
+  starPath(ctx, width / 2 + demiTexte + 18, cyEtoile, 7 + Math.sin(age * 6 + Math.PI) * 1.5);
   ctx.fill();
   ctx.restore();
 }

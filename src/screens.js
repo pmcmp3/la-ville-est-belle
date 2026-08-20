@@ -19,7 +19,6 @@ import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
 import * as share from "./share.js";
-import * as clip from "./clip.js";
 import * as tutorial from "./tutorial.js";
 
 let deps = null;
@@ -53,13 +52,18 @@ const ctaLink = document.getElementById("cta-link");
 // de la carte de fin. C'est toujours config.js qui fait foi (lienEP).
 const endCta = document.getElementById("end-cta");
 const shareButton = document.getElementById("share-button");
-const replayLockNote = document.getElementById("replay-lock-note");
-const followCta = document.getElementById("follow-cta");
 const fanNote = document.getElementById("fan-note");
 const nowPlaying = document.getElementById("now-playing");
-const clipButton = document.getElementById("clip-button");
 const contestDeadline = document.getElementById("contest-deadline");
 const runsCount = document.getElementById("runs-count");
+// Pop-up de verrou depuis le bas (remplace l'ancienne note statique sous
+// REJOUER et le lien « Suis PMC » — voir syncVerrouRejeu).
+const unlockSheet = document.getElementById("unlock-sheet");
+const unlockSheetVeil = document.getElementById("unlock-sheet-veil");
+const unlockSheetText = document.getElementById("unlock-sheet-text");
+const unlockSheetCta = document.getElementById("unlock-sheet-cta");
+const unlockSheetCtaLabel = document.getElementById("unlock-sheet-cta-label");
+const unlockSheetClose = document.getElementById("unlock-sheet-close");
 
 // --- Verrou de rejeu (19 août 2026) --------------------------------------
 // Version retenue du « mur » demandé par l'artiste : il voulait mettre la
@@ -111,14 +115,42 @@ function marquerPmcSuivi() {
 // page : sur iOS le lien s'ouvre dans un autre onglet et rien ne garantit
 // qu'on repasse par ici. Le lier à une preuve de lecture enfermerait le joueur
 // dans un écran sans issue — ce qui coûterait bien plus que le clic gagné.
+//
+// ⚠️ Présentation revue le 20 août 2026 (« c'est quand les gens cliquent sur
+// Rejouer que tu fais afficher ça en pop-up à partir du bas ») : REJOUER
+// n'est plus disabled — il reste cliquable, et si un verrou est actif le clic
+// ouvre le panneau #unlock-sheet au lieu de relancer. La note statique sous
+// le bouton et le lien « Suis PMC » inline ont disparu avec ce changement.
+// `verrouActif` : null (libre), "morceau" ou "suivre".
+let verrouActif = null;
+
 function syncVerrouRejeu() {
   const verrouMorceau = !morceauDejaOuvert();
   // Le verrou « suivre » n'arrive qu'APRÈS le verrou morceau (jamais les deux
   // en même temps) et seulement à partir de la 3e partie.
   const verrouSuivre = !verrouMorceau && partiesJouees() >= SEUIL_SUIVRE && !pmcDejaSuivi();
-  replayButton.disabled = verrouMorceau || verrouSuivre;
-  replayLockNote.classList.toggle("hidden", !verrouMorceau);
-  followCta.classList.toggle("hidden", !verrouSuivre);
+  verrouActif = verrouMorceau ? "morceau" : verrouSuivre ? "suivre" : null;
+  replayButton.classList.toggle("locked", verrouActif !== null);
+  if (!verrouActif) closeUnlockSheet();
+}
+
+function openUnlockSheet() {
+  if (verrouActif === "suivre") {
+    unlockSheetText.textContent = "Encore une chose : suis PMC sur Spotify pour débloquer une nouvelle course.";
+    unlockSheetCtaLabel.textContent = "SUIVRE PMC SUR SPOTIFY";
+    unlockSheetCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
+  } else {
+    unlockSheetText.textContent = "Ajoute le morceau pour débloquer une nouvelle course — et gagne +10 % de score sur toutes tes courses.";
+    unlockSheetCtaLabel.textContent = "AJOUTER LE MORCEAU";
+    unlockSheetCta.href = window.CONFIG.lienEP;
+  }
+  unlockSheet.classList.add("visible");
+  unlockSheet.setAttribute("aria-hidden", "false");
+}
+
+function closeUnlockSheet() {
+  unlockSheet.classList.remove("visible");
+  unlockSheet.setAttribute("aria-hidden", "true");
 }
 
 export function showOverlay() {
@@ -195,8 +227,49 @@ function nextStep() {
   audio.play();
 }
 
+// --- Equalizer de l'écran de fin (20 août 2026) ---------------------------
+// « Un égaliseur dynamique qui marche par rapport à la musique [...] même
+// modèle que le Dynamic Island : les basses à gauche, les aigus à droite. »
+// Les barres du bandeau « Tu écoutes » suivent le VRAI spectre du morceau
+// (audio.getEqLevels, AnalyserNode en dérivation de la sortie) via une boucle
+// rAF qui ne tourne QUE sur la vue de fin. Tant qu'aucune donnée n'arrive
+// (contexte audio en panne), la classe .idle laisse l'ancienne animation CSS
+// faire illusion — le vrai spectre la retire dès qu'il prend la main.
+const eqEl = nowPlaying.querySelector(".eq");
+const eqBars = Array.from(eqEl.children);
+let eqRafId = 0;
+
+function eqTick() {
+  eqRafId = requestAnimationFrame(eqTick);
+  const levels = audio.getEqLevels(eqBars.length);
+  if (!levels) {
+    eqEl.classList.add("idle");
+    for (const bar of eqBars) bar.style.transform = "";
+    return;
+  }
+  eqEl.classList.remove("idle");
+  for (let i = 0; i < eqBars.length; i++) {
+    // Plancher à 0,12 : une barre à zéro disparaît et l'ensemble lit
+    // « cassé » plutôt que « silence dans cette bande ».
+    eqBars[i].style.transform = `scaleY(${Math.max(0.12, levels[i]).toFixed(3)})`;
+  }
+}
+
+function syncEqLoop() {
+  const actif = currentView === "end";
+  if (actif && !eqRafId) {
+    eqTick();
+  } else if (!actif && eqRafId) {
+    cancelAnimationFrame(eqRafId);
+    eqRafId = 0;
+    eqEl.classList.add("idle");
+    for (const bar of eqBars) bar.style.transform = "";
+  }
+}
+
 function setView(view) {
   currentView = view;
+  syncEqLoop();
   onboardingEl.classList.toggle("active", view === "onboarding");
   countdownEl.classList.toggle("active", view === "countdown");
   endScreenEl.classList.toggle("active", view === "end");
@@ -554,7 +627,10 @@ function scrollCurrentScoreIntoView(li) {
 // main.js (endGame()) : ce module ne fait qu'afficher le résultat.
 export function showEndScreen(reason) {
   const finished = reason === "finished";
-  endEyebrow.textContent = finished ? "Parcours terminé" : "Game Over";
+  // « Votre score » plutôt que « Game Over » (20 août 2026, demandé) : le
+  // bandeau annonce ce que la carte montre, le constat d'échec n'apportait
+  // rien — un parcours terminé garde son bandeau de victoire.
+  endEyebrow.textContent = finished ? "Parcours terminé" : "Votre score";
   scoreNum.textContent = `${deps.game.score}`;
 
   // Compteur de parties : nourrit le verrou « suivre PMC » (3 parties).
@@ -604,17 +680,7 @@ export function showEndScreen(reason) {
     shareButton.textContent = "PARTAGE INDISPONIBLE";
   });
 
-  // Le clip des dernières secondes n'est peut-être pas encore finalisé au
-  // moment où l'écran monte : caché par défaut, révélé par refreshClipButton()
-  // (appelée par main.js quand clip.terminer() a résolu).
-  clipButton.classList.add("hidden");
-
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
-}
-
-// Révèle le bouton clip si un clip partageable existe (voir clip.estPret).
-export function refreshClipButton() {
-  clipButton.classList.toggle("hidden", !clip.estPret());
 }
 
 // deps = { game, requestGameStart, isGameStartRequested, restartGame,
@@ -626,8 +692,16 @@ export function init(d) {
   ctaLink.href = window.CONFIG.lienEP;
   endCta.href = window.CONFIG.lienEP;
   nowPlaying.href = window.CONFIG.lienEP;
-  followCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
-  followCta.addEventListener("click", marquerPmcSuivi);
+
+  // Panneau de verrou : le CTA lève le verrou COURANT (morceau ou suivre) au
+  // clic — même règle que partout, le geste suffit, pas de preuve de lecture.
+  unlockSheetCta.addEventListener("click", () => {
+    if (verrouActif === "suivre") marquerPmcSuivi();
+    else marquerMorceauOuvert();
+    closeUnlockSheet();
+  });
+  unlockSheetClose.addEventListener("click", closeUnlockSheet);
+  unlockSheetVeil.addEventListener("click", closeUnlockSheet);
 
   // Date de fin du concours, sous le classement : « on a une semaine pour
   // jouer » doit se lire sur l'écran, pas se deviner.
@@ -651,7 +725,7 @@ export function init(d) {
 
   playButton.addEventListener("click", startGame);
   replayButton.addEventListener("click", () => {
-    if (replayButton.disabled) return;
+    if (verrouActif) { openUnlockSheet(); return; }
     deps.restartGame();
   });
 
@@ -664,10 +738,6 @@ export function init(d) {
     e.stopPropagation();
     share.partager(); // synchrone : indispensable pour que le geste iOS tienne
   });
-  clipButton.addEventListener("click", (e) => {
-    e.stopPropagation();
-    clip.partagerClip(); // même règle : synchrone dans le geste
-  });
   syncVerrouRejeu();
   skipCountdownBtn.addEventListener("click", skipCountdown);
 
@@ -675,7 +745,13 @@ export function init(d) {
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Enter" && e.code !== "Space") return;
     if (!overlay.classList.contains("visible")) return;
-    if (currentView === "end") { deps.restartGame(); return; }
+    // Même règle qu'au clic : un verrou actif ouvre le panneau au lieu de
+    // relancer (avant ce correctif, Entrée contournait le verrou de rejeu).
+    if (currentView === "end") {
+      if (verrouActif) openUnlockSheet();
+      else deps.restartGame();
+      return;
+    }
     if (currentView === "onboarding" && stepOrder[stepIndex] === "play" && !playButton.disabled) {
       startGame();
     }

@@ -134,12 +134,18 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   jamais atteint, et quitter la page en course sur mobile fait perdre le run : onglet rechargé, ou
   morceau rembobiné au-delà de `pauseDeriveMax`) :
   - **En course** : un bandeau NON BLOQUANT à 12 000 points (`MILESTONE_SCORE`, `main.js` +
-    `hud.renderMilestone`), 4 s, bas de l'écran — « le morceau t'attend à l'arrivée ».
-  - **Sur l'écran de fin** : le vrai verrou. **REJOUER est désactivé tant que le joueur n'a pas
-    ouvert le lien du morceau une fois** (`morceauOuvert` en localStorage, donc une seule fois
-    dans sa vie). ⚠️ Le verrou se lève au CLIC, jamais à une preuve de lecture : sur iOS le lien
-    part dans un autre onglet et rien ne garantit qu'on revienne — l'exiger enfermerait le joueur
-    dans un écran sans issue.
+    `hud.renderMilestone`), 4 s, bas de l'écran. ⚠️ Reformulé le 21 août 2026 (« j'ai pas compris
+    pourquoi il est marqué 12 000 points [...] dis un truc genre premier palier activé ») :
+    titre « PREMIER PALIER ACTIVÉ ! », sous-titre « le morceau t'attend à l'arrivée » — le
+    palier est la récompense, le chiffre brut ne se lisait pas.
+  - **Sur l'écran de fin** : le vrai verrou. **REJOUER reste cliquable mais, tant que le joueur
+    n'a pas ouvert le lien du morceau une fois** (`morceauOuvert` en localStorage, donc une seule
+    fois dans sa vie), **le clic ouvre un panneau qui glisse depuis le bas** (`#unlock-sheet`,
+    voile + texte + CTA) au lieu de relancer — demandé le 21 août 2026 (« c'est quand les gens
+    cliquent sur Rejouer que tu affiches ça en pop-up à partir du bas ») à la place de la note
+    statique sous le bouton, qui encombrait la carte. ⚠️ Le verrou se lève au CLIC, jamais à une
+    preuve de lecture : sur iOS le lien part dans un autre onglet et rien ne garantit qu'on
+    revienne — l'exiger enfermerait le joueur dans un écran sans issue.
 - CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
 - **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
   physique inchangée (`ROAD_HALF_WIDTH`), voies plus larges. Seul ajustement de logique exigé : les
@@ -155,8 +161,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   avec les **12 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans `entities.js`, tirées au hash donc
   identiques à chaque partie — l'invariant « score max = nombre connu » tient toujours ; teinte
   blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
-  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). Vérifié par balayage hors ligne
-  (`slotPreview`), jamais atteignable en pratique.
+  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). ⚠️ **Axe de rotation corrigé le
+  21 août 2026** (« le haut de l'étoile ne doit pas bouger [...] là c'est un salto ») : rotation
+  autour de l'axe VERTICAL façon pièce de Mario (`ctx.scale(cos, 1)`), plus jamais `ctx.rotate()`
+  dans le plan de l'écran. Vérifié par balayage hors ligne (`slotPreview`), jamais atteignable en
+  pratique.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
   enregistrés l'ont été sous d'anciens barèmes (195 525 puis 61 400) et écraseraient
   définitivement ceux du nouveau (68 925 / 75 828).
@@ -165,9 +174,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
     qu'il n'est pas acquis. La conversion est récompensée, pas seulement exigée.
   - **Second verrou doux après 3 parties** : REJOUER exige « Suivre PMC sur Spotify »
-    (`lienSuivre` dans config.js — ⚠️ encore à remplacer par le vrai lien de profil).
-  - **Bandeau « Tu écoutes La ville est belle »** avec mini equalizer animé sur l'écran de fin
-    (le morceau y joue vraiment ~114 s) — cliquable, même smartlink.
+    (`lienSuivre` dans config.js — ⚠️ encore à remplacer par le vrai lien de profil). Passe par
+    le même panneau `#unlock-sheet` que le verrou morceau depuis le 21 août 2026.
+  - **Bandeau « Tu écoutes La ville est belle »** sur l'écran de fin (le morceau y joue vraiment
+    ~114 s) — cliquable, même smartlink. ⚠️ **Equalizer branché sur le VRAI spectre depuis le
+    21 août 2026** (« même modèle que le Dynamic Island : basses à gauche, aigus à droite ») :
+    `AnalyserNode` en dérivation de la sortie (`audio.getEqLevels`), 5 barres pilotées en rAF
+    par `screens.js` — l'ancienne animation CSS ne subsiste qu'en secours (classe `.idle`)
+    quand le contexte audio ne tourne pas.
   - **CTA renommé « AJOUTER LE MORCEAU »** (lienEP est déjà un smartlink li.sten.to).
   - **Balises OG/Twitter** avec la pochette (`public/assets/cover-ep-og.jpg`).
   - **Compteur global de courses** (« X courses déjà jouées ») + **date de fin du concours**
@@ -175,9 +189,12 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     `supabase-migration-compteur-courses.sql` **à exécuter côté Supabase**.
   - **Image de partage** : pochette de l'EP + badge disque (bronze/argent/or/platine) ; le
     partage embarque désormais texte + lien du jeu.
-  - **Clip vidéo des 5-10 dernières secondes** (`clip.js`, MediaRecorder double-buffer, bouton
-    « PARTAGER LE CLIP » sur l'écran de fin quand un clip existe). ⚠️ Coût d'encodage en course
-    jamais mesuré sur téléphone — premier suspect si les fps chutent.
+  - ~~**Clip vidéo des 5-10 dernières secondes**~~ — **RETIRÉ le 21 août 2026** (« tu peux
+    enlever Partager le clip, tu mets juste Partager mon score ») : bouton supprimé de l'écran
+    de fin ET enregistrement coupé en course (les appels `clip.demarrer()`/`terminer()` de
+    main.js ont sauté — son coût d'encodage jamais mesuré n'a plus de raison d'être payé).
+    `clip.js` reste sur le disque mais n'est plus importé, donc plus bundlé. Ne pas le
+    rebrancher sans redemander.
   - **Vibrations Android** (`navigator.vibrate`, sans effet sur iOS) : légère au choc, forte
     quand le choc termine la partie.
 - **Voitures/camions qui traversent aux carrefours** (`crosstraffic.js`, demandé le 19 août 2026).
@@ -188,7 +205,12 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
   que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. ⚠️ Le véhicule est **découpé sur la trouée de la rue** (`BORD_RUE`) : il émerge de derrière les façades comme d'une rue transversale, au lieu d'être peint par-dessus les trottoirs et les immeubles plusieurs secondes à l'avance — retour direct, capture à l'appui (« on les voit de trop loin »). Coût −1 vie,
   **jamais fatal** — les deux grilles étant indépendantes, une coïncidence avec le seul passage
-  laissé par un pont est possible et ne doit pas terminer la course.
+  laissé par un pont est possible et ne doit pas terminer la course. ⚠️ **Tous franchissables au
+  saut depuis le 21 août 2026, CAMION COMPRIS** (« il faut qu'on ait la possibilité de les
+  esquiver ou de sauter par-dessus [...] un camion qui prenait toute la route avec un vélo,
+  j'ai été obligé de perdre ») : le camion était le seul insurvolable, et un camion coïncidant
+  avec un obstacle musical pouvait fermer toutes les issues — le saut redevient la porte de
+  sortie universelle, quitte à tricher sur sa hauteur.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale entre ~2 s et ~7,5 s de course (`cameo.js`, `CAMEO_TIME_S`).
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de

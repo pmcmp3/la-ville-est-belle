@@ -572,7 +572,16 @@ function fillPoly(ctx, pts, color) {
 }
 
 function renderTrafficLight(ctx, n, side, distance, width, height) {
-  const z = (n + 0.5) * SPACING - distance;
+  // ⚠️ AVANT l'entrée du carrefour, plus en son centre (retour du 20 août
+  // 2026 : « tu les as mis au milieu de la route quand ça croise, c'est pas
+  // très logique — il faudrait qu'ils soient un peu avant, par rapport à
+  // moi »). Le créneau de croisement s'étend de n·SPACING à (n+1)·SPACING :
+  // à (n + 0,5) le feu était planté au milieu de l'avenue transversale.
+  // Posé à 0,3 unité avant le bord du carrefour — dans le filet de ruelle
+  // qui suit le bâtiment du créneau n−1 (sa profondeur max laisse 0,35 u de
+  // vide avant la limite, voir DEPTH_MAX/SPACING), donc jamais recouvert par
+  // la façade peinte après lui dans l'ordre du peintre.
+  const z = n * SPACING - 0.3 - distance;
   if (z < SCENERY_MIN_Z || z > HORIZON_Z) return;
   const fadeAlpha = Math.min(1, (HORIZON_Z - z) / FADE_BAND);
   if (fadeAlpha <= 0.02) return;
@@ -682,15 +691,27 @@ function drawBalcony(ctx, side, xInner, zA, zB, h, width, height, ironColor, sla
   // Garde-corps au bord extérieur : main courante + barreaux interpolés entre
   // les deux extrémités projetées (chaque barreau est droit à l'écran, mais
   // leurs pieds suivent la fuite de la dalle — c'est ça qui "fait 3D").
+  // ⚠️ Motif enrichi le 20 août 2026 (« il me faudrait des balcons beaucoup
+  // plus parisiens ») : des barreaux verticaux seuls lisaient "barrière de
+  // chantier". Un garde-corps haussmannien, c'est de la ferronnerie OUVRAGÉE —
+  // ici la version la moins chère qui la fasse lire : une lisse basse en plus
+  // de la main courante, et des CROISILLONS (X de fer forgé) entre les
+  // barreaux, le motif le plus reconnaissable des balcons parisiens.
   const botA = at(gOutA, h);
   const botB = at(gOutB, h);
   const topA = at(gOutA, h + BALCONY_RAIL_H);
   const topB = at(gOutB, h + BALCONY_RAIL_H);
+  const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
   ctx.strokeStyle = ironColor;
   ctx.lineWidth = Math.max(1, gOutA.scale * 0.045);
   ctx.beginPath();
+  // Main courante + lisse basse (à ~15 % au-dessus de la dalle).
   ctx.moveTo(topA.x, topA.y);
   ctx.lineTo(topB.x, topB.y);
+  const lowA = lerp(botA, topA, 0.15);
+  const lowB = lerp(botB, topB, 0.15);
+  ctx.moveTo(lowA.x, lowA.y);
+  ctx.lineTo(lowB.x, lowB.y);
   const bars = 9;
   for (let i = 0; i <= bars; i++) {
     const t = i / bars;
@@ -698,6 +719,26 @@ function drawBalcony(ctx, side, xInner, zA, zB, h, width, height, ironColor, sla
     ctx.lineTo(topA.x + (topB.x - topA.x) * t, topA.y + (topB.y - topA.y) * t);
   }
   ctx.stroke();
+  // Croisillons entre la lisse basse et ~70 % de la hauteur, un X par travée.
+  // Trait plus fin que les barreaux (la dentelle, pas la structure) — sauté
+  // quand le balcon est trop petit à l'écran pour que le motif reste lisible.
+  if (Math.abs(botB.x - botA.x) > bars * 3) {
+    ctx.lineWidth = Math.max(0.6, gOutA.scale * 0.025);
+    ctx.beginPath();
+    for (let i = 0; i < bars; i++) {
+      const t0 = i / bars;
+      const t1 = (i + 1) / bars;
+      const b0 = lerp(lerp(botA, botB, t0), lerp(topA, topB, t0), 0.15);
+      const b1 = lerp(lerp(botA, botB, t1), lerp(topA, topB, t1), 0.15);
+      const h0 = lerp(lerp(botA, botB, t0), lerp(topA, topB, t0), 0.7);
+      const h1 = lerp(lerp(botA, botB, t1), lerp(topA, topB, t1), 0.7);
+      ctx.moveTo(b0.x, b0.y);
+      ctx.lineTo(h1.x, h1.y);
+      ctx.moveTo(b1.x, b1.y);
+      ctx.lineTo(h0.x, h0.y);
+    }
+    ctx.stroke();
+  }
 }
 
 function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHeight, distT, windowKey, width, height) {
@@ -713,20 +754,49 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
 
   // Trop loin : mur + toit suffisent, la brume fait le reste (même logique de
   // seuils que WINDOW_MIN_PX pour l'ancienne grille).
-  if (facadePxW < 30 || nearPxH < 22) return;
-
-  // Point écran à (z, hauteur monde h) le long de la façade.
+  // ⚠️ 30/22 → 14/10 le 20 août 2026 (retour direct : « ça charge beaucoup
+  // trop tardivement, il faut que ça charge vraiment largement devant ») :
+  // au-dessus de ces seuils-là, fenêtres et vitrines n'apparaissaient que sur
+  // les façades déjà proches — les immeubles arrivaient en boîtes nues puis
+  // s'habillaient d'un coup devant le joueur, exactement le « pop de détail »
+  // déjà corrigé deux fois sur l'ancienne grille (voir WINDOW_MIN_PX).
+  // 14/10 → 10/7 le 21 août 2026, même retour une troisième fois (« ça charge
+  // bcp trop tard !!! ») avec l'horizon repoussé à ≈209 (road.js). ⚠️ Mesuré
+  // en preview ce jour-là : la largeur écran d'une façade tombe à ~5 px dès
+  // z ≈ 120 (les façades fuient vers le point de fuite) — AUCUN seuil par
+  // pixel ne peut donc donner des fenêtres au loin, une grille de 3-7
+  // colonnes dans 5 px n'existe pas. D'où le régime « bandes d'étages »
+  // ci-dessous : sous le seuil de la vraie grille, chaque étage est peint en
+  // une seule bande sombre continue (le ruban de fenêtres vu de loin) — ce
+  // qui fait sortir les immeubles de la brume DÉJÀ habités, au lieu de murs
+  // nus qui s'habillent d'un coup à mi-parcours.
   const at = (z, h) => {
     const g = project(xInner, z, width, height);
     return { x: g.x, y: g.y - h * g.scale, scale: g.scale };
   };
 
   const rows = shape.windowRows;             // r = 0 : rez-de-chaussée
-  const cols = shape.facadeWindowCols;
   const rowH = wallHeight / rows;
+  const darkColor = gradientStep(windowDarkGradient, distT);
+
+  if (facadePxW < 10 || nearPxH < 7) {
+    if (facadePxW >= 2.5 && nearPxH >= 4) {
+      const margeZ = (zFar - zNear) * 0.08;
+      for (let r = 1; r < rows; r++) {
+        const hBot = r * rowH + rowH * 0.3;
+        const hTop = (r + 1) * rowH - rowH * 0.24;
+        fillPoly(ctx, [
+          at(zNear + margeZ, hTop), at(zFar - margeZ, hTop),
+          at(zFar - margeZ, hBot), at(zNear + margeZ, hBot),
+        ], darkColor);
+      }
+    }
+    return;
+  }
+
+  const cols = shape.facadeWindowCols;
   const colD = (zFar - zNear) / cols;
   const litColor = gradientStep(windowLitGradient, distT);
-  const darkColor = gradientStep(windowDarkGradient, distT);
   const ironColor = gradientStep(ironGradient, distT);
   const shopColor = gradientStep(shopfrontGradient, distT);
   const bandeauColor = gradientStep(corniceGradient, distT);
@@ -734,7 +804,8 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
   const slabColor = gradientStep(roofRidgeGradient, distT);
   // Les garde-corps individuels sous les fenêtres ne se dessinent que quand la
   // façade est assez proche — au loin, seuls les balcons filants restent.
-  const detail = facadePxW > 70;
+  // 70 → 40 le 20 août 2026, même retour que les seuils ci-dessus.
+  const detail = facadePxW > 40;
 
   for (let r = 0; r < rows; r++) {
     const isGround = r === 0;
@@ -757,15 +828,23 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
       } else {
         fillPoly(ctx, [pTL, pTR, pBR, pBL],
           windowIsLit(windowKey, 0, r, c) ? litColor : darkColor);
-        // Garde-corps de fenêtre (ferronnerie devant le bas de l'ouverture).
+        // Garde-corps de fenêtre (ferronnerie devant le bas de l'ouverture) :
+        // main courante + quelques barreaux — la ligne seule ne lisait pas
+        // "fer forgé" (« des balcons beaucoup plus parisiens », 20 août 2026).
         if (detail) {
           const hRail = hBot + (hTop - hBot) * 0.3;
           ctx.strokeStyle = ironColor;
           ctx.lineWidth = 1;
           ctx.beginPath();
           const rA = at(zA, hRail), rB = at(zB, hRail);
+          const bA = at(zA, hBot), bB = at(zB, hBot);
           ctx.moveTo(rA.x, rA.y);
           ctx.lineTo(rB.x, rB.y);
+          for (let i = 1; i < 4; i++) {
+            const t = i / 4;
+            ctx.moveTo(rA.x + (rB.x - rA.x) * t, rA.y + (rB.y - rA.y) * t);
+            ctx.lineTo(bA.x + (bB.x - bA.x) * t, bA.y + (bB.y - bA.y) * t);
+          }
           ctx.stroke();
         }
       }
@@ -780,7 +859,10 @@ function drawFacade3D(ctx, shape, side, xInner, zNear, zFar, wallHeight, roofHei
     // Balcon filant EN SAILLIE aux étages nobles (2e et dernier — c'est le
     // rythme de la photo : deux lignes fortes, pas une grille sur chaque
     // niveau, les autres étages gardant leurs garde-corps de fenêtre).
-    if (!isGround && (r === 2 || r === rows - 1) && facadePxW > 44) {
+    // Seuil 44 → 22 le 20 août 2026 puis 22 → 14 le 21 (« ça charge bcp trop
+    // tard !!! ») : les balcons doivent être déjà là quand la façade émerge
+    // de la brume, pas apparaître à mi-course.
+    if (!isGround && (r === 2 || r === rows - 1) && facadePxW > 14) {
       drawBalcony(ctx, side, xInner, zNear + colD * 0.12, zFar - colD * 0.12, r * rowH, width, height, ironColor, slabColor);
     }
   }
