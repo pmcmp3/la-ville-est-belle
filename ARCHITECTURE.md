@@ -857,6 +857,32 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Dix-septième passe du 21 août 2026 — refonte 3D des étoiles (screens d'inspiration à l'appui).**
+- 🐛 **« Les étoiles 3D sont moches, on dirait des petits pâtés »** (références fournies :
+  étoile Mario en voxel et en volume lissé). Le montage face-plate-pincée-au-cosinus + tranche-
+  capsule (deux passes précédentes) ne lisait pas « étoile en volume » : de trois quarts, la
+  capsule débordait derrière la face comme un blob. **Tout le pipeline d'icônes pré-cuites des
+  bonus a sauté** (`starBonus`/`starGold`/`starEdgeIcon`, `BONUS_ICONS`/`GOLD_ICONS`/
+  `EDGE_ICONS`) au profit d'un rendu DIRECT par frame, `drawStar3D()` (entities-render.js) :
+  le contour étoilé est un vrai solide (extrusion + apex central bombé sur chaque face),
+  projeté en orthographique après rotation autour de l'axe vertical — 10 facettes par face en
+  cel-shading 3 tons (la lumière tourne avec l'étoile), 10 quads de tranche triés par
+  profondeur (le contour est concave, l'ordre des arêtes ne suffit pas), contour sombre en un
+  seul chemin qui épouse la silhouette réelle sous tous les angles, yeux sur les DEUX faces
+  (l'étoile « regarde » le joueur sur toute la rotation), escamotés de profil.
+- ⚠️ Deux subtilités qui ont demandé un aller-retour : le bombé GÉOMÉTRIQUE est discret
+  (`STAR_BUMP` 0,16 — plus fort, le profil à 90° devenait un tonneau hexagonal) mais les
+  NORMALES de shading utilisent un bombé exagéré (`STAR_SHADE_BUMP` 0,55) pour que les facettes
+  accrochent franchement la lumière ; et l'épaisseur est `STAR_THICK` 0,36 (0,55 au premier
+  essai : trop gras de profil, les yeux glissaient vers le bord aux angles intermédiaires).
+- Coût : ~30 remplissages par étoile, rendu direct comme les personnages voxel — la rotation
+  est parfaitement lisse (plus de quantification possible d'icônes pré-cuites). Halo doré
+  désormais peint par frame (`drawGoldHalo`, 1-2 dorées visibles max, négligeable).
+- Vérifié en harnais (§12) : grille 8 angles × 4 tailles réelles (grosse/dorée/mi-distance/
+  lointaine) + balayage complet −LEAD_IN → arrivée extras compris, **738 frames, 0 exception**,
+  + un rendu en contexte réel (route/façades/pont). La hiérarchie taille↔valeur et les teintes
+  de base (#ffcf2e / #fff3c2) sont inchangées.
+
 **Seizième passe du 21 août 2026 — quatrième salve (retour jeu réel).**
 - 🐛 **Tranche 3D des étoiles invisible en jeu** (« elles disparaissent pareil, ça marche pas du
   tout ») : le premier jet réutilisait la silhouette ÉTOILÉE pincée à 16 % de sa largeur — un

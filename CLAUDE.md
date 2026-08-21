@@ -167,13 +167,15 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   détente de fin de course, avec les **13 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans
   `entities.js`, tirées au hash donc identiques à chaque partie — l'invariant « score max =
   nombre connu » tient toujours ; teinte blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
-  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`). ⚠️ **Axe de rotation corrigé le
-  21 août 2026** (« le haut de l'étoile ne doit pas bouger [...] là c'est un salto ») : rotation
-  autour de l'axe VERTICAL façon pièce de Mario (`ctx.scale(cos, 1)`), plus jamais `ctx.rotate()`
-  dans le plan de l'écran. ⚠️ **Épaisseur 3D ajoutée le même jour** (« à 90° on ne les voit
-  plus ») : une TRANCHE ambre (`EDGE_ICONS`) reste visible de profil, comme une vraie pièce —
-  l'étoile ne disparaît jamais. Vérifié par balayage hors ligne (`slotPreview`), jamais
-  atteignable en pratique.
+  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`), autour de l'axe VERTICAL façon
+  pièce de Mario (« le haut de l'étoile ne doit pas bouger »), jamais `ctx.rotate()` dans le
+  plan de l'écran. ⚠️ **Refonte 3D complète le 21 août 2026** (« on dirait des petits pâtés »,
+  références Mario fournies) : plus d'icônes pré-cuites ni d'astuce cosinus/capsule — les
+  étoiles sont un VRAI solide extrudé rendu par frame (`drawStar3D()`, entities-render.js) :
+  faces bombées à 10 facettes en cel-shading 3 tons, tranche qui suit le contour, yeux sur les
+  deux faces. Voir ARCHITECTURE.md §11 (dix-septième passe) pour les réglages sensibles
+  (`STAR_THICK`/`STAR_BUMP`/`STAR_SHADE_BUMP`) — ne pas regrossir l'épaisseur sans revérifier
+  le profil à 90°.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
   enregistrés l'ont été sous d'anciens barèmes (195 525, 61 400, 68 925…) et écraseraient
   définitivement ceux du nouveau (81 525 / 89 678).

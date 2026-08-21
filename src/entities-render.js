@@ -117,21 +117,6 @@ function circle(ctx, x, y, r, color) {
   ctx.fill();
 }
 
-function star(ctx, cx, cy, r, color) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const radius = i % 2 === 0 ? r : r * 0.45;
-    const angle = (Math.PI / 5) * i - Math.PI / 2;
-    const px = cx + Math.cos(angle) * radius;
-    const py = cy + Math.sin(angle) * radius;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
 // Plus d'anneau autour des icônes (retiré, demandé au playtest : "enlève les
 // cercles blancs/rouges autour de chaque élément, c'est moche"). Le signal
 // bonus/obstacle passe maintenant uniquement par la couleur de l'objet
@@ -152,167 +137,211 @@ function makeIcon(draw) {
 // doivent être des étoiles »). Les 5 types du brief restent en place — mêmes
 // clés, mêmes poids de spawn, mêmes valeurs de score (config.js), même
 // mécanique aérienne pour `guitare` : seule la silhouette change. La valeur
-// se lit désormais à la TAILLE et au cœur de l'étoile, pas à l'objet dessiné :
-// plus l'étoile est grosse et lumineuse, plus elle rapporte.
+// se lit à la TAILLE de l'étoile : plus elle est grosse, plus elle rapporte.
 //
-// Pourquoi ça marche mieux que 5 objets différents : à 40 px de résolution et
-// à la vitesse où défile la route, un CD, un appareil photo et un piano se
-// lisent tous comme "une petite tache claire". Une forme unique déclinée en
-// taille est identifiable instantanément — le joueur n'a plus qu'une seule
-// règle à retenir (étoile = à prendre, rouge = à éviter).
-// Étoile "façon Mario" (demandé explicitement) : aplat jaune vif, contour
-// sombre épais, et surtout les DEUX YEUX qui la rendent immédiatement
-// reconnaissable — c'est le détail qui fait la différence entre "une forme
-// d'étoile" et "l'étoile d'un jeu de plateforme".
-const STAR_FILL = "#ffcf2e";    // jaune star
-const STAR_SHADE = "#e8a012";   // ombre basse (volume)
+// ⚠️ REFONTE 3D du 21 août 2026 (« les étoiles 3D sont moches, on dirait des
+// petits pâtés », références fournies : étoile Mario en volume, versions voxel
+// et lissée). L'ancienne version était une ICÔNE PLATE pincée sur un cosinus,
+// doublée d'une capsule ambre en guise de tranche : de trois quarts, la
+// capsule débordait derrière la face comme un blob — c'est elle qui faisait
+// « pâté ». Remplacée par une VRAIE extrusion calculée à chaque frame :
+// - le contour étoilé est un solide 3D (face avant/arrière bombées + tranches)
+//   projeté en orthographique après rotation autour de l'axe vertical ;
+// - chaque face est un éventail de 10 facettes autour d'un apex central
+//   surélevé : les facettes changent de ton en tournant (cel-shading 3 tons),
+//   ce qui lit « volume qui accroche la lumière », pas « sticker retourné » ;
+// - la tranche suit le vrai contour (10 quads triés par profondeur) : de
+//   profil l'étoile montre une tranche d'étoile, plus jamais une capsule.
+// Rendu en DIRECT (pas d'icône pré-cuite) : ~30 remplissages par étoile, la
+// même grammaire que les personnages voxel — et la rotation reste lisse.
 const STAR_LINE = "#2b1a06";    // contour + yeux
 const STAR_EYE_WHITE = "#ffffff";
+// 3 tons cel [ombre, base, lumière] par matériau. La base reprend l'ancien
+// STAR_FILL (#ffcf2e) / GOLD_FILL (#fff3c2) — la teinte perçue ne change pas.
+const STAR_FACE_TONES = ["#f0a81c", "#ffcf2e", "#ffe45e"];
+const STAR_SIDE_TONES = ["#a86a08", "#c07f0c", "#e8a012"];
+const GOLD_FACE_TONES = ["#efd280", "#fff3c2", "#fffbe8"];
+const GOLD_SIDE_TONES = ["#a5822a", "#caa233", "#e8c76a"];
 
-// tier : facteur de rayon (échelonne la valeur du bonus).
-function starBonus(tier) {
-  return makeIcon((ictx, cx, cy, r) => {
-    const R = r * tier;
-    // Contour : la même étoile peinte un peu plus grande en sombre, puis
-    // l'étoile jaune par-dessus. Plus fiable qu'un `stroke` à cette
-    // résolution (les jointures de pointes bavent).
-    star(ictx, cx, cy, R * 1.16, STAR_LINE);
-    star(ictx, cx, cy, R, STAR_FILL);
-    // Ombre douce sur le bas : donne du volume sans dégradé.
-    ictx.save();
-    ictx.beginPath();
-    ictx.rect(cx - R, cy + R * 0.22, R * 2, R * 1.2);
-    ictx.clip();
-    star(ictx, cx, cy, R, STAR_SHADE);
-    ictx.restore();
-    // Yeux : deux ovales blancs cerclés de sombre avec la pupille, posés au
-    // centre de l'étoile comme sur l'étoile d'invincibilité.
-    const eyeDx = R * 0.26, eyeY = cy - R * 0.02;
-    const eyeRx = R * 0.15, eyeRy = R * 0.26;
-    for (const s of [-1, 1]) {
-      ictx.fillStyle = STAR_EYE_WHITE;
-      ictx.beginPath();
-      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx * 1.35, eyeRy * 1.2, 0, 0, Math.PI * 2);
-      ictx.fill();
-      ictx.fillStyle = STAR_LINE;
-      ictx.beginPath();
-      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
-      ictx.fill();
+// Gabarit par kind : facteur de rayon (échelonne la valeur du bonus).
+// Même échelle que l'ancienne génération d'icônes (rayon écran = taille de
+// boîte × 0,34 × tier), la hiérarchie visuelle valeur ↔ taille est inchangée.
+const STAR_TIERS = { cd: 0.85, piano: 0.98, appareil: 1.10, collierPerles: 1.22, guitare: 1.4 };
+
+const STAR_INNER = 0.5;    // rayon intérieur (0,45 avant : pointes un peu plus trapues, façon Mario)
+const STAR_THICK = 0.36;   // épaisseur totale du solide, en fraction du rayon
+const STAR_BUMP = 0.16;    // bombé GÉOMÉTRIQUE de l'apex de chaque face (discret :
+                           // trop fort, le profil à 90° devenait un tonneau hexagonal)
+const STAR_SHADE_BUMP = 0.55; // bombé utilisé pour les NORMALES seulement : exagère le
+                           // contraste des facettes sans épaissir la silhouette
+// Lumière en espace vue (x droite, y BAS, z vers le spectateur) :
+// haut-gauche-avant, à peu près normalisée.
+const STAR_LIGHT = [-0.42, -0.57, 0.7];
+
+// Contour unitaire, 10 sommets (5 pointes), pointe haute à midi — même
+// paramétrage que l'ancienne fonction star().
+const STAR_CONTOUR = [];
+for (let i = 0; i < 10; i++) {
+  const rad = i % 2 === 0 ? 1 : STAR_INNER;
+  const a = (Math.PI / 5) * i - Math.PI / 2;
+  STAR_CONTOUR.push([Math.cos(a) * rad, Math.sin(a) * rad]);
+}
+
+// Cel-shading : lambert → un des 3 tons. Seuils choisis pour que la face
+// avant vue de face reste majoritairement au ton de base (la teinte "connue"
+// de l'étoile), avec 2-3 facettes claires côté lumière et sombres à l'opposé.
+function celTone(tones, lambert) {
+  return lambert > 0.62 ? tones[2] : lambert > 0.18 ? tones[1] : tones[0];
+}
+
+// Étoile 3D, centrée sur l'origine du contexte (faire translate avant).
+// R = rayon écran des pointes, spin = angle autour de l'axe vertical.
+function drawStar3D(ctx, R, spin, gold) {
+  const faceTones = gold ? GOLD_FACE_TONES : STAR_FACE_TONES;
+  const sideTones = gold ? GOLD_SIDE_TONES : STAR_SIDE_TONES;
+  const cosT = Math.cos(spin), sinT = Math.sin(spin);
+  const [LX, LY, LZ] = STAR_LIGHT;
+  const halfT = R * STAR_THICK / 2;
+  // Face la plus proche du spectateur (z modèle +halfT si cos ≥ 0).
+  const nearZ = cosT >= 0 ? halfT : -halfT;
+  const farZ = -nearZ;
+
+  // Projection orthographique après rotation : X = x·cos − z·sin ; la
+  // profondeur (x·sin + z·cos) ne sert qu'au tri des tranches.
+  const px = (x, z) => x * cosT - z * sinT;
+
+  // Une face = éventail de 10 facettes (apex central surélevé → sommets du
+  // contour). Renvoie les triangles écran + le ton cel de chacun.
+  const facePolys = (zBase) => {
+    const dir = Math.sign(zBase); // +1 face avant du modèle, −1 arrière
+    const apexZ = zBase + dir * R * STAR_BUMP;
+    const apexX = px(0, apexZ);
+    const out = [];
+    for (let i = 0; i < 10; i++) {
+      const [ax, ay] = STAR_CONTOUR[i];
+      const [bx, by] = STAR_CONTOUR[(i + 1) % 10];
+      // Normale du triangle (apex, A, B) en espace modèle, orientée vers
+      // l'extérieur de la face (même signe que zBase en z). Calculée avec le
+      // bombé de SHADING (plus creusé que le bombé géométrique) pour que les
+      // facettes accrochent franchement la lumière.
+      const shadeUz = -dir * R * STAR_SHADE_BUMP;
+      const ux = ax * R, uy = ay * R, uz = shadeUz;
+      const vx = bx * R, vy = by * R, vz = shadeUz;
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      if (nz * dir < 0) { nx = -nx; ny = -ny; nz = -nz; }
+      const len = Math.hypot(nx, ny, nz) || 1;
+      // Rotation de la normale (autour de l'axe vertical) puis lambert.
+      const rnx = (nx * cosT - nz * sinT) / len;
+      const rnz = (nx * sinT + nz * cosT) / len;
+      const lambert = rnx * LX + (ny / len) * LY + rnz * LZ;
+      out.push({
+        pts: [[apexX, 0], [px(ax * R, zBase), ay * R], [px(bx * R, zBase), by * R]],
+        color: celTone(faceTones, lambert),
+      });
     }
-  });
-}
+    return out;
+  };
 
-const BONUS_ICONS = {
-  cd:            starBonus(0.85),   //  50 pts — la plus commune, discrète
-  piano:         starBonus(0.98),   // 100 pts
-  appareil:      starBonus(1.10),   // 150 pts
-  collierPerles: starBonus(1.22),   // 250 pts
-  guitare:       starBonus(1.4),    // 500 pts — la plus grosse, aérienne (à sauter)
-};
+  // Tranches : un quad par arête du contour, entre les deux faces. Triées de
+  // la plus lointaine à la plus proche (algorithme du peintre — le contour
+  // étoilé est concave, l'ordre naturel des arêtes ne suffit pas).
+  const sideQuads = [];
+  for (let i = 0; i < 10; i++) {
+    const [ax, ay] = STAR_CONTOUR[i];
+    const [bx, by] = STAR_CONTOUR[(i + 1) % 10];
+    // Normale 2D sortante de l'arête (le contour est étoilé autour du
+    // centre : la normale sortante pointe du même côté que le milieu).
+    let nx = (by - ay), ny = -(bx - ax);
+    const mx = (ax + bx) / 2, my = (ay + by) / 2;
+    if (nx * mx + ny * my < 0) { nx = -nx; ny = -ny; }
+    const len = Math.hypot(nx, ny) || 1;
+    const rnx = (nx / len) * cosT;
+    const rnz = (nx / len) * sinT;
+    const lambert = rnx * LX + (ny / len) * LY + rnz * LZ;
+    sideQuads.push({
+      depth: mx * sinT, // z modèle moyen = 0, seule la composante x compte
+      pts: [
+        [px(ax * R, halfT), ay * R], [px(bx * R, halfT), by * R],
+        [px(bx * R, -halfT), by * R], [px(ax * R, -halfT), ay * R],
+      ],
+      color: celTone(sideTones, lambert),
+    });
+  }
+  sideQuads.sort((a, b) => a.depth - b.depth);
 
-// Étoile DORÉE (×2, voir GOLD_STAR_RATE dans entities.js) : blanc doré
-// incandescent + halo chaud, « couleur particulière » demandée le 20 août
-// 2026 — elle doit se repérer en une fraction de seconde au milieu des jaunes.
-// Mêmes gabarits par kind que les étoiles normales.
-const GOLD_FILL = "#fff3c2";
-const GOLD_SHADE = "#f5c542";
-function starGold(tier) {
-  return makeIcon((ictx, cx, cy, r) => {
-    const R = r * tier;
-    // Halo doux autour de la pointe des branches : c'est lui qui la fait
-    // "briller" à distance, avant même que la teinte se lise.
-    const halo = ictx.createRadialGradient(cx, cy, R * 0.4, cx, cy, R * 1.5);
-    halo.addColorStop(0, "rgba(255,220,120,0.55)");
-    halo.addColorStop(1, "rgba(255,220,120,0)");
-    ictx.fillStyle = halo;
-    ictx.fillRect(cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
-    star(ictx, cx, cy, R * 1.16, STAR_LINE);
-    star(ictx, cx, cy, R, GOLD_FILL);
-    ictx.save();
-    ictx.beginPath();
-    ictx.rect(cx - R, cy + R * 0.22, R * 2, R * 1.2);
-    ictx.clip();
-    star(ictx, cx, cy, R, GOLD_SHADE);
-    ictx.restore();
-    const eyeDx = R * 0.26, eyeY = cy - R * 0.02;
-    const eyeRx = R * 0.15, eyeRy = R * 0.26;
-    for (const s of [-1, 1]) {
-      ictx.fillStyle = STAR_EYE_WHITE;
-      ictx.beginPath();
-      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx * 1.35, eyeRy * 1.2, 0, 0, Math.PI * 2);
-      ictx.fill();
-      ictx.fillStyle = STAR_LINE;
-      ictx.beginPath();
-      ictx.ellipse(cx + s * eyeDx, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
-      ictx.fill();
+  const nearFace = facePolys(nearZ);
+  const farFace = facePolys(farZ);
+
+  const tracePoly = (pts) => {
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  };
+  const fillPolys = (polys) => {
+    for (const poly of polys) {
+      ctx.fillStyle = poly.color;
+      ctx.beginPath();
+      tracePoly(poly.pts);
+      ctx.fill();
     }
-  });
+  };
+
+  // 1. Contour : toute la géométrie en un seul chemin, remplie ET détourée en
+  // sombre — même effet que l'ancienne « étoile peinte plus grande en
+  // sombre », mais qui épouse la vraie silhouette 3D sous tous les angles.
+  ctx.beginPath();
+  for (const poly of farFace) tracePoly(poly.pts);
+  for (const quad of sideQuads) tracePoly(quad.pts);
+  for (const poly of nearFace) tracePoly(poly.pts);
+  ctx.fillStyle = STAR_LINE;
+  ctx.strokeStyle = STAR_LINE;
+  ctx.lineWidth = Math.max(1, R * 0.18);
+  ctx.lineJoin = "round";
+  ctx.fill();
+  ctx.stroke();
+
+  // 2. Face lointaine → tranches (loin → près) → face proche.
+  fillPolys(farFace);
+  fillPolys(sideQuads);
+  fillPolys(nearFace);
+
+  // 3. Yeux, sur la face tournée vers le spectateur (les DEUX faces en ont :
+  // l'étoile « regarde » le joueur sur toute la rotation). Posés sur la pente
+  // du bombé, écrasés horizontalement avec l'angle, escamotés de profil.
+  const faceVis = Math.abs(cosT);
+  if (faceVis > 0.12) {
+    const dir = Math.sign(nearZ);
+    const eyeZ = nearZ + dir * R * STAR_BUMP * 0.45;
+    const eyeY = -R * 0.02;
+    const eyeRx = R * 0.15 * faceVis, eyeRy = R * 0.26;
+    for (const s of [-1, 1]) {
+      const ex = px(s * R * 0.26, eyeZ);
+      ctx.fillStyle = STAR_EYE_WHITE;
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, eyeRx * 1.35, eyeRy * 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = STAR_LINE;
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, eyeRx, eyeRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
-const GOLD_ICONS = {
-  cd:            starGold(0.85),
-  piano:         starGold(0.98),
-  appareil:      starGold(1.10),
-  collierPerles: starGold(1.22),
-  guitare:       starGold(1.4),
-};
-
-// Tranche de l'étoile — l'ÉPAISSEUR du volume 3D (21 août 2026 : « quand
-// elles sont à 90° on ne les voit plus, donne-leur une dimension 3D »).
-// 🐛 **Premier jet raté, en jeu : la tranche restait invisible.** L'idée
-// d'origine réutilisait la silhouette ÉTOILÉE (10 pointes concaves) de la
-// face, juste pincée à EDGE_MIN_SCALE (0,16) de sa largeur. Un contour concave
-// écrasé à 16 % de sa largeur ne laisse quasiment plus rien : les pointes se
-// chevauchent et s'annulent, et à la taille réelle d'une icône en jeu (souvent
-// 15-30 px), 16 % ça fait 2-5 px de large — sous le seuil de perception à la
-// vitesse où défile la route. Ça se vérifiait bien en preview (étoiles isolées,
-// figées, zoomées) mais pas du tout en conditions réelles, ce qui explique
-// l'écart entre le test et le retour joueur.
-// Remplacé par une CAPSULE PLEINE (pas de concavité, donc rien à s'annuler) :
-// un pilier vertical aux bouts arrondis, large et net, avec un liseré clair au
-// centre qui suggère une facette qui accroche la lumière — c'est ce qui lit
-// « épaisseur d'une pièce qui tourne », pas juste une silhouette écrasée.
-// Plancher de largeur remonté à 0,42 (au lieu de 0,16) : même de profil pile,
-// la tranche reste un bloc de couleur franc, jamais un fil.
-const STAR_EDGE_COLOR = "#c07f0c";
-const GOLD_EDGE_COLOR = "#caa233";
-const EDGE_MIN_SCALE = 0.42;
-function starEdgeIcon(tier, color) {
-  return makeIcon((ictx, cx, cy, r) => {
-    const R = r * tier;
-    const w = R * 0.85;             // large : reste un bloc net même écrasé à EDGE_MIN_SCALE
-    const h = R * 1.16 * 2;         // même enveloppe verticale que le contour de la face (R×1,16)
-    const x0 = cx - w / 2, y0 = cy - h / 2, rad = w / 2;
-    ictx.fillStyle = color;
-    ictx.beginPath();
-    ictx.moveTo(x0, y0 + rad);
-    ictx.arcTo(x0, y0, x0 + rad, y0, rad);
-    ictx.arcTo(x0 + w, y0, x0 + w, y0 + rad, rad);
-    ictx.lineTo(x0 + w, y0 + h - rad);
-    ictx.arcTo(x0 + w, y0 + h, x0 + w - rad, y0 + h, rad);
-    ictx.arcTo(x0, y0 + h, x0, y0 + h - rad, rad);
-    ictx.closePath();
-    ictx.fill();
-    // Liseré clair au centre : la facette qui capte la lumière, lecture
-    // "volume" plutôt qu'"aplat teinté".
-    ictx.fillStyle = "rgba(255,255,255,0.4)";
-    ictx.fillRect(cx - w * 0.14, y0 + h * 0.1, w * 0.28, h * 0.8);
-  });
+// Halo de l'étoile DORÉE (×2, voir GOLD_STAR_RATE dans entities.js) : blanc
+// doré incandescent, « couleur particulière » demandée le 20 août 2026 — elle
+// doit se repérer en une fraction de seconde au milieu des jaunes. Le halo
+// est peint derrière l'étoile 3D (1-2 dorées visibles à la fois au maximum,
+// le gradient par frame est négligeable).
+function drawGoldHalo(ctx, R) {
+  const halo = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.5);
+  halo.addColorStop(0, "rgba(255,220,120,0.55)");
+  halo.addColorStop(1, "rgba(255,220,120,0)");
+  ctx.fillStyle = halo;
+  ctx.fillRect(-R * 1.5, -R * 1.5, R * 3, R * 3);
 }
-const EDGE_ICONS = {
-  cd:            starEdgeIcon(0.85, STAR_EDGE_COLOR),
-  piano:         starEdgeIcon(0.98, STAR_EDGE_COLOR),
-  appareil:      starEdgeIcon(1.10, STAR_EDGE_COLOR),
-  collierPerles: starEdgeIcon(1.22, STAR_EDGE_COLOR),
-  guitare:       starEdgeIcon(1.4, STAR_EDGE_COLOR),
-};
-const GOLD_EDGE_ICONS = {
-  cd:            starEdgeIcon(0.85, GOLD_EDGE_COLOR),
-  piano:         starEdgeIcon(0.98, GOLD_EDGE_COLOR),
-  appareil:      starEdgeIcon(1.10, GOLD_EDGE_COLOR),
-  collierPerles: starEdgeIcon(1.22, GOLD_EDGE_COLOR),
-  guitare:       starEdgeIcon(1.4, GOLD_EDGE_COLOR),
-};
 
 // Rouge de charte (+ une teinte plus sombre pour le modelé) : les obstacles
 // eux-mêmes signalent le danger, plus besoin d'un anneau superposé.
@@ -669,9 +698,7 @@ function paintSlot(ctx, width, height, now, e) {
   }
 
   const p = road.project(e.x, e.z, width, height);
-  const icon = e.isBonus
-    ? (e.gold ? GOLD_ICONS[e.kind] : BONUS_ICONS[e.kind])
-    : OBSTACLE_ICONS[e.kind];
+  const icon = e.isBonus ? null : OBSTACLE_ICONS[e.kind];
   const aerien = e.isBonus && isAirBonus(e.kind);
   // ⚠️ Réduites de 18 % le 21 août 2026 (« les étoiles en hauteur ont l'air
   // gigantesques, en perspective ») : `guitare`/`collierPerles` sont déjà les
@@ -716,30 +743,18 @@ function paintSlot(ctx, width, height, now, e) {
   // tourne deux fois plus vite — son signal « je suis spéciale ». Les
   // obstacles, eux, ne tournent jamais.
   // ⚠️ Axe corrigé le 20 août 2026 (retour direct : « le haut de l'étoile ne
-  // doit pas bouger [...] là c'est un salto ») : ctx.rotate() tournait dans le
-  // plan de l'écran, comme une roue — la pointe balayait tout le tour. La
-  // rotation voulue est autour de l'axe VERTICAL, façon pièce de Mario : en
-  // 2D ça se fait en pinçant la largeur sur un cosinus (scaleX de 1 → 0 → −1),
-  // la pointe haute reste plantée au même pixel pendant tout le tour.
-  // ⚠️ Épaisseur ajoutée le 21 août 2026 (« quand elles sont à 90° on ne les
-  // voit plus ») : la TRANCHE (EDGE_ICONS, silhouette ambre) est peinte sous
-  // la face avec une largeur qui ne descend jamais sous EDGE_MIN_SCALE — de
-  // profil, l'étoile montre son épaisseur au lieu de disparaître, comme une
-  // vraie pièce qui tourne.
+  // doit pas bouger [...] là c'est un salto ») : rotation autour de l'axe
+  // VERTICAL, façon pièce de Mario — la pointe haute reste plantée.
+  // ⚠️ Depuis la refonte du 21 août 2026, c'est un vrai solide extrudé rendu
+  // par drawStar3D (voir plus haut) : l'épaisseur et le profil découlent de
+  // la géométrie, plus d'astuce cosinus/capsule.
   if (e.isBonus) {
     const spin = now * Math.PI * (e.gold ? 2 : 1);
-    const c = Math.cos(spin);
+    const R = size * 0.34 * (STAR_TIERS[e.kind] || 1);
     ctx.save();
     ctx.translate(p.x, p.y - size / 2 - airOffset);
-    // Tranche : interpolée pour être exactement recouverte par la face à
-    // plat (échelle égale) et rester à EDGE_MIN_SCALE de profil.
-    const edge = (e.gold ? GOLD_EDGE_ICONS : EDGE_ICONS)[e.kind];
-    ctx.save();
-    ctx.scale(Math.abs(c) * (1 - EDGE_MIN_SCALE) + EDGE_MIN_SCALE, 1);
-    ctx.drawImage(edge, -size / 2, -size / 2, size, size);
-    ctx.restore();
-    ctx.scale(c, 1);
-    ctx.drawImage(icon, -size / 2, -size / 2, size, size);
+    if (e.gold) drawGoldHalo(ctx, R);
+    drawStar3D(ctx, R, spin, e.gold);
     ctx.restore();
   } else {
     ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);
