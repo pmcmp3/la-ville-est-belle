@@ -868,6 +868,51 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingt-deuxième passe du 21 août 2026 — trois retours après test réel sur le build précédent.**
+- 🐛 **BUG CRITIQUE trouvé et corrigé : « reprendre ma course » ne faisait rien (game over
+  immédiat derrière le panneau).** Cause : la boucle à pas fixe (`while (accumulator >= FIXED_DT)
+  { step(FIXED_DT); ... }`, main.js) ne revérifiait `isPaused()` qu'AVANT d'entrer dans la boucle,
+  jamais entre deux itérations. Or FIXED_DT = 1/120 s alors qu'un écran tourne typiquement à
+  60 Hz : **chaque frame exécute step() DEUX FOIS d'affilée**, c'est le régime normal, pas un cas
+  rare. À la mort, le premier step() de la frame appelle `offerRevive()` (bascule
+  `revivePaused = true`) — mais le second step() de la MÊME frame s'exécutait quand même,
+  retrouvait `game.lives <= 0` toujours vrai et `reviveOffered` déjà mis à `true` par le premier
+  appel, et déclenchait `endGame("gameover")` DANS LA FOULÉE. Le panneau de seconde chance et
+  l'écran de fin s'ouvraient donc TOUS LES DEUX à chaque mort, systématiquement — accepter
+  l'offre ensuite ne pouvait rien faire, `game.ended` était déjà vrai. Corrigé en ajoutant
+  `&& !isPaused()` à la condition du `while` : la boucle s'arrête dès qu'un `step()` bascule la
+  pause, au lieu d'attendre le tour suivant. Prouvé par une simulation isolée du pattern exact
+  (frame de 16,67 ms → 2 step() avant fix, `endGameCalled: 1` ; 1 seul après, `endGameCalled: 0`)
+  et par un balayage complet à pas réel (1/120 s) : 17 704 frames, 0 exception, quota 85/106
+  inchangé. ⚠️ Cette classe de bug (état de pause changé DEPUIS L'INTÉRIEUR de step(), au lieu
+  d'un événement externe comme un clic ou `visibilitychange`) est nouvelle avec `revivePaused` —
+  `manualPaused`/`hiddenPaused` ne pouvaient jamais changer en cours de boucle synchrone. Tout
+  futur mécanisme qui pause la partie DEPUIS step() doit repasser par ce même `while (... &&
+  !isPaused())`, pas par le seul test d'entrée.
+- **Espace d'air sous « Pas X ? Modifier »** (« laisse-le respirer, c'est pas lisible ») :
+  `#change-pseudo` collait directement sous JOUER — ni l'un ni l'autre n'a de marge propre, et
+  `.panel-body` n'a pas de `gap`. `margin-top: 14px` ajouté, scopé à cet id seul (n'affecte pas
+  les autres `.link-minimal` du jeu, chacun déjà dans un conteneur à `gap`).
+- **Étoiles d'ouverture allégées** (« énormément d'étoiles au tout début, ça va pas du tout ») :
+  `GRACE_BEATS` 8 → 7 (`entities.js`), donc `GRACE_SLOTS` 6 → 5 — un créneau étoile forcé de
+  moins. ⚠️ **5 est le PLANCHER mathématique sûr**, pas un choix arbitraire : Soberland
+  (cameo.js) disparaît à 3,6 s (`CAMEO_TIME_S` + `SHOW_AFTER`) ; à la cadence de 0,75 s/créneau,
+  le créneau 4 arrive à 3,0 s (AVANT sa disparition — rouvrirait le bug « obstacle qui partage
+  l'écran avec lui », fixé le même jour un peu plus tôt), le créneau 5 arrive à 3,75 s (0,15 s de
+  marge, contre 0,9 s avant). Vérifié par balayage (`§12`) : 17 704 frames, 0 exception, quota
+  85/106 inchangé (le créneau libéré retombe simplement dans le calcul normal de la rampe).
+  ⚠️ **Amélioration réelle mais MODESTE, à assumer explicitement** : un rendu à t≈2,2 s montre
+  encore 5 étoiles à l'écran simultanément (2 grandes au premier plan + 3 qui reculent vers
+  l'horizon) — la densité reste élevée juste après la grâce, parce que le ratio d'étoiles de la
+  rampe normale est LUI-MÊME haut en début de course (`OBSTACLE_RATIO_START` = 0,381, donc
+  ~62 % d'étoiles), une caractéristique voulue et documentée séparément (« beaucoup d'étoiles
+  tôt, de moins en moins tard »), pas quelque chose que cette passe a touché. Le vrai gain
+  mesuré : le premier OBSTACLE arrive 0,75 s plus tôt qu'avant (3,75 s au lieu de 4,5 s), donc le
+  mur de stars-only casse plus vite. Si la densité reste trop élevée au retour du prochain test,
+  le levier suivant est de raccourcir la fenêtre de Soberland lui-même (`CAMEO_TIME_S`/
+  `SHOW_AFTER`, cameo.js) pour abaisser encore le plancher — décision distincte, à reconfirmer
+  avant de la prendre (elle change une DA récemment validée, pas juste un chiffre de gameplay).
+
 **Vingt-et-unième passe du 21 août 2026 — mort à un choc + seconde chance, gros lot de retours.**
 - ⚠️ **CHANGEMENT DE RÈGLES : tous les obstacles de la grille sont FATALS** (« je veux que tous
   les obstacles fassent trois cœurs ») — piéton/cycliste/cône rejoignent voiture/pont

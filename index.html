@@ -577,6 +577,13 @@
       display: none;
     }
 
+    /* ⚠️ Sans ceci, #change-pseudo collait directement sous JOUER (0px : ni
+       l'un ni l'autre n'a de marge propre, `.panel-body` n'a pas de `gap`) —
+       « laisse-le respirer, c'est pas lisible » (21 août 2026). */
+    #change-pseudo {
+      margin-top: 14px;
+    }
+
     /* Compteur de parties : preuve sociale, donc il doit se LIRE — l'ancienne
        version (10px, gris à 45 %) se confondait avec la mention légale juste
        au-dessus. Pastille + point rouge qui bat = « c'est en train de tourner

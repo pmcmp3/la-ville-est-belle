@@ -1259,7 +1259,21 @@ function frame(nowMs) {
   // frame derrière le voile du menu pause.
   if (!isPaused()) {
     accumulator += frameTime;
-    while (accumulator >= FIXED_DT) {
+    // ⚠️ `isPaused()` REVÉRIFIÉ à chaque itération, pas seulement avant la
+    // boucle (bug trouvé le 21 août 2026, « je clique sur reprendre ma
+    // course, ça marche pas, ça plante »). La simulation tourne à 120 Hz
+    // (FIXED_DT ≈ 8,3 ms) sur un écran qui rafraîchit à 60 Hz (~16,6 ms) :
+    // CHAQUE frame exécute step() DEUX FOIS d'affilée, dans le même passage
+    // synchrone — ce n'est pas un cas rare, c'est le régime normal. Or
+    // offerRevive() (appelé DEPUIS step(), à la mort) bascule revivePaused à
+    // true EN COURS DE BOUCLE : sans cette revérification, le deuxième
+    // step() de la même frame s'exécutait quand même, retrouvait
+    // `game.lives <= 0` toujours vrai et `reviveOffered` déjà mis à true par
+    // le premier appel, et déclenchait endGame("gameover") DANS LA FOULÉE —
+    // l'écran de fin s'ouvrait par-dessus le panneau de seconde chance à
+    // chaque mort, systématiquement. Accepter l'offre ensuite ne pouvait rien
+    // faire : `game.ended` était déjà vrai.
+    while (accumulator >= FIXED_DT && !isPaused()) {
       step(FIXED_DT);
       accumulator -= FIXED_DT;
     }

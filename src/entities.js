@@ -164,10 +164,25 @@ const Z_WINDOW_AIR = 2.2;  // fenêtre élargie pour les bonus aériens (le timi
 // (~2 s, GRACE_SLOTS = 3) se terminait AVANT qu'il ait fini de traverser
 // l'écran — le premier obstacle forcé (OPENING_KIND_OVERRIDE, un cycliste)
 // apparaissait donc pile pendant qu'il était encore là, d'où « difficile à
-// esquiver » alors qu'il est censé être purement décoratif. Remonté à ~4 s
-// (GRACE_SLOTS = 6, premier obstacle réel à ≈4,51 s) : ~0,9 s de marge après
-// sa disparition, aucun obstacle ne partage plus jamais l'écran avec lui.
-const GRACE_BEATS = 8;
+// esquiver » alors qu'il est censé être purement décoratif.
+// ⚠️ 8 → 7 le 21 août 2026 (retour direct, même jour : « énormément d'étoiles
+// au tout début, ça va pas du tout »). GRACE_SLOTS force TOUS ses créneaux en
+// étoile (aucun état "vide" n'existe dans ce système, voir isBonusQuota) —
+// passer de 4 à 8 battements avait donc DOUBLÉ le nombre d'étoiles forcées
+// (3 → 6), toutes visibles DÈS LA PREMIÈRE FRAME (LEAD_IN place le créneau 0
+// à z≈78, largement dans VISIBLE_Z_MAX=170) et cantonnées à 2 voies sur 3
+// (jamais la centrale, réservée à Soberland) : un mur de 6 étoiles identiques
+// dès l'ouverture, encore plus marqué depuis leur refonte 3D (plus grandes,
+// tournantes) que ça ne l'était avec les anciennes icônes plates. Redescendu
+// à 7 battements (GRACE_SLOTS = 5, un créneau de moins) : c'est le PLANCHER
+// mathématique qui reste sûr pour Soberland — le créneau juste en dessous (4)
+// arrive à 3,0 s, AVANT sa disparition à 3,6 s (SHOW_AFTER, cameo.js), donc
+// rouvrirait exactement le bug que ces battements existent pour éviter. À 5,
+// l'arrivée tombe à 3,75 s : 0,15 s de marge, contre 0,9 s avant — mesuré
+// (§12), le premier obstacle (OPENING_KIND_OVERRIDE) reste bien après lui.
+// Aller plus bas exigerait de raccourcir Soberland lui-même (cameo.js),
+// décision distincte à reconfirmer séparément si le mur reste trop dense.
+const GRACE_BEATS = 7;
 const GRACE_SLOTS = Math.ceil(GRACE_BEATS / CADENCE); // créneaux forcés étoile en tout début de course
 
 // --- Difficulté progressive + quota EXACT d'étoiles -----------------------
