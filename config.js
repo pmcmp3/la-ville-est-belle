@@ -71,10 +71,10 @@ window.CONFIG = {
 
   // === LIENS ===
   lienEP: "https://li.sten.to/la-ville-est-belle", // "Ajouter le morceau" — smartlink fourni par l'artiste (remplace le linktr.ee)
-  // ⚠️ À REMPLACER par le lien "suivre PMC" (profil Spotify de l'artiste) :
-  // sert au second verrou de conversion — après 3 parties, REJOUER demande de
-  // suivre PMC (une seule fois, mémorisé). En attendant, le smartlink fait foi.
-  lienSuivre: "https://li.sten.to/la-ville-est-belle",
+  // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
+  // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
+  // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).
+  lienSuivre: "https://open.spotify.com/artist/3TqmTXwzfX2UCduNYwW9iq",
 
   // === BACKEND (étape 7 — Supabase) ===
   apiScores: "https://lmlltogosjpxkgofpcdy.supabase.co/rest/v1/scores", // URL REST du projet Supabase
