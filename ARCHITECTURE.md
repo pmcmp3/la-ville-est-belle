@@ -452,8 +452,10 @@ croissant = profondeur croissante, ce que `render()` suppose pour son ordre du p
 piège n°4). Un facteur d'approche différent par type casse cette égalité — `slotsFor()` trie
 maintenant explicitement par `z` avant de mettre en cache.
 
-**Période de grâce** : `GRACE_BEATS = 8` (~4 s) sans obstacle en début de course. Historique :
-16 (~8 s) → 4 (~2 s, « il y a juste plein d'étoiles, il se passe rien ») → 8 le 21 août 2026,
+**Période de grâce** : `GRACE_BEATS = 7` (~3,5 s, premier obstacle à 3,75 s) sans obstacle en
+début de course. Historique : 16 (~8 s) → 4 (~2 s, « il y a juste plein d'étoiles, il se passe
+rien ») → 8 puis 7 le 21 août 2026 (« énormément d'étoiles au tout début » — 7 est le PLANCHER
+sûr vis-à-vis de Soberland, voir la vingt-deuxième passe en §11),
 rallongée pour couvrir la fenêtre de Soberland avancé au tout début (voir seizième passe, §11) —
 ses étoiles sont en plus forcées sur les voies latérales, la voie centrale reste à lui.
 
@@ -867,6 +869,54 @@ est bien »). Trois trouvailles, dont une critique :
   plus aucun import de `clip.js`, aucun console.log. Balayage complet −LEAD_IN → arrivée,
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
+
+**Vingt-quatrième passe du 21 août 2026 — audit à 8 angles, corrections, échelle de conversion à 3 paliers.**
+- **Revue de code à 8 angles sur tout le diff du jour (2 094 lignes)** : 10 constats vérifiés,
+  dont 3 vrais bugs dans le revive livré quelques heures plus tôt — tous corrigés ci-dessous.
+- 🐛 **Le clic non-fan n'ouvrait JAMAIS Spotify** : revivePhasePrete() retirait le href du <a>
+  PENDANT le dispatch du clic, or l'activation d'un lien relit le href APRÈS le dispatch — la
+  navigation était annulée (prouvé au banc d'essai : lien-sonde + removeAttribute = zéro
+  navigation, témoin identique = navigation). Le joueur était marqué converti sans avoir rien
+  ajouté. Corrigé : le basculement en phase « prêt » est différé d'un setTimeout(0). ⚠️ Règle à
+  retenir : ne JAMAIS toucher au href d'un lien dans son propre handler de clic.
+- 🐛 **Le décompte de 10 s n'était pas vraiment gelé sur iOS** : les timers y sont totalement
+  suspendus en arrière-plan, donc aucun tick ne tournait avec document.hidden — au retour, le
+  premier tick voyait TOUTE l'absence dans son delta et vidait la fenêtre d'un coup (auto-
+  décline). Corrigé : plafond de REVIVE_TICK_MAX_S = 0,3 s décompté par tick (Math.min sur le
+  delta), le garde document.hidden ne couvrant que desktop/Android. Vérifié : un gel synchrone
+  de 1,5 s ne décompte que ~0,3 s.
+- 🐛 **Les swipes faits sur la carte de mort s'exécutaient à la reprise** : pendant revivePaused,
+  step() ne consomme plus la file d'input (2 voies + saut + slam au niveau module input.js) —
+  purge ajoutée dans onAccept (le seul état du jeu où la file peut s'accumuler : partout
+  ailleurs step() la vide en continu, même écran de fin).
+- ⚠️ **ÉCHELLE DE CONVERSION À TROIS PALIERS** (demandé : « on ne peut pas refaire l'action en
+  permanence ») : `reviveMode` posé à l'ouverture — "morceau" (CTA lienEP), "suivre" (CTA
+  lienSuivre, clé pmcSuivi partagée avec le verrou de fin → jamais demandé deux fois), "attente"
+  (tout fait : le décompte devient une simple attente et ARME le bouton REPRENDRE au lieu de
+  décliner ; clic ignoré + .locked tant qu'il tourne, « Terminer ma course » reste ouvert).
+  Testé de bout en bout en harnais : les 3 paliers, la préservation du href pendant le dispatch,
+  les conversions marquées, l'expiration-qui-arme, la reprise au tap.
+- **Marge pont×traversantes RECALIBRÉE, mesure honnête à l'appui** : la marge de 0,5 s valait
+  42 unités au plafond de vitesse et supprimait 20 traversées sur 58 (~35 % du levier de fin de
+  course !) — masqué par la mesure précédente qui comptait « vu une frame = conservé » (le
+  chiffre « 1 supprimée » d'hier était FAUX ; la bonne méthode : profondeur de DERNIÈRE
+  apparition, une disparition à z > 6 = suppression). Le cas injuste est le CHEVAUCHEMENT, pas
+  le voisinage : 0,15 s + plancher 6 unités → 5 suppressions sur 58, toutes réelles.
+- **sousUnPont ne relit plus clock.now() par carrefour** : pontsVisibles() extrait les z des
+  ponts UNE fois par balayage — la relecture par carrefour cassait la mémoïsation du slotCache
+  (clé d'égalité stricte), systématiquement sur l'horloge de secours.
+- **Compteur de parties assaini** : Prefer count=planned (estimation O(1) au lieu d'un comptage
+  complet par requête), 5 s → 20 s, pas de requête onglet caché, et le plancher de preuve
+  sociale (< 20 → masqué) supprimé par erreur dans la refonte est restauré.
+- **Chiffres officiels recalculés après GRACE_BEATS 7** (le tirage déterministe s'est
+  redistribué) : **14 étoiles dorées** (13 avant), **score max 86 825** (95 519 avec boost fan).
+  CLAUDE.md mis à jour ; le classement Supabase amorcé sous 14 000 reste largement en dessous.
+- Doc réalignée : lienSuivre (vrai profil vérifié), GRACE_BEATS 7 (§6 + CLAUDE.md), la mention
+  « grilles indépendantes, coïncidence possible » remplacée par la réalité sousUnPont.
+- Non traité, assumé : les optimisations d'allocations de drawStar3D (buffers scratch, géométrie
+  unitaire partagée, halo pré-cuit) — réelles mais risquées visuellement à la veille du
+  lancement, aucune saccade rapportée en jeu réel à ce jour. À reprendre si un test sur vieil
+  iPhone accroche.
 
 **Vingt-troisième passe du 21 août 2026 — reprise en deux temps, règles dans la pause, jingle −5 dB.**
 - ⚠️ **La seconde chance passe en DEUX PHASES** (`revivePhase`, screens.js — retour après test

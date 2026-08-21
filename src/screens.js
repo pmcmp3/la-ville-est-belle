@@ -168,31 +168,45 @@ export function showOverlay() {
 // Présentation seulement : la décision de l'offrir, le gel de la partie et la
 // reprise vivent dans main.js (offerRevive) — ce module reçoit les deux issues
 // en callbacks, comme tout le reste de l'API screens.
-// ⚠️ Le décompte (10 s) SE FIGE quand l'onglet est caché : le joueur qui part
-// ajouter le morceau sur Spotify ne doit pas retrouver sa fenêtre expirée en
-// revenant — c'est LE détail qui fait marcher le détour par l'autre appli.
-// ⚠️ Même règle que le verrou de rejeu : la reprise se donne AU CLIC, jamais
-// sur une preuve d'ajout (impossible à obtenir, voir syncVerrouRejeu). Qui a
-// déjà ajouté le morceau (estFan) reprend gratuitement — l'avantage fan reste
-// acquis, le CTA devient un simple « REPRENDRE MA COURSE ».
+//
+// ⚠️ ÉCHELLE DE CONVERSION À TROIS PALIERS (21 août 2026, demandé : « la
+// première fois, sauvegarder le morceau ; la deuxième, s'abonner à PMC sur
+// Spotify ; après, on laisse les gens rejouer — on ne peut pas refaire
+// l'action en permanence ») :
+//   mode "morceau" — jamais ajouté le morceau : le CTA est le lien lienEP,
+//                    le clic marque la conversion (même clé que le verrou de
+//                    rejeu, donc les deux systèmes restent d'accord) ;
+//   mode "suivre"  — morceau déjà ajouté, pas encore abonné : le CTA est le
+//                    lien lienSuivre, le clic marque CLE_PMC_SUIVI (le verrou
+//                    « après 3 parties » de l'écran de fin ne se déclenchera
+//                    donc jamais pour lui : déjà satisfait) ;
+//   mode "attente" — tout est déjà fait : plus rien à demander, le décompte
+//                    de 10 s devient une simple ATTENTE — le bouton REPRENDRE
+//                    se déverrouille quand il atteint zéro, il ne décline
+//                    plus. « Terminer ma course » reste disponible.
+// Dans les deux modes à lien, le décompte reste une fenêtre de DÉCISION :
+// expiré sans clic → onDecline (écran de fin).
+//
+// ⚠️ Le décompte survit au détour par Spotify : chaque tick soustrait au
+// maximum REVIVE_TICK_MAX_S — même quand iOS suspend totalement les timers en
+// arrière-plan (aucun tick ne tourne avec document.hidden, donc le garde
+// document.hidden seul ne suffisait pas : au retour, le premier tick voyait
+// TOUTE l'absence dans son delta et vidait la fenêtre d'un coup — bug trouvé
+// à la revue du 21 août 2026).
+// ⚠️ Même règle que le verrou de rejeu : la conversion se donne AU CLIC,
+// jamais sur une preuve d'ajout (impossible à obtenir, voir syncVerrouRejeu).
 const REVIVE_DELAI_S = 10;
+const REVIVE_TICK_MAX_S = 0.3; // plafond de temps décompté par tick (voir ci-dessus)
 const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans index.html
 let reviveCallbacks = null;
 let reviveRestant = 0;
 let reviveTimerId = 0;
-// ⚠️ DEUX PHASES depuis le 21 août 2026 (retour après test réel : « je suis
-// reparti d'un seul coup ») : la première version reprenait la course à
-// l'instant du clic sur le lien — le joueur partait sur Spotify, le jeu se
-// gelait (onglet caché), et au retour la course était DÉJÀ en train de tourner
-// sous ses doigts. La reprise est maintenant un geste SÉPARÉ :
-//   "decision" — décompte 10 s + CTA. Non-fan : le clic ouvre Spotify, marque
-//                la conversion et bascule en phase "pret" (le décompte
-//                s'arrête, la reprise est ACQUISE — plus rien ne peut la
-//                retirer). Fan : rien à ajouter, le clic reprend directement.
-//   "pret"     — plus de décompte, la carte dit « ta course t'attend » et
-//                seule un tap sur REPRENDRE MA COURSE relance — que le joueur
-//                revienne de Spotify dans 5 secondes ou 3 minutes, c'est LUI
-//                qui décide quand ses mains sont prêtes.
+let reviveMode = "morceau";   // "morceau" | "suivre" | "attente" — posé à l'ouverture
+// ⚠️ DEUX PHASES (retour après test réel : « je suis reparti d'un seul
+// coup ») : le clic sur un lien de conversion ne relance JAMAIS la course —
+// il bascule la carte en phase "pret", et seul un tap explicite sur
+// REPRENDRE MA COURSE relance. Que le joueur revienne de Spotify dans 5
+// secondes ou 3 minutes, c'est LUI qui décide quand ses mains sont prêtes.
 let revivePhase = "decision";
 
 function reviveMajAffichage() {
@@ -201,9 +215,8 @@ function reviveMajAffichage() {
   reviveArc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
 }
 
-// Reconstruit « préfixe <strong>score</strong> points. » sans innerHTML : un
-// innerHTML détacherait le nœud #revive-score du markup et laisserait des
-// références mortes derrière lui.
+// Reconstruit « préfixe <strong>score</strong> points. » sans innerHTML (un
+// innerHTML détacherait les nœuds et laisserait des références mortes).
 function poserTexteRevive(prefixe, score) {
   reviveText.textContent = "";
   const strong = document.createElement("strong");
@@ -213,34 +226,58 @@ function poserTexteRevive(prefixe, score) {
 
 let reviveScoreCourant = 0;
 
-function revivePhasePrete() {
+// Le CTA redevient un simple bouton de reprise (plus un lien). ⚠️ À ne
+// JAMAIS appeler pendant le dispatch d'un clic sur le lien : retirer le href
+// pendant le dispatch ANNULE la navigation (l'activation d'un <a> relit le
+// href après coup) — c'est le bug qui rendait toute la conversion muette,
+// prouvé au banc d'essai à la revue du 21 août 2026. D'où le setTimeout(0)
+// dans le handler de clic plus bas.
+function reviveCtaEnBoutonReprise(verrouille) {
+  reviveCtaLabel.textContent = "REPRENDRE MA COURSE";
+  reviveCtaIcone.style.display = "none";
+  reviveCta.removeAttribute("href");
+  reviveCta.removeAttribute("target");
+  reviveCta.classList.toggle("locked", Boolean(verrouille));
+}
+
+function revivePhasePrete(titre) {
   revivePhase = "pret";
   clearInterval(reviveTimerId);
   reviveTimerId = 0;
   reviveTimer.style.display = "none"; // le décompte n'a plus d'objet
-  reviveTitle.textContent = "Morceau ajouté, merci !";
+  reviveTitle.textContent = titre;
   poserTexteRevive("Ta course t'attend — reprends quand tu es prêt, avec tes ", reviveScoreCourant);
-  reviveCtaLabel.textContent = "REPRENDRE MA COURSE";
-  reviveCtaIcone.style.display = "none";
-  reviveCta.removeAttribute("href");
+  reviveCtaEnBoutonReprise(false);
 }
 
 export function openReviveSheet({ score, onAccept, onDecline }) {
   reviveCallbacks = { onAccept, onDecline };
   revivePhase = "decision";
   reviveScoreCourant = score;
+  reviveMode = !estFan() ? "morceau" : !pmcDejaSuivi() ? "suivre" : "attente";
   // Textes remis à l'état « décision » : la carte a pu finir une partie
-  // précédente en phase « prêt ».
+  // précédente dans un autre état.
   reviveTimer.style.display = "";
-  reviveTitle.textContent = "Ta course n'est pas finie !";
-  poserTexteRevive("Ajoute le morceau et reprends PILE ici, avec tes ", score);
-  const fan = estFan();
-  reviveCtaLabel.textContent = fan ? "REPRENDRE MA COURSE" : "AJOUTER LE MORCEAU";
-  reviveCtaIcone.style.display = fan ? "none" : "";
-  if (fan) {
-    reviveCta.removeAttribute("href"); // plus un lien : simple bouton de reprise
-  } else {
+  reviveCta.classList.remove("locked");
+  if (reviveMode === "morceau") {
+    reviveTitle.textContent = "Ta course n'est pas finie !";
+    poserTexteRevive("Ajoute le morceau et reprends PILE ici, avec tes ", score);
+    reviveCtaLabel.textContent = "AJOUTER LE MORCEAU";
+    reviveCtaIcone.style.display = "";
     reviveCta.href = window.CONFIG.lienEP;
+    reviveCta.target = "_blank";
+  } else if (reviveMode === "suivre") {
+    reviveTitle.textContent = "Ta course n'est pas finie !";
+    poserTexteRevive("Abonne-toi à PMC sur Spotify et reprends PILE ici, avec tes ", score);
+    reviveCtaLabel.textContent = "SUIVRE PMC SUR SPOTIFY";
+    reviveCtaIcone.style.display = "";
+    reviveCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
+    reviveCta.target = "_blank";
+  } else {
+    // Tout est déjà débloqué : l'attente EST le prix, le bouton s'armera à 0.
+    reviveTitle.textContent = "Seconde chance !";
+    poserTexteRevive("Tu as déjà tout débloqué — reprise dans quelques secondes, avec tes ", score);
+    reviveCtaEnBoutonReprise(true);
   }
   reviveRestant = REVIVE_DELAI_S;
   reviveMajAffichage();
@@ -250,12 +287,21 @@ export function openReviveSheet({ score, onAccept, onDecline }) {
   let precedent = performance.now();
   reviveTimerId = setInterval(() => {
     const maintenant = performance.now();
-    const ecoule = (maintenant - precedent) / 1000;
+    // Plafond par tick : la seule protection qui tienne aussi quand iOS a
+    // suspendu le timer pendant tout le détour Spotify (voir l'en-tête).
+    const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
     precedent = maintenant;
-    if (document.hidden) return; // figé pendant le détour Spotify
+    if (document.hidden) return; // figé pendant le détour (desktop/Android)
     reviveRestant -= ecoule;
     reviveMajAffichage();
-    if (reviveRestant <= 0) reviveResoudre("onDecline");
+    if (reviveRestant <= 0) {
+      if (reviveMode === "attente") {
+        // L'attente est purgée : on ARME la reprise au lieu de décliner.
+        revivePhasePrete("C'est reparti !");
+      } else {
+        reviveResoudre("onDecline");
+      }
+    }
   }, 100);
 }
 
@@ -283,20 +329,29 @@ function reviveResoudre(issue) {
 // boucle de l'equalizer, qui avait tourné toute une course en arrière-plan
 // (voir hideOverlay). Un compteur invisible n'a aucune raison d'interroger le
 // réseau.
-const RUNS_REFRESH_MS = 5000;
-let runsTimer = null;
+// 5 s → 20 s (revue du 21 août 2026) : chaque tick est une requête Supabase
+// par joueur sur l'écran de fin — à l'échelle d'une campagne qui marche, 5 s
+// multipliait la charge par 4 pour un chiffre qui bouge à l'unité près. Le
+// point rouge qui bat suffit à vendre le « temps réel ».
+const RUNS_REFRESH_MS = 20000;
+// Plancher de preuve sociale (garde SUPPRIMÉE PAR ERREUR dans la refonte
+// temps réel, restaurée à la revue du 21 août 2026) : sous ce total, un
+// compteur fait vide plutôt que preuve — « ● 3 parties jouées » ferait fuir.
+const RUNS_MIN_AFFICHE = 20;
 
 async function majCompteurCourses() {
+  if (document.hidden) return; // pas de requête pour un écran que personne ne regarde
   const total = await net.getRunsCount();
   // null = table absente, réseau coupé ou bloqueur de contenu : on laisse la
   // ligne dans l'état où elle est plutôt que de faire clignoter un vide.
-  if (total === null) return;
+  if (total === null || total < RUNS_MIN_AFFICHE) return;
   runsCountNum.textContent = total.toLocaleString("fr-FR");
   runsCount.classList.remove("hidden");
 }
 
 function demarrerCompteurCourses() {
   arreterCompteurCourses();
+  runsCount.classList.add("hidden"); // jamais le chiffre de la partie précédente
   majCompteurCourses();
   runsTimer = setInterval(majCompteurCourses, RUNS_REFRESH_MS);
 }
@@ -858,20 +913,26 @@ export function init(d) {
   // clic » que le verrou) ET reprise immédiate — l'onglet Spotify s'ouvre à
   // côté, le jeu se fige tout seul (document.hidden) et attend le retour.
   // Le voile est volontairement inerte : les deux issues sont les boutons.
-  // Seconde chance, deux phases (voir revivePhase) : le clic d'un NON-fan en
-  // phase décision ouvre Spotify (le lien fait son travail), marque la
-  // conversion et fige la carte en « prêt » — la reprise n'arrive QUE sur le
-  // tap suivant, jamais dans le dos du joueur parti sur l'autre appli
-  // (« je suis reparti d'un seul coup »). Un fan n'a rien à ajouter : son
-  // clic EST la reprise.
+  // Seconde chance — clic sur le CTA selon le mode (voir l'en-tête du bloc
+  // revive) : sur un palier à LIEN (« morceau », « suivre »), le clic marque
+  // la conversion et fige la carte en « prêt » ; la reprise n'arrive QUE sur
+  // le tap suivant, jamais dans le dos du joueur parti sur l'autre appli.
+  // ⚠️ Le basculement en phase « prêt » est DIFFÉRÉ d'un setTimeout(0) : il
+  // retire le href du <a>, et le retirer PENDANT le dispatch du clic annule
+  // la navigation (l'activation d'un lien relit le href après le dispatch) —
+  // Spotify ne s'ouvrait jamais, prouvé au banc d'essai (revue du 21 août).
   reviveCta.addEventListener("click", () => {
     if (!reviveCallbacks) return;
-    if (revivePhase === "decision" && !estFan()) {
+    if (revivePhase === "pret") { reviveResoudre("onAccept"); return; }
+    if (reviveMode === "morceau") {
       marquerMorceauOuvert();
-      revivePhasePrete();
-      return; // le lien s'ouvre en parallèle dans l'autre onglet
+      setTimeout(() => revivePhasePrete("Morceau ajouté, merci !"), 0);
+    } else if (reviveMode === "suivre") {
+      marquerPmcSuivi();
+      setTimeout(() => revivePhasePrete("Abonnement enregistré, merci !"), 0);
     }
-    reviveResoudre("onAccept");
+    // mode "attente" en phase décision : bouton verrouillé, clic ignoré —
+    // c'est le décompte qui armera la reprise.
   });
   reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
 

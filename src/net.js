@@ -124,13 +124,19 @@ export function postRun() {
 }
 
 // Nombre total de courses jouées, ou null si indisponible. Le comptage
-// PostgREST passe par l'en-tête Content-Range (Prefer: count=exact) — on ne
-// rapatrie aucune ligne (Range 0-0), juste le total.
+// PostgREST passe par l'en-tête Content-Range — on ne rapatrie aucune ligne
+// (Range 0-0), juste le total.
+// ⚠️ `count=planned` et pas `count=exact` (revue du 21 août 2026) : exact =
+// comptage COMPLET côté Postgres sur une table qui grossit d'une ligne par
+// partie, relancé toutes les 20 s par chaque joueur sur l'écran de fin — au
+// pic de la campagne c'est ce qui aurait saturé le palier gratuit Supabase.
+// planned lit l'estimation du planificateur : O(1), à quelques lignes près —
+// largement assez juste pour de la preuve sociale.
 export async function getRunsCount() {
   if (!configured()) return null;
   try {
     const res = await fetch(`${coursesUrl()}?select=id`, {
-      headers: headers({ Prefer: "count=exact", Range: "0-0" }),
+      headers: headers({ Prefer: "count=planned", Range: "0-0" }),
     });
     if (!res.ok && res.status !== 206) return null;
     const range = res.headers.get("content-range"); // ex. "0-0/2431"

@@ -511,6 +511,12 @@
       width: 100%;
     }
 
+    /* Palier « attente » : REPRENDRE est visible mais verrouillé tant que le
+       décompte tourne (le clic est aussi ignoré côté JS). */
+    #revive-cta.locked {
+      opacity: 0.45;
+    }
+
     /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
        depuis que le bandeau dit « Votre score », et la carte débordait.) */
     #score-num {
@@ -1574,9 +1580,9 @@
       width: min(264px, 100%);
     }
 
-    #pause-rules.hidden {
-      display: none; /* réaffirmé APRÈS le display:flex — même spécificité, l'ordre tranche */
-    }
+    /* (pas de ré-affirmation de #pause-rules.hidden nécessaire : id+classe
+       sur-spécifie l'id seul du display:flex, la règle partagée plus haut
+       gagne quel que soit l'ordre.) */
 
     #pause-rules-list {
       margin: 0;

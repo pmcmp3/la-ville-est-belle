@@ -543,6 +543,13 @@ function offerRevive() {
       game.lives = window.CONFIG.viesDepart;
       reviveShieldUntil = clock.now() + REVIVE_SHIELD_S;
       damageFlash = 0;
+      // ⚠️ Purge de la file d'input (revue du 21 août 2026) : pendant le gel
+      // (revivePaused), step() ne consomme plus rien — les swipes faits par
+      // réflexe sur la carte de mort s'accumulaient (2 voies + saut + slam)
+      // et s'exécutaient tous d'un coup au premier step de la reprise.
+      while (consumeLaneMove()) { /* vide la file de voies */ }
+      consumeJumpPress();
+      consumeSlamDown();
       revivePaused = false;
       applyPauseState();
       screens.showPauseButton();

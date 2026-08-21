@@ -160,17 +160,42 @@ function positionLaterale(vehicule, z, speed) {
 // le retour venait justement de la fin de course. Le plancher de 4 unités
 // couvre la géométrie pure (demi-largeur du véhicule + fenêtres de collision
 // + profondeur visuelle de la poutre) au cas où la vitesse serait minuscule.
-const PONT_MARGE_S = 0.5;
-const PONT_MARGE_Z_MIN = 4;
+// ⚠️ Recalibrée le 21 août 2026, mesure zDerniere à l'appui : à 0,5 s la
+// marge valait 42 unités au plafond de vitesse et supprimait 20 traversées
+// sur 58 — plus d'un tiers du levier de difficulté de fin de course rasé,
+// masqué jusqu'ici par une mesure qui comptait « vu une frame = conservé ».
+// Le cas INJUSTE n'est pas le voisinage (un pont PUIS une voiture 0,4 s plus
+// tard se joue très bien : on passe la trouée, puis on gère la voiture),
+// c'est le CHEVAUCHEMENT : la voiture qui occupe la trouée pendant la fenêtre
+// où le joueur doit y être. D'où 0,15 s (un délai de réaction) + un plancher
+// géométrique de 6 unités (demi-voiture + fenêtres de collision + profondeur
+// de la poutre). Mesuré après recalibrage (balayage zDerniere complet) :
+// 5 suppressions sur 58, toutes des chevauchements réels — contre 20 à 0,5 s.
+const PONT_MARGE_S = 0.15;
+const PONT_MARGE_Z_MIN = 6;
 const supprimes = new Set();
 
-function sousUnPont(n, distance) {
+// Les z des ponts visibles + la marge, calculés UNE fois par balayage de
+// carrefours et passés en paramètre. ⚠️ Ne PAS relire clock.now() par
+// carrefour (revue du 21 août 2026) : le slotCache d'entities.js est mémoïsé
+// sur égalité stricte (now, speed) — une relecture qui tombe sur un tick
+// d'horloge différent invalide le cache partagé et reconstruit toute la
+// fenêtre de créneaux, jusqu'à une fois par carrefour et par frame ; sur
+// l'horloge de secours performance.now() (chaque lecture unique), c'était
+// systématique, ×10 sur le coût de la grille pour les appareils dégradés.
+function pontsVisibles() {
+  const speed = road.getSpeed();
+  const marge = Math.max(PONT_MARGE_Z_MIN, speed * PONT_MARGE_S);
+  const zs = [];
+  for (const s of slotsFor(clock.now(), speed)) {
+    if (isBridgeSlot(s)) zs.push(s.z);
+  }
+  return { zs, marge };
+}
+
+function sousUnPont(n, zCarrefour, ponts) {
   if (supprimes.has(n)) return true;
-  const zCarrefour = profondeurDu(n, distance);
-  const marge = Math.max(PONT_MARGE_Z_MIN, road.getSpeed() * PONT_MARGE_S);
-  const coincide = slotsFor(clock.now(), road.getSpeed()).some(
-    (s) => isBridgeSlot(s) && Math.abs(s.z - zCarrefour) < marge
-  );
+  const coincide = ponts.zs.some((z) => Math.abs(z - zCarrefour) < ponts.marge);
   if (coincide) supprimes.add(n);
   return coincide;
 }
@@ -179,12 +204,13 @@ function sousUnPont(n, distance) {
 function* carrefoursVisibles(distance) {
   const premier = Math.floor(distance / road.WORLD_GRID_SPACING) - 1;
   const dernier = Math.ceil((distance + road.HORIZON_Z) / road.WORLD_GRID_SPACING) + 1;
+  const ponts = pontsVisibles();
   for (let n = premier; n <= dernier; n++) {
     const vehicule = vehiculeAu(n);
     if (!vehicule) continue;
     const z = profondeurDu(n, distance);
     if (z < 0.5 || z > road.HORIZON_Z) continue;
-    if (sousUnPont(n, distance)) continue;
+    if (sousUnPont(n, z, ponts)) continue;
     yield { n, vehicule, z };
   }
 }

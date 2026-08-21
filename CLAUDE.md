@@ -55,9 +55,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   « −1 vie » listés plus bas sont l'HISTORIQUE, plus la règle courante. Seule la voiture
   traversante (crosstraffic.js) reste à −1 vie (jamais fatale, invariant verrouillé). En
   contrepartie : **seconde chance à la mort** — première mort d'une partie → panneau 10 s
-  (`#revive-sheet`), ajouter le morceau (ou l'avoir déjà ajouté) = reprise sur place, score
-  conservé, une fois par partie. Voir ARCHITECTURE.md §11, vingt-et-unième passe (3 pièges
-  documentés : décompte figé onglet caché, bouclier 2 s, unlock audio dans startGame).
+  (`#revive-sheet`), reprise sur place, score ET combo conservés, une fois par partie.
+  ⚠️ **Échelle de conversion à TROIS PALIERS depuis le 21 août 2026** (« la première fois
+  sauvegarder le morceau, la deuxième s'abonner à PMC, après on laisse rejouer ») : jamais
+  ajouté le morceau → CTA lienEP ; déjà ajouté mais pas abonné → CTA lienSuivre (même clé
+  `pmcSuivi` que le verrou de fin, qui ne se déclenchera donc jamais pour lui) ; tout fait →
+  plus rien à demander, le décompte de 10 s devient une simple ATTENTE qui déverrouille
+  REPRENDRE (il ne décline plus). La reprise est TOUJOURS un tap séparé (jamais « dans le
+  dos » du joueur revenu de Spotify). Voir ARCHITECTURE.md §11, vingt-quatrième passe.
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
@@ -172,9 +177,10 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   jeu sous le score (`hud.js`) quand actif, dans une **pastille crème** depuis le 19 août 2026
   (« que le combo soit dans un tag un peu plus gros pour qu'on comprenne comment ça marche ») —
   jamais rouge, le rouge de charte est réservé au négatif (la pénalité). Score maximum théorique
-  (run parfait, 85/85 étoiles, 0 obstacle touché, combo jamais cassé) : **81 525 points**
-  (**89 678** avec le boost fan ×1,1, voir plus bas) — recalculé le 21 août 2026 après la
-  détente de fin de course, avec les **13 étoiles DORÉES** (×2, `GOLD_STAR_RATE` dans
+  (run parfait, 85/85 étoiles, 0 obstacle touché, combo jamais cassé) : **86 825 points**
+  (**95 519** avec le boost fan ×1,1, voir plus bas) — re-recalculé le 21 août 2026 après le
+  passage de GRACE_BEATS à 7 (le tirage déterministe s'est redistribué), avec les **14 étoiles
+  DORÉES** (×2, `GOLD_STAR_RATE` dans
   `entities.js`, tirées au hash donc identiques à chaque partie — l'invariant « score max =
   nombre connu » tient toujours ; teinte blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
   (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`), autour de l'axe VERTICAL façon
@@ -188,13 +194,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   le profil à 90°.
   ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
   enregistrés l'ont été sous d'anciens barèmes (195 525, 61 400, 68 925…) et écraseraient
-  définitivement ceux du nouveau (81 525 / 89 678).
+  définitivement ceux du nouveau (86 825 / 95 519).
 - **Conversion, mécaniques ajoutées le 20 août 2026** (priorité produit assumée) :
   - **Boost fan ×1,1 permanent** sur les points de bonus dès que le morceau a été ajouté
     (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
     qu'il n'est pas acquis. La conversion est récompensée, pas seulement exigée.
   - **Second verrou doux après 3 parties** : REJOUER exige « Suivre PMC sur Spotify »
-    (`lienSuivre` dans config.js — ⚠️ encore à remplacer par le vrai lien de profil). Passe par
+    (`lienSuivre` dans config.js — le vrai profil Spotify de PMC, vérifié le 21 août 2026 via
+    son Instagram). Passe par
     le même panneau `#unlock-sheet` que le verrou morceau depuis le 21 août 2026.
   - **Bandeau « Tu écoutes La ville est belle »** sur l'écran de fin (le morceau y joue vraiment
     ~114 s) — cliquable, même smartlink. ⚠️ **Equalizer branché sur le VRAI spectre depuis le
@@ -226,8 +233,10 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   et densité maximale après ~100 s : c'est le levier qui durcit la FIN de course sans toucher à
   l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
   que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. ⚠️ Le véhicule est **découpé sur la trouée de la rue** (`BORD_RUE`) : il émerge de derrière les façades comme d'une rue transversale, au lieu d'être peint par-dessus les trottoirs et les immeubles plusieurs secondes à l'avance — retour direct, capture à l'appui (« on les voit de trop loin »). Coût −1 vie,
-  **jamais fatal** — les deux grilles étant indépendantes, une coïncidence avec le seul passage
-  laissé par un pont est possible et ne doit pas terminer la course. ⚠️ **Le CAMION a été
+  **jamais fatal**. ⚠️ Depuis le 21 août 2026, `sousUnPont()` (crosstraffic.js, dépendance à
+  sens unique vers entities.js, assumée) SUPPRIME les traversées qui chevaucheraient un pont
+  (marge 0,15 s + plancher 6 unités, mesuré : 5 traversées sur 58) — le cas « voiture dans la
+  seule trouée du pont » n'existe plus, mais le −1 vie reste la règle par prudence. ⚠️ **Le CAMION a été
   SUPPRIMÉ le 21 août 2026** (« il faut pas qu'il y ait des camions qui traversent, je veux que
   ce soient des voitures, sinon c'est trop ») — d'abord rendu sautable le même jour, puis retiré
   tout court : seules des voitures traversent désormais, toutes franchissables au saut (« il
@@ -237,7 +246,9 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   planté dans la voie centrale **au TOUT début de la course** (`cameo.js`, `CAMEO_TIME_S` = 3 s —
   7 s avant le 21 août 2026, avancé sur insistance : « au tout début et rien autour de lui »).
   Visible dès la première frame jusqu'à ~3,6 s ; la période de grâce a été allongée en vis-à-vis
-  (`GRACE_BEATS` 4 → 8, premier obstacle à ≈4,5 s) et les étoiles de grâce sont forcées sur les
+  (`GRACE_BEATS` 4 → 8 puis redescendu à 7 le même jour — « énormément d'étoiles au tout
+  début » ; premier obstacle à ≈3,75 s, 0,15 s après la sortie de Soberland : c'est le
+  PLANCHER sûr, ne pas descendre sans raccourcir le caméo) et les étoiles de grâce sont forcées sur les
   voies LATÉRALES (`slotLanes`, entities.js) pour que rien ne partage jamais l'écran avec lui.
   Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de
   `pedestrians.js` (retour direct sur le premier jet : « ressemble à rien ») : casquette, barbe,
