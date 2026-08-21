@@ -56,6 +56,7 @@ const fanNote = document.getElementById("fan-note");
 const nowPlaying = document.getElementById("now-playing");
 const contestDeadline = document.getElementById("contest-deadline");
 const runsCount = document.getElementById("runs-count");
+const runsCountNum = document.getElementById("runs-count-num");
 // Pop-up de verrou depuis le bas (remplace l'ancienne note statique sous
 // REJOUER et le lien « Suis PMC » — voir syncVerrouRejeu).
 const unlockSheet = document.getElementById("unlock-sheet");
@@ -158,6 +159,38 @@ export function showOverlay() {
   syncEqLoop();
 }
 
+// --- Compteur de parties, en temps réel ------------------------------------
+// « Un compteur en temps réel qui dit le nombre de parties faites depuis le
+// lancement » (21 août 2026). Le total est relu périodiquement tant que
+// l'écran de fin est affiché : quelqu'un qui reste sur cet écran (il y a ~114 s
+// de morceau à écouter) voit le chiffre monter pendant que d'autres jouent.
+// ⚠️ L'intervalle est ARRÊTÉ dès que l'overlay se ferme — même piège que la
+// boucle de l'equalizer, qui avait tourné toute une course en arrière-plan
+// (voir hideOverlay). Un compteur invisible n'a aucune raison d'interroger le
+// réseau.
+const RUNS_REFRESH_MS = 5000;
+let runsTimer = null;
+
+async function majCompteurCourses() {
+  const total = await net.getRunsCount();
+  // null = table absente, réseau coupé ou bloqueur de contenu : on laisse la
+  // ligne dans l'état où elle est plutôt que de faire clignoter un vide.
+  if (total === null) return;
+  runsCountNum.textContent = total.toLocaleString("fr-FR");
+  runsCount.classList.remove("hidden");
+}
+
+function demarrerCompteurCourses() {
+  arreterCompteurCourses();
+  majCompteurCourses();
+  runsTimer = setInterval(majCompteurCourses, RUNS_REFRESH_MS);
+}
+
+function arreterCompteurCourses() {
+  clearInterval(runsTimer);
+  runsTimer = null;
+}
+
 export function hideOverlay() {
   overlay.classList.remove("visible");
   // 🐛 Sans cet appel, REJOUER depuis l'écran de fin (qui ne change PAS
@@ -167,6 +200,7 @@ export function hideOverlay() {
   // revue de code du 21 août 2026 ; la boucle est désormais conditionnée à
   // « vue de fin ET overlay visible ».
   syncEqLoop();
+  arreterCompteurCourses(); // même raison que syncEqLoop : plus visible, plus de requêtes
 }
 
 // Le menu monte en fondu sur la scène déjà dessinée plutôt que sur du noir :
@@ -667,15 +701,9 @@ export function showEndScreen(reason) {
   // si tu ajoutes le morceau, tu gagnes un boost fan »).
   fanNote.classList.toggle("hidden", estFan());
 
-  // Preuve sociale : total des courses jouées (toutes personnes confondues).
-  // Fire-and-forget des deux côtés — la ligne n'apparaît que si le compte est
-  // arrivé (voir net.getRunsCount, null si table absente/réseau coupé).
-  runsCount.classList.add("hidden");
-  net.getRunsCount().then((total) => {
-    if (total === null || total < 20) return; // sous 20 courses, un compteur fait vide plutôt que preuve
-    runsCount.textContent = `${total.toLocaleString("fr-FR")} courses déjà jouées — à toi de faire mieux`;
-    runsCount.classList.remove("hidden");
-  });
+  // Preuve sociale : total des parties jouées (toutes personnes confondues),
+  // rafraîchi en continu tant que cet écran est ouvert — voir plus bas.
+  demarrerCompteurCourses();
   // (L'ancienne bascule `cta-minimal` du CTA flottant a disparu avec lui :
   // sur l'écran de fin, le lien est maintenant le bouton principal de la
   // carte, aussi bien après un game over qu'après un parcours terminé.)

@@ -857,6 +857,28 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Dix-neuvième passe du 21 août 2026 — écran de fin (retour iPhone, capture à l'appui).**
+- 🐛 **Le score s'affichait DEUX FOIS** (« y'a deux fois le score ») : `hudAlpha` (main.js) ne
+  faisait que MONTER vers 1 et n'était remis à 0 qu'au rejeu — le HUD de course (score + cœurs)
+  restait donc peint derrière la carte de fin, qui affiche déjà le score en grand. Il descend
+  maintenant vers 0 dès `game.ended`, sur la même durée de fondu (0,6 s), pendant que la carte
+  monte. Le rejeu est inchangé (`hudAlpha = 0` puis remontée vers 1).
+- **Compteur de parties en temps réel** (`#runs-count`, demandé) : relu toutes les 5 s tant que
+  l'écran de fin est ouvert — quelqu'un qui y reste (~114 s de morceau) voit le chiffre monter.
+  ⚠️ L'intervalle est coupé dans `hideOverlay()`, même piège que la boucle de l'equalizer qui
+  avait tourné toute une course en arrière-plan. **Sorti de `#leaderboard`** dans le DOM : il y
+  était imbriqué, donc invisible dès que le classement ne se chargeait pas alors qu'il n'en
+  dépend pas. Passé de 10px gris à une pastille avec point rouge clignotant (il se confondait
+  avec la mention légale au-dessus), et le seuil d'affichage « ≥ 20 courses » a sauté.
+  ⚠️ CSS en BLOC centré, pas en flex : en flex le libellé devenait un enfant contraint et se
+  coupait en deux lignes déséquilibrées dans la carte, qui est étroite.
+- **Base amorcée avant lancement** (demandé) : compteur de parties mis à **124**, et **22 scores
+  de démarrage** sous 14 000 avec des pseudos inventés, pour que le classement ne soit pas vide
+  au lancement. ⚠️ **Toutes ces lignes portent `game_version = 'seed-demo'`** et un
+  `pseudo_insta` synthétique (`seed-demo-NN`, jamais un vrai compte) : elles sont donc
+  supprimables d'un seul `delete ... where game_version = 'seed-demo'`, et aucun contact
+  accidentel de l'artiste n'est possible. À purger avant de désigner le gagnant.
+
 **Dix-huitième passe du 21 août 2026 — domaine propre + salve UX (retour iPhone en prod).**
 - **Domaine `la-ville-est-belle-pmc.fr`** (OVH, acheté par l'artiste) sur GitHub Pages :
   `public/CNAME` (donc embarqué au build, sinon chaque force-push le perdrait), balises OG/

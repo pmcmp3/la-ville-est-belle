@@ -725,8 +725,20 @@ function step(dt) {
     shake.time = Math.max(0, shake.time - dt);
   }
 
-  if (gameStarted && hudAlpha < 1) {
-    hudAlpha = Math.min(1, hudAlpha + dt / HUD_FADE_DURATION);
+  // 🐛 Le HUD ne redescendait JAMAIS : `hudAlpha` ne faisait que monter vers 1
+  // et n'était remis à 0 qu'au rejeu. Résultat, le score et les cœurs
+  // restaient peints derrière la carte de fin — qui affiche déjà le score en
+  // grand : on le lisait DEUX FOIS à l'écran (retour du 21 août 2026, capture
+  // à l'appui, « y'a deux fois le score »). Le HUD s'efface donc dès la fin de
+  // partie, pendant que la carte monte.
+  if (gameStarted) {
+    const cible = game.ended ? 0 : 1;
+    if (hudAlpha !== cible) {
+      const pas = dt / HUD_FADE_DURATION;
+      hudAlpha = cible > hudAlpha
+        ? Math.min(cible, hudAlpha + pas)
+        : Math.max(cible, hudAlpha - pas);
+    }
   }
 
   // --- Physique du saut : parabole + états ground/air/onCar --------------

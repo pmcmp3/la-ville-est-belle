@@ -528,11 +528,52 @@
       text-align: center;
     }
 
+    /* Compteur de parties : preuve sociale, donc il doit se LIRE — l'ancienne
+       version (10px, gris à 45 %) se confondait avec la mention légale juste
+       au-dessus. Pastille + point rouge qui bat = « c'est en train de tourner
+       en ce moment », ce que le chiffre seul ne dit pas. */
+    /* ⚠️ Bloc centré, PAS un flex : en flex, le libellé devient un enfant de
+       largeur contrainte et se coupait en deux lignes déséquilibrées
+       (« parties jouées depuis le / lancement ») dans la carte de fin, qui est
+       étroite. En bloc, le texte coule normalement autour de la pastille et
+       les lignes se répartissent toutes seules. */
     #runs-count {
-      margin: 3px 0 0;
-      font: 500 10px var(--police);
-      color: rgba(0, 0, 0, 0.45);
+      width: fit-content;
+      max-width: 100%;
+      margin: 10px auto 0;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(225, 62, 38, 0.10);
+      font: 500 11.5px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.62);
       text-align: center;
+      text-wrap: balance;
+    }
+
+    #runs-count-num {
+      font-weight: 900;
+      color: var(--noir);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .runs-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-right: 5px;
+      vertical-align: 1px;
+      border-radius: 50%;
+      background: var(--rouge);
+      animation: runs-blink 2s ease-in-out infinite;
+    }
+
+    @keyframes runs-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .runs-dot { animation: none; }
     }
 
     #leaderboard-list {
@@ -1716,8 +1757,17 @@
             <!-- Deadline du concours + preuve sociale (nombre total de courses,
                  Supabase) : deux petites lignes sous le classement. -->
             <p id="contest-deadline"></p>
-            <p id="runs-count" class="hidden"></p>
           </div>
+          <!-- Compteur de parties, VOLONTAIREMENT hors de #leaderboard : il y
+               était imbriqué, donc invisible dès que le classement ne se
+               chargeait pas (réseau, bloqueur de contenu) alors qu'il ne
+               dépend pas du tout de lui. Rafraîchi en continu tant que l'écran
+               de fin est ouvert (voir demarrerCompteurCourses, screens.js) —
+               « un compteur en temps réel ». -->
+          <p id="runs-count" class="hidden">
+            <span class="runs-dot" aria-hidden="true"></span>
+            <span id="runs-count-num"></span> parties jouées depuis le lancement
+          </p>
           <!-- « Tu écoutes La ville est belle » : le morceau JOUE pendant
                l'écran de fin (~114 s de marge après la ligne d'arrivée) — ce
                bandeau le fait remarquer, façon Dynamic Island, et le clic va
