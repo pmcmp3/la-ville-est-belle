@@ -290,7 +290,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   immobile, et les ratés font revenir l'objet, replacé, sans limite. Seules sorties sans geste :
   « Passer l'intro » et le plafond de sécurité 30 s. ⚠️ L'étape pont est LA raison d'être du
   tuto : seul obstacle où le réflexe (sauter) est précisément ce qui tue, enseigné nulle part
-  avant. ⚠️ La route défile pendant le tutoriel : `road.reset()` dans `requestGameStart()` pour
+  avant. ⚠️ **Rejoué sur les TROIS PREMIÈRES parties** (`TUTO_PARTIES`, screens.js — demandé le
+  21 août 2026 : « le tuto pour les 3 premiers atterrissages avec possibilité de skip »). Il
+  était sauté dès la 2e partie plus tôt le même jour, c'était trop radical : une seule
+  exposition ne suffit pas à faire rentrer la règle du pont. Le bouton « Passer l'intro » est
+  ce qui protège l'habitué — affiché après 4 s à la 1re partie, **immédiatement** ensuite. Pas
+  de nouvelle clé : `partiesJouees` fait foi (donc abandonner avant la fin ne consomme rien, et
+  la navigation privée redonne le tutoriel). ⚠️ La route défile pendant le tutoriel : `road.reset()` dans `requestGameStart()` pour
   que la course parte de distance 0 (la rampe des véhicules traversants est calée dessus).
 
 ## Assets

@@ -871,6 +871,26 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingt-septième passe du 21 août 2026 — trois retours de l'artiste après test réel.**
+- **« Terminer ma course » → « Voir mon score »** (bouton de refus du revive, index.html). Le
+  libellé annonçait un ABANDON au moment précis où le joueur vient de mourir, alors que l'action
+  réelle est d'aller voir sa carte de fin (score, classement, partage). Il dit maintenant ce qui
+  se passe vraiment, sans faire porter le mot « terminer ».
+- **Popups de points limités aux 5 premières étoiles** (`POPUPS_PEDAGOGIQUES` 3 → 5, main.js —
+  « que pour les 5 premières étoiles, après tu arrêtes »). ⚠️ Le plafond s'applique DÉSORMAIS
+  AUSSI aux étoiles dorées, qui avaient jusqu'ici leur propre branche sans limite (`if (e.gold)`,
+  supprimée) : une dorée garde son jaune tant qu'on est dans la fenêtre des 5, et ne s'annonce
+  plus après. Conséquence assumée à surveiller : le « ×2 » de la dorée n'a plus que les 5
+  premières étoiles pour s'apprendre — la liste « Règles & points » du menu pause le dit aussi,
+  c'est le filet. Les annonces de PALIER de combo ne sont pas des points et continuent de sortir.
+- **Tutoriel rejoué sur les 3 premières parties** (`TUTO_PARTIES`, screens.js — « le tuto pour
+  les 3 premiers atterrissages avec possibilité de skip »). Renversement partiel de la décision
+  prise quelques heures plus tôt le même jour (sauté dès la 2e partie) : une seule exposition ne
+  suffit pas pour la règle du pont, qui est la raison d'être du tuto. Le frein pour l'habitué est
+  traité par le bouton « Passer l'intro », pas par la suppression — d'où l'ajustement qui va
+  avec : le bouton attend 4 s à la 1re partie (un débutant doit voir la 1re consigne avant qu'on
+  lui propose de sauter) et s'affiche **immédiatement** dès la 2e.
+
 **Vingt-sixième passe du 21 août 2026 — 🐛🐛 AUCUNE PARTIE NE DÉMARRAIT (`runsTimer`).**
 Le bug le plus coûteux du projet en rapport dégâts/taille : **une déclaration manquante**, qui a
 rendu le jeu INJOUABLE pour tout le monde pendant quelques heures.
@@ -1233,6 +1253,8 @@ le score maximum (86 825 / 95 519) sont inchangés.
   CANVAS — les deux ne se voient pas. Mesuré sur iPhone SE (667px, le pire cas) avec la consigne
   la plus longue : la marge consigne↔pochette passe de **−13px (chevauchement) à +42px**.
 - **Tutoriel sauté pour qui a déjà joué sur ce téléphone** (`startGame()`, screens.js) — demandé.
+  ⚠️ **Révisé le soir même, voir la vingt-septième passe** : le tutoriel se rejoue désormais sur
+  les TROIS premières parties (`TUTO_PARTIES`), pas seulement la première.
   Réutilise `partiesJouees` (déjà incrémenté à chaque écran de fin), **aucune nouvelle clé** :
   vaut 0 tant qu'aucune course n'est allée à son terme, donc quelqu'un qui abandonne sa première
   course le revoit, et le repli en navigation privée (0) redonne le tutoriel plutôt que de le

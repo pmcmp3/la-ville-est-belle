@@ -335,7 +335,16 @@ const MILESTONE_DUREE = 4;
 const PICKUP_POPUP_DURATION = 1.1;
 const PICKUP_POPUP_RISE = 46;   // px parcourus vers le haut sur toute la durée
 const PICKUP_POPUP_MAX = 3;
-const POPUPS_PEDAGOGIQUES = 3;  // nombre d'étoiles en début de partie qui affichent encore leurs points
+// Nombre d'étoiles en début de partie qui affichent encore leurs points
+// au-dessus du joueur. 3 → 5 le 21 août 2026 (demandé : « les points sur les
+// étoiles, que pour les 5 premières étoiles, après tu arrêtes »).
+// ⚠️ Ce plafond vaut désormais pour TOUS les popups de points, y compris ceux
+// des étoiles DORÉES — qui s'affichaient jusqu'ici à chaque fois, sans
+// limite. Le compteur ne bouge que sur les étoiles ramassées, donc les cinq
+// premières de la partie « paient » l'apprentissage et le HUD se tait
+// ensuite ; les annonces de PALIER de combo, elles, ne sont pas des points et
+// continuent de sortir (c'est l'information qui change quelque chose).
+const POPUPS_PEDAGOGIQUES = 5;
 const popups = [];              // { texte, couleur, age }
 
 function pousserPopup(texte, couleur) {
@@ -666,7 +675,7 @@ function restartGame() {
   shake.time = 0; // sinon la secousse d'un choc de fin de partie survit au rejeu
   pickupFlash = 0;
   popups.length = 0;      // sinon un « +150 » de la partie précédente survit au rejeu
-  etoilesRamassees = 0;   // les 3 popups pédagogiques reviennent à chaque nouvelle partie
+  etoilesRamassees = 0;   // les 5 popups pédagogiques reviennent à chaque nouvelle partie
   game.penaltyTimer = 0; // sinon le "-500" de la partie précédente survit au rejeu
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
   reviveOffered = false;   // la seconde chance revient à chaque nouvelle partie
@@ -891,11 +900,6 @@ function step(dt) {
             window.CONFIG.bonus[e.kind] * comboMultiplier() * (e.gold ? 2 : 1) * (screens.estFan() ? 1.1 : 1)
           );
           game.score += gagne;
-          if (e.gold) {
-            // Une dorée est rare (~1 étoile sur 8) : son gain s'affiche
-            // toujours, en jaune — c'est ce qui apprend qu'elle vaut double.
-            pousserPopup(`+${gagne}`, JAUNE_ETOILE);
-          }
           pickupFlash = 1;
           etoilesRamassees += 1;
           game.stars += 1;
@@ -910,9 +914,11 @@ function step(dt) {
             // demandé le 20 août 2026. S'allonge d'une note par palier.
             audio.playComboJingle(palierApres);
           } else if (etoilesRamassees <= POPUPS_PEDAGOGIQUES) {
-            // Les toutes premières étoiles seulement : on montre une fois ce
-            // que rapporte un ramassage, puis on se tait.
-            pousserPopup(`+${gagne}`, "#ffffff");
+            // Les cinq premières étoiles seulement : on montre ce que
+            // rapporte un ramassage, puis on se tait pour de bon. Une dorée
+            // garde son jaune (elle vaut double) tant qu'on est dans cette
+            // fenêtre — après, elle ne s'annonce plus non plus.
+            pousserPopup(`+${gagne}`, e.gold ? JAUNE_ETOILE : "#ffffff");
           }
         } else {
           // Bouclier post-revive : les chocs d'obstacles sont ignorés pendant

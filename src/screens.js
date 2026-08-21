@@ -195,7 +195,7 @@ export function showOverlay() {
 //   mode "attente" — tout est déjà fait : plus rien à demander, le décompte
 //                    de 10 s devient une simple ATTENTE — le bouton REPRENDRE
 //                    se déverrouille quand il atteint zéro, il ne décline
-//                    plus. « Terminer ma course » reste disponible.
+//                    plus. « Voir mon score » reste disponible.
 // Dans les deux modes à lien, le décompte reste une fenêtre de DÉCISION :
 // expiré sans clic → onDecline (écran de fin).
 //
@@ -490,7 +490,14 @@ function setView(view) {
 const TUTO_PLAFOND_S = 30;
 let tutoDeadline = 0;
 let tutoDernierTexte = "";
+// Nombre de parties pendant lesquelles le tutoriel se rejoue (21 août 2026).
+const TUTO_PARTIES = 3;
 // Bouton "Passer l'intro" (demandé explicitement, pour qui a déjà joué).
+// ⚠️ Le délai ne s'applique qu'à la TOUTE PREMIÈRE partie : un vrai débutant
+// doit voir la première consigne avant qu'on lui propose de sauter. Dès la
+// 2e, le bouton est là immédiatement — quelqu'un qui revoit le tutoriel pour
+// la 2e ou 3e fois sait déjà s'il veut le refaire, le faire attendre 4 s
+// serait exactement le frein que ce bouton existe pour retirer.
 const SKIP_BUTTON_DELAY = 4000;
 let skipButtonTimer = null;
 
@@ -500,9 +507,13 @@ function runTutorial() {
   tutoDeadline = performance.now() + TUTO_PLAFOND_S * 1000;
   tutoDernierTexte = "";
   countdownCaption.classList.remove("hidden");
-  skipCountdownBtn.classList.remove("visible");
   clearTimeout(skipButtonTimer);
-  skipButtonTimer = setTimeout(() => skipCountdownBtn.classList.add("visible"), SKIP_BUTTON_DELAY);
+  if (partiesJouees() > 0) {
+    skipCountdownBtn.classList.add("visible"); // revoyure : sortie immédiate
+  } else {
+    skipCountdownBtn.classList.remove("visible");
+    skipButtonTimer = setTimeout(() => skipCountdownBtn.classList.add("visible"), SKIP_BUTTON_DELAY);
+  }
 }
 
 // Appelée à chaque frame par main.js (comme syncLoadingUi) : reflète l'état du
@@ -594,12 +605,20 @@ function startGame() {
   audio.unlock();
   audio.play();
   //
-  // ⚠️ Tutoriel sauté pour qui a DÉJÀ joué sur ce téléphone (21 août 2026,
-  // demandé : « ceux qui se sont déjà connectés avec leur téléphone peuvent
-  // pas avoir le tuto de début »). Le tutoriel apprend le pont, les swipes et
-  // le combo — une fois su, c'est 4 étapes à refaire avant CHAQUE course,
-  // exactement le frein qu'on veut retirer à quelqu'un qui enchaîne les
-  // parties pour battre son score.
+  // ⚠️ Tutoriel sur les TROIS PREMIÈRES parties (21 août 2026, demandé :
+  // « mets le tuto en place pour les 3 premiers atterrissages sur le site
+  // avec possibilité de skip »). Il était d'abord sauté dès la 2e partie
+  // (« ceux qui se sont déjà connectés peuvent pas avoir le tuto ») — trop
+  // radical : ce qu'il enseigne (le pont, où sauter TUE) ne rentre pas en une
+  // fois, et une seule exposition ne suffisait pas. Trois passages, et le
+  // bouton « Passer l'intro » pour qui a déjà compris — c'est lui qui règle
+  // le problème du frein, pas la suppression du tuto.
+  //
+  // Toujours pas de nouvelle clé : `partiesJouees` (incrémenté à chaque écran
+  // de fin) répond déjà à la question. Conséquence voulue : quelqu'un qui
+  // abandonne avant la fin ne consomme pas son quota, et le repli à 0 en
+  // navigation privée redonne le tutoriel plutôt que de le retirer à un vrai
+  // débutant.
   //
   // Pas de nouvelle clé : `partiesJouees` (incrémenté à chaque écran de fin,
   // voir renderEndScreen) répond déjà exactement à la question posée — il
@@ -607,7 +626,7 @@ function startGame() {
   // quelqu'un qui abandonne sa toute première course avant la fin la revoit,
   // et le repli de partiesJouees() en navigation privée (0) redonne le
   // tutoriel plutôt que de le retirer à un vrai débutant.
-  if (partiesJouees() > 0) {
+  if (partiesJouees() >= TUTO_PARTIES) {
     beginRun();
     return;
   }
