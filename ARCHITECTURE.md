@@ -914,6 +914,30 @@ rendu le jeu INJOUABLE pour tout le monde pendant quelques heures.
   n'avait vu. **À refaire après toute refonte qui supprime des lignes.**
 - Vérifié en prod après déploiement : `distance` qui monte, `horloge=audio`, HUD, cœurs, étoiles,
   bouton pause, jauge de défi — et `window.__erreursJeu` vide.
+- **Preuve datée que ce n'était pas un problème d'appareil** : `let runsTimer = null;` existait
+  encore dans `a15a1ca` (21/08 12:32) et a disparu dans `4d964be` (21/08 **22:21**) ; le premier
+  rapport de blocage (OnePlus 6T, Android 11) date de **22:25**, quatre minutes après le
+  déploiement de ce build. Le second (iPhone) est arrivé à 22:50 sur le build suivant, qui
+  portait toujours le bug.
+
+**Coût de rendu mesuré (21 août 2026)** — clôt la question laissée ouverte à la
+vingt-quatrième passe (« optimisations d'allocations de `drawStar3D` non traitées, à reprendre si
+un test sur vieil iPhone accroche ») et la suspicion « le jeu est trop lourd pour Android » :
+- **22 107 appels canvas par frame** en pleine course (fillRect 2 542, fill 1 418, stroke 827,
+  beginPath 2 349, moveTo 5 628, lineTo 8 653 — les chemins dominent : étoiles 3D + voxels +
+  façades). Le chiffre impressionne mais les appels Canvas2D sont bon marché, c'est le GPU qui
+  rastérise.
+- **Temps CPU réellement passé dans la callback rAF : médiane 1,70 ms, p95 1,90 ms, max 2,00 ms**
+  sur 479 frames (mesuré en enveloppant `requestAnimationFrame` sur la prod). Le budget d'une
+  frame à 60 Hz est de 16,7 ms : il reste ~90 % de marge sur desktop, et même en supposant un
+  téléphone de 2018 3 à 6 fois plus lent, on reste à 5-10 ms. **La perf n'est pas un sujet.**
+- ⚠️ Mesure faite sur un navigateur DESKTOP : elle borne le coût, elle ne remplace pas un test sur
+  un vrai téléphone. Le moyen de vérifier chez quelqu'un : `?debug`, qui affiche les FPS réels et
+  le journal d'erreurs.
+- **Poids transféré** (prod, gzip/br) : MP3 4,13 Mo, polices 134 Ko, bundle 33 Ko, index 27 Ko,
+  `config.js` 4 Ko — soit **~4,4 Mo dont 94 % de morceau**. Le bouton JOUER reste désactivé tant
+  que le morceau n'est pas prêt, donc un téléchargement lent se voit comme une attente, jamais
+  comme un blocage en course.
 
 **Vingt-cinquième passe du 21 août 2026 — défi à un ami, course parfaite, Instagram.**
 Trois leviers de rétention/partage choisis par l'artiste dans une liste de dix propositions
