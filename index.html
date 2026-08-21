@@ -1561,6 +1561,58 @@
       gap: 16px;
     }
 
+    /* --- Vue « Règles & points » de la carte pause (21 août 2026) --------- */
+    #pause-main.hidden, #pause-rules.hidden {
+      display: none;
+    }
+
+    #pause-rules {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: min(264px, 100%);
+    }
+
+    #pause-rules.hidden {
+      display: none; /* réaffirmé APRÈS le display:flex — même spécificité, l'ordre tranche */
+    }
+
+    #pause-rules-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font: 500 12.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      /* La liste est l'élément le plus haut du jeu : elle défile plutôt que
+         de pousser la carte hors de l'écran sur les petits téléphones. */
+      max-height: min(340px, 52vh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #pause-rules-list li + li {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    #pause-rules-list b {
+      color: var(--noir);
+      font-weight: 900;
+    }
+
+    #pause-rules-back {
+      width: 100%;
+    }
+
+    /* ⚠️ La carte pause est zoomée ×1,2 (#pause-screen .panel plus bas) —
+       très bien pour volume+2 boutons, mais la liste des règles y déborderait
+       de l'écran : le zoom saute tant que la vue règles est ouverte. */
+    #pause-screen.rules-open .panel {
+      transform: scale(1);
+    }
+
     /* --- Contrôles en jeu -------------------------------------------------
        Il n'y en a plus. Tout se joue au geste (swipe gauche/droite = voie,
        swipe haut = saut, voir input.js) : la bande de pilotage et le bouton
@@ -1931,15 +1983,38 @@
        composant .panel que le reste du jeu. -->
   <div id="pause-screen">
     <div class="panel">
-      <div class="panel-header"><p class="step-eyebrow">Pause</p></div>
+      <div class="panel-header"><p class="step-eyebrow" id="pause-eyebrow">Pause</p></div>
       <div class="panel-body">
-        <div id="pause-volume-row">
-          <span class="icon">🔊</span>
-          <input type="range" id="pause-volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+        <!-- Vue principale de la pause : volume + reprendre. -->
+        <div id="pause-main">
+          <div id="pause-volume-row">
+            <span class="icon">🔊</span>
+            <input type="range" id="pause-volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+          </div>
+          <div id="pause-actions">
+            <button id="resume-button" class="btn btn-primary" type="button">REPRENDRE</button>
+            <button id="pause-rules-btn" type="button" class="link-minimal">Règles &amp; points</button>
+            <button id="pause-replay-button" type="button" class="link-minimal">Recommencer la course</button>
+          </div>
         </div>
-        <div id="pause-actions">
-          <button id="resume-button" class="btn btn-primary" type="button">REPRENDRE</button>
-          <button id="pause-replay-button" type="button" class="link-minimal">Recommencer la course</button>
+        <!-- Vue « Règles & points » (21 août 2026, demandé : « rajoute les
+             règles des points etc dans le menu pause avec un menu spécial +
+             la manipulation de sauvegarder le jeu pour ne pas perdre ses
+             points »). Une seule carte, deux vues basculées par screens.js —
+             pas un second écran, pour rester dans la mécanique pause
+             existante. ⚠️ Les chiffres ci-dessous suivent config.js (bonus,
+             comboSeuil/comboBonusParPalier, boost fan) : à mettre à jour
+             ensemble si l'un bouge. -->
+        <div id="pause-rules" class="hidden">
+          <ul id="pause-rules-list">
+            <li><b>⭐ Étoile</b> = des points. Plus elle est grosse, plus elle rapporte (50&nbsp;→&nbsp;500).</li>
+            <li><b>✨ Étoile dorée</b> = points ×2.</li>
+            <li><b>🔥 Combo</b> : 5 étoiles d'affilée = gains ×1,5, puis 10 = ×2, 15 = ×2,5…</li>
+            <li><b>💥 Obstacles</b> : tous fatals — sauf les voitures qui traversent (−1&nbsp;cœur, et le combo retombe à&nbsp;0).</li>
+            <li><b>🎵 Morceau ajouté</b> = +10&nbsp;% de points sur toutes tes courses, pour toujours.</li>
+            <li><b>💾 Sauve ta course</b> : à ta première mort, tu as 10&nbsp;secondes — ajoute le morceau et tu reprends PILE où tu étais, score et combo conservés.</li>
+          </ul>
+          <button id="pause-rules-back" class="btn btn-secondary" type="button">← RETOUR</button>
         </div>
       </div>
     </div>

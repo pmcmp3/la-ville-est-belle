@@ -62,8 +62,10 @@ const unlockSheetClose = document.getElementById("unlock-sheet-close");
 // Panneau de seconde chance à la mort (voir openReviveSheet).
 const reviveSheet = document.getElementById("revive-sheet");
 const reviveArc = document.getElementById("revive-arc");
+const reviveTimer = document.getElementById("revive-timer");
 const reviveTimerNum = document.getElementById("revive-timer-num");
-const reviveScore = document.getElementById("revive-score");
+const reviveTitle = document.getElementById("revive-title");
+const reviveText = document.getElementById("revive-text");
 const reviveCta = document.getElementById("revive-cta");
 const reviveCtaLabel = document.getElementById("revive-cta-label");
 const reviveCtaIcone = document.getElementById("revive-cta-icone");
@@ -178,6 +180,20 @@ const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans ind
 let reviveCallbacks = null;
 let reviveRestant = 0;
 let reviveTimerId = 0;
+// ⚠️ DEUX PHASES depuis le 21 août 2026 (retour après test réel : « je suis
+// reparti d'un seul coup ») : la première version reprenait la course à
+// l'instant du clic sur le lien — le joueur partait sur Spotify, le jeu se
+// gelait (onglet caché), et au retour la course était DÉJÀ en train de tourner
+// sous ses doigts. La reprise est maintenant un geste SÉPARÉ :
+//   "decision" — décompte 10 s + CTA. Non-fan : le clic ouvre Spotify, marque
+//                la conversion et bascule en phase "pret" (le décompte
+//                s'arrête, la reprise est ACQUISE — plus rien ne peut la
+//                retirer). Fan : rien à ajouter, le clic reprend directement.
+//   "pret"     — plus de décompte, la carte dit « ta course t'attend » et
+//                seule un tap sur REPRENDRE MA COURSE relance — que le joueur
+//                revienne de Spotify dans 5 secondes ou 3 minutes, c'est LUI
+//                qui décide quand ses mains sont prêtes.
+let revivePhase = "decision";
 
 function reviveMajAffichage() {
   reviveTimerNum.textContent = `${Math.max(0, Math.ceil(reviveRestant))}`;
@@ -185,9 +201,39 @@ function reviveMajAffichage() {
   reviveArc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
 }
 
+// Reconstruit « préfixe <strong>score</strong> points. » sans innerHTML : un
+// innerHTML détacherait le nœud #revive-score du markup et laisserait des
+// références mortes derrière lui.
+function poserTexteRevive(prefixe, score) {
+  reviveText.textContent = "";
+  const strong = document.createElement("strong");
+  strong.textContent = `${score}`;
+  reviveText.append(prefixe, strong, "\u00a0points.");
+}
+
+let reviveScoreCourant = 0;
+
+function revivePhasePrete() {
+  revivePhase = "pret";
+  clearInterval(reviveTimerId);
+  reviveTimerId = 0;
+  reviveTimer.style.display = "none"; // le décompte n'a plus d'objet
+  reviveTitle.textContent = "Morceau ajouté, merci !";
+  poserTexteRevive("Ta course t'attend — reprends quand tu es prêt, avec tes ", reviveScoreCourant);
+  reviveCtaLabel.textContent = "REPRENDRE MA COURSE";
+  reviveCtaIcone.style.display = "none";
+  reviveCta.removeAttribute("href");
+}
+
 export function openReviveSheet({ score, onAccept, onDecline }) {
   reviveCallbacks = { onAccept, onDecline };
-  reviveScore.textContent = `${score}`;
+  revivePhase = "decision";
+  reviveScoreCourant = score;
+  // Textes remis à l'état « décision » : la carte a pu finir une partie
+  // précédente en phase « prêt ».
+  reviveTimer.style.display = "";
+  reviveTitle.textContent = "Ta course n'est pas finie !";
+  poserTexteRevive("Ajoute le morceau et reprends PILE ici, avec tes ", score);
   const fan = estFan();
   reviveCtaLabel.textContent = fan ? "REPRENDRE MA COURSE" : "AJOUTER LE MORCEAU";
   reviveCtaIcone.style.display = fan ? "none" : "";
@@ -557,6 +603,12 @@ function setSoundPanelOpen(open) {
 const pauseButton = document.getElementById("pause-button");
 const pauseScreen = document.getElementById("pause-screen");
 const pauseVolumeSlider = document.getElementById("pause-volume-slider");
+// Vue « Règles & points » de la carte pause (voir setPauseRulesOpen).
+const pauseMain = document.getElementById("pause-main");
+const pauseRules = document.getElementById("pause-rules");
+const pauseEyebrow = document.getElementById("pause-eyebrow");
+const pauseRulesBtn = document.getElementById("pause-rules-btn");
+const pauseRulesBack = document.getElementById("pause-rules-back");
 const resumeButton = document.getElementById("resume-button");
 const pauseReplayButton = document.getElementById("pause-replay-button");
 
@@ -574,11 +626,23 @@ export function hidePauseButton() {
   if (deps.isManuallyPaused()) closePauseMenu();
 }
 
+// Vue « Règles & points » de la carte pause (21 août 2026, demandé). Une
+// seule carte, deux vues basculées : la liste remplace volume+boutons, le
+// bandeau change de titre, et le zoom ×1,2 de la carte pause saute (classe
+// rules-open) — la liste est trop haute pour survivre à l'agrandissement.
+function setPauseRulesOpen(open) {
+  pauseMain.classList.toggle("hidden", open);
+  pauseRules.classList.toggle("hidden", !open);
+  pauseScreen.classList.toggle("rules-open", open);
+  pauseEyebrow.textContent = open ? "Règles & points" : "Pause";
+}
+
 function openPauseMenu() {
   if (deps.isManuallyPaused() || pauseButton.hidden) return;
   deps.openPause(); // manualPaused = true côté main.js + applyPauseState()
   pauseVolumeSlider.value = volumeSlider.value; // reflète le volume courant à l'ouverture
   setSoundPanelOpen(false); // évite les deux panneaux ouverts en même temps
+  setPauseRulesOpen(false); // toujours rouvrir sur la vue principale
   pauseScreen.classList.add("visible");
 }
 
@@ -794,8 +858,19 @@ export function init(d) {
   // clic » que le verrou) ET reprise immédiate — l'onglet Spotify s'ouvre à
   // côté, le jeu se fige tout seul (document.hidden) et attend le retour.
   // Le voile est volontairement inerte : les deux issues sont les boutons.
+  // Seconde chance, deux phases (voir revivePhase) : le clic d'un NON-fan en
+  // phase décision ouvre Spotify (le lien fait son travail), marque la
+  // conversion et fige la carte en « prêt » — la reprise n'arrive QUE sur le
+  // tap suivant, jamais dans le dos du joueur parti sur l'autre appli
+  // (« je suis reparti d'un seul coup »). Un fan n'a rien à ajouter : son
+  // clic EST la reprise.
   reviveCta.addEventListener("click", () => {
-    if (!estFan()) marquerMorceauOuvert();
+    if (!reviveCallbacks) return;
+    if (revivePhase === "decision" && !estFan()) {
+      marquerMorceauOuvert();
+      revivePhasePrete();
+      return; // le lien s'ouvre en parallèle dans l'autre onglet
+    }
     reviveResoudre("onAccept");
   });
   reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
@@ -914,6 +989,14 @@ export function init(d) {
     e.stopPropagation();
     closePauseMenu();
     deps.restartGame();
+  });
+  pauseRulesBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setPauseRulesOpen(true);
+  });
+  pauseRulesBack.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setPauseRulesOpen(false);
   });
   pauseVolumeSlider.addEventListener("input", () => {
     audio.setVolume(Number(pauseVolumeSlider.value) / 100);

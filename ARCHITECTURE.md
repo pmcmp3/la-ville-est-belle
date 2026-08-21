@@ -868,6 +868,42 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingt-troisième passe du 21 août 2026 — reprise en deux temps, règles dans la pause, jingle −5 dB.**
+- ⚠️ **La seconde chance passe en DEUX PHASES** (`revivePhase`, screens.js — retour après test
+  réel : « je suis reparti d'un seul coup, j'ai perdu mes bonus »). La première version
+  reprenait la course À L'INSTANT du clic sur le lien : le joueur partait sur Spotify, le jeu se
+  gelait (onglet caché), et au retour la course tournait DÉJÀ sous ses doigts. Désormais :
+  phase « decision » (décompte 10 s + CTA) → le clic d'un non-fan ouvre Spotify, marque la
+  conversion et bascule la carte en phase « pret » (décompte ARRÊTÉ, reprise acquise — plus
+  rien ne peut la retirer, titre « Morceau ajouté, merci ! ») ; la reprise réelle n'arrive QUE
+  sur le tap « REPRENDRE MA COURSE » suivant — que le joueur revienne dans 5 s ou 3 min, c'est
+  LUI qui décide quand ses mains sont prêtes. Un fan reprend toujours en un clic (rien à
+  ajouter). Le bouclier de 2 s est posé dans onAccept, donc au moment du VRAI redémarrage.
+  ⚠️ Un retour très tardif dépasse `pauseDeriveMax` (25 s) : la soupape existante d'audio.js
+  rembobine le morceau, la course garde sa position — comportement déjà documenté, inchangé.
+  ⚠️ Textes de la carte reconstruits en DOM (`poserTexteRevive`), JAMAIS via innerHTML : un
+  innerHTML détacherait les nœuds et laisserait des références mortes (piège évité de justesse
+  à l'écriture). ⚠️ Piège d'édition rencontré : la chaîne « points. » du markup contient un
+  ESPACE INSÉCABLE (\xa0) — toute ancre de recherche avec un espace normal échoue en silence.
+- **Le combo SURVIT au choc qui déclenche la seconde chance** (main.js — « faut bien garder
+  les bonus en cours ») : le streak n'est plus remis à zéro (ni « COMBO 0 » affiché) quand le
+  choc va ouvrir l'offre (`fatal && !reviveOffered`), y compris une traversante qui prend le
+  dernier cœur. Restent cassants : une traversante encaissée par les cœurs, et toute mort une
+  fois l'offre consommée (partie finie de toute façon).
+- **Vue « Règles & points » dans la carte pause** (`#pause-rules`, index.html + screens.js —
+  demandé : « les règles des points dans le menu pause avec un menu spécial + la manipulation
+  de sauvegarder le jeu »). Une seule carte, deux vues basculées (`setPauseRulesOpen`) : liste
+  scrollable (étoiles 50→500, dorée ×2, combo, obstacles fatals/traversantes, boost fan +10 %,
+  et la manip « sauve ta course »), RETOUR en bas, bandeau qui change de titre. ⚠️ Le zoom ×1,2
+  de la carte pause SAUTE en vue règles (classe `rules-open`) — la liste y déborderait de
+  l'écran. ⚠️ Les chiffres de la liste suivent config.js À LA MAIN : les mettre à jour ensemble.
+  Rouvre toujours sur la vue principale (reset dans openPauseMenu).
+- **Jingle de combo −5 dB** (« baisse de 5 dB le bruit des bruitages ») : `JINGLE_GAIN`
+  0,16 → 0,09 (audio.js, ×10^(−5/20) ≈ ×0,562). C'est le seul bruitage du jeu.
+- Vérifié : les deux phases du revive (labels/lien/conversion/résolutions), l'aller-retour
+  règles (zoom compris, réouverture sur vue principale), balayage complet 17 704 frames à pas
+  réel 1/120 s, 0 exception, quota 85/106 intact.
+
 **Vingt-deuxième passe du 21 août 2026 — trois retours après test réel sur le build précédent.**
 - 🐛 **BUG CRITIQUE trouvé et corrigé : « reprendre ma course » ne faisait rien (game over
   immédiat derrière le panneau).** Cause : la boucle à pas fixe (`while (accumulator >= FIXED_DT)

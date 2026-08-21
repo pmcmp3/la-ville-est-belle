@@ -905,10 +905,6 @@ function step(dt) {
           // « arrêter un combo », et le popup garderait moins de valeur s'il
           // sortait à chaque choc. Rouge de charte : c'est un malus, jamais
           // le jaune du gain (règle de couleurs du projet).
-          if (game.streak >= window.CONFIG.comboSeuil) {
-            pousserPopup("COMBO 0", ROUGE_CHARTE);
-          }
-          game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
           // ⚠️ TOUS les obstacles de la grille sont FATALS depuis le 21 août
           // 2026 (« je veux que tous les obstacles fassent trois cœurs ») —
           // voiture et pont l'étaient déjà, piéton/cycliste/cône les ont
@@ -925,6 +921,22 @@ function step(dt) {
           // l'appel y est simplement sans effet) : légère au choc, forte quand
           // le choc termine la partie (demandé le 20 août 2026).
           const fatal = e.kind !== "traversee" || game.lives <= 1;
+          // ⚠️ Le combo SURVIT au choc qui déclenche la seconde chance
+          // (21 août 2026, retour après test réel : « faut bien garder les
+          // bonus en cours — moi j'ai perdu mes bonus »). Le choc de la
+          // première mort n'est pas une fin de série : si le joueur reprend,
+          // sa série continue là où elle en était ; s'il décline, la partie
+          // se termine et le streak n'a plus d'importance (l'écran de fin lit
+          // bestCombo). On ne remet donc à zéro que les chocs « ordinaires » :
+          // une traversante encaissée par les cœurs, ou toute mort une fois
+          // l'offre consommée. Vaut aussi pour une traversante qui prend le
+          // DERNIER cœur : elle déclenche la même offre, même règle.
+          if (!(fatal && !reviveOffered)) {
+            if (game.streak >= window.CONFIG.comboSeuil) {
+              pousserPopup("COMBO 0", ROUGE_CHARTE);
+            }
+            game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
+          }
           if (navigator.vibrate) navigator.vibrate(fatal ? [90, 50, 150] : 35);
           if (fatal) {
             game.lives = 0;

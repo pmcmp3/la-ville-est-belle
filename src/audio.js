@@ -458,7 +458,9 @@ export function getEqLevels(n) {
 // jamais sur envelopeGain (réservé au fondu du morceau).
 const JINGLE_NOTES = [554.37, 698.46, 830.61, 1108.73, 1396.91, 1661.22]; // Ré♭5 Fa5 La♭5 Ré♭6 Fa6 La♭6
 const JINGLE_PAS_S = 0.066;   // écart entre deux notes — débit « pièce de Mario »
-const JINGLE_GAIN = 0.16;     // crête par note : présent sans couvrir le morceau
+// 0,16 → 0,09 le 21 août 2026 (« baisse de 5 dB le bruit des bruitages ») :
+// −5 dB = ×10^(−5/20) ≈ ×0,562, soit 0,16 × 0,562 ≈ 0,09.
+const JINGLE_GAIN = 0.09;     // crête par note : présent sans couvrir le morceau
 
 export function playComboJingle(palier) {
   // Uniquement quand le son tourne vraiment : en secours silencieux (contexte
