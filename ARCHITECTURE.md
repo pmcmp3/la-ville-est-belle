@@ -871,6 +871,50 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingt-sixième passe du 21 août 2026 — 🐛🐛 AUCUNE PARTIE NE DÉMARRAIT (`runsTimer`).**
+Le bug le plus coûteux du projet en rapport dégâts/taille : **une déclaration manquante**, qui a
+rendu le jeu INJOUABLE pour tout le monde pendant quelques heures.
+- **Symptôme** (remonté deux fois, sur deux appareils différents — un OnePlus 6T/Android 11 et un
+  iPhone) : on presse JOUER, l'overlay disparaît, le décor défile, **le morceau continue** — et
+  rien d'autre. Pas de HUD, pas d'objets, pas de bouton pause. Bloqué à vie, sans un message.
+  Confondu au départ avec un bug Android ; c'était universel.
+- **Cause** : `runsTimer` (compteur de parties, screens.js) n'était **jamais déclaré** — sa
+  déclaration a sauté dans la refonte « compteur assaini » de la vingt-quatrième passe. Un module
+  ES est en mode strict : lire un identifiant non déclaré lève un `ReferenceError`.
+  `arreterCompteurCourses()` plantait donc à chaque appel, et `hideOverlay()` l'appelle —
+  or `beginRun()` faisait `hideOverlay()` **AVANT** `deps.requestGameStart()`. L'exception tuait
+  le handler du clic pile entre les deux : l'overlay était masqué (ligne d'avant), la course
+  n'était jamais demandée. `gameStarted` restait `false` pour toujours.
+- **Trouvé en reproduisant sur la PROD** dans la preview navigateur (`preview_start {url}` sur
+  https://la-ville-est-belle-pmc.fr, pas sur le serveur de dev qui reste inaccessible, §12) :
+  localStorage bidouillé pour simuler un joueur connu, clic sur JOUER, puis
+  `read_console_messages` → l'erreur en clair. ⚠️ **Nouvelle méthode de test à retenir**, elle
+  fait tomber une limite qui durait depuis le 12 août : la prod est chargeable même quand
+  `localhost` ne l'est pas, et le jeu s'y pilote au DOM sans jamais démarrer l'AudioContext.
+  ⚠️ Piège rencontré pendant cette vérification : le premier test « après correctif » montrait
+  encore le bug — l'onglet avait rechargé l'ANCIEN `index.html` depuis son cache (`max-age=600`,
+  §9) et donc l'ancien bundle. **Toujours vérifier le nom du bundle chargé**
+  (`document.querySelectorAll('script[src]')`) avant de conclure quoi que ce soit sur un déploiement.
+- **Trois correctifs, pas un** — le premier répare, les deux autres empêchent la classe entière :
+  1. `let runsTimer = null;` (la cause).
+  2. `beginRun()` demande le démarrage de la course **en premier**, le DOM ensuite et sous
+     `try/catch`. **Règle générale : l'action essentielle avant la cosmétique.** Un ratage
+     d'affichage ne doit jamais pouvoir empêcher une course de partir.
+  3. `requestAnimationFrame(frame)` replanifié dans un **`finally`** (main.js), et
+     `step()`/`render()`/`syncUi` isolés chacun dans leur `try`. Avant : une exception n'importe
+     où laissait la boucle non replanifiée — image figée à jamais, musique qui continue dans son
+     propre thread. C'est le symptôme exact décrit ici, et celui du crash `cameo.js` de la revue
+     précédente : la boucle n'a jamais eu de filet.
+- **Journal d'erreurs** (`debug.js`, `signaler()` + `window.onerror` + `unhandledrejection`) :
+  affiché en rouge dans l'overlay `?debug`, exposé sur `window.__erreursJeu`. Sur un téléphone il
+  n'y a ni console ni message — c'est précisément ce qui a fait perdre la soirée.
+- **eslint `no-undef` passé sur tout `src/`** : aucun autre cas (les 3 restants — `Node`,
+  `HTMLElement`, `MediaMetadata` — sont de vraies globales navigateur). ⚠️ Le projet n'a pas de
+  linter installé ; `npx eslint@9` avec une config jetable a trouvé en 30 s ce qu'aucune relecture
+  n'avait vu. **À refaire après toute refonte qui supprime des lignes.**
+- Vérifié en prod après déploiement : `distance` qui monte, `horloge=audio`, HUD, cœurs, étoiles,
+  bouton pause, jauge de défi — et `window.__erreursJeu` vide.
+
 **Vingt-cinquième passe du 21 août 2026 — défi à un ami, course parfaite, Instagram.**
 Trois leviers de rétention/partage choisis par l'artiste dans une liste de dix propositions
 (« le défi à un ami [...] le point numéro 5 [...] est-ce qu'on peut mettre mon lien Instagram à
@@ -1777,6 +1821,15 @@ la fenêtre d'horloge négative et les extras font partie du chemin réellement 
 
 Pour juger un sprite : le dessiner sur un canvas superposé à plusieurs échelles réelles
 (110 px au plus près jusqu'à 24 px au loin) — un sprite qui marche à 14× peut être illisible en jeu.
+
+**Reproduire un bug SUR LA PROD dans la preview** (méthode trouvée le 21 août 2026, qui a résolu
+le bug `runsTimer` — voir §11, vingt-sixième passe). La preview refuse `localhost` mais charge
+très bien https://la-ville-est-belle-pmc.fr : on peut donc y lire le DOM, bidouiller
+`localStorage` (pour simuler un joueur connu, un fan, N parties jouées), cliquer les boutons, et
+surtout lire `read_console_messages` — sans jamais démarrer l'AudioContext (piège n°1), tant
+qu'on n'entre pas vraiment en course. ⚠️ **Vérifier le nom du bundle chargé**
+(`document.querySelectorAll('script[src]')`) avant de conclure : `index.html` est en
+`max-age=600` (§9) et l'onglet peut resservir l'ancien build juste après un déploiement.
 
 ⚠️ Le 12 août 2026, la preview navigateur a en plus refusé toute navigation vers le serveur de
 dev (`localhost`, requêtes bloquées avant même le chargement de la page) — distinct du piège n°1
