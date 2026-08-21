@@ -29,6 +29,8 @@
 // terminer la course sur une situation que le joueur ne pouvait pas éviter.
 
 import * as road from "./road.js";
+import { slotsFor, isBridgeSlot } from "./entities.js";
+import { clock } from "./clock.js";
 
 // Probabilité qu'un carrefour porte un véhicule. ⚠️ Nulle en début de course,
 // et c'est tout l'intérêt : retour direct du 19 août 2026 — « c'est très très
@@ -132,6 +134,47 @@ function positionLaterale(vehicule, z, speed) {
   return road.laneX(vehicule.voie) + vehicule.sens * secondesAvantLeJoueur * CROSS_SPEED;
 }
 
+// ⚠️ Anti-collision avec les PONTS (21 août 2026, retour direct : « les ponts
+// et les voitures qui traversent s'entrechoquent, on peut juste pas passer »).
+// Les deux grilles sont indépendantes par construction (voir l'en-tête), donc
+// un véhicule pouvait traverser PILE sous un pont : la seule voie ouverte du
+// pont se retrouvait barrée au même instant — situation inesquivable au sol.
+// Correctif : quand un carrefour porteur d'un véhicule entre dans le champ, on
+// regarde si un pont de la grille MUSICALE occupe la même bande de profondeur ;
+// si oui, le véhicule est supprimé (comme si le hash n'en avait pas mis).
+// C'est une dépendance à sens unique crosstraffic → entities, assumée : c'est
+// exactement le cas que l'en-tête déclarait « impossible à exclure sans faire
+// dépendre une grille de l'autre » — le retour joueur a tranché.
+// ⚠️ Une suppression est DÉFINITIVE (Set vidé par reset()), mais un carrefour
+// « gardé » est revérifié à chaque frame : la fenêtre des créneaux musicaux
+// (visibleSlots s'arrête à z ≈ 90) est bien plus courte que le champ des
+// carrefours (z ≤ HORIZON_Z ≈ 209) — un pont coïncident peut donc n'entrer
+// dans slotsFor() qu'après la première vérification. Monotone gardé → supprimé
+// uniquement : jamais de véhicule qui clignote, au pire un véhicule lointain
+// qui s'efface quand son pont se révèle.
+// ⚠️ Marge exprimée en TEMPS, pas en unités : le joueur a besoin d'un délai
+// fixe pour se replacer entre le passage du pont et celui du véhicule (~0,5 s
+// de chaque côté), or une marge en unités-monde fond avec la vitesse — le
+// premier réglage (9 unités fixes) valait 0,45 s au départ mais 0,1 s au
+// plafond de vitesse : mesuré par balayage, il ne supprimait RIEN, alors que
+// le retour venait justement de la fin de course. Le plancher de 4 unités
+// couvre la géométrie pure (demi-largeur du véhicule + fenêtres de collision
+// + profondeur visuelle de la poutre) au cas où la vitesse serait minuscule.
+const PONT_MARGE_S = 0.5;
+const PONT_MARGE_Z_MIN = 4;
+const supprimes = new Set();
+
+function sousUnPont(n, distance) {
+  if (supprimes.has(n)) return true;
+  const zCarrefour = profondeurDu(n, distance);
+  const marge = Math.max(PONT_MARGE_Z_MIN, road.getSpeed() * PONT_MARGE_S);
+  const coincide = slotsFor(clock.now(), road.getSpeed()).some(
+    (s) => isBridgeSlot(s) && Math.abs(s.z - zCarrefour) < marge
+  );
+  if (coincide) supprimes.add(n);
+  return coincide;
+}
+
 // Carrefours porteurs d'un véhicule actuellement dans le champ.
 function* carrefoursVisibles(distance) {
   const premier = Math.floor(distance / road.WORLD_GRID_SPACING) - 1;
@@ -141,6 +184,7 @@ function* carrefoursVisibles(distance) {
     if (!vehicule) continue;
     const z = profondeurDu(n, distance);
     if (z < 0.5 || z > road.HORIZON_Z) continue;
+    if (sousUnPont(n, distance)) continue;
     yield { n, vehicule, z };
   }
 }
@@ -149,6 +193,7 @@ const resolus = new Set();
 
 export function reset() {
   resolus.clear();
+  supprimes.clear();
 }
 
 // Collisions du tick. Même contrat que entities.update() : renvoie les

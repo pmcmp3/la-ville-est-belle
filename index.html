@@ -397,6 +397,120 @@
       width: min(280px, 100%);
     }
 
+    /* --- Seconde chance à la mort (revive) --------------------------------
+       Carte CENTRÉE (pas un tiroir du bas) : c'est un moment d'arrêt total,
+       la décision EST l'écran. Le cercle de décompte est la pièce centrale —
+       « un petit décompte au centre du cercle » (demandé). */
+    #revive-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 45; /* au-dessus de l'unlock-sheet (40) — jamais ouverts ensemble, mais autant trancher */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      visibility: hidden;
+      transition: visibility 0s linear 0.25s;
+    }
+
+    #revive-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #revive-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.62);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    #revive-sheet.visible #revive-veil {
+      opacity: 1;
+    }
+
+    #revive-card {
+      position: relative;
+      box-sizing: border-box;
+      width: min(300px, 100%);
+      padding: 22px 20px 18px;
+      border-radius: 18px;
+      border: 2px solid var(--panneau-bord);
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    #revive-sheet.visible #revive-card {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    #revive-timer {
+      position: relative;
+      width: 76px;
+      height: 76px;
+    }
+
+    #revive-timer svg {
+      width: 100%;
+      height: 100%;
+      /* L'arc démarre à midi et se vide dans le sens horaire. */
+      transform: rotate(-90deg);
+    }
+
+    #revive-timer .piste {
+      fill: none;
+      stroke: rgba(225, 62, 38, 0.18);
+      stroke-width: 6;
+    }
+
+    /* Longueur d'arc pilotée en JS (stroke-dashoffset) — la circonférence
+       (2π×33 ≈ 207,3) est posée ici ET recalculée côté screens.js. */
+    #revive-arc {
+      fill: none;
+      stroke: var(--rouge);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 207.3;
+      stroke-dashoffset: 0;
+    }
+
+    #revive-timer-num {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 900 30px var(--police);
+      color: var(--noir);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #revive-title {
+      margin: 2px 0 0;
+      font: 900 19px var(--police);
+      color: var(--noir);
+      text-align: center;
+    }
+
+    #revive-text {
+      margin: 0 0 4px;
+      font: 500 13.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    #revive-cta {
+      width: 100%;
+    }
+
     /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
        depuis que le bandeau dit « Votre score », et la carte débordait.) */
     #score-num {
@@ -459,7 +573,7 @@
       text-align: center;
     }
 
-    #fan-note.hidden, #runs-count.hidden {
+    #fan-note.hidden, #runs-count.hidden, #change-pseudo.hidden {
       display: none;
     }
 
@@ -526,13 +640,43 @@
       border-bottom: 1px solid rgba(0, 0, 0, 0.14);
     }
 
-    /* Petits écrans en hauteur (iPhone SE, Android compacts) : le classement
-       passe de 5 à 3 lignes visibles (nombre impair conservé, le centrage au
-       scroll en a besoin — voir scrollCurrentScoreIntoView). ⚠️ Doit rester
-       APRÈS la règle de base : à spécificité égale, c'est l'ordre qui tranche. */
-    @media (max-height: 700px) {
+    /* Petits écrans en hauteur (iPhone SE, Android compacts, et tout iPhone
+       une fois les barres de Safari déployées — le viewport VISIBLE descend
+       facilement sous 700px sur un écran « normal »). Revu le 21 août 2026
+       (« sur les petits téléphones ça va pas du tout », capture à l'appui :
+       REJOUER coupé par la barre du bas) : plus seulement le classement —
+       toute la carte se resserre pour tenir SANS défilement dans ~640px.
+       Le classement passe de 5 à 3 lignes visibles (nombre impair conservé,
+       le centrage au scroll en a besoin — voir scrollCurrentScoreIntoView).
+       ⚠️ Doit rester APRÈS les règles de base : à spécificité égale, c'est
+       l'ordre qui tranche. */
+    @media (max-height: 740px) {
       #leaderboard-list {
         max-height: 96px;
+      }
+      #end-screen .panel-body {
+        padding: 12px 14px 14px;
+      }
+      #score-num {
+        font-size: 32px;
+      }
+      #end-note {
+        margin-top: 5px;
+        font-size: 10.5px;
+      }
+      #leaderboard {
+        margin-bottom: 8px;
+      }
+      .board-title {
+        margin-bottom: 5px;
+      }
+      #end-actions {
+        gap: 8px;
+      }
+      #runs-count {
+        margin-top: 6px;
+        padding: 4px 12px;
+        font-size: 11px;
       }
     }
 
@@ -1632,6 +1776,10 @@
               </ul>
             </div>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
+            <!-- Joueur connu (pseudo+insta en localStorage) : l'étape 1 est
+                 sautée et ce lien permet quand même d'en changer — téléphone
+                 prêté, faute de frappe la première fois... Voir screens.js. -->
+            <button id="change-pseudo" type="button" class="link-minimal hidden">Modifier mon pseudo</button>
           </div>
         </div>
       </div>
@@ -1707,8 +1855,17 @@
                (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent
                sur le lien »). Le CTA flottant en bas d'écran (#cta-link) est
                masqué sur cette vue, il ferait doublon. -->
+          <!-- ⚠️ Hiérarchie INVERSÉE le 21 août 2026 (demandé : « on peut
+               inverser la couleur des CTA [...] les gens vont cliquer sur
+               REJOUER, et on leur dit : pour rejouer, il faut ajouter le
+               morceau ») : REJOUER devient le bouton principal rouge — c'est
+               LUI que tout le monde veut presser — et le verrou de rejeu
+               (#unlock-sheet, voir screens.js) fait la conversion au clic.
+               AJOUTER LE MORCEAU reste TOUJOURS présent en secondaire, pour
+               qui préfère y aller directement. -->
           <div id="end-actions">
-            <a id="end-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+            <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
+            <a id="end-cta" class="btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">
               <span>AJOUTER LE MORCEAU</span>
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
                 <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1725,12 +1882,6 @@
                  (demandé : « tu peux enlever Partager le clip, tu mets juste
                  Partager mon score ») — l'enregistrement clip.js est coupé
                  avec lui, voir main.js. -->
-            <!-- Verrou de rejeu : REJOUER reste cliquable même verrouillé —
-                 le clic ouvre alors le panneau #unlock-sheet (pop-up depuis le
-                 bas, demandé le 20 août 2026 à la place de la note statique
-                 « Ajoute le morceau pour débloquer... » qui encombrait la
-                 carte). Voir screens.js. -->
-            <button id="replay-button" class="btn btn-secondary" type="button">REJOUER</button>
           </div>
         </div>
       </div>
@@ -1807,6 +1958,34 @@
         </svg>
       </a>
       <button id="unlock-sheet-close" type="button" class="link-minimal">Plus tard</button>
+    </div>
+  </div>
+
+  <!-- Seconde chance à la mort (21 août 2026) : carte centrée + décompte de
+       10 s dans un cercle. Le décompte SE FIGE quand l'onglet est caché
+       (screens.js) : partir ajouter le morceau ne consume pas la fenêtre.
+       Voir offerRevive() dans main.js pour l'architecture complète. -->
+  <div id="revive-sheet" aria-hidden="true">
+    <div id="revive-veil"></div>
+    <div id="revive-card">
+      <div id="revive-timer">
+        <svg viewBox="0 0 76 76" aria-hidden="true">
+          <circle class="piste" cx="38" cy="38" r="33"></circle>
+          <circle id="revive-arc" cx="38" cy="38" r="33"></circle>
+        </svg>
+        <span id="revive-timer-num">10</span>
+      </div>
+      <p id="revive-title">Ta course n'est pas finie !</p>
+      <p id="revive-text">Ajoute le morceau et reprends PILE ici, avec tes <strong id="revive-score">0</strong>&nbsp;points.</p>
+      <a id="revive-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+        <span id="revive-cta-label">AJOUTER LE MORCEAU</span>
+        <svg id="revive-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+          <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <button id="revive-decline" type="button" class="link-minimal">Terminer ma course</button>
     </div>
   </div>
 

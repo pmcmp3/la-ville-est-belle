@@ -59,6 +59,16 @@ const unlockSheetText = document.getElementById("unlock-sheet-text");
 const unlockSheetCta = document.getElementById("unlock-sheet-cta");
 const unlockSheetCtaLabel = document.getElementById("unlock-sheet-cta-label");
 const unlockSheetClose = document.getElementById("unlock-sheet-close");
+// Panneau de seconde chance à la mort (voir openReviveSheet).
+const reviveSheet = document.getElementById("revive-sheet");
+const reviveArc = document.getElementById("revive-arc");
+const reviveTimerNum = document.getElementById("revive-timer-num");
+const reviveScore = document.getElementById("revive-score");
+const reviveCta = document.getElementById("revive-cta");
+const reviveCtaLabel = document.getElementById("revive-cta-label");
+const reviveCtaIcone = document.getElementById("revive-cta-icone");
+const reviveDecline = document.getElementById("revive-decline");
+const changePseudoBtn = document.getElementById("change-pseudo");
 
 // --- Verrou de rejeu (19 août 2026) --------------------------------------
 // Version retenue du « mur » demandé par l'artiste : il voulait mettre la
@@ -150,6 +160,72 @@ function closeUnlockSheet() {
 
 export function showOverlay() {
   overlay.classList.add("visible");
+}
+
+// --- Seconde chance à la mort (revive, 21 août 2026) -----------------------
+// Présentation seulement : la décision de l'offrir, le gel de la partie et la
+// reprise vivent dans main.js (offerRevive) — ce module reçoit les deux issues
+// en callbacks, comme tout le reste de l'API screens.
+// ⚠️ Le décompte (10 s) SE FIGE quand l'onglet est caché : le joueur qui part
+// ajouter le morceau sur Spotify ne doit pas retrouver sa fenêtre expirée en
+// revenant — c'est LE détail qui fait marcher le détour par l'autre appli.
+// ⚠️ Même règle que le verrou de rejeu : la reprise se donne AU CLIC, jamais
+// sur une preuve d'ajout (impossible à obtenir, voir syncVerrouRejeu). Qui a
+// déjà ajouté le morceau (estFan) reprend gratuitement — l'avantage fan reste
+// acquis, le CTA devient un simple « REPRENDRE MA COURSE ».
+const REVIVE_DELAI_S = 10;
+const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans index.html
+let reviveCallbacks = null;
+let reviveRestant = 0;
+let reviveTimerId = 0;
+
+function reviveMajAffichage() {
+  reviveTimerNum.textContent = `${Math.max(0, Math.ceil(reviveRestant))}`;
+  const t = Math.max(0, reviveRestant) / REVIVE_DELAI_S;
+  reviveArc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
+}
+
+export function openReviveSheet({ score, onAccept, onDecline }) {
+  reviveCallbacks = { onAccept, onDecline };
+  reviveScore.textContent = `${score}`;
+  const fan = estFan();
+  reviveCtaLabel.textContent = fan ? "REPRENDRE MA COURSE" : "AJOUTER LE MORCEAU";
+  reviveCtaIcone.style.display = fan ? "none" : "";
+  if (fan) {
+    reviveCta.removeAttribute("href"); // plus un lien : simple bouton de reprise
+  } else {
+    reviveCta.href = window.CONFIG.lienEP;
+  }
+  reviveRestant = REVIVE_DELAI_S;
+  reviveMajAffichage();
+  reviveSheet.classList.add("visible");
+  reviveSheet.setAttribute("aria-hidden", "false");
+  clearInterval(reviveTimerId);
+  let precedent = performance.now();
+  reviveTimerId = setInterval(() => {
+    const maintenant = performance.now();
+    const ecoule = (maintenant - precedent) / 1000;
+    precedent = maintenant;
+    if (document.hidden) return; // figé pendant le détour Spotify
+    reviveRestant -= ecoule;
+    reviveMajAffichage();
+    if (reviveRestant <= 0) reviveResoudre("onDecline");
+  }, 100);
+}
+
+function closeReviveSheet() {
+  clearInterval(reviveTimerId);
+  reviveTimerId = 0;
+  reviveSheet.classList.remove("visible");
+  reviveSheet.setAttribute("aria-hidden", "true");
+}
+
+function reviveResoudre(issue) {
+  if (!reviveCallbacks) return;
+  const cb = reviveCallbacks[issue];
+  reviveCallbacks = null;
+  closeReviveSheet();
+  cb();
 }
 
 // --- Compteur de parties, en temps réel ------------------------------------
@@ -373,9 +449,15 @@ function beginRun() {
 
 function startGame() {
   if (deps.isGameStartRequested() || tutorial.estActif()) return;
-  // audio.unlock() a déjà eu lieu au nextStep() de l'étape pseudo. Idempotent
-  // de toute façon (armed = true dès le 1er appel), donc on ne re-tente pas
-  // pour éviter la moindre confusion.
+  // ⚠️ unlock/play REFAITS ici depuis que l'étape pseudo peut être SAUTÉE
+  // (joueur connu → atterrissage direct sur JOUER, voir init) : le
+  // déverrouillage iOS vivait sur le clic « Suivant », qui n'a alors jamais
+  // lieu — sans ces deux appels, la partie démarrait muette sur l'horloge de
+  // secours. Les deux sont idempotents (armed = true dès le 1er appel,
+  // play() attend le buffer), les refaire après un vrai nextStep() est sans
+  // effet.
+  audio.unlock();
+  audio.play();
   //
   // ⚠️ Tutoriel sauté pour qui a DÉJÀ joué sur ce téléphone (21 août 2026,
   // demandé : « ceux qui se sont déjà connectés avec leur téléphone peuvent
@@ -708,6 +790,16 @@ export function init(d) {
   unlockSheetClose.addEventListener("click", closeUnlockSheet);
   unlockSheetVeil.addEventListener("click", closeUnlockSheet);
 
+  // Seconde chance : le clic sur le CTA vaut conversion (même règle « au
+  // clic » que le verrou) ET reprise immédiate — l'onglet Spotify s'ouvre à
+  // côté, le jeu se fige tout seul (document.hidden) et attend le retour.
+  // Le voile est volontairement inerte : les deux issues sont les boutons.
+  reviveCta.addEventListener("click", () => {
+    if (!estFan()) marquerMorceauOuvert();
+    reviveResoudre("onAccept");
+  });
+  reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
+
   audio.setVolume(Number(volumeSlider.value) / 100);
   syncMuteIcon();
 
@@ -715,7 +807,22 @@ export function init(d) {
   instaInput.value = localStorage.getItem("pseudoInsta") || "";
   syncPseudoStep();
 
-  showStep(0);
+  // ⚠️ Retour d'un joueur connu (21 août 2026, demandé : « quand les gens
+  // reviennent, ils n'ont pas besoin de refaire quoi que ce soit ») : pseudo
+  // ET insta déjà en localStorage → on saute l'étape 1 et on atterrit
+  // directement sur « JOUER ». Un lien discret permet de changer d'identité
+  // (téléphone prêté) — voir changePseudo ci-dessous. En navigation privée,
+  // localStorage est vide : le nouveau venu garde le parcours complet.
+  const identiteConnue = cleanPseudo().length > 0 && cleanInsta().length > 0;
+  if (identiteConnue) {
+    changePseudoBtn.textContent = `Pas ${cleanPseudo()} ? Modifier`;
+    changePseudoBtn.classList.remove("hidden");
+    showStep(1);
+  } else {
+    changePseudoBtn.classList.add("hidden");
+    showStep(0);
+  }
+  changePseudoBtn.addEventListener("click", () => showStep(0));
 
   document.querySelectorAll(".menu-step [data-next]").forEach((btn) => {
     btn.addEventListener("click", nextStep);

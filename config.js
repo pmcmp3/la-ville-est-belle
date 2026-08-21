@@ -18,7 +18,7 @@ window.CONFIG = {
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
-  vitesseMax: 9.0,          // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (demandé explicitement le 17 août 2026) — 6.0 → 9.0.
+  vitesseMax: 7.65,         // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (17 août 2026) — 6.0 → 9.0, puis −15 % (21 août 2026, « réduis un petit peu la vitesse à la fin de 15% c'est trop hardcore ») — 9.0 → 7.65.
   sensibiliteDirection: 2.2,// Sensibilité de la direction : plus haut = plus réactif — 1.0 → 1.375 → 2.75 → 2.2 (playtest : "un peu trop sensible, réduis de 20 %"). Module la vitesse de rattrapage de la voie visée (main.js, LANE_TWEEN).
   // zoneMorteGyro / agressiviteVirages retirés le 19 août 2026 : plus aucun
   // usage dans src/ depuis le retrait du gyroscope et le passage au pilotage

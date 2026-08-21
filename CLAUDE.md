@@ -50,7 +50,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   que le joueur est déjà sur l'écran de fin (~114 s de marge désormais, contre ~53 s avant) —
   cohérent avec l'objectif "donner envie d'écouter le morceau". `TOTAL_OBJECTS` (entities.js)
   dérive de `dureeCourse`, pas de `dureeMorceau`. **120 BPM**, offset ~0,01 s.
-- **3 vies**, **5 obstacles**, **5 bonus**.
+- **3 vies**, **5 obstacles**, **5 bonus**. ⚠️ **Depuis le 21 août 2026, TOUS les obstacles de
+  la grille sont FATALS** (« je veux que tous les obstacles fassent trois cœurs ») — les coûts
+  « −1 vie » listés plus bas sont l'HISTORIQUE, plus la règle courante. Seule la voiture
+  traversante (crosstraffic.js) reste à −1 vie (jamais fatale, invariant verrouillé). En
+  contrepartie : **seconde chance à la mort** — première mort d'une partie → panneau 10 s
+  (`#revive-sheet`), ajouter le morceau (ou l'avoir déjà ajouté) = reprise sur place, score
+  conservé, une fois par partie. Voir ARCHITECTURE.md §11, vingt-et-unième passe (3 pièges
+  documentés : décompte figé onglet caché, bouclier 2 s, unlock audio dans startGame).
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle

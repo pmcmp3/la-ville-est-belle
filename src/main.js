@@ -185,9 +185,10 @@ function useFallbackClock(preserve) {
 // l'horloge de jeu de la même façon, donc la course, elle, gèle pareil.
 let manualPaused = false;  // menu pause ouvert (bouton dédié)
 let hiddenPaused = false;  // document.hidden
+let revivePaused = false;  // panneau « seconde chance » ouvert (mort, décision en cours)
 
 function isPaused() {
-  return manualPaused || hiddenPaused;
+  return manualPaused || hiddenPaused || revivePaused;
 }
 
 // À appeler après avoir changé manualPaused OU hiddenPaused. Le mode audio se
@@ -205,7 +206,9 @@ function isPaused() {
 let pauseStartedAt = 0;
 
 function applyPauseState() {
-  const next = hiddenPaused ? "silent" : manualPaused ? "muffled" : "running";
+  // Le panneau de seconde chance (revive) se comporte comme le menu pause :
+  // morceau étouffé, simulation gelée — c'est déjà tout ce qu'il lui faut.
+  const next = hiddenPaused ? "silent" : (manualPaused || revivePaused) ? "muffled" : "running";
   audio.setPlaybackMode(next);
 
   if (next !== "running") {
@@ -505,6 +508,53 @@ function resetFinish() {
   finishing.alpha = 1;
 }
 
+// --- Seconde chance à la mort (revive, 21 août 2026) ----------------------
+// « À partir du moment où quelqu'un meurt, un écran qui dit : dix secondes
+// pour prendre une décision [...] tu peux sauvegarder le morceau et ça relance
+// ta partie. » Va de pair avec le passage de TOUS les obstacles en choc fatal
+// (même demande) : un choc termine la course, mais UNE FOIS par partie on
+// peut la reprendre là où elle s'est arrêtée, score et position conservés —
+// en ajoutant le morceau (la conversion) ; qui l'a déjà ajouté reprend
+// gratuitement, l'avantage fan reste acquis.
+//
+// Architecture : la mort n'appelle plus endGame() directement — elle ouvre le
+// panneau (screens.openReviveSheet) et gèle la partie par le MÊME mécanisme
+// que le menu pause (revivePaused → isPaused() → l'accumulateur s'arrête,
+// audio étouffé). Le morceau continue donc en sourdine, la scène reste figée
+// derrière le panneau, et le budget pauseDeriveMax (25 s) absorbe largement
+// les 10 s de décision. Le décompte vit dans screens.js et SE FIGE quand
+// l'onglet est caché : partir ajouter le morceau sur Spotify ne consume pas
+// la fenêtre de décision. À la reprise, un bouclier de REVIVE_SHIELD_S
+// ignore les chocs d'obstacles : on ressuscite parfois à quelques dixièmes
+// de seconde du créneau suivant, mourir instantanément annulerait la
+// récompense qu'on vient d'accorder.
+let reviveOffered = false;      // une seule offre par partie
+let reviveShieldUntil = -1;     // temps musical jusqu'auquel les chocs sont ignorés
+const REVIVE_SHIELD_S = 2;
+
+function offerRevive() {
+  reviveOffered = true;
+  revivePaused = true;
+  applyPauseState();
+  screens.hidePauseButton();
+  screens.openReviveSheet({
+    score: game.score,
+    onAccept: () => {
+      game.lives = window.CONFIG.viesDepart;
+      reviveShieldUntil = clock.now() + REVIVE_SHIELD_S;
+      damageFlash = 0;
+      revivePaused = false;
+      applyPauseState();
+      screens.showPauseButton();
+    },
+    onDecline: () => {
+      revivePaused = false;
+      applyPauseState();
+      endGame("gameover");
+    },
+  });
+}
+
 // Fin de partie : le menu revient en fondu, réutilisé tel quel — le titre
 // devient le résultat, le bouton principal devient « Rejouer ». Un léger
 // retard laisse la scène se figer à l'écran avant que l'overlay ne monte,
@@ -599,6 +649,9 @@ function restartGame() {
   etoilesRamassees = 0;   // les 3 popups pédagogiques reviennent à chaque nouvelle partie
   game.penaltyTimer = 0; // sinon le "-500" de la partie précédente survit au rejeu
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
+  reviveOffered = false;   // la seconde chance revient à chaque nouvelle partie
+  reviveShieldUntil = -1;
+  revivePaused = false;    // défensif : ne doit jamais être vrai ici
 
   screens.hideOverlay();
   screens.showPauseButton(); // rejoue depuis l'écran de fin OU depuis le menu pause : dans les deux cas on repart en course active
@@ -842,6 +895,10 @@ function step(dt) {
             pousserPopup(`+${gagne}`, "#ffffff");
           }
         } else {
+          // Bouclier post-revive : les chocs d'obstacles sont ignorés pendant
+          // REVIVE_SHIELD_S après la reprise (l'obstacle a déjà été résolu par
+          // entities.update, le joueur passe au travers). Voir offerRevive().
+          if (clock.now() < reviveShieldUntil) continue;
           // « COMBO 0 » en rouge à l'instant du choc (demandé le 21 août
           // 2026) — seulement quand un multiplicateur était réellement actif
           // (streak ≥ comboSeuil) : perdre une série de 2 étoiles n'est pas
@@ -852,22 +909,24 @@ function step(dt) {
             pousserPopup("COMBO 0", ROUGE_CHARTE);
           }
           game.streak = 0; // tout obstacle touché casse le combo, voir comboMultiplier()
-          // Playtest : "quand on se prend une voiture, game over". La
-          // voiture est traitée comme un choc fatal (3 vies perdues d'un
-          // coup, endGame déclenché juste après dans le même step) — le
-          // convoi se voit à 100 m, se contourne, aucune raison d'être
-          // clément. Le pont a rejoint la voiture le 12 août 2026 (retour
-          // direct après test réel : « le pont doit arrêter la partie si je
-          // me le prends ») — cohérent avec sa branche de collision dédiée
-          // dans entities.js, où sauter dessous aggrave le risque au lieu de
-          // le neutraliser. Les autres obstacles (piéton, cycliste, cône)
-          // restent à -1 vie chacun.
+          // ⚠️ TOUS les obstacles de la grille sont FATALS depuis le 21 août
+          // 2026 (« je veux que tous les obstacles fassent trois cœurs ») —
+          // voiture et pont l'étaient déjà, piéton/cycliste/cône les ont
+          // rejoints. Ce durcissement va de pair avec l'offre de seconde
+          // chance à la mort (revive, voir offerRevive) : un choc termine la
+          // course, mais on peut la reprendre une fois en ajoutant le morceau.
+          // SEULE exception : la voiture TRAVERSANTE (kind "traversee") reste
+          // à -1 vie — invariant verrouillé de crosstraffic.js (« jamais
+          // fatal ») : ses coïncidences avec la grille musicale ne sont pas
+          // toutes exclues par construction (le cas pont l'est désormais,
+          // voir sousUnPont), et une mort inesquivable reste inacceptable.
+          // Les cœurs ne servent donc plus qu'à encaisser les traversantes.
           // Vibration (Android uniquement — iOS Safari ignore navigator.vibrate,
           // l'appel y est simplement sans effet) : légère au choc, forte quand
           // le choc termine la partie (demandé le 20 août 2026).
-          const fatal = e.kind === "voiture" || e.kind === "pont" || game.lives <= 1;
+          const fatal = e.kind !== "traversee" || game.lives <= 1;
           if (navigator.vibrate) navigator.vibrate(fatal ? [90, 50, 150] : 35);
-          if (e.kind === "voiture" || e.kind === "pont") {
+          if (fatal) {
             game.lives = 0;
             triggerShake(13, 0.5);
           } else {
@@ -902,7 +961,12 @@ function step(dt) {
 
     const now = clock.now();
     if (game.lives <= 0) {
-      endGame("gameover");
+      // Première mort de la partie : seconde chance plutôt que game over.
+      // offerRevive() gèle la boucle (revivePaused) — ce chemin ne sera pas
+      // re-parcouru tant que la décision n'est pas prise. Une fois l'offre
+      // consommée, toute mort suivante est définitive.
+      if (!reviveOffered) offerRevive();
+      else endGame("gameover");
     } else if (entities.isFinished(now) || finishing.active) {
       // Ligne d'arrivée franchie (TOTAL_OBJECTS créneaux, dérivé de
       // config.dureeCourse — voir entities.js). Le morceau continue de jouer

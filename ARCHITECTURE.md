@@ -868,6 +868,56 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingt-et-unième passe du 21 août 2026 — mort à un choc + seconde chance, gros lot de retours.**
+- ⚠️ **CHANGEMENT DE RÈGLES : tous les obstacles de la grille sont FATALS** (« je veux que tous
+  les obstacles fassent trois cœurs ») — piéton/cycliste/cône rejoignent voiture/pont
+  (main.js, branche de collision). SEULE exception : la voiture TRAVERSANTE reste à −1 vie
+  (invariant verrouillé de crosstraffic.js — les coïncidences inter-grilles ne sont pas toutes
+  exclues par construction). Les cœurs ne servent plus qu'à encaisser les traversantes.
+- **Seconde chance à la mort (revive)** — « dix secondes pour prendre une décision [...] tu peux
+  sauvegarder le morceau et ça relance ta partie ». `offerRevive()` (main.js) : la première mort
+  d'une partie n'appelle plus endGame() — elle gèle la course par le MÊME mécanisme que le menu
+  pause (`revivePaused` → isPaused, morceau étouffé, budget `pauseDeriveMax` 25 s) et ouvre
+  `#revive-sheet` (screens.openReviveSheet) : carte centrée, décompte 10 s en cercle SVG.
+  CTA « AJOUTER LE MORCEAU » (lien lienEP, conversion AU CLIC comme le verrou de rejeu) → vies
+  restaurées, reprise PILE où on est mort, score conservé ; « Terminer ma course » ou expiration
+  → endGame. Un fan (morceau déjà ajouté) reprend gratuitement (« REPRENDRE MA COURSE », l'
+  avantage reste acquis). UNE offre par partie (`reviveOffered`, remis à zéro au rejeu).
+  ⚠️ Trois pièges résolus, à ne pas casser :
+  1. le décompte SE FIGE quand l'onglet est caché (screens.js) — partir sur Spotify ne consume
+     pas la fenêtre, c'est ce qui rend le détour possible ;
+  2. bouclier de reprise `REVIVE_SHIELD_S` (2 s, horloge musicale) — on ressuscite parfois à
+     quelques dixièmes du créneau suivant, les chocs y sont ignorés (l'obstacle, déjà résolu par
+     entities.update, est traversé) ;
+  3. unlock/play audio REFAITS dans startGame() (screens.js) — voir l'onboarding sauté ci-dessous.
+- **Conflit pont × voiture traversante corrigé** (« ils s'entrechoquent, on peut juste pas
+  passer ») : `sousUnPont()` dans crosstraffic.js — dépendance à sens unique crosstraffic →
+  entities (slotsFor/isBridgeSlot), assumée contre l'invariant d'indépendance des grilles : un
+  véhicule dont le carrefour tombe à moins de `PONT_MARGE_S` (0,5 s × vitesse, plancher 4 unités)
+  d'un pont est supprimé. ⚠️ Marge en TEMPS, pas en unités : le premier réglage (9 unités fixes)
+  valait 0,1 s au plafond de vitesse et ne supprimait RIEN (mesuré par balayage — 0 suppression),
+  alors que le retour venait de la fin de course. Mesuré après : 57 traversées atteintes, 1
+  supprimée (la coïncidence réelle du parcours), 56 conservées. Suppression MONOTONE et mémorisée
+  (`supprimes`, vidé par reset()) ; un carrefour « gardé » reste revérifié — la fenêtre des
+  créneaux (z ≤ 90) est plus courte que le champ des carrefours (z ≤ 209).
+- **Vitesse de fin −15 %** (« trop hardcore ») : `vitesseMax` 9,0 → 7,65 (config.js), plafond
+  mesuré 84,1 u/s. Quota inchangé (85/106, revérifié).
+- **Onboarding sauté pour un joueur connu** (« quand les gens reviennent, ils n'ont pas besoin
+  de refaire quoi ») : pseudo ET insta en localStorage → atterrissage direct sur « JOUER », avec
+  un lien « Pas X ? Modifier » pour changer d'identité. ⚠️ C'est ce saut qui a imposé le piège
+  n°3 ci-dessus : le déverrouillage iOS vivait sur le clic « Suivant », désormais optionnel.
+- **Hiérarchie des CTA de fin INVERSÉE** (« les gens vont cliquer [REJOUER], et on leur dit :
+  pour rejouer, il faut ajouter le morceau ») : REJOUER devient le bouton principal rouge, en
+  premier ; AJOUTER LE MORCEAU passe en secondaire mais reste TOUJOURS présent ; PARTAGER en
+  troisième. Le verrou de rejeu (#unlock-sheet) fait la conversion au clic sur REJOUER.
+- **Écran de fin compact sous 740 px de hauteur** (« sur les petits téléphones ça va pas du
+  tout », capture : REJOUER coupé) : la media query ne réduit plus seulement le classement
+  (5 → 3 lignes) mais toute la carte (score 40 → 32 px, paddings, gaps) — mesuré : la carte
+  entière tient dans 660 px sans défilement (bas de carte à 550).
+- ⚠️ Piège de harnais rencontré (à connaître, §12) : après des éditions à chaud, Vite estampille
+  les imports (`?t=`) — un `import('/src/…')` sans query charge alors une SECONDE instance du
+  module, et les listeners « ne marchent plus ». Redémarrer le serveur de dev avant de tester.
+
 **Vingtième passe du 21 août 2026 — dégraissage de l'écran de fin + audit de lancement.**
 - **Bandeau « Tu écoutes La ville est belle » RETIRÉ** (demandé) : markup, CSS et toute la boucle
   rAF de l'equalizer (`eqTick`/`syncEqLoop`, screens.js) ont sauté. ⚠️ `audio.getEqLevels()` et
