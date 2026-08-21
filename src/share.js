@@ -190,7 +190,7 @@ function dessinerAffiche(ctx, etat) {
   // L'adresse du jeu : la seule chose qui transforme une capture en joueur
   // supplémentaire. En crème sur le rouge, pleine largeur, impossible à rater.
   texte(ctx, "BATS MON SCORE", LARGEUR / 2, px(960), 46, "#ffffff", 900);
-  texte(ctx, "pmcmp3.github.io/la-ville-est-belle", LARGEUR / 2, px(1010), 32, JAUNE, 500);
+  texte(ctx, "la-ville-est-belle-pmc.fr", LARGEUR / 2, px(1010), 32, JAUNE, 500);
 }
 
 let fichierPret = null; // File prêt à partager (voir l'en-tête : le geste iOS)
@@ -254,8 +254,8 @@ export function partager() {
     files: [fichierPret],
     title: "La ville est belle",
     text: dernierEtat && dernierEtat.score
-      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle. Joue et tente de gagner le vinyle de l'EP de PMC : https://pmcmp3.github.io/la-ville-est-belle/`
-      : "Joue et tente de gagner le vinyle de l'EP de PMC : https://pmcmp3.github.io/la-ville-est-belle/",
+      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle. Joue et tente de gagner le vinyle de l'EP de PMC : https://la-ville-est-belle-pmc.fr/`
+      : "Joue et tente de gagner le vinyle de l'EP de PMC : https://la-ville-est-belle-pmc.fr/",
   };
   if (navigator.canShare && navigator.canShare({ files: [fichierPret] }) && navigator.share) {
     navigator.share(donnees).catch(() => { /* partage annulé : rien à signaler */ });
