@@ -23,10 +23,6 @@ import * as tutorial from "./tutorial.js";
 
 let deps = null;
 
-// Format « 11 octobre » pour la date de fin du concours (même recette que
-// dateFormatter dans hud.js, dupliquée — les deux fichiers ne s'importent pas).
-const dateFmtFin = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
-
 // --- Écrans hors-jeu (menu de démarrage / fin de partie) -----------------
 // Le même conteneur DOM sert aux deux, avec fondu à l'ouverture comme à la
 // fermeture. Il a remplacé le « touche l'écran pour jouer » dessiné dans le
@@ -54,7 +50,6 @@ const endCta = document.getElementById("end-cta");
 const shareButton = document.getElementById("share-button");
 const fanNote = document.getElementById("fan-note");
 const nowPlaying = document.getElementById("now-playing");
-const contestDeadline = document.getElementById("contest-deadline");
 const runsCount = document.getElementById("runs-count");
 const runsCountNum = document.getElementById("runs-count-num");
 // Pop-up de verrou depuis le bas (remplace l'ancienne note statique sous
@@ -756,13 +751,6 @@ export function init(d) {
   });
   unlockSheetClose.addEventListener("click", closeUnlockSheet);
   unlockSheetVeil.addEventListener("click", closeUnlockSheet);
-
-  // Date de fin du concours, sous le classement : « on a une semaine pour
-  // jouer » doit se lire sur l'écran, pas se deviner.
-  const fermeture = new Date(window.CONFIG.dateFermeture);
-  if (!Number.isNaN(fermeture.getTime())) {
-    contestDeadline.textContent = `Concours ouvert jusqu'au ${dateFmtFin.format(fermeture)}`;
-  }
 
   audio.setVolume(Number(volumeSlider.value) / 100);
   syncMuteIcon();

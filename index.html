@@ -520,14 +520,6 @@
       display: none;
     }
 
-    #contest-deadline {
-      margin: 8px 0 0;
-      font: 500 10px var(--police);
-      letter-spacing: 0.04em;
-      color: rgba(0, 0, 0, 0.45);
-      text-align: center;
-    }
-
     /* Compteur de parties : preuve sociale, donc il doit se LIRE — l'ancienne
        version (10px, gris à 45 %) se confondait avec la mention légale juste
        au-dessus. Pastille + point rouge qui bat = « c'est en train de tourner
@@ -1749,14 +1741,13 @@
         <div class="panel-body">
           <div id="end-hero">
             <div id="score-num"></div>
-            <p id="end-note">Meilleur score = un vinyl de l'EP à gagner</p>
+            <p id="end-note">Meilleur score = un vinyle de l'EP à gagner</p>
           </div>
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>
             <ol id="leaderboard-list"></ol>
             <!-- Deadline du concours + preuve sociale (nombre total de courses,
                  Supabase) : deux petites lignes sous le classement. -->
-            <p id="contest-deadline"></p>
           </div>
           <!-- Compteur de parties, VOLONTAIREMENT hors de #leaderboard : il y
                était imbriqué, donc invisible dès que le classement ne se

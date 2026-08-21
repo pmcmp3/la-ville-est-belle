@@ -686,11 +686,22 @@ concours se fait au screenshot envoyé par le joueur.
   plusieurs fois (constaté en vrai, ex. "guigzman" en double). Migration à exécuter une fois
   dans Supabase avant de relancer le concours.
 
-**Cache HTTP** (`public/_headers`) — deux régimes opposés :
-- Sans hash dans le nom (`index.html`, `config.js`) → `no-store`, jamais périmé.
-- Avec hash (bundle) ou quasi figé (MP3, polices) → cache long. Le MP3 fait 3,9 Mo ; ce réglage
-  date de l'époque Netlify (facturée à la bande passante) mais reste utile tel quel sur GitHub
-  Pages. **En cas de nouveau master : renommer le fichier** pour propager immédiatement.
+**Cache HTTP** — ⚠️ **`public/_headers` NE FAIT RIEN** (vérifié en prod le 21 août 2026, en lisant
+les en-têtes réels). C'est un fichier **Netlify** ; GitHub Pages l'ignore complètement et le sert
+même comme un fichier statique ordinaire. La doc décrivait jusqu'ici un régime `no-store` /
+cache-long qui n'a jamais été appliqué depuis l'abandon de Netlify — ne pas « corriger » le cache
+en éditant ce fichier, il n'a aucun effet, et GitHub Pages n'offre aucun contrôle des en-têtes.
+
+Ce qui s'applique réellement : **`cache-control: max-age=600` sur TOUT** (index, `config.js`,
+bundle hashé, MP3). En pratique ce n'est pas un problème — mesuré : passé les 10 minutes, le
+navigateur revalide avec `If-None-Match` et GitHub répond **304 avec 0 octet transféré**, donc le
+MP3 de 3,9 Mo n'est PAS re-téléchargé. La contrepartie est plutôt bonne pour nous : `config.js` et
+`index.html` se propagent en 10 minutes au lieu d'être figés. **En cas de nouveau master :
+renommer le fichier** reste la façon la plus sûre de propager immédiatement.
+
+Pas d'en-tête **HSTS** non plus (là encore, hors de notre contrôle). La redirection HTTP → HTTPS
+(301) et `https_enforced` couvrent l'essentiel ; seule la toute première requête d'un visiteur qui
+taperait `http://` à la main part en clair.
 
 **Déploiement GitHub Pages** — ⚠️ **seule cible depuis le 12 août 2026, Netlify abandonné**
 (crédits épuisés ce jour-là ; ce qui était présenté comme un « miroir de secours » dans une
