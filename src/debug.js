@@ -28,6 +28,35 @@ export function isEnabled() {
   return enabled;
 }
 
+// --- Journal d'erreurs (21 août 2026) --------------------------------------
+// Ajouté après le bug qui a bloqué toutes les parties pendant quelques heures
+// (`runsTimer` non déclaré, voir ARCHITECTURE.md §11, vingt-sixième passe) :
+// une exception dans un handler de clic ou dans la boucle de rendu ne laissait
+// AUCUNE trace visible sur un téléphone — ni console, ni message, juste un jeu
+// qui ne démarre pas. Les erreurs sont désormais retenues ici, affichées dans
+// l'overlay `?debug` et exposées sur `window.__erreursJeu` : sur un téléphone
+// de testeur, `?debug` suffit à lire la cause au lieu de la deviner.
+const MAX_ERREURS = 6;
+const erreurs = [];
+
+export function signaler(source, e) {
+  const message = `${source}: ${(e && e.message) || e}`;
+  // Une erreur qui se répète à chaque frame ne doit pas noyer les autres.
+  if (erreurs.some((x) => x.message === message)) return;
+  if (erreurs.length >= MAX_ERREURS) erreurs.shift();
+  erreurs.push({ message, pile: (e && e.stack) || "" });
+  window.__erreursJeu = erreurs;
+}
+
+export function getErreurs() {
+  return erreurs;
+}
+
+// Filet global : couvre ce qui échappe aux try/catch posés à la main
+// (handlers d'événements, promesses non attrapées).
+window.addEventListener("error", (ev) => signaler("window", ev.error || ev.message));
+window.addEventListener("unhandledrejection", (ev) => signaler("promesse", ev.reason));
+
 // Lignes de temps/mesure qui descendent vers le joueur au rythme du morceau.
 export function renderBeatGrid(ctx, width, height) {
   if (!enabled) return;
@@ -85,6 +114,18 @@ export function renderStats(ctx, stats) {
   lines.forEach((line, i) => {
     ctx.fillText(line, padding * 2, padding + i * lineHeight + 4);
   });
+
+  // Erreurs retenues (voir signaler()) : en ROUGE, sous les stats. C'est le
+  // seul endroit du jeu où une exception devient lisible sur un téléphone.
+  if (erreurs.length) {
+    const y0 = padding + lines.length * lineHeight + padding;
+    ctx.fillStyle = "rgba(80,0,0,0.75)";
+    ctx.fillRect(padding, y0, boxWidth, erreurs.length * lineHeight + padding);
+    ctx.fillStyle = "#ff8f7a";
+    erreurs.forEach((err, i) => {
+      ctx.fillText(err.message.slice(0, 46), padding * 2, y0 + i * lineHeight + 4);
+    });
+  }
 
   ctx.textBaseline = "alphabetic"; // remis à la valeur par défaut du canvas
 }

@@ -350,6 +350,15 @@ const RUNS_REFRESH_MS = 20000;
 // temps réel, restaurée à la revue du 21 août 2026) : sous ce total, un
 // compteur fait vide plutôt que preuve — « ● 3 parties jouées » ferait fuir.
 const RUNS_MIN_AFFICHE = 20;
+// ⚠️ DÉCLARATION MANQUANTE, corrigée le 21 août 2026 — elle avait sauté dans
+// la refonte « compteur assaini » de la vingt-quatrième passe. Un module ES
+// est en mode strict : lire/écrire un identifiant non déclaré lève un
+// ReferenceError. arreterCompteurCourses() plantait donc à CHAQUE appel, et
+// comme hideOverlay() l'appelle AVANT que beginRun() ne demande le démarrage
+// de la course, l'exception tuait le handler du clic sur JOUER : overlay
+// masqué, décor qui défile, musique qui tourne — et une partie qui ne
+// démarrait jamais, sur tous les appareils. Voir la vingt-sixième passe.
+let runsTimer = null;
 
 async function majCompteurCourses() {
   if (document.hidden) return; // pas de requête pour un écran que personne ne regarde
@@ -547,17 +556,30 @@ function skipCountdown() {
 }
 
 function beginRun() {
-  clearTimeout(skipButtonTimer);
-  hideOverlay();
-  showPauseButton();
-  clearTimeout(skipButtonTimer);
-  skipCountdownBtn.classList.remove("visible");
+  // ⚠️ ORDRE VOLONTAIRE, appris à la dure le 21 août 2026 : le démarrage
+  // RÉEL de la course passe EN PREMIER, avant toute manipulation du DOM.
+  // Avant ce changement, hideOverlay() était appelé en tête — et une simple
+  // ReferenceError dedans (runsTimer non déclaré, voir plus haut) tuait le
+  // handler du clic AVANT requestGameStart() : l'overlay disparaissait, le
+  // décor défilait, la musique tournait, et la partie ne démarrait jamais.
+  // Un ratage cosmétique ne doit jamais pouvoir empêcher la course de
+  // partir ; l'inverse est acceptable. Même raison pour le try/catch : ce
+  // bloc n'a que des effets d'affichage.
+  deps.requestGameStart();
+  try {
+    clearTimeout(skipButtonTimer);
+    hideOverlay();
+    showPauseButton();
+    skipCountdownBtn.classList.remove("visible");
+  } catch (e) {
+    debugOverlay.signaler("beginRun", e);
+  }
   // audio.play() N'est PLUS appelé ici — le morceau tourne depuis nextStep()
   // (étape pseudo → étape volume), on ne veut surtout pas le relancer et
   // perdre la position courante (le score dépend de la position musicale).
   // Le VRAI démarrage de la course (startRequested/startRequestedAt) reste
-  // décidé par main.js — c'est lui qui pilote la boucle de jeu.
-  deps.requestGameStart();
+  // décidé par main.js — c'est lui qui pilote la boucle de jeu (appelé tout
+  // en haut de cette fonction, voir le commentaire d'ordre).
 }
 
 function startGame() {

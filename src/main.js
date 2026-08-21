@@ -1283,7 +1283,22 @@ if (document.fonts && document.fonts.load) {
 let lastTime = performance.now() / 1000;
 let accumulator = 0;
 
+// ⚠️ `requestAnimationFrame` est replanifié dans un `finally`, jamais en
+// dernière ligne du corps (21 août 2026) : avant ce changement, la moindre
+// exception dans step()/render() laissait la boucle NON replanifiée — image
+// figée à jamais, musique qui continue (Web Audio vit dans son propre thread),
+// aucun message. C'est exactement le tableau qu'on a passé une soirée à
+// diagnostiquer. Un jeu dégradé reste jouable, un jeu figé non — même
+// principe que l'horloge de secours (§5.1).
 function frame(nowMs) {
+  try {
+    frameInterne(nowMs);
+  } finally {
+    requestAnimationFrame(frame);
+  }
+}
+
+function frameInterne(nowMs) {
   const now = nowMs / 1000;
   const frameTime = Math.min(now - lastTime, MAX_FRAME_TIME);
   lastTime = now;
@@ -1319,15 +1334,30 @@ function frame(nowMs) {
     // chaque mort, systématiquement. Accepter l'offre ensuite ne pouvait rien
     // faire : `game.ended` était déjà vrai.
     while (accumulator >= FIXED_DT && !isPaused()) {
-      step(FIXED_DT);
+      try {
+        step(FIXED_DT);
+      } catch (e) {
+        // Une frame de simulation ratée ne doit pas figer la partie : on la
+        // signale une fois et on continue. Le temps avance quand même
+        // (accumulator décrémenté), sinon la boucle tournerait à l'infini.
+        debugOverlay.signaler("step", e);
+      }
       accumulator -= FIXED_DT;
     }
   }
 
-  screens.syncLoadingUi();
-  screens.syncTutorialUi();
-  render(accumulator / FIXED_DT);
-  requestAnimationFrame(frame);
+  try {
+    screens.syncLoadingUi();
+    screens.syncTutorialUi();
+  } catch (e) {
+    // Synchro DOM purement cosmétique : elle ne doit jamais emporter le rendu.
+    debugOverlay.signaler("syncUi", e);
+  }
+  try {
+    render(accumulator / FIXED_DT);
+  } catch (e) {
+    debugOverlay.signaler("render", e);
+  }
 }
 
 screens.showOverlayOnLoad();
