@@ -390,6 +390,24 @@ function startGame() {
   // audio.unlock() a déjà eu lieu au nextStep() de l'étape pseudo. Idempotent
   // de toute façon (armed = true dès le 1er appel), donc on ne re-tente pas
   // pour éviter la moindre confusion.
+  //
+  // ⚠️ Tutoriel sauté pour qui a DÉJÀ joué sur ce téléphone (21 août 2026,
+  // demandé : « ceux qui se sont déjà connectés avec leur téléphone peuvent
+  // pas avoir le tuto de début »). Le tutoriel apprend le pont, les swipes et
+  // le combo — une fois su, c'est 4 étapes à refaire avant CHAQUE course,
+  // exactement le frein qu'on veut retirer à quelqu'un qui enchaîne les
+  // parties pour battre son score.
+  //
+  // Pas de nouvelle clé : `partiesJouees` (incrémenté à chaque écran de fin,
+  // voir renderEndScreen) répond déjà exactement à la question posée — il
+  // vaut 0 tant qu'aucune course n'est allée à son terme. Conséquence voulue :
+  // quelqu'un qui abandonne sa toute première course avant la fin la revoit,
+  // et le repli de partiesJouees() en navigation privée (0) redonne le
+  // tutoriel plutôt que de le retirer à un vrai débutant.
+  if (partiesJouees() > 0) {
+    beginRun();
+    return;
+  }
   runTutorial();
 }
 

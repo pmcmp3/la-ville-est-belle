@@ -753,15 +753,18 @@
        légende, ce qui le mettait pile au milieu de l'écran, en concurrence
        avec le personnage. Le repositionnement se fait sur #overlay.countdown-
        view (justify-content: flex-start) plus bas, pas ici. */
-    /* 104px → 56px le 20 août 2026 : le chiffre géant datait du décompte
-       « 20 → 1 » plein écran ; en « 1/4 » de progression du tutoriel, il
-       écrasait la consigne juste en dessous (retour capture à l'appui :
-       « le texte est par-dessus, ça va pas »). */
+    /* 104px → 56px le 20 août 2026, puis → 26px le 21 août 2026 (« le 1/4 est
+       énorme pour rien »). Le chiffre géant datait du décompte « 20 → 1 »
+       plein écran, où il ÉTAIT le contenu ; en « 1/4 » ce n'est qu'un
+       indicateur de progression, il ne doit pas concurrencer la consigne ni
+       la scène — c'est elle qu'on demande au joueur de regarder. Rendu en
+       blanc légèrement retenu pour la même raison. */
     #countdown-num {
-      font: 900 56px/1 var(--police);
-      color: var(--blanc);
+      font: 900 26px/1 var(--police);
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: 0.04em;
       font-variant-numeric: tabular-nums;
-      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
     }
 
     /* Pop du « 1/4 » quand l'étape change : la classe est retirée puis reposée
@@ -804,9 +807,9 @@
          recouvrait le chiffre (retour capture à l'appui le 20 août 2026).
          L'ancrage par le HAUT (translateX seul) fait pousser le texte vers le
          bas quelle que soit sa longueur — le chiffre reste toujours dégagé.
-         114px = padding-top de .countdown-view (48px) + hauteur du chiffre
-         (56px) + 10px d'air. */
-      top: calc(114px + var(--safe-top));
+         86px = padding-top de .countdown-view (48px) + hauteur du chiffre
+         (26px depuis le 21 août 2026) + 12px d'air. */
+      top: calc(86px + var(--safe-top));
       left: 50%;
       transform: translateX(-50%);
       margin: 0;
@@ -815,20 +818,24 @@
          de 50% du conteneur (containing block width − left), donc ~187px
          sur un iPhone plutôt que les 320px voulus — bug trouvé en vérifiant
          (texte débordant de son fond, 6 lignes étroites au lieu de 4). */
-      width: min(300px, calc(100% - 48px));
+      width: min(288px, calc(100% - 48px));
       box-sizing: border-box;
-      padding: 12px 18px;
-      border-radius: 14px;
+      padding: 10px 16px;
+      border-radius: 13px;
       /* 0,55 → 0,7 en même temps que le voile assombri (12 août 2026) : sur
          le fond désormais plus sombre du décompte, l'ancienne opacité rendait
          le panneau presque invisible, fondu dans le voile derrière. */
       background: rgba(13, 13, 16, 0.7);
       text-align: center;
-      /* 22px → 16px le 20 août 2026 (« faut plus petit ») : les 22px dataient
-         de l'ANCIEN décompte passif où la consigne était seule à l'écran ; en
-         tutoriel elle cohabite avec le « 1/4 » et la scène à regarder. 16px
-         reste au-dessus du corps de texte standard iOS (15-17px). */
-      font: 900 16px/1.45 var(--police);
+      /* 22px → 16px le 20 août 2026 (« faut plus petit »), → 13,5px le 21 août
+         2026 (même retour, les éléments se marchaient dessus). Les 22px
+         dataient de l'ANCIEN décompte passif où la consigne était seule à
+         l'écran ; en tutoriel elle cohabite avec le « 1/4 », la pochette et
+         la scène à regarder. À 13,5px en 900, une consigne de 2 lignes tient
+         dans 55px au lieu de 94 — c'est ce qui dégage la pochette en dessous
+         sur les petits écrans (iPhone SE : la marge passe de −13px à +35px,
+         mesuré). */
+      font: 900 13.5px/1.45 var(--police);
       color: var(--blanc);
       opacity: 1;
       /* 0,35 s → 0,2 s : sert aussi de fondu ENTRE deux consignes (screens.js
@@ -1081,20 +1088,70 @@
       width: 240px;
       box-sizing: border-box;
       margin: 0 0 22px;
-      padding: 12px 14px;
+      padding: 16px 14px 14px;
       border: 2px solid rgba(225, 62, 38, 0.55);
       border-radius: 12px;
       background: rgba(225, 62, 38, 0.12);
-      font: 500 14px/1.45 var(--police);
       color: var(--noir);
       text-align: center;
     }
 
-    #sound-notice span {
+    /* Haut-parleur pixel art. `crispEdges` désactive l'antialiasing du SVG :
+       c'est LUI qui fait que les blocs restent des blocs (sans, le navigateur
+       adoucit les bords à l'agrandissement et le rendu redevient "vectoriel
+       lisse", exactement ce qu'on ne veut pas ici). */
+    #sound-pixel {
       display: block;
-      margin-top: 5px;
-      font: 500 11.5px/1.45 var(--police);
-      color: rgba(0, 0, 0, 0.6);
+      width: 118px;
+      height: 74px;
+      margin: 0 auto 10px;
+      shape-rendering: crispEdges;
+    }
+
+    /* Les ondes s'allument en cascade, de la plus proche à la plus lointaine :
+       le son qui "sort" du haut-parleur. --i porte le rang de chaque onde. */
+    #sound-pixel .onde {
+      animation: onde-pulse 1.5s steps(1, end) infinite;
+      animation-delay: calc(var(--i) * 0.18s);
+    }
+
+    /* Palier bas à 0,5 et pas 0,18 : à 0,18 l'onde disparaissait carrément du
+       panneau (rouge clair sur fond rosé), et l'icône passait la moitié du
+       temps amputée de ses ondes — c'est le pictogramme complet qui doit se
+       lire d'un coup d'œil, l'animation ne fait que l'animer. Marches dures
+       (steps) plutôt qu'un fondu : cohérent avec la DA pixel. */
+    @keyframes onde-pulse {
+      0%, 55% { opacity: 1; }
+      56%, 100% { opacity: 0.5; }
+    }
+
+    .sound-lead {
+      margin: 0 0 10px;
+      font: 900 13.5px/1.35 var(--police);
+      color: var(--noir);
+    }
+
+    .sound-tips {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font: 500 12px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.66);
+    }
+
+    .sound-tips li + li { margin-top: 2px; }
+
+    .sound-tips b {
+      display: inline-block;
+      min-width: 58px;
+      font-weight: 900;
+      color: var(--noir);
+    }
+
+    /* Respect de « réduire les animations » (réglage système iOS/Android) :
+       les ondes se figent allumées plutôt que de clignoter. */
+    @media (prefers-reduced-motion: reduce) {
+      #sound-pixel .onde { animation: none; opacity: 1; }
     }
 
     /* Playtest 3 : "le slider est beaucoup trop grand". Le range natif
@@ -1545,7 +1602,59 @@
               <div id="loading-track"><div id="loading-fill"></div></div>
               <span id="loading-label">0 %</span>
             </div>
-            <p id="sound-notice">Il est recommandé de jouer avec la musique et le son montés.<span>Sur iPhone, vérifie l'interrupteur sonnerie. Sur Android, monte le volume.</span></p>
+            <!-- Écran « monte le son » (21 août 2026, demandé : « je veux un
+                 truc pour dire de monter le volume en DA pixel et juste un
+                 texte simple pour android et iphone »). Le jeu est calé sur
+                 le morceau : jouer en silencieux, c'est passer à côté du
+                 produit — d'où un vrai visuel plutôt qu'une note grise.
+                 Haut-parleur en PIXEL ART : SVG à `shape-rendering:
+                 crispEdges`, un <rect> par bloc, donc des arêtes dures à
+                 n'importe quelle densité d'écran (un PNG aurait bavé sur les
+                 écrans @3x, un emoji aurait imposé la fonte du système). Même
+                 grammaire que les sprites voxel du jeu. -->
+            <div id="sound-notice">
+              <svg id="sound-pixel" viewBox="0 0 38 24" aria-hidden="true">
+                <!-- Corps + cône du haut-parleur, tout centré sur y=12 -->
+                <g fill="var(--panneau-bord)">
+                  <rect x="2" y="9" width="4" height="6" />
+                  <rect x="6" y="8" width="2" height="8" />
+                  <rect x="8" y="6" width="2" height="12" />
+                  <rect x="10" y="4" width="2" height="16" />
+                </g>
+                <!-- Trois ondes concentriques, en escalier (2 marches + un
+                     ventre) pour qu'un arc se LISE comme un arc : une simple
+                     barre verticale se lisait comme un « | », pas comme du
+                     son. Chacune est symétrique autour de y=12. -->
+                <g fill="var(--rouge)">
+                  <g class="onde" style="--i: 0">
+                    <rect x="14" y="7" width="2" height="2" />
+                    <rect x="16" y="9" width="2" height="2" />
+                    <rect x="18" y="11" width="2" height="2" />
+                    <rect x="16" y="13" width="2" height="2" />
+                    <rect x="14" y="15" width="2" height="2" />
+                  </g>
+                  <g class="onde" style="--i: 1">
+                    <rect x="22" y="4" width="2" height="2" />
+                    <rect x="24" y="6" width="2" height="3" />
+                    <rect x="26" y="9" width="2" height="6" />
+                    <rect x="24" y="15" width="2" height="3" />
+                    <rect x="22" y="18" width="2" height="2" />
+                  </g>
+                  <g class="onde" style="--i: 2">
+                    <rect x="30" y="1" width="2" height="2" />
+                    <rect x="32" y="3" width="2" height="4" />
+                    <rect x="34" y="7" width="2" height="10" />
+                    <rect x="32" y="17" width="2" height="4" />
+                    <rect x="30" y="21" width="2" height="2" />
+                  </g>
+                </g>
+              </svg>
+              <p class="sound-lead">Le jeu est calé sur le morceau.</p>
+              <ul class="sound-tips">
+                <li><b>iPhone</b> coupe le mode silencieux</li>
+                <li><b>Android</b> monte le volume média</li>
+              </ul>
+            </div>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
           </div>
         </div>

@@ -857,6 +857,40 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Dix-huitième passe du 21 août 2026 — domaine propre + salve UX (retour iPhone en prod).**
+- **Domaine `la-ville-est-belle-pmc.fr`** (OVH, acheté par l'artiste) sur GitHub Pages :
+  `public/CNAME` (donc embarqué au build, sinon chaque force-push le perdrait), balises OG/
+  Twitter et URL de l'image de partage recalées dessus, HTTPS forcé activé via l'API GitHub.
+  L'ancienne adresse `pmcmp3.github.io/la-ville-est-belle` redirige (301) — rien de partagé
+  avant ne casse. ⚠️ **Ordre de déploiement non négociable** : publier le CNAME AVANT que le
+  DNS résolve rend le jeu injoignable aux DEUX adresses (github.io se met à rediriger vers un
+  domaine mort). Vérifier `dig +short A <domaine>` d'abord.
+  ⚠️ **Piège OVH rencontré** : la zone d'un domaine neuf contient une page d'attente —
+  `A 213.186.33.5` + `TXT "…|welcome"` sur l'apex ET sur `www`. Sur `www` elle FAIT ÉCHOUER
+  l'ajout du CNAME (un CNAME ne peut coexister avec aucun autre enregistrement du même nom) ;
+  sur l'apex elle est plus vicieuse — aucune erreur, mais 1 visiteur sur 5 tombe sur la pub
+  OVH, et surtout **GitHub refuse d'émettre le certificat** tant qu'une IP étrangère traîne,
+  donc pas de HTTPS, donc `navigator.share` (le partage de score) mort. À supprimer avant tout.
+- **Écran « monte le son » en DA pixel** (`#sound-notice`, index.html) — « je veux un truc pour
+  dire de monter le volume en DA pixel et juste un texte simple pour android et iphone ».
+  Haut-parleur + 3 ondes concentriques en SVG `shape-rendering: crispEdges` (un `<rect>` par
+  bloc : arêtes dures à toute densité d'écran, là où un PNG baverait en @3x), ondes qui
+  s'allument en cascade. ⚠️ Palier bas de l'animation à 0,5 et pas 0,18 : plus bas, l'onde
+  disparaît du fond rosé et le pictogramme passe la moitié du temps amputé. Ondes dessinées en
+  ESCALIER (2 marches + un ventre) — une simple barre verticale se lisait « | », pas « son ».
+- **Tuto : textes réduits, plus de chevauchement** (« les éléments se marchent un peu dessus,
+  le 1/4 est énorme pour rien ») : `#countdown-num` 56 → **26px** (ce n'est qu'un indicateur de
+  progression, il ne doit pas concurrencer la scène), `#countdown-caption` 16 → **13,5px** et
+  son ancrage 114 → 86px, pochette `height×0,30` → **`max(height×0,28, 172)`** avec un plancher.
+  ⚠️ Le plancher est la vraie correction : la consigne est du DOM, la pochette est peinte sur le
+  CANVAS — les deux ne se voient pas. Mesuré sur iPhone SE (667px, le pire cas) avec la consigne
+  la plus longue : la marge consigne↔pochette passe de **−13px (chevauchement) à +42px**.
+- **Tutoriel sauté pour qui a déjà joué sur ce téléphone** (`startGame()`, screens.js) — demandé.
+  Réutilise `partiesJouees` (déjà incrémenté à chaque écran de fin), **aucune nouvelle clé** :
+  vaut 0 tant qu'aucune course n'est allée à son terme, donc quelqu'un qui abandonne sa première
+  course le revoit, et le repli en navigation privée (0) redonne le tutoriel plutôt que de le
+  retirer à un débutant. REJOUER passait déjà à côté du tuto (`restartGame`, chemin séparé).
+
 **Dix-septième passe du 21 août 2026 — refonte 3D des étoiles (screens d'inspiration à l'appui).**
 - 🐛 **« Les étoiles 3D sont moches, on dirait des petits pâtés »** (références fournies :
   étoile Mario en voxel et en volume lissé). Le montage face-plate-pincée-au-cosinus + tranche-

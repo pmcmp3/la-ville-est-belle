@@ -333,9 +333,16 @@ export function dessinerRecompense(ctx, width, height) {
   if (etat.reussite > 0) alpha = Math.min(alpha, etat.reussite / DUREE_REUSSITE);
   if (alpha <= 0.01) return;
 
-  const size = Math.min(width * 0.34, 150);
+  const size = Math.min(width * 0.30, 132);
   const cx = width / 2;
-  const top = height * 0.30;
+  // ⚠️ Plancher à 172px (21 août 2026, « les éléments se marchent un peu
+  // dessus ») : la consigne du haut est du DOM (#countdown-caption), la
+  // pochette est peinte ici sur le canvas — les deux ne se voient pas. À
+  // height×0,30 seul, un petit écran (iPhone SE, 667px → 200px) passait sous
+  // le bas de la consigne. Le plancher est calé sur le pire cas mesuré :
+  // 48px de padding + 26px de « 1/4 » + 12px d'air + une consigne de 2 lignes
+  // (55px) = 141px, + 31px de marge.
+  const top = Math.max(height * 0.28, 172);
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -350,7 +357,7 @@ export function dessinerRecompense(ctx, width, height) {
   const bx = cx - size / 2 - pad;
   const by = top - pad;
   const bw = size + pad * 2;
-  const bh = size + pad * 2 + 38; // couvre aussi la pastille de promesse
+  const bh = size + pad * 2 + 33; // couvre aussi la pastille de promesse (10 + 23)
   const dpr = ctx.getTransform().a || 1;
   ctx.filter = "blur(9px)";
   ctx.drawImage(ctx.canvas, bx * dpr, by * dpr, bw * dpr, bh * dpr, bx, by, bw, bh);
@@ -371,12 +378,12 @@ export function dessinerRecompense(ctx, width, height) {
 
   // La promesse, dans le même panneau sombre que la consigne du haut.
   const texte = "Le meilleur score gagne le vinyle de l'EP";
-  ctx.font = `900 13px ${POLICE}`;
-  const largeur = ctx.measureText(texte).width + 28;
-  const py = top + size + 12;
+  ctx.font = `900 11.5px ${POLICE}`;
+  const largeur = ctx.measureText(texte).width + 24;
+  const py = top + size + 10;
   // Tracé manuel plutôt que ctx.roundRect (Safari < 16.4 ne l'a pas — même
   // choix que roundRect() dans hud.js).
-  const rx = cx - largeur / 2, rh = 26, rr = 13;
+  const rx = cx - largeur / 2, rh = 23, rr = 11.5;
   ctx.fillStyle = "rgba(13,13,16,0.7)";
   ctx.beginPath();
   ctx.moveTo(rx + rr, py);
@@ -389,7 +396,7 @@ export function dessinerRecompense(ctx, width, height) {
   ctx.fillStyle = JAUNE;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(texte, cx, py + 13);
+  ctx.fillText(texte, cx, py + rh / 2);
   ctx.restore();
 }
 
