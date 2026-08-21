@@ -49,7 +49,6 @@ const ctaLink = document.getElementById("cta-link");
 const endCta = document.getElementById("end-cta");
 const shareButton = document.getElementById("share-button");
 const fanNote = document.getElementById("fan-note");
-const nowPlaying = document.getElementById("now-playing");
 const runsCount = document.getElementById("runs-count");
 const runsCountNum = document.getElementById("runs-count-num");
 // Pop-up de verrou depuis le bas (remplace l'ancienne note statique sous
@@ -151,7 +150,6 @@ function closeUnlockSheet() {
 
 export function showOverlay() {
   overlay.classList.add("visible");
-  syncEqLoop();
 }
 
 // --- Compteur de parties, en temps réel ------------------------------------
@@ -188,14 +186,11 @@ function arreterCompteurCourses() {
 
 export function hideOverlay() {
   overlay.classList.remove("visible");
-  // 🐛 Sans cet appel, REJOUER depuis l'écran de fin (qui ne change PAS
-  // currentView, il ne fait que masquer l'overlay) laissait la boucle rAF de
-  // l'equalizer tourner pendant TOUTE la course suivante — getEqLevels +
-  // écritures de style chaque frame sur des barres invisibles. Trouvé à la
-  // revue de code du 21 août 2026 ; la boucle est désormais conditionnée à
-  // « vue de fin ET overlay visible ».
-  syncEqLoop();
-  arreterCompteurCourses(); // même raison que syncEqLoop : plus visible, plus de requêtes
+  // ⚠️ REJOUER depuis l'écran de fin ne change PAS currentView : il ne fait
+  // que masquer l'overlay. Tout ce qui tourne en boucle sur cet écran doit
+  // donc être coupé ICI, sinon ça continue pendant toute la course suivante —
+  // c'est ce qui était arrivé à la boucle rAF de l'equalizer (retiré depuis).
+  arreterCompteurCourses();
 }
 
 // Le menu monte en fondu sur la scène déjà dessinée plutôt que sur du noir :
@@ -267,46 +262,8 @@ function nextStep() {
 // --- Equalizer de l'écran de fin (20 août 2026) ---------------------------
 // « Un égaliseur dynamique qui marche par rapport à la musique [...] même
 // modèle que le Dynamic Island : les basses à gauche, les aigus à droite. »
-// Les barres du bandeau « Tu écoutes » suivent le VRAI spectre du morceau
-// (audio.getEqLevels, AnalyserNode en dérivation de la sortie) via une boucle
-// rAF qui ne tourne QUE sur la vue de fin. Tant qu'aucune donnée n'arrive
-// (contexte audio en panne), la classe .idle laisse l'ancienne animation CSS
-// faire illusion — le vrai spectre la retire dès qu'il prend la main.
-const eqEl = nowPlaying.querySelector(".eq");
-const eqBars = Array.from(eqEl.children);
-let eqRafId = 0;
-
-function eqTick() {
-  eqRafId = requestAnimationFrame(eqTick);
-  const levels = audio.getEqLevels(eqBars.length);
-  if (!levels) {
-    eqEl.classList.add("idle");
-    for (const bar of eqBars) bar.style.transform = "";
-    return;
-  }
-  eqEl.classList.remove("idle");
-  for (let i = 0; i < eqBars.length; i++) {
-    // Plancher à 0,12 : une barre à zéro disparaît et l'ensemble lit
-    // « cassé » plutôt que « silence dans cette bande ».
-    eqBars[i].style.transform = `scaleY(${Math.max(0.12, levels[i]).toFixed(3)})`;
-  }
-}
-
-function syncEqLoop() {
-  const actif = currentView === "end" && overlay.classList.contains("visible");
-  if (actif && !eqRafId) {
-    eqTick();
-  } else if (!actif && eqRafId) {
-    cancelAnimationFrame(eqRafId);
-    eqRafId = 0;
-    eqEl.classList.add("idle");
-    for (const bar of eqBars) bar.style.transform = "";
-  }
-}
-
 function setView(view) {
   currentView = view;
-  syncEqLoop();
   onboardingEl.classList.toggle("active", view === "onboarding");
   countdownEl.classList.toggle("active", view === "countdown");
   endScreenEl.classList.toggle("active", view === "end");
@@ -740,7 +697,6 @@ export function init(d) {
 
   ctaLink.href = window.CONFIG.lienEP;
   endCta.href = window.CONFIG.lienEP;
-  nowPlaying.href = window.CONFIG.lienEP;
 
   // Panneau de verrou : le CTA lève le verrou COURANT (morceau ou suivre) au
   // clic — même règle que partout, le geste suffit, pas de preuve de lecture.
@@ -774,7 +730,7 @@ export function init(d) {
   // Le lien du morceau lève le verrou de rejeu (et donne le boost fan), sur
   // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau
   // « Tu écoutes » : le geste compte, d'où qu'il vienne.
-  [endCta, ctaLink, nowPlaying].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
+  [endCta, ctaLink].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
 
   shareButton.addEventListener("click", (e) => {
     e.stopPropagation();

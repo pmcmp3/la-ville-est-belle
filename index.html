@@ -450,63 +450,6 @@
       width: 100%;
     }
 
-    /* « Tu écoutes La ville est belle » : bandeau discret avec un mini
-       equalizer animé (4 barres, façon Dynamic Island) — le morceau joue
-       vraiment pendant l'écran de fin, ce bandeau le fait remarquer. */
-    #now-playing {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin: 0 0 12px;
-      font: 500 12px var(--police);
-      color: rgba(0, 0, 0, 0.6);
-      text-decoration: none;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    #now-playing strong { font-weight: 900; color: var(--noir); }
-
-    #now-playing .eq {
-      display: inline-flex;
-      align-items: flex-end;
-      gap: 2px;
-      height: 14px;
-    }
-
-    /* Barres pilotées en JS par le vrai spectre du morceau (scaleY posé
-       chaque frame par screens.js depuis audio.getEqLevels — basses à gauche,
-       aigus à droite). Hauteur pleine fixe, l'amplitude vit dans transform :
-       pas de reflow, juste du compositing. */
-    #now-playing .eq i {
-      display: block;
-      width: 3px;
-      height: 14px;
-      border-radius: 2px;
-      background: var(--rouge);
-      transform: scaleY(0.25);
-      transform-origin: bottom;
-    }
-
-    /* Secours : tant qu'aucune donnée d'analyse n'arrive (contexte audio en
-       panne), l'ancienne animation CSS fait illusion — retirée par screens.js
-       dès que le vrai spectre prend la main. */
-    #now-playing .eq.idle i {
-      animation: eq-bounce 1s ease-in-out infinite;
-    }
-
-    #now-playing .eq.idle i:nth-child(1) { animation-delay: 0s; }
-    #now-playing .eq.idle i:nth-child(2) { animation-delay: 0.18s; }
-    #now-playing .eq.idle i:nth-child(3) { animation-delay: 0.36s; }
-    #now-playing .eq.idle i:nth-child(4) { animation-delay: 0.54s; }
-    #now-playing .eq.idle i:nth-child(5) { animation-delay: 0.72s; }
-
-    @keyframes eq-bounce {
-      0%, 100% { transform: scaleY(0.25); }
-      50% { transform: scaleY(0.85); }
-    }
-
     /* Note « boost fan » : petite promesse sous le bouton principal, en rouge
        très doux — disparaît une fois le morceau ajouté. */
     #fan-note {
@@ -516,7 +459,7 @@
       text-align: center;
     }
 
-    #fan-note.hidden, #now-playing.hidden, #runs-count.hidden {
+    #fan-note.hidden, #runs-count.hidden {
       display: none;
     }
 
@@ -1759,19 +1702,6 @@
             <span class="runs-dot" aria-hidden="true"></span>
             <span id="runs-count-num"></span> parties jouées depuis le lancement
           </p>
-          <!-- « Tu écoutes La ville est belle » : le morceau JOUE pendant
-               l'écran de fin (~114 s de marge après la ligne d'arrivée) — ce
-               bandeau le fait remarquer, façon Dynamic Island, et le clic va
-               au même smartlink que le bouton principal. -->
-          <!-- Equalizer piloté par le VRAI spectre du morceau (audio.js,
-               getEqLevels) : 5 barres, basses à gauche → aigus à droite,
-               « même modèle que le Dynamic Island » (20 août 2026). La classe
-               .idle garde l'ancienne animation CSS en secours tant qu'aucune
-               donnée d'analyse n'arrive (contexte audio en panne). -->
-          <a id="now-playing" href="#" target="_blank" rel="noopener noreferrer">
-            <span class="eq idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-            <span>Tu écoutes <strong>La ville est belle</strong></span>
-          </a>
           <!-- Ordre volontaire : le lien vers le morceau EST l'action
                principale de cet écran, REJOUER passe dessous en secondaire
                (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent

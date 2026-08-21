@@ -868,6 +868,26 @@ est bien »). Trois trouvailles, dont une critique :
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
 
+**Vingtième passe du 21 août 2026 — dégraissage de l'écran de fin + audit de lancement.**
+- **Bandeau « Tu écoutes La ville est belle » RETIRÉ** (demandé) : markup, CSS et toute la boucle
+  rAF de l'equalizer (`eqTick`/`syncEqLoop`, screens.js) ont sauté. ⚠️ `audio.getEqLevels()` et
+  l'`AnalyserNode` de la chaîne de sortie sont **volontairement laissés en place** : plus personne
+  ne les appelle, mais un analyseur qu'on ne lit jamais ne coûte rien, alors que retoucher la
+  chaîne audio est ce qu'il y a de plus fragile dans ce projet (§5.1, §8) — pas la veille d'un
+  lancement pour un gain nul. À nettoyer plus tard si la chaîne audio est rouverte pour autre
+  chose. ⚠️ Le CTA `AJOUTER LE MORCEAU` reste : c'est lui qui porte la conversion, le bandeau
+  n'était qu'un rappel.
+- **Date de fin du concours retirée de l'écran de fin** (demandé). ⚠️ Conséquence à connaître :
+  `contestStatus()` (hud.js) continue de piloter l'ENVOI des scores — après `dateFermeture`
+  (11 octobre 2026), `postScore()` n'est plus appelé et **rien n'est enregistré, en silence**,
+  sans que le joueur voie de différence. Plus aucun écran ne mentionne la date : elle doit être
+  communiquée en dehors du jeu (post Instagram), ou `dateFermeture` repoussée.
+- Coquille corrigée : « un vinyl de l'EP » → « **vinyle** » (`#end-note`).
+- Audit de lancement : RLS reverifiée en prod (lecture directe de `scores` toujours vide,
+  UPDATE/DELETE refusés, trigger « meilleur score » actif — testé sans polluer la base en
+  envoyant un score volontairement plus bas), balayage complet 738 frames/0 exception,
+  quota 85 étoiles/106 obstacles intact, image de partage régénérée et vérifiée.
+
 **Dix-neuvième passe du 21 août 2026 — écran de fin (retour iPhone, capture à l'appui).**
 - 🐛 **Le score s'affichait DEUX FOIS** (« y'a deux fois le score ») : `hudAlpha` (main.js) ne
   faisait que MONTER vers 1 et n'était remis à 0 qu'au rejeu — le HUD de course (score + cœurs)
