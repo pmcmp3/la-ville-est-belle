@@ -300,3 +300,60 @@ export function contestStatus() {
   if (now > closes) return { open: false, label: "Concours terminé" };
   return { open: true, label: "Score valable pour le concours" };
 }
+
+// --- Défi d'un ami (21 août 2026) ----------------------------------------
+// Jauge de cible affichée pendant TOUTE la course quand le joueur est arrivé
+// par un lien de défi (`?defi=…`, voir defi.js). Volontairement petite et
+// posée sous le score : c'est une information de contexte, pas une alerte —
+// elle ne doit jamais entrer en concurrence avec la lecture de la route.
+//
+// ⚠️ Position choisie pour ne croiser NI la pénalité NI le combo, qui
+// occupent déjà la colonne centrale sous le score : la pénalité descend au
+// plus bas à PAD + SCORE_SIZE×1,2 (et REMONTE avec l'âge), le combo tient
+// entre PAD + SCORE_SIZE×1,1 et ~+16 px. D'où le facteur 2,3, mesuré pour
+// laisser un blanc franc en dessous d'eux.
+const DEFI_Y = 2.3;
+
+export function renderDefi(ctx, width, height, game) {
+  const cible = game.defiCible;
+  if (!cible) return;
+
+  const battu = game.defiBattu;
+  const label = battu
+    ? "DÉFI RELEVÉ !"
+    : `${cible.pseudo} : ${cible.score}`;
+
+  ctx.save();
+  ctx.textBaseline = "top";
+  ctx.textAlign = "center";
+  ctx.font = `900 13px ${POLICE}`;
+  const largeur = Math.max(ctx.measureText(label).width + 26, 128);
+  const hauteur = 24;
+  const x = (width - largeur) / 2;
+  const y = PAD + SCORE_SIZE * DEFI_Y;
+
+  ctx.shadowColor = HUD_SHADOW;
+  ctx.shadowBlur = HUD_SHADOW_BLUR;
+  ctx.fillStyle = PANNEAU;
+  roundRect(ctx, x, y, largeur, hauteur, 12);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+
+  // Barre de progression vers la cible, collée au bas de la pastille : c'est
+  // elle qui rend le défi lisible d'un coup d'œil (« il m'en manque combien »)
+  // sans avoir à faire la soustraction en pleine course.
+  const t = battu ? 1 : Math.max(0, Math.min(1, game.score / cible.score));
+  const barY = y + hauteur - 5;
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  roundRect(ctx, x + 10, barY, largeur - 20, 3, 2);
+  ctx.fill();
+  ctx.fillStyle = battu ? JAUNE_ETOILE : BLANC;
+  roundRect(ctx, x + 10, barY, (largeur - 20) * t, 3, 2);
+  ctx.fill();
+
+  ctx.fillStyle = battu ? JAUNE_ETOILE : "rgba(255,255,255,0.88)";
+  ctx.fillText(label, width / 2, y + 5);
+
+  ctx.restore(); // rend aussi textAlign/textBaseline à leur état d'entrée
+}

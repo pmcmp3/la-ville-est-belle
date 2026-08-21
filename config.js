@@ -75,6 +75,12 @@ window.CONFIG = {
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).
   lienSuivre: "https://open.spotify.com/artist/3TqmTXwzfX2UCduNYwW9iq",
+  // Instagram de PMC — affiché sur l'ÉCRAN DE FIN, accroché au rappel du
+  // concours (« Résultats du concours sur @pmc.mp3 »), demandé le 21 août
+  // 2026. Placé là plutôt qu'à côté des CTA de conversion : il donne une
+  // raison de suivre (savoir si on a gagné le vinyle) au lieu d'ajouter un
+  // troisième lien qui se dispute le clic avec le morceau.
+  lienInsta: "https://www.instagram.com/pmc.mp3/",
 
   // === BACKEND (étape 7 — Supabase) ===
   apiScores: "https://lmlltogosjpxkgofpcdy.supabase.co/rest/v1/scores", // URL REST du projet Supabase

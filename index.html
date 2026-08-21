@@ -579,8 +579,88 @@
       text-align: center;
     }
 
-    #fan-note.hidden, #runs-count.hidden, #change-pseudo.hidden {
+    #fan-note.hidden, #runs-count.hidden, #change-pseudo.hidden,
+    #perfect-note.hidden, #defi-result.hidden, #defi-banner.hidden,
+    #defi-button.hidden {
       display: none;
+    }
+
+    /* Course parfaite : jaune des étoiles, la couleur du gain dans tout le
+       jeu (le rouge de charte reste réservé au malus). Pastille, pas une
+       simple ligne — c'est une récompense, elle doit se voir. */
+    #perfect-note {
+      width: fit-content;
+      max-width: 100%;
+      margin: 8px auto 0;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: #ffcf2e;
+      font: 900 11px var(--police);
+      letter-spacing: 0.06em;
+      color: #4a3305;
+      text-align: center;
+    }
+
+    /* Verdict du défi. Relevé = même jaune que la course parfaite ; manqué =
+       gris neutre (un défi raté n'est pas une pénalité, juste un constat —
+       le rouge braquerait sur l'échec au lieu du « rejoue »). */
+    #defi-result {
+      width: fit-content;
+      max-width: 100%;
+      margin: 8px auto 0;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.06);
+      font: 500 11.5px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.62);
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #defi-result.gagne {
+      background: #ffcf2e;
+      color: #4a3305;
+      font-weight: 900;
+    }
+
+    #defi-banner b {
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Instagram de l'artiste : ligne muette collée au rappel du concours,
+       juste au-dessus — même famille typographique que #end-note, le lien
+       seul portant la couleur. */
+    #insta-note {
+      margin: 3px 0 0;
+      font: 500 11px var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    #insta-note a {
+      color: var(--rouge);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    /* Bandeau de défi au menu : c'est l'accroche qui a fait venir ce
+       visiteur, donc plein contraste (aplat rouge de charte), au-dessus de
+       JOUER. */
+    #defi-banner {
+      width: 100%;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: var(--rouge);
+      font: 500 12.5px/1.45 var(--police);
+      color: #fff;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #defi-button {
+      margin-top: 2px;
     }
 
     /* ⚠️ Sans ceci, #change-pseudo collait directement sous JOUER (0px : ni
@@ -1840,6 +1920,14 @@
                 <li><b>Android</b> monte le volume média</li>
               </ul>
             </div>
+            <!-- Défi reçu par lien (`?defi=…`, voir defi.js) : c'est LA raison
+                 pour laquelle ce visiteur est là, donc c'est la dernière
+                 chose qu'il lit avant de presser JOUER. Masqué en temps
+                 normal (aucun paramètre dans l'URL). -->
+            <p id="defi-banner" class="hidden">
+              <b id="defi-banner-qui"></b> te défie<br>
+              <b id="defi-banner-num"></b> points à battre
+            </p>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
             <!-- Joueur connu (pseudo+insta en localStorage) : l'étape 1 est
                  sautée et ce lien permet quand même d'en changer — téléphone
@@ -1897,7 +1985,19 @@
         <div class="panel-body">
           <div id="end-hero">
             <div id="score-num"></div>
+            <!-- Course parfaite : parcours terminé sans un seul choc. Le badge
+                 le plus rare du jeu (tous les obstacles de la grille sont
+                 fatals) — il se lit ici ET sur l'image de partage. -->
+            <p id="perfect-note" class="hidden">COURSE PARFAITE — aucun choc</p>
+            <!-- Verdict du défi, quand le joueur est arrivé par un lien. -->
+            <p id="defi-result" class="hidden"></p>
             <p id="end-note">Meilleur score = un vinyle de l'EP à gagner</p>
+            <!-- Instagram de l'artiste (21 août 2026, demandé : « est-ce qu'on
+                 peut mettre mon lien Instagram à la fin du jeu ? »). Posé ICI
+                 et pas ailleurs : accroché au rappel du concours, il donne une
+                 RAISON de suivre (savoir si on a gagné le vinyle) au lieu
+                 d'être un lien de plus à côté des deux CTA de conversion. -->
+            <p id="insta-note">Résultats du concours sur <a id="insta-link" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
           </div>
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>
@@ -1943,6 +2043,11 @@
                  pas seulement exigée. -->
             <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
             <button id="share-button" class="btn btn-secondary" type="button">PARTAGER MON SCORE</button>
+            <!-- ⚠️ Lien texte, PAS un troisième bouton de 50 px : l'écran de
+                 fin a déjà été allégé une fois pour cause de débordement
+                 (« toutes les informations ne rentrent pas ») et doit rester
+                 calme. Même vocabulaire que « Pas X ? Modifier ». -->
+            <button id="defi-button" type="button" class="link-minimal">Défier un ami avec ce score</button>
             <!-- Le bouton « PARTAGER LE CLIP » a été retiré le 20 août 2026
                  (demandé : « tu peux enlever Partager le clip, tu mets juste
                  Partager mon score ») — l'enregistrement clip.js est coupé

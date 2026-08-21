@@ -20,6 +20,7 @@ import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
 import * as share from "./share.js";
 import * as tutorial from "./tutorial.js";
+import * as defi from "./defi.js";
 
 let deps = null;
 
@@ -71,6 +72,17 @@ const reviveCtaLabel = document.getElementById("revive-cta-label");
 const reviveCtaIcone = document.getElementById("revive-cta-icone");
 const reviveDecline = document.getElementById("revive-decline");
 const changePseudoBtn = document.getElementById("change-pseudo");
+// Course parfaite + défi d'un ami (21 août 2026, voir defi.js).
+const perfectNote = document.getElementById("perfect-note");
+const defiResult = document.getElementById("defi-result");
+const defiBanner = document.getElementById("defi-banner");
+const defiBannerQui = document.getElementById("defi-banner-qui");
+const defiBannerNum = document.getElementById("defi-banner-num");
+const defiButton = document.getElementById("defi-button");
+// Libellé d'origine, mémorisé avant tout remplacement temporaire (« Lien
+// copié ! » du repli presse-papiers).
+const DEFI_LABEL = defiButton.textContent.trim();
+const instaLink = document.getElementById("insta-link");
 
 // --- Verrou de rejeu (19 août 2026) --------------------------------------
 // Version retenue du « mur » demandé par l'artiste : il voulait mettre la
@@ -832,6 +844,66 @@ function scrollCurrentScoreIntoView(li) {
   });
 }
 
+// --- Défi d'un ami (21 août 2026) ----------------------------------------
+// Le jeu porte la cible d'un bout à l'autre : bandeau au menu (« pol te
+// défie »), jauge en course (hud.renderDefi), verdict ici. Voir defi.js pour
+// la lecture de l'URL et l'absence assumée de vérification.
+
+function syncDefiBanner() {
+  const cible = defi.cible();
+  defiBanner.classList.toggle("hidden", !cible);
+  if (!cible) return;
+  defiBannerQui.textContent = cible.pseudo;
+  defiBannerNum.textContent = String(cible.score);
+}
+
+function afficherResultatDefi() {
+  const cible = defi.cible();
+  defiResult.classList.toggle("hidden", !cible);
+  defiResult.classList.remove("gagne");
+  if (!cible) return;
+  const score = deps.game.score;
+  if (score > cible.score) {
+    defiResult.classList.add("gagne");
+    defiResult.textContent = `DÉFI RELEVÉ — tu bats ${cible.pseudo} (${cible.score})`;
+  } else {
+    // L'écart plutôt que le score adverse : c'est le chiffre qui donne envie
+    // de relancer tout de suite (« il m'en manquait 400 »).
+    const ecart = cible.score - score + 1;
+    defiResult.textContent = `Défi manqué : il te manquait ${ecart} points pour battre ${cible.pseudo}`;
+  }
+}
+
+// Partage du défi. Pas de fichier joint (contrairement à PARTAGER MON
+// SCORE) : ici l'objet du partage est le LIEN, qui doit rester cliquable
+// dans une conversation. Synchrone, comme tout partage — la règle du geste
+// iOS vaut aussi pour navigator.share sans fichier.
+function partagerDefi() {
+  const score = deps.game.score;
+  const pseudo = getPseudo();
+  const url = defi.lien(score, pseudo);
+  const texte = defi.texte(score, pseudo);
+  if (navigator.share) {
+    navigator.share({ title: "La ville est belle", text: texte, url })
+      .catch(() => { /* partage annulé : rien à signaler */ });
+    return;
+  }
+  // Repli desktop : le lien dans le presse-papiers, avec un retour visible —
+  // sans ça, le bouton ne ferait rien du tout et passerait pour cassé.
+  const complet = `${texte} ${url}`;
+  const fini = () => {
+    defiButton.textContent = "Lien copié !";
+    setTimeout(() => { defiButton.textContent = DEFI_LABEL; }, 2500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(complet).then(fini).catch(() => {
+      window.prompt("Copie ce lien et envoie-le :", complet);
+    });
+  } else {
+    window.prompt("Copie ce lien et envoie-le :", complet);
+  }
+}
+
 // Fin de partie : le menu revient en fondu, réutilisé tel quel — le titre
 // devient le résultat, le bouton principal devient « Rejouer ». Un léger
 // retard laisse la scène se figer à l'écran avant que l'overlay ne monte,
@@ -843,8 +915,19 @@ export function showEndScreen(reason) {
   // « Votre score » plutôt que « Game Over » (20 août 2026, demandé) : le
   // bandeau annonce ce que la carte montre, le constat d'échec n'apportait
   // rien — un parcours terminé garde son bandeau de victoire.
-  endEyebrow.textContent = finished ? "Parcours terminé" : "Votre score";
+  // Course parfaite : elle mérite mieux que « Parcours terminé » — c'est le
+  // seul cas où le bandeau annonce une performance plutôt qu'un état.
+  const parfait = finished && deps.game.sansFaute;
+  endEyebrow.textContent = parfait
+    ? "Course parfaite"
+    : finished ? "Parcours terminé" : "Votre score";
   scoreNum.textContent = `${deps.game.score}`;
+  perfectNote.classList.toggle("hidden", !parfait);
+  afficherResultatDefi();
+  // Défier avec 0 point n'a pas de sens — et le lien serait de toute façon
+  // rejeté à la lecture (defi.js n'accepte qu'une cible strictement positive).
+  defiButton.classList.toggle("hidden", deps.game.score <= 0);
+  defiButton.textContent = DEFI_LABEL;
 
   // Compteur de parties : nourrit le verrou « suivre PMC » (3 parties).
   try { localStorage.setItem(CLE_PARTIES, String(partiesJouees() + 1)); } catch (e) { /* rien */ }
@@ -879,6 +962,7 @@ export function showEndScreen(reason) {
     etoilesTotal: deps.etoilesTotal,
     meilleurCombo: deps.game.bestCombo,
     termine: finished,
+    parfait,
   }).then(() => {
     shareButton.disabled = !share.estPret();
     shareButton.textContent = share.estPret() ? "PARTAGER MON SCORE" : "PARTAGE INDISPONIBLE";
@@ -898,6 +982,16 @@ export function init(d) {
 
   ctaLink.href = window.CONFIG.lienEP;
   endCta.href = window.CONFIG.lienEP;
+  // Instagram de l'artiste sur l'écran de fin (config.js fait foi, comme
+  // pour lienEP/lienSuivre).
+  instaLink.href = window.CONFIG.lienInsta;
+
+  // Défi reçu par lien : le bandeau se pose une fois pour toutes au menu.
+  syncDefiBanner();
+  defiButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    partagerDefi(); // synchrone : même règle de geste que le partage d'image
+  });
 
   // Panneau de verrou : le CTA lève le verrou COURANT (morceau ou suivre) au
   // clic — même règle que partout, le geste suffit, pas de preuve de lecture.

@@ -16,6 +16,7 @@ import * as tutorial from "./tutorial.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
+import * as defi from "./defi.js";
 import { consumeLaneMove, consumeJumpPress, consumeSlamDown } from "./input.js";
 
 const FIXED_DT = 1 / 120; // simulation à 120 Hz, quel que soit le taux de rafraîchissement écran
@@ -370,6 +371,16 @@ const game = {
   // pilotent aucune mécanique, ils racontent la partie une fois finie.
   stars: 0,          // étoiles ramassées sur toute la partie
   bestCombo: 1,      // plus haut multiplicateur atteint, même s'il a été cassé depuis
+  // Course parfaite (21 août 2026) : aucun choc du tout sur toute la course.
+  // Combiné à « parcours terminé », c'est le badge le plus rare du jeu — tous
+  // les obstacles de la grille étant fatals, une course parfaite est aussi
+  // forcément une course sans seconde chance. Se lit sur l'écran de fin et
+  // sur l'image de partage (share.js) ; ne pilote aucune mécanique.
+  sansFaute: true,
+  // Défi reçu par lien (`?defi=…`, voir defi.js). La cible est fixe pour
+  // toute la session : rejouer garde le même score à battre.
+  defiCible: defi.cible(),
+  defiBattu: false,
   // Palier de score déjà annoncé (bandeau « va écouter le morceau ») — évite
   // de le rejouer à chaque frame une fois le seuil franchi.
   milestoneShown: 0,
@@ -642,6 +653,8 @@ function restartGame() {
   game.streak = 0;
   game.stars = 0;
   game.bestCombo = 1;
+  game.sansFaute = true;
+  game.defiBattu = false;
   game.milestoneShown = 0;
   game.milestoneTimer = 0;
 
@@ -906,6 +919,10 @@ function step(dt) {
           // REVIVE_SHIELD_S après la reprise (l'obstacle a déjà été résolu par
           // entities.update, le joueur passe au travers). Voir offerRevive().
           if (clock.now() < reviveShieldUntil) continue;
+          // Un seul choc suffit à perdre la course parfaite — y compris une
+          // traversante encaissée par les cœurs : le badge dit « aucun choc »,
+          // pas « aucune vie perdue ».
+          game.sansFaute = false;
           // « COMBO 0 » en rouge à l'instant du choc (demandé le 21 août
           // 2026) — seulement quand un multiplicateur était réellement actif
           // (streak ≥ comboSeuil) : perdre une série de 2 étoiles n'est pas
@@ -971,6 +988,14 @@ function step(dt) {
           damageFlash = DAMAGE_FLASH_DURATION;
         }
       }
+    }
+
+    // Défi relevé : annoncé une seule fois, au moment exact du dépassement —
+    // c'est tout l'intérêt d'avoir la cible dans le jeu plutôt que dans un
+    // message. La jauge du HUD (hud.renderDefi) passe en jaune dans la foulée.
+    if (game.defiCible && !game.defiBattu && defi.battu(game.score)) {
+      game.defiBattu = true;
+      pousserPopup("DÉFI RELEVÉ !", JAUNE_ETOILE);
     }
 
     if (game.milestoneShown === 0 && game.score >= MILESTONE_SCORE) {
@@ -1226,6 +1251,7 @@ function render(alpha) {
     ctx.save();
     ctx.globalAlpha = hudAlpha;
     hud.renderHud(ctx, width, height, game);
+    hud.renderDefi(ctx, width, height, game);
     hud.renderMilestone(ctx, width, height, game);
     if (audioFallback) hud.renderAudioWarning(ctx, width, height);
     ctx.restore();

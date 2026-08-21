@@ -67,7 +67,7 @@ Elles viennent du brief et ne se renégocient pas sans l'artiste.
 
 ## 4. Carte des modules
 
-`src/` — 16 modules, ~6 600 lignes avec `index.html`. Aucun n'importe `main.js` : les
+`src/` — 17 modules, ~6 700 lignes avec `index.html`. Aucun n'importe `main.js` : les
 dépendances vont toujours vers le bas.
 
 | Module | Rôle | À savoir |
@@ -87,6 +87,7 @@ dépendances vont toujours vers le bas.
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `crosstraffic.js` | Voitures/camions qui TRAVERSENT la chaussée aux carrefours | ⚠️ Fait basculer les croisements de décor à gameplay (19 août 2026). Vit sur la grille de DISTANCE (`road.isCrossingSlot`, partagée avec `world.js`), PAS sur la grille musicale d'`entities.js` — collisions et `Set` de résolus séparés. Densité nulle avant ~50 s, maximale après ~100 s : c'est le levier qui durcit la FIN sans toucher au début. Coût −1 vie, jamais fatal (voir l'en-tête du fichier) |
 | `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
+| `defi.js` | « Défie un ami » : cible reçue dans l'URL (`?defi=…&de=…`), lien à renvoyer | Lue UNE fois au chargement du module, immuable ensuite (rejouer garde la même cible). Aucune vérification, assumé (voir l'en-tête du fichier) : la cible ne touche jamais Supabase, elle ne vit que dans le duel entre deux amis |
 | `share.js` | Image de partage **carrée 1080×1080** (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
 | `hud.js` | Score, vies, statut concours, bandeau de palier | |
 | `tutorial.js` | Tutoriel interactif d'avant-course (remplace le décompte 20 → 1) | Machine à états à 4 étapes, OBSERVE l'état du joueur (voie/saut) au lieu de lire l'input — main.js consomme déjà les gestes, un 2e consommateur les lui volerait. Objets de démo rendus par `peindreObjet` (entities-render.js), placés en voie ADJACENTE au joueur (une étape ne se valide jamais sans geste ; la main fantôme montre, ne joue pas). Sorties sans geste : « Passer l'intro », plafond 30 s (screens.js) |
@@ -869,6 +870,50 @@ est bien »). Trois trouvailles, dont une critique :
   plus aucun import de `clip.js`, aucun console.log. Balayage complet −LEAD_IN → arrivée,
   extras compris : **734 frames, 0 exception**, 85/106 confirmé, et les 6 étoiles de grâce
   mesurées toutes en voies latérales (la centrale reste à Soberland).
+
+**Vingt-cinquième passe du 21 août 2026 — défi à un ami, course parfaite, Instagram.**
+Trois leviers de rétention/partage choisis par l'artiste dans une liste de dix propositions
+(« le défi à un ami [...] le point numéro 5 [...] est-ce qu'on peut mettre mon lien Instagram à
+la fin du jeu ? »). Aucun ne touche à l'équilibrage : le quota 85/106, la loi de difficulté et
+le score maximum (86 825 / 95 519) sont inchangés.
+- **`defi.js` (nouveau module)** — la cible d'un défi voyage dans l'URL (`?defi=23102&de=pol`) et
+  le jeu la porte d'un bout à l'autre : bandeau rouge au-dessus de JOUER (« pol te défie /
+  23 102 points à battre »), jauge de progression sous le score pendant TOUTE la course
+  (`hud.renderDefi`), popup « DÉFI RELEVÉ ! » à l'instant du dépassement, verdict sur l'écran de
+  fin (relevé, ou l'ÉCART qui manquait — c'est le chiffre qui fait relancer). Le partage se fait
+  par un lien texte discret sous PARTAGER MON SCORE, `navigator.share({text, url})` sans fichier
+  joint (le champ `url` est honoré ici, contrairement à share.js), repli presse-papiers.
+  - ⚠️ **Le lien de défi se fabrique sur une base EN DUR** (`BASE`, defi.js), jamais sur
+    `location.href` : le défiant est très souvent quelqu'un qui vient lui-même d'un lien de défi,
+    et relayer son URL courante renverrait le score de la personne PRÉCÉDENTE.
+  - ⚠️ **Aucune vérification, par construction** — cohérent avec « aucun anti-triche, la vérité du
+    concours se fait au screenshot ». Rien de tout ça n'atteint Supabase : `net.js` ne lit pas
+    `defi.js`, un défi truqué ne salit que le duel entre deux amis.
+  - Entrées nettoyées : score entier de 1 à 9 999 999, pseudo réduit à `\p{L}\p{N}._ -` et
+    18 caractères. Vérifié hors ligne sur 10 URL (dont `?defi=abc`, `?defi=-5`, `?defi=1e9` et
+    une tentative d'injection) : rejets et troncatures conformes.
+  - `hud.renderDefi` est posé à `PAD + SCORE_SIZE × 2,3`, mesuré pour ne croiser NI la pénalité
+    (qui descend au plus bas à ×1,2 et REMONTE avec l'âge) NI le combo (×1,1 + ~16 px).
+    Balayage de rendu hors ligne (ctx factice, 375×812) : pastille la plus large mesurée à 230 px
+    sur 375, pseudo de 18 caractères + cible à 7 chiffres compris — aucun débordement.
+- **Course parfaite** (`game.sansFaute`) — parcours terminé sans UN SEUL choc, traversante
+  encaissée par les cœurs comprise (le badge dit « aucun choc », pas « aucune vie perdue »).
+  Tous les obstacles de la grille étant fatals, c'est mécaniquement aussi une course sans
+  seconde chance : le badge le plus rare du jeu. Se lit à trois endroits : le bandeau de l'écran
+  de fin (« Course parfaite » au lieu de « Parcours terminé »), une pastille jaune sous le score,
+  et le badge de l'image de partage — où il **remplace** le badge de disque plutôt que de s'y
+  ajouter (un joueur parfait a de toute façon un bon score ; afficher les deux diluerait le rare
+  dans l'ordinaire). Le drapeau tombe APRÈS le garde de bouclier post-revive, donc un choc ignoré
+  par le bouclier ne compte pas — sans effet en pratique (un revive implique déjà un choc).
+- **Instagram de l'artiste** (`lienInsta`, config.js) sur l'écran de fin, accroché au rappel du
+  concours : « Résultats du concours sur @pmc.mp3 ». Placement choisi contre l'évidence (à côté
+  des CTA) : là il DONNE une raison de suivre — savoir si on a gagné le vinyle — au lieu d'être
+  un troisième lien qui se dispute le clic avec le morceau et avec « suivre PMC sur Spotify ».
+- ⚠️ **Non vérifié à l'écran** : la preview navigateur a de nouveau refusé toute navigation vers
+  le serveur de dev (symptôme connu, §12), donc rien du DOM (bandeau, pastilles, ligne Instagram,
+  lien de défi) n'a été vu en vrai — seulement le build (26 modules transformés, 0 erreur), le
+  balayage de `renderDefi` sur ctx factice et les tests d'URL. **À regarder au prochain test
+  téléphone**, en ouvrant le jeu avec `?defi=1000&de=test`.
 
 **Vingt-quatrième passe du 21 août 2026 — audit à 8 angles, corrections, échelle de conversion à 3 paliers.**
 - **Revue de code à 8 angles sur tout le diff du jour (2 094 lignes)** : 10 constats vérifiés,

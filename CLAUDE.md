@@ -167,6 +167,19 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     statique sous le bouton, qui encombrait la carte. ⚠️ Le verrou se lève au CLIC, jamais à une
     preuve de lecture : sur iOS le lien part dans un autre onglet et rien ne garantit qu'on
     revienne — l'exiger enfermerait le joueur dans un écran sans issue.
+- **Défi à un ami** (`defi.js`, demandé le 21 août 2026) : le lien de partage embarque un score
+  à battre (`?defi=23102&de=pol`). Le jeu porte la cible d'un bout à l'autre — bandeau au-dessus
+  de JOUER, jauge de progression sous le score pendant la course, popup « DÉFI RELEVÉ ! » au
+  dépassement, verdict (ou l'écart manquant) sur l'écran de fin. Partage par lien texte sous
+  PARTAGER MON SCORE. ⚠️ **Aucune vérification, assumé** — même règle que le reste du jeu, et
+  rien de tout ça n'atteint Supabase. ⚠️ Le lien se fabrique sur une base EN DUR, jamais sur
+  `location.href` (sinon on relaie le score du défiant précédent).
+- **Course parfaite** (demandé le 21 août 2026) : parcours terminé sans un seul choc (traversante
+  comprise) → bandeau « Course parfaite », pastille sur l'écran de fin, et badge
+  **« LA VILLE EST PARFAITE »** sur l'image de partage, où il REMPLACE le badge de disque.
+- **Instagram de l'artiste** (`lienInsta` dans `config.js`) sur l'écran de fin, accroché au rappel
+  du concours (« Résultats du concours sur @pmc.mp3 ») — placé là pour DONNER une raison de
+  suivre plutôt que d'ajouter un troisième lien en concurrence avec les CTA de conversion.
 - CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
 - **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
   physique inchangée (`ROAD_HALF_WIDTH`), voies plus larges. Seul ajustement de logique exigé : les

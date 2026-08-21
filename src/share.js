@@ -69,8 +69,15 @@ const BADGES = [
   { seuil: 5000, texte: "DISQUE DE BRONZE", fond: "#c98a5b", encre: "#3a2410" },
 ];
 
-function badgePour(score) {
-  return BADGES.find((b) => score >= b.seuil) || null;
+// Course parfaite (21 août 2026) : parcours terminé SANS un seul choc. Tous
+// les obstacles de la grille étant fatals, c'est le badge le plus rare du jeu
+// — il PASSE DEVANT le badge de disque (un joueur parfait a de toute façon un
+// bon score, afficher les deux diluerait le rare dans l'ordinaire).
+const BADGE_PARFAIT = { texte: "LA VILLE EST PARFAITE", fond: JAUNE, encre: "#4a3305" };
+
+function badgePour(etat) {
+  if (etat.parfait) return BADGE_PARFAIT;
+  return BADGES.find((b) => etat.score >= b.seuil) || null;
 }
 
 function texte(ctx, contenu, x, y, taille, couleur, graisse = 900, align = "center") {
@@ -157,7 +164,7 @@ function dessinerAffiche(ctx, etat) {
   }
 
   // Badge « disque » selon le score, à cheval sur le bas de la pochette.
-  const badge = badgePour(etat.score);
+  const badge = badgePour(etat);
   if (badge) {
     ctx.font = `900 30px ${POLICE}`;
     const bw = ctx.measureText(badge.texte).width + px(48);
@@ -254,7 +261,7 @@ export function partager() {
     files: [fichierPret],
     title: "La ville est belle",
     text: dernierEtat && dernierEtat.score
-      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle. Joue et tente de gagner le vinyle de l'EP de PMC : https://la-ville-est-belle-pmc.fr/`
+      ? `J'ai fait ${dernierEtat.score} points sur La ville est belle${dernierEtat.parfait ? " SANS UN SEUL CHOC" : ""}. Joue et tente de gagner le vinyle de l'EP de PMC : https://la-ville-est-belle-pmc.fr/`
       : "Joue et tente de gagner le vinyle de l'EP de PMC : https://la-ville-est-belle-pmc.fr/",
   };
   if (navigator.canShare && navigator.canShare({ files: [fichierPret] }) && navigator.share) {
