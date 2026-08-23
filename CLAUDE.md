@@ -132,9 +132,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   remplacer le simple damier plat d'origine.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
-- Image de partage **carrée 1080×1080** (`share.js`), bouton « PARTAGER MON SCORE » sur l'écran de
-  fin. ⚠️ **Deux points du brief d'origine révisés le 19 août 2026**, après avoir vu la première
-  version tourner :
+- Image de partage **carrée 1080×1080** (`share.js`). ⚠️ **Bouton « PARTAGER MON SCORE » retiré
+  le 23 août 2026** (« tout le monde s'en fout ») — `share.js` reste sur le disque, non importé,
+  non bundlé (voir plus bas). Le reste de cette entrée décrit un travail toujours sur le disque
+  mais actuellement inatteignable en jeu ; ne pas le rebrancher sans redemander. ⚠️ **Deux points
+  du brief d'origine révisés le 19 août 2026**, après avoir vu la première version tourner :
   - **Format 9:16 → carré.** « Je pense pas que les gens vont mettre des stories, par contre sur
     TikTok ils vont mettre en commentaire » — or une image en commentaire s'affiche en VIGNETTE
     recadrée au carré : une 1080×1920 y perdait son haut et son bas, donc le titre et le lien,
@@ -186,11 +188,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   vraiment qu'on le mette en avant ») — renversement assumé du « pas un troisième bouton » du
   21 août, rendu possible par la passe UX qui a réduit tous les boutons (50→46 px, 15→14 px,
   score de fin 40→46 px : « que tout soit plus lisible et qu'on voie un peu plus de score »).
-  ⚠️ **PARTAGER/DÉFIER côte à côte depuis le 23 août 2026** (deuxième passe le même jour,
-  « écran de fin trop chargé [...] défier un ami faut le mettre plus en avant ») : deux
-  `.btn` de largeur égale (`#secondary-actions`) au lieu de deux boutons empilés — DÉFIER
-  obtient le même poids visuel que PARTAGER (au lieu d'être lu en second, en dessous) et la
-  carte gagne une ligne de hauteur.
+  ⚠️ **PARTAGER MON SCORE retiré le 23 août 2026** (troisième passe le même jour, « tout le
+  monde s'en fout, tu laisses défier un ami prendre toute la place ») — après une étape
+  intermédiaire le même jour où les deux boutons étaient côte à côte, PARTAGER a fini par
+  disparaître complètement : DÉFIER UN AMI passe en pleine largeur, même gabarit que
+  REJOUER/AJOUTER LE MORCEAU. `share.js` reste sur le disque mais n'est plus importé, donc
+  plus bundlé (91 Ko → confirmé par le build, 26 modules au lieu de 27) — même sort que
+  `clip.js` le 20 août, ne pas le rebrancher sans redemander.
   ⚠️ **Classement réduit au TOP 3 + rang du joueur** (même passe) : la carte ne montre plus une
   liste de 5 lignes qui défile, mais 3 lignes fixes — et, si le joueur est classé au-delà, sa
   propre ligne avec son VRAI rang juste en dessous (filet pointillé, `.self-gap`). Un lien

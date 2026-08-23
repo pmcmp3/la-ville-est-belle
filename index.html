@@ -657,29 +657,11 @@
       width: 100%;
     }
 
-    /* PARTAGER / DÉFIER UN AMI côte à côte depuis le 23 août 2026 (voir
-       commentaire HTML) : deux .btn à largeur égale au lieu de 100%, texte
-       autorisé à passer à la ligne (contrairement à #end-screen .btn qui
-       force nowrap) et police resserrée pour que « DÉFIER UN AMI » tienne
-       sur deux lignes sans déborder dans ~112px utiles chacun. */
-    #secondary-actions {
-      display: flex;
-      gap: 10px;
-      width: 100%;
-    }
-
-    #secondary-actions .btn {
-      flex: 1;
-      width: auto;
-      white-space: normal;
-      font-size: 12px;
-      line-height: 1.15;
-      padding: 9px 6px;
-    }
-
-    /* Rangée WhatsApp/Messages/Snap sous le libellé (23 août 2026) : le
-       bouton passe en colonne pour empiler texte + icônes, sans toucher au
-       gabarit de #share-button (resté simple texte). */
+    /* DÉFIER UN AMI en pleine largeur depuis le 23 août 2026 (deuxième passe
+       le même jour, « tout le monde s'en fout [de PARTAGER], tu laisses
+       défier un ami prendre toute la place ») — même gabarit que
+       REJOUER/AJOUTER LE MORCEAU (#end-screen .btn, width:100%), colonne
+       interne seulement pour empiler le libellé et la rangée d'icônes. */
     #defi-button {
       display: flex;
       flex-direction: column;
@@ -784,10 +766,6 @@
       color: #fff;
       text-align: center;
       text-wrap: balance;
-    }
-
-    #defi-button {
-      margin-top: 2px;
     }
 
     /* ⚠️ Sans ceci, #change-pseudo collait directement sous JOUER (0px : ni
@@ -2203,42 +2181,34 @@
                  morceau — la conversion est récompensée (+10 % de score),
                  pas seulement exigée. -->
             <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
-            <!-- Rangée à deux colonnes depuis le 23 août 2026 (« écran de fin
-                 trop chargé [...] défier un ami faut le mettre plus en
-                 avant ») : deux boutons empilés (100px chacun) devenaient
-                 deux blocs de plus à lire de haut en bas. Côte à côte, DÉFIER
-                 obtient le MÊME poids visuel que PARTAGER (au lieu d'être en
-                 dessous, donc lu en second) et la carte gagne une ligne
-                 entière de hauteur. Voir #secondary-actions plus bas dans le
-                 CSS pour le gabarit (police réduite, les deux libellés
-                 tiennent sur deux lignes si besoin). -->
-            <div id="secondary-actions">
-              <button id="share-button" class="btn btn-secondary" type="button">PARTAGER</button>
-              <!-- Icônes WhatsApp/Messages/Snap (23 août 2026, « pour que les
-                   gens captent ») : indice visuel — le bouton ouvre en vrai
-                   le partage natif du téléphone (partagerDefi(), screens.js,
-                   navigator.share), qui liste déjà ces apps si elles sont
-                   installées. Les icônes ne DÉCLENCHENT rien de spécifique,
-                   elles annoncent juste ce qui va s'ouvrir, d'où leur choix
-                   ICI plutôt que sur PARTAGER MON SCORE : ce dernier envoie
-                   un fichier image (repli story/Instagram cohérent), le défi
-                   envoie un texte+lien (repli messagerie, jamais une story). -->
-              <button id="defi-button" class="btn btn-secondary" type="button">
-                <span>DÉFIER UN AMI</span>
-                <span id="defi-apps" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>WhatsApp</title>
-                    <path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                    <path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/>
-                  </svg>
-                  <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>Messages</title>
-                    <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                  </svg>
-                  <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>Snapchat</title>
-                    <path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              </button>
-            </div>
+            <!-- PARTAGER MON SCORE retiré le 23 août 2026 (« tout le monde
+                 s'en fout, tu laisses défier un ami prendre toute la
+                 place ») — share.js reste sur le disque mais n'est plus
+                 importé, donc plus bundlé (même sort que clip.js le 20 août,
+                 ne pas le rebrancher sans redemander). DÉFIER UN AMI passe
+                 en pleine largeur, même gabarit que REJOUER/AJOUTER LE
+                 MORCEAU au lieu de sa rangée à deux colonnes. -->
+            <!-- Icônes WhatsApp/Messages/Snap (23 août 2026, « pour que les
+                 gens captent ») : indice visuel — le bouton ouvre en vrai
+                 le partage natif du téléphone (partagerDefi(), screens.js,
+                 navigator.share), qui liste déjà ces apps si elles sont
+                 installées. Les icônes ne DÉCLENCHENT rien de spécifique,
+                 elles annoncent juste ce qui va s'ouvrir. -->
+            <button id="defi-button" class="btn btn-secondary" type="button">
+              <span>DÉFIER UN AMI</span>
+              <span id="defi-apps" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>WhatsApp</title>
+                  <path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/>
+                </svg>
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>Messages</title>
+                  <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                </svg>
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><title>Snapchat</title>
+                  <path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+                </svg>
+              </span>
+            </button>
             <p id="defi-note">Ton ami démarre avec un boost d'étoiles offert</p>
             <!-- Le bouton « PARTAGER LE CLIP » a été retiré le 20 août 2026
                  (demandé : « tu peux enlever Partager le clip, tu mets juste

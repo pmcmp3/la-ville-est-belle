@@ -18,7 +18,6 @@
 import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
-import * as share from "./share.js";
 import * as tutorial from "./tutorial.js";
 import * as defi from "./defi.js";
 
@@ -53,7 +52,6 @@ const ctaLink = document.getElementById("cta-link");
 // Même lien, deux emplacements : le CTA flottant (menu) et l'action principale
 // de la carte de fin. C'est toujours config.js qui fait foi (lienEP).
 const endCta = document.getElementById("end-cta");
-const shareButton = document.getElementById("share-button");
 const fanNote = document.getElementById("fan-note");
 const runsCount = document.getElementById("runs-count");
 const runsCountNum = document.getElementById("runs-count-num");
@@ -1128,28 +1126,6 @@ export function showEndScreen(reason) {
   leaderboard.classList.add("hidden"); // masqué le temps de la requête, évite d'afficher le classement de la partie précédente
   syncVerrouRejeu();
 
-  // Image de partage fabriquée MAINTENANT, pas au clic : navigator.share()
-  // doit être appelé dans la pile d'appel du geste, et toute opération
-  // asynchrone avant lui (dont canvas.toBlob) fait perdre le geste sur iOS.
-  // Voir l'en-tête de share.js.
-  shareButton.disabled = true;
-  shareButton.textContent = "PRÉPARATION…";
-  share.prepare({
-    score: deps.game.score,
-    pseudo: getPseudo(),
-    etoiles: deps.game.stars,
-    etoilesTotal: deps.etoilesTotal,
-    meilleurCombo: deps.game.bestCombo,
-    termine: finished,
-    parfait,
-  }).then(() => {
-    shareButton.disabled = !share.estPret();
-    shareButton.textContent = share.estPret() ? "PARTAGER MON SCORE" : "PARTAGE INDISPONIBLE";
-  }).catch(() => {
-    shareButton.disabled = true;
-    shareButton.textContent = "PARTAGE INDISPONIBLE";
-  });
-
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
 }
 
@@ -1280,10 +1256,6 @@ export function init(d) {
     });
   });
 
-  shareButton.addEventListener("click", (e) => {
-    e.stopPropagation();
-    share.partager(); // synchrone : indispensable pour que le geste iOS tienne
-  });
   syncVerrouRejeu();
   skipCountdownBtn.addEventListener("click", skipCountdown);
 
