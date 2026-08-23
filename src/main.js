@@ -11,6 +11,7 @@ import * as entities from "./entities.js";
 import * as entitiesRender from "./entities-render.js";
 import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
+import * as pmc from "./pmc.js";
 import * as crosstraffic from "./crosstraffic.js";
 import * as tutorial from "./tutorial.js";
 import * as hud from "./hud.js";
@@ -207,9 +208,19 @@ function isPaused() {
 let pauseStartedAt = 0;
 
 function applyPauseState() {
-  // Le panneau de seconde chance (revive) se comporte comme le menu pause :
-  // morceau étouffé, simulation gelée — c'est déjà tout ce qu'il lui faut.
-  const next = hiddenPaused ? "silent" : (manualPaused || revivePaused) ? "muffled" : "running";
+  // ⚠️ La seconde chance (revive) a son propre mode audio depuis le 22 août
+  // 2026 : le morceau s'arrête et la BOUCLE DU DÉBUT tourne derrière le
+  // panneau, filtrée, le filtre s'ouvrant au rythme du décompte (audio.js,
+  // startReviveLoop ; screens.js pilote l'intensité). Elle l'emporte
+  // volontairement sur `hiddenPaused` — contrairement au menu pause, qui se
+  // tait quand l'onglet part : partir ajouter le morceau sur Spotify est le
+  // chemin NORMAL de cet écran, et la boucle doit continuer de tourner
+  // pendant ce détour pour qu'on la retrouve au retour (demandé
+  // explicitement). Le décompte, lui, reste figé pendant l'absence.
+  const next = revivePaused ? "revive"
+    : hiddenPaused ? "silent"
+    : manualPaused ? "muffled"
+    : "running";
   audio.setPlaybackMode(next);
 
   if (next !== "running") {
@@ -440,6 +451,12 @@ function requestGameStart() {
   // parcourue, et ~20 s de tutoriel décaleraient leurs premiers passages
   // d'autant vers le début de course, ce qui changerait l'équilibrage mesuré.
   road.reset();
+  // La toute première course ne passe pas par restartGame() : le boost de
+  // départ du défi (voir config.js, defiBoostPaliers) doit donc être armé
+  // ici aussi — et c'est justement la course du receveur de défi.
+  if (game.defiCible) {
+    game.streak = window.CONFIG.comboSeuil * (window.CONFIG.defiBoostPaliers || 0);
+  }
   startRequested = true;
   startRequestedAt = perfClock();
 }
@@ -659,7 +676,13 @@ function restartGame() {
   game.score = 0;
   game.ended = false;
   game.endReason = null;
-  game.streak = 0;
+  // Boost de départ du défi (23 août 2026, voir defi.js/config.js) : arriver
+  // par un lien « ?defi=… » offre defiBoostPaliers palier(s) de combo — la
+  // pastille ×1,5 est visible dès la première frame (hud.js lit streak), et
+  // le premier obstacle touché la retire comme n'importe quel combo.
+  game.streak = game.defiCible
+    ? window.CONFIG.comboSeuil * (window.CONFIG.defiBoostPaliers || 0)
+    : 0;
   game.stars = 0;
   game.bestCombo = 1;
   game.sansFaute = true;
@@ -1243,6 +1266,16 @@ function render(alpha) {
     // dessine directement, comme avant.
     renderPlayer(renderX, renderLean, renderPedalPhase, renderY);
   }
+
+  // PMC qui fait coucou pendant le menu pause (22 août 2026). Appelé à CHAQUE
+  // frame, y compris hors pause : c'est ce qui laisse son fondu de sortie
+  // s'achever au lieu de le figer à mi-course (voir pmc.js). Peint après la
+  // scène et non dans la séquence du peintre : la scène est arrêtée derrière
+  // lui, il n'y a plus de profondeur à négocier — et il doit rester lisible
+  // sous le voile du menu. ⚠️ `manualPaused` seul : ni l'onglet caché (que
+  // personne ne regarde) ni le panneau de seconde chance (qui a sa propre
+  // mise en scène) n'appellent PMC à l'écran.
+  pmc.render(ctx, width, height, manualPaused);
 
   // Points gagnés qui s'envolent au-dessus du joueur : c'est de l'interface,
   // pas un objet du monde — donc peint APRÈS la scène, jamais masqué par une

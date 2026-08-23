@@ -170,15 +170,28 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 - **Défi à un ami** (`defi.js`, demandé le 21 août 2026) : le lien de partage embarque un score
   à battre (`?defi=23102&de=pol`). Le jeu porte la cible d'un bout à l'autre — bandeau au-dessus
   de JOUER, jauge de progression sous le score pendant la course, popup « DÉFI RELEVÉ ! » au
-  dépassement, verdict (ou l'écart manquant) sur l'écran de fin. Partage par lien texte sous
-  PARTAGER MON SCORE. ⚠️ **Aucune vérification, assumé** — même règle que le reste du jeu, et
-  rien de tout ça n'atteint Supabase. ⚠️ Le lien se fabrique sur une base EN DUR, jamais sur
-  `location.href` (sinon on relaie le score du défiant précédent).
+  dépassement, verdict (ou l'écart manquant) sur l'écran de fin. ⚠️ **Aucune vérification,
+  assumé** — même règle que le reste du jeu, et rien de tout ça n'atteint Supabase. ⚠️ Le lien
+  se fabrique sur une base EN DUR, jamais sur `location.href` (sinon on relaie le score du
+  défiant précédent).
+  ⚠️ **Boost de départ depuis le 23 août 2026** (« on peut pas booster le défi à un ami pour
+  que les gens aient un boost de départ ? ») : arriver par un lien `?defi=` offre
+  `defiBoostPaliers` (config.js, = 1) palier(s) de combo dès le départ — ×1,5 dès la première
+  étoile, pastille visible dès la première frame, perdu au premier obstacle comme n'importe quel
+  combo. Armé dans `requestGameStart()` ET `restartGame()` (la première course ne passe pas par
+  restartGame). Annoncé au menu (bandeau défi), dans le texte de partage (defi.js), et sur
+  l'écran de fin. Sans condition côté receveur (c'est le levier de VOLUME) ; la vérification
+  « la personne a vraiment joué » côté envoyeur n'existe pas — assumé, comme le reste du défi.
+  ⚠️ Le bouton « DÉFIER UN AMI » est un vrai `.btn` secondaire depuis le même jour (« il faut
+  vraiment qu'on le mette en avant ») — renversement assumé du « pas un troisième bouton » du
+  21 août, rendu possible par la passe UX qui a réduit tous les boutons (50→46 px, 15→14 px,
+  score de fin 40→46 px : « que tout soit plus lisible et qu'on voie un peu plus de score »).
 - **Course parfaite** (demandé le 21 août 2026) : parcours terminé sans un seul choc (traversante
   comprise) → bandeau « Course parfaite », pastille sur l'écran de fin, et badge
   **« LA VILLE EST PARFAITE »** sur l'image de partage, où il REMPLACE le badge de disque.
 - **Instagram de l'artiste** (`lienInsta` dans `config.js`) sur l'écran de fin, accroché au rappel
-  du concours (« Résultats du concours sur @pmc.mp3 ») — placé là pour DONNER une raison de
+  du concours (fusionné en une ligne le 23 août 2026 : « Un vinyle à gagner — résultats sur
+  @pmc.mp3 », passe « ça respire pas ») — placé là pour DONNER une raison de
   suivre plutôt que d'ajouter un troisième lien en concurrence avec les CTA de conversion.
 - CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
 - **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
@@ -255,6 +268,15 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   tout court : seules des voitures traversent désormais, toutes franchissables au saut (« il
   faut qu'on ait la possibilité de les esquiver ou de sauter par-dessus »). Ne pas réintroduire
   le camion sans redemander.
+- **Boucle du début pendant la seconde chance** (demandé le 22 août 2026) : quand le panneau de
+  mort s'ouvre, le morceau **s'arrête** et la boucle des premières secondes tourne à sa place
+  (4 mesures, `loopMort*` dans `config.js`), dans un passe-bas qui **s'ouvre au rythme du
+  décompte** — « la loop du début se défiltre ». Mode audio `revive` (`audio.js`), qui l'emporte
+  sur `silent` : partir ajouter le morceau sur Spotify ne coupe pas la boucle, elle reste au plus
+  filtré et au plus bas pendant l'absence. **Au retour dans l'appli, décompte 5-4-3-2-1** qui
+  rouvre le filtre et ARME `REPRENDRE` — ⚠️ la reprise reste un **tap explicite**, jamais un
+  redémarrage automatique. Effet de bord : la reprise relance le morceau PILE à la seconde de la
+  mort, donc ce chemin ne consomme plus le budget `pauseDeriveMax`. Voir `ARCHITECTURE.md` §8.2.
 - **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
   planté dans la voie centrale **au TOUT début de la course** (`cameo.js`, `CAMEO_TIME_S` = 3 s —
   7 s avant le 21 août 2026, avancé sur insistance : « au tout début et rien autour de lui »).
@@ -273,6 +295,17 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   `entities-render.render(..., extras)`, jamais un rendu séparé : sinon ils se peignent toujours
   au même endroit de la séquence peintre, indépendamment de leur profondeur réelle — bug vécu
   (apparaissait devant un pont pourtant plus proche).
+  ⚠️ **Il réapparaît SUR LA LIGNE D'ARRIVÉE depuis le 22 août 2026** (« je veux Soberland qui
+  apparaît à nouveau sur la ligne d'arrivée en train de mixer ») : même personnage, même table,
+  même étiquette, mais **sur le trottoir** et non au milieu de la route (la voie centrale est
+  celle du portique et du joueur lancé à pleine vitesse — l'y planter le ferait lire comme un
+  obstacle) et **plus grand** (2,6 unités-monde contre 2,2) parce qu'à cette vitesse tout objet
+  de bord de route n'est visible que ~2 s. `getExtras()` renvoie donc DEUX occurrences.
+- **PMC qui fait coucou pendant le menu pause** (`pmc.js`, demandé le 22 août 2026 : « pendant
+  l'écran Pause, mets PMC en train de faire coucou doucement »). Décoratif, grammaire voxel,
+  planté en bas à gauche sous la carte de pause. ⚠️ Seul sprite du jeu animé sur
+  `performance.now()` : l'horloge musicale est GELÉE pendant la pause — il bouge parce que tout
+  le reste est arrêté.
 
 - **Tutoriel interactif à la place du décompte** (`tutorial.js`, 19 août 2026 — « on peut
   remplacer les 20 secondes de début avec des exemples de swipe, comme un jeu Mario »). L'idée

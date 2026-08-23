@@ -306,11 +306,12 @@
        partout », capture à l'appui le 20 août 2026). */
     #end-screen .btn {
       width: 100%;
-      /* Padding latéral resserré : « ÉCOUTER LE MORCEAU » + icône doivent
+      /* Padding latéral resserré : « AJOUTER LE MORCEAU » + icône doivent
          tenir sur UNE ligne dans les ~234px utiles de la carte (mesuré :
-         170px de texte à 15px + 15px d'icône + 8px d'écart). */
-      padding: 11px 10px;
-      min-height: 46px; /* cible tactile toujours ≥ 44px (recommandation iOS) */
+         170px de texte à 15px + 15px d'icône + 8px d'écart — encore plus de
+         marge depuis le passage à 14px le 23 août 2026). */
+      padding: 9px 10px;
+      min-height: 44px; /* cible tactile toujours ≥ 44px (recommandation iOS) */
       white-space: nowrap;
     }
 
@@ -323,7 +324,7 @@
        blanc : la hiérarchie se fait à la taille, pas à la couleur. */
     #end-hero {
       text-align: center;
-      margin: 2px 0 12px;
+      margin: 2px 0 14px; /* 12→14 le 23 août 2026, même passe que #leaderboard */
     }
 
     /* Verrou de rejeu : REJOUER reste visible et CLIQUABLE même verrouillé —
@@ -520,10 +521,11 @@
     /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
        depuis que le bandeau dit « Votre score », et la carte débordait.) */
     #score-num {
-      /* 52px → 40px le 20 août 2026 (« ça déborde de partout ») : reste le
-         plus gros élément de la carte, mais dans l'échelle d'un « large
-         title » iOS (34-41px) plutôt qu'un affichage plein écran. */
-      font: 900 40px/0.95 var(--police);
+      /* 52px → 40px le 20 août 2026 (« ça déborde de partout ») ;
+         40px → 46px le 23 août 2026 (« qu'on voie un peu plus de score ») —
+         la place est reprise sur les boutons, réduits le même jour, pas sur
+         la carte, qui garde son gabarit. */
+      font: 900 46px/0.95 var(--police);
       color: var(--noir);
       letter-spacing: -0.03em;
       font-variant-numeric: tabular-nums;
@@ -546,7 +548,11 @@
        tabulaires. Le rouge reste réservé à la 1re place et au score courant. */
     #leaderboard {
       width: 100%;
-      margin: 0 0 14px;
+      /* 14→16px le 23 août 2026 : l'air gagné par la fusion des notes et le
+         resserrement des lignes du classement est réinvesti ICI, entre les
+         sections — c'est ça, « que ça respire », pas des lignes en moins pour
+         tasser encore plus. */
+      margin: 0 0 16px;
     }
 
     #leaderboard.hidden {
@@ -574,6 +580,15 @@
        très doux — disparaît une fois le morceau ajouté. */
     #fan-note {
       margin: -2px 0 2px;
+      font: 500 11px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    /* Note du boost défi (23 août 2026) : même gabarit muet que #fan-note —
+       elle vend le bouton juste au-dessus, elle ne se dispute pas le clic. */
+    #defi-note {
+      margin: -4px 0 0;
       font: 500 11px/1.4 var(--police);
       color: rgba(0, 0, 0, 0.55);
       text-align: center;
@@ -631,14 +646,7 @@
     /* Instagram de l'artiste : ligne muette collée au rappel du concours,
        juste au-dessus — même famille typographique que #end-note, le lien
        seul portant la couleur. */
-    #insta-note {
-      margin: 3px 0 0;
-      font: 500 11px var(--police);
-      color: rgba(0, 0, 0, 0.55);
-      text-align: center;
-    }
-
-    #insta-note a {
+    #end-note a {
       color: var(--rouge);
       font-weight: 900;
       text-decoration: none;
@@ -726,7 +734,7 @@
          ligne du joueur dans la fenêtre de scroll (demandé explicitement) : il
          faut un nombre impair de lignes visibles pour qu'il y ait un vrai
          milieu. Voir scrollCurrentScoreIntoView() dans main.js. */
-      max-height: 160px;
+      max-height: 145px; /* 5 lignes de 29px (voir li) — recalé avec elles le 23 août 2026 */
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       border-top: 1px solid rgba(0, 0, 0, 0.14);
@@ -745,13 +753,13 @@
        l'ordre qui tranche. */
     @media (max-height: 740px) {
       #leaderboard-list {
-        max-height: 96px;
+        max-height: 87px; /* 3 lignes de 29px */
       }
       #end-screen .panel-body {
         padding: 12px 14px 14px;
       }
       #score-num {
-        font-size: 32px;
+        font-size: 38px; /* 32 → 38 le 23 août 2026, même passe que le 46px plein format */
       }
       #end-note {
         margin-top: 5px;
@@ -779,9 +787,9 @@
       align-items: baseline;
       gap: 10px;
       box-sizing: border-box;
-      height: 32px;              /* fixe : indispensable au centrage au scroll */
-      padding: 7px 6px;
-      font: 500 13px var(--police);
+      height: 29px;              /* fixe : indispensable au centrage au scroll — 32→29 le 23 août 2026 (passe « ça respire pas ») */
+      padding: 6px 6px;
+      font: 500 12.5px var(--police);
       color: var(--noir);
       border-top: 1px solid rgba(0, 0, 0, 0.08);
     }
@@ -1198,17 +1206,19 @@
        assombrissement + tassement au tap, pas par un bevel à ombre. */
     .btn {
       display: block;
-      width: 240px;
+      width: 228px;
       /* 54px/17px → 50px/15px le 20 août 2026 (« polices plus petites, que
-         disent les standards ? ») : un libellé de bouton iOS fait 15-17pt, et
-         en CAPITALES Black il se lit une taille au-dessus — 15px suffit. La
-         cible tactile reste ≥ 44px (recommandation Apple). */
-      min-height: 50px;
+         disent les standards ? ») ; 50px/15px → 46px/14px le 23 août 2026
+         (« réduis un peu la taille de tous les boutons au global pour que
+         tout soit un peu plus lisible et qu'on voie un peu plus de score »).
+         La cible tactile reste ≥ 44px (recommandation Apple) — ne pas
+         descendre sous 44 sans redemander. */
+      min-height: 46px;
       margin: 0;
-      padding: 13px 20px;
-      border-radius: 16px;
+      padding: 11px 18px;
+      border-radius: 14px;
       border: 2px solid transparent;
-      font: 900 15px var(--police);
+      font: 900 14px var(--police);
       letter-spacing: 0.02em;
       text-align: center;
       touch-action: manipulation;
@@ -1926,7 +1936,11 @@
                  normal (aucun paramètre dans l'URL). -->
             <p id="defi-banner" class="hidden">
               <b id="defi-banner-qui"></b> te défie<br>
-              <b id="defi-banner-num"></b> points à battre
+              <b id="defi-banner-num"></b> points à battre<br>
+              <!-- Boost de départ (23 août 2026) : l'appât du lien de défi,
+                   annoncé AVANT de presser JOUER. Texte rempli par screens.js
+                   (le multiplicateur dépend de config.js). -->
+              <span id="defi-banner-boost"></span>
             </p>
             <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
             <!-- Joueur connu (pseudo+insta en localStorage) : l'étape 1 est
@@ -1991,13 +2005,12 @@
             <p id="perfect-note" class="hidden">COURSE PARFAITE — aucun choc</p>
             <!-- Verdict du défi, quand le joueur est arrivé par un lien. -->
             <p id="defi-result" class="hidden"></p>
-            <p id="end-note">Meilleur score = un vinyle de l'EP à gagner</p>
-            <!-- Instagram de l'artiste (21 août 2026, demandé : « est-ce qu'on
-                 peut mettre mon lien Instagram à la fin du jeu ? »). Posé ICI
-                 et pas ailleurs : accroché au rappel du concours, il donne une
-                 RAISON de suivre (savoir si on a gagné le vinyle) au lieu
-                 d'être un lien de plus à côté des deux CTA de conversion. -->
-            <p id="insta-note">Résultats du concours sur <a id="insta-link" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
+            <!-- UNE ligne au lieu de deux depuis le 23 août 2026 (« écran de
+                 fin super méga chargé, ça respire pas assez ») : le rappel du
+                 concours et l'Instagram de l'artiste fusionnent — les deux
+                 messages survivent, l'Instagram reste accroché au concours
+                 (sa raison d'être, décision du 21 août), on gagne une ligne. -->
+            <p id="end-note">Un vinyle à gagner — résultats sur <a id="insta-link" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
           </div>
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>
@@ -2013,7 +2026,7 @@
                « un compteur en temps réel ». -->
           <p id="runs-count" class="hidden">
             <span class="runs-dot" aria-hidden="true"></span>
-            <span id="runs-count-num"></span> parties jouées depuis le lancement
+            <span id="runs-count-num"></span> courses depuis le lancement
           </p>
           <!-- Ordre volontaire : le lien vers le morceau EST l'action
                principale de cet écran, REJOUER passe dessous en secondaire
@@ -2043,11 +2056,14 @@
                  pas seulement exigée. -->
             <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
             <button id="share-button" class="btn btn-secondary" type="button">PARTAGER MON SCORE</button>
-            <!-- ⚠️ Lien texte, PAS un troisième bouton de 50 px : l'écran de
-                 fin a déjà été allégé une fois pour cause de débordement
-                 (« toutes les informations ne rentrent pas ») et doit rester
-                 calme. Même vocabulaire que « Pas X ? Modifier ». -->
-            <button id="defi-button" type="button" class="link-minimal">Défier un ami avec ce score</button>
+            <!-- Promu de lien texte à vrai bouton le 23 août 2026 (« le boost
+                 de départ sur le défi, il faut vraiment qu'on le mette en
+                 avant ») — renversement assumé du choix du 21 août (« pas un
+                 troisième bouton »), rendu possible par la passe UX du même
+                 jour qui réduit tous les boutons. C'est le levier de VOLUME
+                 du jeu : chaque lien de défi est une visite gratuite. -->
+            <button id="defi-button" class="btn btn-secondary" type="button">DÉFIER UN AMI</button>
+            <p id="defi-note">Ton ami démarre avec un boost d'étoiles offert</p>
             <!-- Le bouton « PARTAGER LE CLIP » a été retiré le 20 août 2026
                  (demandé : « tu peux enlever Partager le clip, tu mets juste
                  Partager mon score ») — l'enregistrement clip.js est coupé

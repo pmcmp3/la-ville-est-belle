@@ -69,5 +69,9 @@ export function lien(score, pseudo) {
 // presse-papiers, lui, recolle les deux.
 export function texte(score, pseudo) {
   const qui = pseudo || "Un ami";
-  return `${qui} a fait ${score} points sur La ville est belle (PMC). À toi de faire mieux.`;
+  // Le boost de départ est l'argument du lien (23 août 2026) : il doit être
+  // DANS le message, pas seulement découvert au menu — c'est lui qui fait
+  // cliquer. Formulé sans jargon (« combo ») : le receveur n'a pas encore vu
+  // le jeu.
+  return `${qui} a fait ${score} points sur La ville est belle (PMC). À toi de faire mieux — ce lien t'offre un boost de départ.`;
 }

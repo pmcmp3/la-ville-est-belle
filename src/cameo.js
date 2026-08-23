@@ -34,6 +34,10 @@
 import { clock } from "./clock.js";
 import * as road from "./road.js";
 import { blk } from "./voxel.js";
+// Dépendance à SENS UNIQUE vers entities.js (même règle que crosstraffic.js) :
+// on ne lit que finishTime(), pour poser le second caméo sur la ligne
+// d'arrivée. entities.js n'importe jamais ce module.
+import { finishTime } from "./entities.js";
 
 const SPRITE_W = 16; // identique à pedestrians.js : même gabarit, silhouette éprouvée
 const SPRITE_H = 26; // identique à pedestrians.js, jambes/chaussures pleinement visibles
@@ -246,9 +250,8 @@ function renderNotes(ctx, x, groundY, scale, time) {
   }
 }
 
-function renderCharacter(ctx, width, height, now, z) {
-  const laneX = road.laneX(1); // voie centrale à LANE_COUNT = 3 : "en plein milieu de la route"
-  const p = road.project(laneX, z, width, height);
+function renderCharacter(ctx, width, height, now, z, x, hauteurMonde = HEIGHT_WORLD) {
+  const p = road.project(x, z, width, height);
 
   // 🐛 Modulo NORMALISÉ (revue de code du 21 août 2026) : l'horloge de course
   // démarre à −LEAD_IN, et depuis que Soberland est visible dès la première
@@ -258,7 +261,7 @@ function renderCharacter(ctx, width, height, now, z) {
   // invisible tant que le balayage partait de t = 0.
   const brut = Math.floor(now * ANIM_RATE) % FRAMES.length;
   const frame = FRAMES[(brut + FRAMES.length) % FRAMES.length];
-  const h = HEIGHT_WORLD * p.scale;
+  const h = hauteurMonde * p.scale;
   const w = (SPRITE_W / SPRITE_H) * h;
 
   renderNotes(ctx, p.x, p.y, p.scale, now);
@@ -290,11 +293,10 @@ function renderCharacter(ctx, width, height, now, z) {
 // premier jet (elle montait jusqu'à la poitrine).
 const TABLE_HEIGHT_WORLD = 0.75;
 
-function renderTable(ctx, width, height, z) {
-  const laneX = road.laneX(1);
-  const p = road.project(laneX, z, width, height);
+function renderTable(ctx, width, height, z, x, hauteurMonde = TABLE_HEIGHT_WORLD) {
+  const p = road.project(x, z, width, height);
 
-  const h = TABLE_HEIGHT_WORLD * p.scale;
+  const h = hauteurMonde * p.scale;
   const w = (TABLE_W / TABLE_H) * h;
 
   ctx.save();
@@ -304,15 +306,47 @@ function renderTable(ctx, width, height, z) {
 }
 
 // Profondeur du personnage à l'instant `now`, ou `null` si hors fenêtre de
-// visibilité (avant/après) ou au-delà de l'horizon courbe.
-function characterZ(now) {
-  const remaining = CAMEO_TIME_S - now;
-  if (remaining > SHOW_BEFORE || remaining < -SHOW_AFTER) return null;
+// visibilité (avant/après) ou au-delà de l'horizon courbe. `repere` = seconde
+// de course où il est pile au niveau du joueur (CAMEO_TIME_S au départ,
+// finishTime() à l'arrivée).
+function characterZ(now, repere, avant = SHOW_BEFORE, apres = SHOW_AFTER) {
+  const remaining = repere - now;
+  if (remaining > avant || remaining < -apres) return null;
   const speed = road.getSpeed();
   const z = Math.max(0.3, road.PLAYER_NEAR_Z + remaining * speed);
   if (z > road.HORIZON_Z) return null;
   return z;
 }
+
+// --- Second caméo : Soberland sur la LIGNE D'ARRIVÉE (22 août 2026) --------
+// « Je veux Soberland qui apparaît à nouveau sur la ligne d'arrivée en train
+// de mixer. » Même personnage, même table, même étiquette — seule la position
+// change : il est SUR LE TROTTOIR (x = ROAD_HALF_WIDTH + 0,6, entre la bordure et le pied
+// des façades, voir SIDEWALK_W dans world.js) et non au milieu de
+// la route, pour deux raisons :
+//   - la voie centrale est occupée par le portique et par le joueur qui
+//     franchit la ligne à pleine vitesse : l'y planter donnerait à lire un
+//     obstacle, alors qu'il n'a aucune collision (comme au départ) ;
+//   - vu de la route, il encadre l'arrivée au lieu de la boucher — il joue
+//     l'arrivée du coureur, c'est ce qu'on veut.
+// Il reste visible un peu plus longtemps après le passage (SHOW_AFTER_FINISH)
+// que le Soberland du départ : la caméra freine sur la ligne (voir finishing
+// dans main.js), il a le temps d'être vu en passant à côté de lui.
+const FINISH_X = road.ROAD_HALF_WIDTH + 0.6;
+const SHOW_AFTER_FINISH = 1.6;
+// ⚠️ Un peu plus grand qu'au départ (2,2 → 2,6 unités-monde), et ce n'est pas
+// de la coquetterie : à l'arrivée la course file à sa vitesse plafond, or
+// TOUT objet de bord de route n'entre dans la fenêtre visible qu'à
+// HORIZON_Z ≈ 209, soit ~2 s avant le joueur à cette vitesse (le portique de
+// la ligne d'arrivée lui-même n'apparaît pas plus tôt). Mesuré à 2,2 : 11 px
+// de haut à −2 s, 92 px à −0,1 s ; à 2,6 : 13 px puis 109 px. Ces 2 secondes
+// sont tout ce qu'on a, il faut qu'il s'y voie.
+const FINISH_HEIGHT_WORLD = 2.6;
+// La table est décalée VERS LA ROUTE (donc vers le joueur qui arrive) plutôt
+// que devant lui en profondeur : sur le côté, un décalage en z seul l'aurait
+// noyée dans le trottoir. Il mixe face à la piste, comme un DJ face au public.
+const FINISH_TABLE_X = road.ROAD_HALF_WIDTH + 0.1;
+const FINISH_TABLE_HEIGHT_WORLD = TABLE_HEIGHT_WORLD * (FINISH_HEIGHT_WORLD / HEIGHT_WORLD);
 
 // Éléments à peindre pour cette frame, chacun avec sa propre profondeur —
 // consommé par main.js et fusionné dans l'algorithme du peintre
@@ -321,12 +355,25 @@ function characterZ(now) {
 // projet (voir ARCHITECTURE.md §12), même si en jeu l'appelant passe
 // toujours clock.now().
 export function getExtras(ctx, width, height, now = clock.now()) {
-  const z = characterZ(now);
-  if (z == null) return [];
+  const out = [];
 
-  const tableZ = Math.max(0.3, z - TABLE_OFFSET_Z);
-  return [
-    { z, draw: () => renderCharacter(ctx, width, height, now, z) },
-    { z: tableZ, draw: () => renderTable(ctx, width, height, tableZ) },
-  ];
+  // 1. Le caméo du DÉPART, au milieu de la route (CAMEO_TIME_S).
+  const laneX = road.laneX(1); // voie centrale à LANE_COUNT = 3 : "en plein milieu de la route"
+  const z = characterZ(now, CAMEO_TIME_S);
+  if (z != null) {
+    const tableZ = Math.max(0.3, z - TABLE_OFFSET_Z);
+    out.push({ z, draw: () => renderCharacter(ctx, width, height, now, z, laneX) });
+    out.push({ z: tableZ, draw: () => renderTable(ctx, width, height, tableZ, laneX) });
+  }
+
+  // 2. Le caméo de l'ARRIVÉE, sur le trottoir (voir FINISH_X). Même fenêtre
+  //    d'apparition que la ligne elle-même, à peu de chose près : il est là
+  //    quand elle sort de l'horizon.
+  const zFin = characterZ(now, finishTime(), SHOW_BEFORE, SHOW_AFTER_FINISH);
+  if (zFin != null) {
+    out.push({ z: zFin, draw: () => renderCharacter(ctx, width, height, now, zFin, FINISH_X, FINISH_HEIGHT_WORLD) });
+    out.push({ z: zFin - 0.01, draw: () => renderTable(ctx, width, height, zFin, FINISH_TABLE_X, FINISH_TABLE_HEIGHT_WORLD) });
+  }
+
+  return out;
 }

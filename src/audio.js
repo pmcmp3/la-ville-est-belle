@@ -58,6 +58,140 @@ let currentSource = null; // nœud en cours de lecture, pour pouvoir l'arrêter 
 let lowpass = null;
 const FILTRE_OUVERT_HZ = 20000;
 
+// --- Boucle du début pendant la seconde chance (22 août 2026) --------------
+// « On doit mettre en place le début de la boucle à la place du mp3 qui tourne
+// de base derrière [...] le début filtré, on a le décompte des 10 secondes et
+// un filtre passe-bas qui remonte au fur et à mesure du chrono. »
+//
+// À la mort, le morceau s'ARRÊTE (fondu court) et cette boucle prend le
+// relais : le même AudioBuffer, rejoué en boucle sur ses N premières secondes
+// (config.loopMortDuree, 4 mesures par défaut), dans son PROPRE passe-bas.
+// screens.js pilote l'ouverture du filtre au rythme du décompte via
+// setReviveIntensity().
+//
+// ⚠️ Deux raisons d'arrêter le morceau au lieu de le laisser tourner étouffé
+// comme le menu pause :
+//   1. c'est la demande — on veut entendre le DÉBUT du morceau, pas l'endroit
+//      où le joueur est mort ;
+//   2. ça supprime toute dérive. Le morceau ne prenant plus d'avance pendant
+//      la décision (qui peut durer un aller-retour sur Spotify, donc beaucoup
+//      plus que les 10 s du décompte), la reprise le relance PILE à la
+//      position de la mort : pas de clockShift à encaisser, pas de soupape
+//      pauseDeriveMax à surveiller sur ce chemin-là.
+//
+// La boucle entre dans la chaîne par volumeGain : le slider, le mute et
+// l'analyseur de spectre la voient donc exactement comme le morceau. Elle
+// possède en revanche son propre filtre (le passe-bas du morceau reste ouvert
+// dans ce mode, il n'a rien à étouffer).
+let loopSource = null;
+let loopLowpass = null;
+let loopGain = null;
+let loopStopTimer = null;
+const LOOP_FONDU = 0.25;      // s : fondu d'entrée/sortie de la boucle
+const LOOP_RAMPE = 0.25;      // s : lissage d'un changement d'intensité (un cran de décompte)
+
+function loopReglages() {
+  const c = window.CONFIG;
+  return {
+    debut: c.loopMortDebut ?? 0,
+    duree: c.loopMortDuree ?? 8,
+    fMin: c.loopMortFiltreMin ?? 170,
+    fMax: c.loopMortFiltreMax ?? 16000,
+    gMin: c.loopMortVolumeMin ?? 0.32,
+  };
+}
+
+function startReviveLoop() {
+  if (!audioCtx || !buffer || loopSource) return;
+  const r = loopReglages();
+  const t = audioCtx.currentTime;
+
+  // Le morceau s'efface (fondu court sur SON gain à lui : volumeGain et
+  // focusGain sont partagés avec la boucle, les toucher la couperait aussi),
+  // puis sa source est arrêtée pour de bon.
+  if (envelopeGain) {
+    envelopeGain.gain.cancelScheduledValues(t);
+    envelopeGain.gain.setValueAtTime(envelopeGain.gain.value, t);
+    envelopeGain.gain.linearRampToValueAtTime(0, t + LOOP_FONDU);
+  }
+  const mourante = currentSource;
+  currentSource = null;
+  if (mourante) {
+    try { mourante.stop(t + LOOP_FONDU + 0.05); } catch (e) { /* déjà terminée */ }
+  }
+  // ⚠️ `started` reste VRAI : l'horloge de jeu est déjà gelée sur pauseAnchor
+  // (setPlaybackMode l'a posé avant d'entrer ici), donc now() ne lit plus
+  // l'horloge de lecture de toute façon — alors qu'un `started = false`
+  // ferait mentir isRunning() au chien de garde de main.js, qui basculerait
+  // la partie sur l'horloge de secours pendant la décision.
+
+  loopLowpass = audioCtx.createBiquadFilter();
+  loopLowpass.type = "lowpass";
+  loopLowpass.frequency.value = r.fMin;
+  loopGain = audioCtx.createGain();
+  loopGain.gain.setValueAtTime(0, t);
+  loopGain.gain.linearRampToValueAtTime(r.gMin, t + LOOP_FONDU);
+
+  loopSource = audioCtx.createBufferSource();
+  loopSource.buffer = buffer;
+  loopSource.loop = true;
+  loopSource.loopStart = r.debut;
+  loopSource.loopEnd = Math.min(buffer.duration, r.debut + r.duree);
+  loopSource.connect(loopLowpass);
+  loopLowpass.connect(loopGain);
+  // volumeGain peut ne pas exister si la partie a démarré sans morceau décodé
+  // (horloge de secours) : dans ce cas il n'y a de toute façon pas de buffer,
+  // on n'arrive jamais ici. Repli défensif quand même.
+  loopGain.connect(volumeGain || audioCtx.destination);
+  loopSource.start(t, r.debut);
+}
+
+// 0 = boucle au plus fermé et au plus bas (début du décompte, ou joueur parti
+// sur Spotify) ; 1 = filtre grand ouvert, volume plein (reprise imminente).
+// Appelée à chaque tick du décompte par screens.js — d'où la rampe courte
+// plutôt qu'un saut de valeur.
+export function setReviveIntensity(p) {
+  if (!loopLowpass || !loopGain || !audioCtx) return;
+  const r = loopReglages();
+  const k = Math.max(0, Math.min(1, p));
+  const t = audioCtx.currentTime;
+  // Exponentielle : une fréquence de coupure se perçoit en octaves, pas en
+  // hertz (même raison que rampFilter pour le filtre de pause).
+  const freq = r.fMin * Math.pow(r.fMax / r.fMin, k);
+  loopLowpass.frequency.cancelScheduledValues(t);
+  loopLowpass.frequency.setValueAtTime(loopLowpass.frequency.value, t);
+  loopLowpass.frequency.exponentialRampToValueAtTime(Math.max(20, freq), t + LOOP_RAMPE);
+  const g = r.gMin + (1 - r.gMin) * k;
+  loopGain.gain.cancelScheduledValues(t);
+  loopGain.gain.setValueAtTime(loopGain.gain.value, t);
+  loopGain.gain.linearRampToValueAtTime(g, t + LOOP_RAMPE);
+}
+
+function stopReviveLoop(immediat = false) {
+  if (loopStopTimer) { clearTimeout(loopStopTimer); loopStopTimer = null; }
+  if (!loopSource) return;
+  const src = loopSource;
+  const g = loopGain;
+  loopSource = null;
+  loopGain = null;
+  loopLowpass = null;
+  if (immediat || !audioCtx) {
+    try { src.stop(); } catch (e) { /* déjà terminée */ }
+    return;
+  }
+  const t = audioCtx.currentTime;
+  if (g) {
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(0, t + LOOP_FONDU);
+  }
+  try { src.stop(t + LOOP_FONDU + 0.05); } catch (e) { /* déjà terminée */ }
+}
+
+export function isReviveLoopRunning() {
+  return loopSource !== null;
+}
+
 // Analyseur de spectre pour l'equalizer de l'écran de fin (20 août 2026 :
 // « un égaliseur dynamique qui marche par rapport à la musique [...] même
 // modèle que le Dynamic Island : les basses à gauche, les aigus à droite »).
@@ -168,6 +302,8 @@ fetchAvecProgression(window.CONFIG.fichierAudio)
 // finirait avant la ligne d'arrivée (voir setPlaybackMode). Une sortie de
 // pause ordinaire ne rembobine PLUS le morceau : c'est la course qui se
 // recale dessus, via clockShift.
+const REPRISE_FONDU = 0.18; // s : fondu d'entrée d'une reprise en cours de morceau
+
 function playNow(offset = 0) {
   if (!audioCtx || !buffer) return;
 
@@ -208,12 +344,18 @@ function playNow(offset = 0) {
   // Le fondu d'entrée n'a de sens qu'au vrai début du morceau : reprendre en
   // plein milieu avec une montée de 1,2 s s'entendrait comme un gonflement.
   if (offset > 0) {
-    envelopeGain.gain.setValueAtTime(1, now);
+    // Fondu très court (pas les 1,2 s du vrai début, qui s'entendraient comme
+    // un gonflement en plein morceau) : sans lui, une reprise en pleine forme
+    // d'onde claque. Chemin emprunté par la soupape de dérive ET par la sortie
+    // de la boucle de mort, qui relance le morceau à la seconde exacte de la
+    // mort.
+    envelopeGain.gain.setValueAtTime(0, now);
+    envelopeGain.gain.linearRampToValueAtTime(1, now + REPRISE_FONDU);
   } else {
     envelopeGain.gain.setValueAtTime(0, now);
     envelopeGain.gain.linearRampToValueAtTime(1, now + fonduEntree);
   }
-  envelopeGain.gain.setValueAtTime(1, Math.max(now + (offset > 0 ? 0 : fonduEntree), end - fonduSortie));
+  envelopeGain.gain.setValueAtTime(1, Math.max(now + (offset > 0 ? REPRISE_FONDU : fonduEntree), end - fonduSortie));
   envelopeGain.gain.linearRampToValueAtTime(0, end);
 
   sourceNode.start(0, offset);
@@ -330,6 +472,7 @@ export function restart() {
   // course » lancé depuis le menu pause repartirait avec l'horloge gelée et
   // le filtre encore fermé.
   mode = "running";
+  stopReviveLoop(true); // une relance efface aussi la boucle de mort restée en fond
   pauseAnchor = null;
   clockShift = 0; // le retard accumulé pendant les pauses de la partie précédente ne se transmet pas
   if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
@@ -383,6 +526,7 @@ export function getStatus() {
   if (audioCtx.state !== "running") return `contexte ${audioCtx.state}`;
   if (!buffer) return "running, décodage…";
   if (!started) return "running, en attente";
+  if (mode === "revive") return "boucle du début (seconde chance)";
   if (mode === "muffled") return "lecture (pause, filtre 800 Hz)";
   // Le retard course↔morceau est invisible en jeu : on l'affiche ici, c'est le
   // seul moyen de le vérifier sur un téléphone (ni console ni clavier).
@@ -566,6 +710,7 @@ function rampFocus(target) {
 
 export function setPlaybackMode(next) {
   if (next === mode) return;
+  const precedent = mode;
   mode = next;
 
   // Le gel de l'horloge se pose/se lève indépendamment du contexte audio :
@@ -575,6 +720,19 @@ export function setPlaybackMode(next) {
   if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = null; }
   if (!audioCtx || !started) {
     if (next === "running") pauseAnchor = null;
+    return;
+  }
+
+  // Seconde chance : le morceau s'arrête, la boucle du début prend le relais
+  // dans son propre passe-bas (voir startReviveLoop). ⚠️ Ce mode l'emporte sur
+  // "silent" côté main.js même quand l'onglet est caché : la boucle DOIT
+  // continuer de tourner pendant que le joueur est parti ajouter le morceau
+  // sur Spotify — c'est tout l'intérêt.
+  if (next === "revive") {
+    audioCtx.resume().catch(() => {});
+    rampFocus(1);
+    rampFilter(FILTRE_OUVERT_HZ); // le filtre du morceau n'a plus rien à étouffer : la boucle a le sien
+    startReviveLoop();
     return;
   }
 
@@ -598,6 +756,18 @@ export function setPlaybackMode(next) {
   }
 
   // next === "running"
+  // Sortie de la boucle de mort : aucun calcul de dérive à faire, le morceau
+  // ne tournait plus. On le relance PILE à la seconde où le joueur est mort
+  // (donc course et morceau restent calés l'un sur l'autre, clockShift remis
+  // à 0 par playNow) et la boucle s'efface par-dessus en fondu.
+  if (precedent === "revive") {
+    const reprise = pauseAnchor === null ? now() : pauseAnchor;
+    pauseAnchor = null;
+    stopReviveLoop();
+    playNow(reprise);
+    return;
+  }
+
   if (pauseAnchor !== null) {
     const reprise = pauseAnchor;
     pauseAnchor = null;

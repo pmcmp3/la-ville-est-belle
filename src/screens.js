@@ -219,11 +219,17 @@ let reviveMode = "morceau";   // "morceau" | "suivre" | "attente" — posé à l
 // il bascule la carte en phase "pret", et seul un tap explicite sur
 // REPRENDRE MA COURSE relance. Que le joueur revienne de Spotify dans 5
 // secondes ou 3 minutes, c'est LUI qui décide quand ses mains sont prêtes.
+// "decision" → le décompte de 10 s (fenêtre de choix)
+// "absence"  → le joueur est parti sur Spotify : plus de décompte, la boucle
+//              tourne au plus filtré et on l'attend
+// "retour"   → il est revenu : décompte 5-4-3-2-1 qui rouvre le filtre
+// "pret"     → REPRENDRE est armé, il ne reste qu'un tap
 let revivePhase = "decision";
+let reviveTotal = REVIVE_DELAI_S; // durée du décompte en cours (10 s en décision, 5 s au retour)
 
 function reviveMajAffichage() {
   reviveTimerNum.textContent = `${Math.max(0, Math.ceil(reviveRestant))}`;
-  const t = Math.max(0, reviveRestant) / REVIVE_DELAI_S;
+  const t = Math.max(0, reviveRestant) / reviveTotal;
   reviveArc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
 }
 
@@ -252,11 +258,91 @@ function reviveCtaEnBoutonReprise(verrouille) {
   reviveCta.classList.toggle("locked", Boolean(verrouille));
 }
 
+// Décompte générique (10 s de décision, ou 5 s de retour) : un seul endroit
+// qui tienne le plafond par tick, le gel quand l'onglet part, ET l'ouverture
+// du filtre de la boucle du début — les trois doivent rester d'accord.
+//
+// ⚠️ L'INTENSITÉ DE LA BOUCLE SUIT LE CHRONO (22 août 2026, demandé : « un
+// filtre passe-bas qui remonte au fur et à mesure du chrono, donc on a le
+// décompte et la loop du début se défiltre »). 0 au premier tick, 1 quand le
+// décompte touche zéro — le son dit donc, sans un mot, combien de temps il
+// reste.
+function demarrerDecompte(total, onZero) {
+  clearInterval(reviveTimerId);
+  reviveTotal = total;
+  reviveRestant = total;
+  reviveTimer.style.display = "";
+  reviveMajAffichage();
+  audio.setReviveIntensity(0);
+  let precedent = performance.now();
+  reviveTimerId = setInterval(() => {
+    const maintenant = performance.now();
+    // Plafond par tick : la seule protection qui tienne aussi quand iOS a
+    // suspendu le timer pendant tout le détour Spotify (voir l'en-tête).
+    const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
+    precedent = maintenant;
+    if (document.hidden) return; // figé pendant le détour (desktop/Android)
+    reviveRestant -= ecoule;
+    reviveMajAffichage();
+    audio.setReviveIntensity(1 - Math.max(0, reviveRestant) / total);
+    if (reviveRestant <= 0) {
+      clearInterval(reviveTimerId);
+      reviveTimerId = 0;
+      onZero();
+    }
+  }, 100);
+}
+
+// Le joueur vient de cliquer un lien de conversion : on ne sait pas s'il
+// revient dans 5 secondes ou dans 3 minutes. Plus de décompte (rien ne doit
+// expirer pendant qu'il est chez Spotify), la boucle du début retombe au plus
+// filtré et au plus bas — « pas fort du tout » — et on attend son retour.
+function revivePhaseAbsence(titre) {
+  revivePhase = "absence";
+  clearInterval(reviveTimerId);
+  reviveTimerId = 0;
+  reviveTimer.style.display = "none";
+  reviveTitle.textContent = titre;
+  poserTexteRevive("Reviens dans le jeu quand tu veux — ta course t'attend, avec tes ", reviveScoreCourant);
+  reviveCtaEnBoutonReprise(true);
+  audio.setReviveIntensity(0);
+  // Filet : sur un navigateur qui ouvre le lien sans jamais masquer la page
+  // (nouvel onglet en arrière-plan sur desktop), aucun visibilitychange
+  // n'arrivera — sans ça le joueur resterait bloqué sur un bouton verrouillé.
+  clearTimeout(reviveRetourTimer);
+  reviveRetourTimer = setTimeout(() => {
+    if (revivePhase === "absence" && !document.hidden) revivePhaseRetour();
+  }, 1800);
+}
+
+// Il est revenu dans l'appli : décompte 5-4-3-2-1 pendant lequel la boucle se
+// défiltre, puis REPRENDRE s'arme. ⚠️ La reprise reste un TAP explicite
+// (invariant verrouillé) : ce décompte prépare la main et l'oreille, il ne
+// relance jamais la course tout seul dans le dos de quelqu'un qui aurait posé
+// son téléphone.
+function revivePhaseRetour() {
+  clearTimeout(reviveRetourTimer);
+  revivePhase = "retour";
+  reviveTitle.textContent = "Prêt ? On repart";
+  poserTexteRevive("Reprise dans quelques secondes, avec tes ", reviveScoreCourant);
+  reviveCtaEnBoutonReprise(true);
+  demarrerDecompte(reviveRetourDelai(), () => revivePhasePrete("C'est reparti !"));
+}
+
+function reviveRetourDelai() {
+  const v = Number(window.CONFIG.loopMortRetour);
+  return Number.isFinite(v) && v > 0 ? v : 5;
+}
+
+let reviveRetourTimer = 0;
+
 function revivePhasePrete(titre) {
   revivePhase = "pret";
   clearInterval(reviveTimerId);
   reviveTimerId = 0;
+  clearTimeout(reviveRetourTimer);
   reviveTimer.style.display = "none"; // le décompte n'a plus d'objet
+  audio.setReviveIntensity(1);        // la boucle est en clair : la course peut repartir
   reviveTitle.textContent = titre;
   poserTexteRevive("Ta course t'attend — reprends quand tu es prêt, avec tes ", reviveScoreCourant);
   reviveCtaEnBoutonReprise(false);
@@ -291,35 +377,22 @@ export function openReviveSheet({ score, onAccept, onDecline }) {
     poserTexteRevive("Tu as déjà tout débloqué — reprise dans quelques secondes, avec tes ", score);
     reviveCtaEnBoutonReprise(true);
   }
-  reviveRestant = REVIVE_DELAI_S;
-  reviveMajAffichage();
   reviveSheet.classList.add("visible");
   reviveSheet.setAttribute("aria-hidden", "false");
-  clearInterval(reviveTimerId);
-  let precedent = performance.now();
-  reviveTimerId = setInterval(() => {
-    const maintenant = performance.now();
-    // Plafond par tick : la seule protection qui tienne aussi quand iOS a
-    // suspendu le timer pendant tout le détour Spotify (voir l'en-tête).
-    const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
-    precedent = maintenant;
-    if (document.hidden) return; // figé pendant le détour (desktop/Android)
-    reviveRestant -= ecoule;
-    reviveMajAffichage();
-    if (reviveRestant <= 0) {
-      if (reviveMode === "attente") {
-        // L'attente est purgée : on ARME la reprise au lieu de décliner.
-        revivePhasePrete("C'est reparti !");
-      } else {
-        reviveResoudre("onDecline");
-      }
+  demarrerDecompte(REVIVE_DELAI_S, () => {
+    if (reviveMode === "attente") {
+      // L'attente est purgée : on ARME la reprise au lieu de décliner.
+      revivePhasePrete("C'est reparti !");
+    } else {
+      reviveResoudre("onDecline");
     }
-  }, 100);
+  });
 }
 
 function closeReviveSheet() {
   clearInterval(reviveTimerId);
   reviveTimerId = 0;
+  clearTimeout(reviveRetourTimer);
   reviveSheet.classList.remove("visible");
   reviveSheet.setAttribute("aria-hidden", "true");
 }
@@ -896,6 +969,18 @@ function syncDefiBanner() {
   if (!cible) return;
   defiBannerQui.textContent = cible.pseudo;
   defiBannerNum.textContent = String(cible.score);
+  // Boost de départ (23 août 2026) : annoncé ici, AVANT le bouton JOUER —
+  // c'est l'appât du lien. Le multiplicateur est recalculé depuis config.js
+  // (defiBoostPaliers × comboBonusParPalier), jamais écrit en dur dans le
+  // HTML, pour survivre à un futur réglage.
+  const boostEl = document.getElementById("defi-banner-boost");
+  const paliers = window.CONFIG.defiBoostPaliers || 0;
+  if (boostEl) {
+    const mult = 1 + window.CONFIG.comboBonusParPalier * paliers;
+    boostEl.textContent = paliers > 0
+      ? `Cadeau : tu démarres avec un combo ×${String(mult).replace(".", ",")}`
+      : "";
+  }
 }
 
 function afficherResultatDefi() {
@@ -1061,15 +1146,31 @@ export function init(d) {
     if (revivePhase === "pret") { reviveResoudre("onAccept"); return; }
     if (reviveMode === "morceau") {
       marquerMorceauOuvert();
-      setTimeout(() => revivePhasePrete("Morceau ajouté, merci !"), 0);
+      setTimeout(() => revivePhaseAbsence("Morceau ajouté, merci !"), 0);
     } else if (reviveMode === "suivre") {
       marquerPmcSuivi();
-      setTimeout(() => revivePhasePrete("Abonnement enregistré, merci !"), 0);
+      setTimeout(() => revivePhaseAbsence("Abonnement enregistré, merci !"), 0);
     }
     // mode "attente" en phase décision : bouton verrouillé, clic ignoré —
     // c'est le décompte qui armera la reprise.
   });
   reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
+
+  // Retour dans l'appli pendant la seconde chance (22 août 2026, demandé :
+  // « quand la personne revient sur l'app, à ce moment-là le décompte se
+  // remet en mode 5, 4, 3, 2, 1 »). Pendant l'absence la boucle du début
+  // tourne au plus filtré ; au retour elle se défiltre sur ce décompte-là.
+  // ⚠️ Un retour PENDANT le décompte de retour le rejoue depuis 5 : quelqu'un
+  // qui fait deux allers-retours ne se retrouve jamais avec 1 seconde pour
+  // reprendre ses esprits.
+  document.addEventListener("visibilitychange", () => {
+    if (!reviveCallbacks) return; // panneau fermé : rien à piloter
+    if (document.hidden) {
+      audio.setReviveIntensity(0); // « pas fort du tout » pendant le détour
+      return;
+    }
+    if (revivePhase === "absence" || revivePhase === "retour") revivePhaseRetour();
+  });
 
   audio.setVolume(Number(volumeSlider.value) / 100);
   syncMuteIcon();

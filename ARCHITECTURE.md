@@ -75,7 +75,7 @@ dépendances vont toujours vers le bas.
 | `main.js` | Boucle de jeu à pas fixe, état de partie, physique (saut, latéral), pause | **847 lignes** (1349 avant extraction de `screens.js`, voir §11) |
 | `screens.js` | Écrans hors-jeu : onboarding pseudo/insta, décompte, panneau son, menu pause, classement | Extrait de `main.js` le 17 août 2026 — câblage DOM/présentation uniquement, aucune physique. Ne peut pas importer `main.js` (cycle) : reçoit `restartGame`/l'ouverture-fermeture de pause en callbacks via `init()` |
 | `clock.js` | Temps musical : `now()`, `beatIndexAt()`, `timeOfBeat()` | Source de temps injectable (`setTimeSource`) |
-| `audio.js` | Chargement, unlock iOS, lecture, 3 modes de pause | Le plus délicat du projet, voir §5.1 et §8 |
+| `audio.js` | Chargement, unlock iOS, lecture, **4 modes** de lecture (dont la boucle de mort) | Le plus délicat du projet, voir §5.1 et §8 |
 | `road.js` | Projection pseudo-3D, vitesse, rendu du sol | Exporte `project()`, que tout le reste consomme |
 | `world.js` | Façades haussmanniennes, ciel, croisements, feux | Purement décoratif ; source de `isCrossingSlot` co-exportée par `road.js` |
 | `entities.js` | Bonus/obstacles calés sur les beats : spawn, difficulté, collisions | **872 lignes** (1442 avant extraction de `entities-render.js`, voir §11) — le cœur du gameplay ; inclut le pont (viaduc). Zéro logique de rendu |
@@ -86,7 +86,8 @@ dépendances vont toujours vers le bas.
 | `pedestrians.js` | Sprites des piétons-obstacles | **Voxel** depuis le 12 août 2026, même `blk()` que joueur/cyclistes |
 | `finish.js` | Ligne d'arrivée (damier au sol + portique façon F1) | Cosmétique — le vrai déclencheur de fin de course est `entities.isFinished()`, que ce module ne fait que visualiser |
 | `crosstraffic.js` | Voitures/camions qui TRAVERSENT la chaussée aux carrefours | ⚠️ Fait basculer les croisements de décor à gameplay (19 août 2026). Vit sur la grille de DISTANCE (`road.isCrossingSlot`, partagée avec `world.js`), PAS sur la grille musicale d'`entities.js` — collisions et `Set` de résolus séparés. Densité nulle avant ~50 s, maximale après ~100 s : c'est le levier qui durcit la FIN sans toucher au début. Coût −1 vie, jamais fatal (voir l'en-tête du fichier) |
-| `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, plantés dans les 10 premières secondes | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
+| `cameo.js` | Soberland (DJ ami de l'artiste) + sa table de mixage, **deux fois** : au tout début de la course, et **sur la ligne d'arrivée** (22 août 2026) | Purement décoratif, même principe que `finish.js` (position par temps écoulé) mais tôt plutôt qu'à la fin — pas de créneau, pas de collision. Expose `getExtras()` (personnage + table, chacun sa profondeur), à fusionner via `entities-render.render(..., extras)`, jamais un rendu séparé |
+| `pmc.js` | PMC qui fait coucou pendant le **menu pause** | Décoratif, même grammaire voxel que `cameo.js`. ⚠️ Seul sprite du jeu animé sur `performance.now()` et non sur l'horloge musicale : pendant la pause celle-ci est GELÉE, il bouge précisément parce que le reste est arrêté. Peint après la scène (elle est figée, il n'y a plus de profondeur à négocier), sous le voile du menu |
 | `defi.js` | « Défie un ami » : cible reçue dans l'URL (`?defi=…&de=…`), lien à renvoyer | Lue UNE fois au chargement du module, immuable ensuite (rejouer garde la même cible). Aucune vérification, assumé (voir l'en-tête du fichier) : la cible ne touche jamais Supabase, elle ne vit que dans le duel entre deux amis |
 | `share.js` | Image de partage **carrée 1080×1080** (PNG) | ⚠️ `prepare()` fabrique l'image à l'AFFICHAGE de l'écran de fin, `partager()` ne fait que la passer au système — `navigator.share()` exige la pile d'appel du geste, et `canvas.toBlob()` étant async, tout faire au clic échoue en silence sur iOS. Repli en téléchargement |
 | `hud.js` | Score, vies, statut concours, bandeau de palier | |
@@ -613,16 +614,18 @@ réintroduire.
 
 ---
 
-## 8. Audio : les trois modes de lecture
+## 8. Audio : les quatre modes de lecture
 
 `audio.setPlaybackMode()` est le point d'entrée unique. `main.js` calcule le mode voulu à partir
-de deux drapeaux (menu pause ouvert, onglet caché) et ne sait rien du Web Audio.
+de trois drapeaux (menu pause ouvert, onglet caché, panneau de seconde chance ouvert) et ne sait
+rien du Web Audio.
 
 | Mode | Quand | Effet |
 |---|---|---|
 | `running` | En course | Filtre ouvert, son plein |
 | `muffled` | Menu pause | Le morceau **continue**, filtre passe-bas à 800 Hz — on n'entend que les basses |
 | `silent` | Onglet/app quitté | Fondu à 0 puis `audioCtx.suspend()` |
+| `revive` | Panneau de seconde chance (mort) | Le morceau **s'arrête** et la **boucle du début** tourne à sa place, dans son propre passe-bas qui s'ouvre au rythme du décompte — voir §8.2 |
 
 Trois gains en série, chacun avec sa raison d'exister pour qu'ils ne se marchent jamais dessus :
 `envelopeGain` (fondus automatiques), `volumeGain` (curseur utilisateur), `focusGain`
@@ -666,6 +669,49 @@ de le vérifier sur un téléphone.
 Enfin, tout ça ne vaut que si l'horloge audio pilote encore le jeu. Sur l'horloge de secours
 (§5.1), rien ne gèle la course pendant la pause : `main.js` la recule alors du temps passé en
 pause (`applyPauseState`), avec le même arrondi au temps musical.
+
+### 8.2 Le mode `revive` : la boucle du début qui se défiltre (22 août 2026)
+
+Demandé : « on doit mettre en place le début de la boucle à la place du mp3 qui tourne de base
+derrière [...] on a le décompte des 10 secondes et un filtre passe-bas qui remonte au fur et à
+mesure du chrono, donc la loop du début se défiltre ».
+
+À la mort, le morceau **s'arrête** (fondu de 0,25 s sur `envelopeGain`, source stoppée) et une
+seconde source prend le relais : le **même `AudioBuffer`**, `loop = true` sur ses
+`config.loopMortDuree` premières secondes (8 s = **4 mesures pile** à 120 BPM, donc un raccord
+inaudible), dans **son propre** `BiquadFilter` passe-bas. Elle entre dans la chaîne par
+`volumeGain` : le curseur, le mute et l'analyseur de spectre la voient exactement comme le
+morceau, mais le filtre de pause ne s'y applique pas.
+
+`screens.js` appelle `audio.setReviveIntensity(0→1)` à chaque tick du décompte : la fréquence de
+coupure monte de `loopMortFiltreMin` (170 Hz) à `loopMortFiltreMax` (16 kHz) **en exponentielle**
+(une coupure se perçoit en octaves) et le gain de `loopMortVolumeMin` à 1. Le son dit donc, sans
+un mot, combien de temps il reste.
+
+⚠️ **Deux raisons d'ARRÊTER le morceau plutôt que de l'étouffer comme le menu pause :**
+1. c'est la demande — on veut entendre le DÉBUT du morceau, pas l'endroit où le joueur est mort ;
+2. **ça supprime toute dérive.** Le morceau ne prenant plus d'avance pendant une décision qui
+   peut durer un aller-retour sur Spotify (donc bien plus que les 10 s du décompte), la reprise
+   le relance **pile à la seconde de la mort** (`playNow(pauseAnchor)`, `clockShift` remis à 0).
+   Ce chemin ne consomme donc rien du budget `pauseDeriveMax` (§8.1), contrairement à l'ancien
+   comportement où le panneau de mort était un simple `muffled`.
+
+⚠️ **`revive` l'emporte sur `silent`** dans `applyPauseState()` (main.js) — c'est la seule
+exception au « onglet caché = silence total ». Partir ajouter le morceau est le chemin NORMAL de
+cet écran : la boucle doit continuer de tourner pendant le détour, au plus filtré et au plus bas
+(`setReviveIntensity(0)` sur `visibilitychange`), pour qu'on la retrouve au retour. Best-effort
+côté iOS : c'est `navigator.audioSession.type = "playback"` (§8) qui permet à l'audio de survivre
+en arrière-plan, rien ne le garantit.
+
+⚠️ **Le décompte, lui, se fige pendant l'absence** — et au retour dans l'appli il est **rejoué
+depuis 5** (`config.loopMortRetour`, phases `absence` → `retour` → `pret` dans screens.js),
+décompte pendant lequel la boucle se défiltre. **La reprise reste un tap explicite** : ce
+décompte arme `REPRENDRE`, il ne relance jamais la course dans le dos de quelqu'un qui aurait
+posé son téléphone (invariant verrouillé, voir CLAUDE.md). Un second aller-retour rejoue le
+décompte depuis 5 plutôt que de laisser 1 seconde pour reprendre ses esprits. Filet : si le
+navigateur ouvre le lien **sans jamais masquer la page** (nouvel onglet en arrière-plan sur
+desktop), aucun `visibilitychange` n'arrive — un `setTimeout` de 1,8 s enclenche alors le
+décompte de retour, sans quoi le joueur resterait bloqué devant un bouton verrouillé.
 
 ---
 
@@ -1843,6 +1889,86 @@ toute la session, donc rien de tout ça vérifié autrement qu'en jouant réelle
       figée ; le flou de fin dépend de `finishTime()` donc de l'audio ; le HUD ne s'affiche
       qu'en course). **À confirmer au prochain test réel.**
 
+
+### Vingt-septième passe — la boucle de mort, Soberland à l'arrivée, PMC en pause (22 août 2026)
+
+Trois demandes indépendantes, aucune ne touche au gameplay ni à l'équilibrage.
+
+1. **Mode audio `revive` : la boucle du début qui se défiltre pendant le panneau de mort.**
+   Détail complet en **§8.2** — c'est le seul des trois qui ajoute un invariant. Effet de bord
+   heureux : le panneau de mort ne consomme plus le budget `pauseDeriveMax`, puisque le morceau
+   ne tourne plus pendant la décision.
+2. **Soberland réapparaît SUR LA LIGNE D'ARRIVÉE, en train de mixer** (`cameo.js`). Même
+   personnage, même table, même étiquette `@soberland` — `getExtras()` renvoie désormais **deux**
+   occurrences, chacune passant par le même mécanisme `extras` d'`entities-render.js` (donc
+   triées à leur vraie profondeur : ne jamais les peindre à part, c'est le bug déjà vécu où
+   Soberland passait devant un pont plus proche). Il est **sur le trottoir**
+   (`x = ROAD_HALF_WIDTH + 0,6`), pas au milieu de la route : la voie centrale est occupée par le
+   portique et par le joueur qui franchit la ligne à pleine vitesse, l'y planter le ferait lire
+   comme un obstacle alors qu'il n'a aucune collision.
+   ⚠️ **Il est plus GRAND qu'au départ** (2,2 → 2,6 unités-monde) et c'est mesuré, pas décoratif :
+   à l'arrivée la course file à sa vitesse plafond, or tout objet de bord de route n'entre dans
+   la fenêtre visible qu'à `HORIZON_Z` ≈ 209, soit **~2 s** avant le joueur (le portique lui-même
+   n'apparaît pas plus tôt). Relevé à 2,2 : 11 px de haut à −2 s, 92 px à −0,1 s ; à 2,6 : 13 px
+   puis 109 px. Il sort du champ par la droite au moment exact du passage — comportement normal
+   de la perspective, pas un bug à corriger.
+3. **PMC fait coucou pendant le menu pause** (`pmc.js`, nouveau module). ⚠️ **Seul sprite du jeu
+   animé sur `performance.now()`** : pendant la pause l'horloge musicale est gelée
+   (`pauseAnchor`), un geste calé dessus resterait figé sur place. Il bouge parce que le reste est
+   arrêté. Position mesurée à `road.project` (z = 7,8 / x = −1,0, soit ~235 px de haut en bas à
+   gauche sur 375×812) : le trottoir sort du champ dès qu'on approche de la caméra (à z = 8 la
+   fenêtre visible ne fait que ±1,7 unité), et le centre de l'écran est masqué par la carte de
+   pause zoomée ×1,2. Peint après la scène, pas dans la séquence du peintre : la scène est figée
+   derrière lui, il n'y a plus de profondeur à négocier.
+   ⚠️ Premier jet illisible : bras et buste tous deux crème se lisaient comme un seul bloc (le
+   pixel art n'a pas de contour, c'est la VALEUR qui détache un membre). Bras repassés en
+   `CREME_OMBRE` et main portée au-dessus de la tête — vérifié à l'écran, à taille réelle et ×2.
+
+Vérifié : balayage hors ligne §12 sur **8 912 frames** (t = −LEAD_IN → arrivée + 2 s, extras
+inclus), **0 exception** ; parcours complet du panneau de mort dans le navigateur (décision →
+clic CTA → absence → retour → décompte 5→1 → tap → reprise), chaque transition relue dans le DOM.
+
+### Vingt-huitième passe — boost de départ du défi + passe UX des boutons (23 août 2026)
+
+Contexte produit : 417 courses, 300 visites du smartlink, 40 pre-saves (~13 %, dans la norme
+du marché 8-15 %) — le goulot est le VOLUME de joueurs, pas la conversion. Le défi à un ami est
+le seul levier de volume embarqué dans le jeu, d'où les deux demandes.
+
+1. **Boost de départ du défi.** Arriver par `?defi=` → `game.streak` pré-armé à
+   `comboSeuil × defiBoostPaliers` (config.js, = 1 palier → ×1,5). ⚠️ Armé à DEUX endroits :
+   `requestGameStart()` (la toute première course — celle du receveur de défi, justement — ne
+   passe PAS par `restartGame()`) et le bloc reset de `restartGame()`. La pastille combo du HUD
+   lit `streak`, donc elle est visible dès la première frame sans autre branchement. Annoncé au
+   menu (`#defi-banner-boost`, texte recalculé depuis config.js par screens.js — jamais en dur),
+   dans `defi.texte()` (« ce lien t'offre un boost de départ », sans le mot « combo » : le
+   receveur n'a pas encore vu le jeu), et sous le bouton de fin (`#defi-note`).
+2. **« DÉFIER UN AMI » promu de `link-minimal` à `.btn btn-secondary`** — renversement assumé
+   du « pas un troisième bouton de 50 px » du 21 août, compensé par la passe UX ci-dessous.
+   `DEFI_LABEL` (screens.js) lit toujours `textContent`, le retour « Lien copié ! » survit.
+3. **Passe UX globale** (« réduis la taille de tous les boutons, qu'on voie plus de score ») :
+   `.btn` 50→46 px / 15→14 px / largeur 240→228 px / rayon 16→14 ; `#end-screen .btn`
+   46→44 px (plancher tactile Apple, ne pas descendre) ; `#score-num` 40→46 px (38 px sous
+   740 px de haut). La place du score est reprise sur les boutons, pas sur la carte.
+
+4. **Désencombrement de l'écran de fin** (même jour, retour capture à l'appui : « super méga
+   chargé, ça respire pas assez ») : `#end-note` et `#insta-note` fusionnés en UNE ligne
+   (« Un vinyle à gagner — résultats sur @pmc.mp3 » — les deux messages survivent, l'Instagram
+   reste accroché au concours, sa raison d'être du 21 août ; `#insta-note` n'existe plus, le
+   style du lien est passé sur `#end-note a`, l'id `insta-link` est inchangé pour screens.js) ;
+   compteur raccourci (« X courses depuis le lancement ») ; lignes du classement 32→29 px /
+   13→12,5 px — ⚠️ les `max-height` du classement sont des MULTIPLES de cette hauteur fixe
+   (145 = 5×29, 87 = 3×29 sous 740 px de haut), recaler les trois ensemble. L'air gagné est
+   réinvesti entre les sections (`#end-hero` 12→14, `#leaderboard` 14→16), pas en tassement.
+
+Vérifié dans la preview (localhost) : bandeau défi complet au menu (« Cadeau : tu démarres avec
+un combo ×1,5 ») ; écran de fin forcé par DOM avec classement 5 lignes + compteur + verdict défi
++ 4 boutons + 2 notes, aux DEUX gabarits qui encadrent le parc : 414×896 (iPhone 11 — carte
+714 px, large) et 375×667 (iPhone SE/8 — carte 594 px, la note tient sur une ligne) ; 0 erreur
+console. Le boost en course réelle a été confirmé par l'artiste sur capture (pastille ×1,5 dès
+le départ, jauge défi affichée). Testé aussi : la page publique li.sten.to — le bouton Pre-save
+part DIRECTEMENT en OAuth (aucune étape playlist imposée par la page), donc rien à alléger côté
+smartlink et aucune raison d'en changer.
+
 ---
 
 ## 12. Comment tester
@@ -1877,8 +2003,19 @@ qu'on n'entre pas vraiment en course. ⚠️ **Vérifier le nom du bundle charg�
 (`document.querySelectorAll('script[src]')`) avant de conclure : `index.html` est en
 `max-age=600` (§9) et l'onglet peut resservir l'ancien build juste après un déploiement.
 
-⚠️ Le 12 août 2026, la preview navigateur a en plus refusé toute navigation vers le serveur de
-dev (`localhost`, requêtes bloquées avant même le chargement de la page) — distinct du piège n°1
+✅ **La preview accepte de nouveau `localhost` (22 août 2026).** `preview_start` sur la config
+`dev` de `.claude/launch.json` puis navigation vers `http://localhost:5173/` fonctionne — c'est
+redevenu la méthode la plus rapide, et de loin : on peut charger une **page de harnais** posée à
+la racine (qui importe `/src/*.js` et dessine les sprites sur un canvas, sans jamais toucher à
+l'AudioContext), et piloter les panneaux DOM du vrai jeu depuis la console via
+`import('/src/screens.js')` — Vite renvoie **la même instance de module** que celle de la page,
+donc `screens.openReviveSheet(...)` ouvre vraiment le panneau du jeu. Pour tester un lien
+sortant sans quitter la page : `addEventListener('click', e => e.preventDefault(), true)` en
+capture avant de cliquer — le handler de l'appli tourne quand même. ⚠️ Penser à supprimer la page
+de harnais de la racine après coup.
+
+⚠️ Le 12 août 2026, la preview navigateur avait en revanche refusé toute navigation vers le
+serveur de dev (`localhost`, requêtes bloquées avant même le chargement de la page) — distinct du piège n°1
 (figement par `AudioContext`), donc pas la même cause. Symptôme à surveiller : si les deux méthodes
 ci-dessus deviennent aussi inutilisables, la seule vérification qui reste est un vrai test sur
 téléphone après déploiement.

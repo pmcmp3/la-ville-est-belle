@@ -16,6 +16,20 @@ window.CONFIG = {
   pauseFondu: 0.5,          // Durée en secondes du fondu du filtre (à l'entrée comme à la sortie de la pause)
   pauseDeriveMax: 25,       // Retard maximal (secondes, cumulé sur toutes les pauses) que la course accepte de prendre sur le morceau plutôt que de le rembobiner. Redescendu à 8 le 12 août 2026 quand la course durait tout le morceau (plus de marge) ; remonté à sa valeur d'origine maintenant que dureeCourse (205 s) laisse à nouveau ~53 s de marge avant la fin réelle du morceau (257,9 s). Arbitrage : en dessous de ce seuil on garde le morceau qui avance (pas de rembobinage, demandé) ; au-dessus on rembobine, pour ne pas franchir la ligne d'arrivée en silence (audio.js, setPlaybackMode).
 
+  // --- Boucle du début pendant la seconde chance (panneau de mort) ---------
+  // Demandé le 22 août 2026 : « on doit mettre en place le début de la boucle
+  // à la place du mp3 qui tourne de base derrière [...] le début filtré, on a
+  // le décompte des 10 secondes et un filtre passe-bas qui remonte au fur et
+  // à mesure du chrono ». Le morceau s'ARRÊTE à la mort et cette boucle prend
+  // le relais (audio.js, mode "revive") ; à la reprise le morceau repart pile
+  // là où le joueur est mort — plus aucune dérive à encaisser dans ce cas.
+  loopMortDebut: 0.01,      // Seconde du morceau où commence la boucle (= premierTempsOffset : on part sur le temps 1)
+  loopMortDuree: 8,         // Longueur de la boucle en secondes. 8 s = 4 mesures PILE à 120 BPM, donc un raccord inaudible. Mettre 10 (5 mesures) reste possible : ça boucle aussi sur un temps, c'est juste une longueur impaire en mesures.
+  loopMortFiltreMin: 170,   // Passe-bas au plus fermé (début du décompte, ou joueur parti sur Spotify) : on n'entend plus que les basses
+  loopMortFiltreMax: 16000, // Passe-bas au plus ouvert (fin du décompte) : la boucle est en clair, le jeu peut reprendre
+  loopMortVolumeMin: 0.32,  // Volume de la boucle au plus fermé (« pas fort du tout »), 1 = plein à la fin du décompte
+  loopMortRetour: 5,        // Secondes du décompte 5-4-3-2-1 rejoué QUAND LE JOUEUR REVIENT dans l'appli (retour de Spotify) — c'est lui qui rouvre le filtre et arme REPRENDRE
+
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
   vitesseMax: 7.65,         // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (17 août 2026) — 6.0 → 9.0, puis −15 % (21 août 2026, « réduis un petit peu la vitesse à la fin de 15% c'est trop hardcore ») — 9.0 → 7.65.
@@ -60,6 +74,12 @@ window.CONFIG = {
   // pénalité de collision.
   comboSeuil: 5,
   comboBonusParPalier: 0.5,
+  // Boost de départ du DÉFI (23 août 2026) : qui arrive par un lien
+  // « ?defi=… » démarre la course avec ce nombre de paliers de combo déjà
+  // acquis (1 → ×1,5 dès la première étoile, perdu au premier obstacle
+  // touché, comme n'importe quel combo). C'est l'appât qui rend le lien de
+  // défi attirant à ouvrir — le levier de VOLUME du jeu. 0 pour désactiver.
+  defiBoostPaliers: 1,
 
   // === OBSTACLES ===
   cadenceSpawnBeats: 1.5,   // Un événement (bonus/obstacle) tous les N temps (calage rythmique) — 2 → 1.5 (playtest : "un peu plus d'objets")
