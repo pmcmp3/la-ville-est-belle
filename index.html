@@ -398,6 +398,87 @@
       width: min(280px, 100%);
     }
 
+    /* --- Classement complet (23 août 2026) --------------------------------
+       Même tiroir que #unlock-sheet ci-dessus (mêmes noms de classes de
+       transform/veil, juste préfixées différemment) — c'est le patron
+       standard du jeu pour tout panneau qui glisse depuis le bas. */
+    #leaderboard-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      visibility: hidden;
+      transition: visibility 0s linear 0.3s;
+    }
+
+    #leaderboard-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #leaderboard-sheet-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.55);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #leaderboard-sheet.visible #leaderboard-sheet-veil {
+      opacity: 1;
+    }
+
+    #leaderboard-sheet-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      box-sizing: border-box;
+      max-height: 78vh;
+      padding: 22px 24px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      border-radius: 22px 22px 0 0;
+      border: 2px solid var(--panneau-bord);
+      border-bottom: none;
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transform: translateY(105%);
+      transition: transform 0.3s ease;
+    }
+
+    #leaderboard-sheet.visible #leaderboard-sheet-card {
+      transform: translateY(0);
+    }
+
+    #leaderboard-sheet-title {
+      margin: 0;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    /* Liste complète, scrollable et centrée sur le joueur (même logique que
+       l'ancien #leaderboard-list avant le 23 août 2026, reprise ici) — les
+       lignes elles-mêmes réutilisent le style #leaderboard-list li ci-dessus
+       (voir screens.js, construireLigneClassement). */
+    #leaderboard-sheet-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      width: 100%;
+      max-height: min(50vh, 435px); /* 15 lignes de 29px */
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-top: 1px solid rgba(0, 0, 0, 0.14);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+    }
+
+    #leaderboard-sheet-close {
+      width: min(280px, 100%);
+    }
+
     /* --- Seconde chance à la mort (revive) --------------------------------
        Carte CENTRÉE (pas un tiroir du bas) : c'est un moment d'arrêt total,
        la décision EST l'écran. Le cercle de décompte est la pièce centrale —
@@ -576,6 +657,26 @@
       width: 100%;
     }
 
+    /* PARTAGER / DÉFIER UN AMI côte à côte depuis le 23 août 2026 (voir
+       commentaire HTML) : deux .btn à largeur égale au lieu de 100%, texte
+       autorisé à passer à la ligne (contrairement à #end-screen .btn qui
+       force nowrap) et police resserrée pour que « DÉFIER UN AMI » tienne
+       sur deux lignes sans déborder dans ~112px utiles chacun. */
+    #secondary-actions {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #secondary-actions .btn {
+      flex: 1;
+      width: auto;
+      white-space: normal;
+      font-size: 12px;
+      line-height: 1.15;
+      padding: 9px 6px;
+    }
+
     /* Note « boost fan » : petite promesse sous le bouton principal, en rouge
        très doux — disparaît une fois le morceau ajouté. */
     #fan-note {
@@ -730,15 +831,27 @@
       margin: 0;
       padding: 0;
       list-style: none;
-      /* Hauteur = 5 lignes pile (5 × 32px). C'est ce qui permet de CENTRER la
-         ligne du joueur dans la fenêtre de scroll (demandé explicitement) : il
-         faut un nombre impair de lignes visibles pour qu'il y ait un vrai
-         milieu. Voir scrollCurrentScoreIntoView() dans main.js. */
-      max-height: 145px; /* 5 lignes de 29px (voir li) — recalé avec elles le 23 août 2026 */
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      /* Plus de scroll depuis le 23 août 2026 (« écran de fin trop chargé »)
+         : la carte ne rend plus que le TOP 3 + éventuellement la ligne du
+         joueur (renderLeaderboard, screens.js) — jamais plus de 4 <li>, donc
+         plus besoin de max-height/overflow, la hauteur suit le contenu. Le
+         classement complet (scrollable, centré sur le joueur) vit dans
+         #leaderboard-sheet plus bas. */
       border-top: 1px solid rgba(0, 0, 0, 0.14);
       border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+    }
+
+    /* Ligne du joueur quand il est HORS podium (renderLeaderboard) : léger
+       fond + bordure plus marquée au lieu d'une ligne "···" séparée, pour ne
+       pas ajouter de 5e <li> juste pour la séparation visuelle. */
+    #leaderboard-list li.self-gap {
+      border-top: 1px dashed rgba(0, 0, 0, 0.25);
+    }
+
+    #leaderboard-expand {
+      display: block;
+      margin: 6px auto 0;
+      font-size: 12px;
     }
 
     /* Petits écrans en hauteur (iPhone SE, Android compacts, et tout iPhone
@@ -752,9 +865,6 @@
        ⚠️ Doit rester APRÈS les règles de base : à spécificité égale, c'est
        l'ordre qui tranche. */
     @media (max-height: 740px) {
-      #leaderboard-list {
-        max-height: 87px; /* 3 lignes de 29px */
-      }
       #end-screen .panel-body {
         padding: 12px 14px 14px;
       }
@@ -781,7 +891,8 @@
       }
     }
 
-    #leaderboard-list li {
+    #leaderboard-list li,
+    #leaderboard-sheet-list li {
       display: grid;
       grid-template-columns: 22px 1fr auto;
       align-items: baseline;
@@ -794,7 +905,8 @@
       border-top: 1px solid rgba(0, 0, 0, 0.08);
     }
 
-    #leaderboard-list li:first-child {
+    #leaderboard-list li:first-child,
+    #leaderboard-sheet-list li:first-child {
       border-top: none;
     }
 
@@ -802,7 +914,8 @@
        seulement dans ce cas — une table vide reste silencieuse). Sort de la
        grille à 3 colonnes des vraies lignes et n'a pas de hauteur fixe : le
        message en ?debug porte la raison technique et peut passer à la ligne. */
-    #leaderboard-list li.board-message {
+    #leaderboard-list li.board-message,
+    #leaderboard-sheet-list li.board-message {
       display: block;
       height: auto;
       text-align: center;
@@ -810,7 +923,8 @@
       color: rgba(0, 0, 0, 0.5);
     }
 
-    #leaderboard-list .rank {
+    #leaderboard-list .rank,
+    #leaderboard-sheet-list .rank {
       font: 500 11px var(--police);
       letter-spacing: 0.06em;
       color: rgba(0, 0, 0, 0.45);
@@ -818,7 +932,8 @@
       text-align: right;
     }
 
-    #leaderboard-list .pseudo {
+    #leaderboard-list .pseudo,
+    #leaderboard-sheet-list .pseudo {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -826,7 +941,8 @@
       font-weight: 500;
     }
 
-    #leaderboard-list .points {
+    #leaderboard-list .points,
+    #leaderboard-sheet-list .points {
       font: 900 14px var(--police);
       font-variant-numeric: tabular-nums;
       color: var(--noir);
@@ -836,18 +952,21 @@
     /* Première place : distinguée par la graisse seulement, plus par le rouge
        (voir la note "écran calme" plus haut) — sinon deux lignes rouges se
        disputent l'œil avec celle du joueur. */
-    #leaderboard-list li:first-child .rank {
+    #leaderboard-list li:first-child .rank,
+    #leaderboard-sheet-list li:first-child .rank {
       color: rgba(0, 0, 0, 0.75);
     }
 
-    #leaderboard-list li:first-child .points {
+    #leaderboard-list li:first-child .points,
+    #leaderboard-sheet-list li:first-child .points {
       color: var(--noir);
     }
 
     /* Score du joueur surligné : demandé explicitement (« je veux que mon
        score arrive au milieu de mon écran et que ce soit surligné »). Aplat
        rouge de charte plein — pas une teinte à 15 % qu'on cherche encore. */
-    #leaderboard-list li.current-score {
+    #leaderboard-list li.current-score,
+    #leaderboard-sheet-list li.current-score {
       background: var(--rouge);
       border-top-color: var(--rouge);
       color: var(--blanc);
@@ -855,8 +974,11 @@
     }
 
     #leaderboard-list li.current-score .rank,
+    #leaderboard-sheet-list li.current-score .rank,
     #leaderboard-list li.current-score .points,
-    #leaderboard-list li.current-score .pseudo {
+    #leaderboard-sheet-list li.current-score .points,
+    #leaderboard-list li.current-score .pseudo,
+    #leaderboard-sheet-list li.current-score .pseudo {
       color: var(--blanc);
     }
 
@@ -2014,7 +2136,15 @@
           </div>
           <div id="leaderboard" class="hidden">
             <p class="board-title">Meilleurs scores</p>
+            <!-- Refonte du 23 août 2026 (« écran de fin trop chargé ») : la
+                 carte ne montre plus qu'un TOP 3 fixe (+ la ligne du joueur
+                 s'il est hors podium — voir renderLeaderboard, screens.js),
+                 sans scroll. Le classement complet (jusqu'à 50, voir
+                 CONFIG.apiScoresLimit) vit dans #leaderboard-sheet, ouvert au
+                 clic ci-dessous — jamais chargé deux fois, screens.js réutilise
+                 la même réponse réseau. -->
             <ol id="leaderboard-list"></ol>
+            <button id="leaderboard-expand" type="button" class="link-minimal hidden">Voir le classement complet →</button>
             <!-- Deadline du concours + preuve sociale (nombre total de courses,
                  Supabase) : deux petites lignes sous le classement. -->
           </div>
@@ -2055,14 +2185,19 @@
                  morceau — la conversion est récompensée (+10 % de score),
                  pas seulement exigée. -->
             <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
-            <button id="share-button" class="btn btn-secondary" type="button">PARTAGER MON SCORE</button>
-            <!-- Promu de lien texte à vrai bouton le 23 août 2026 (« le boost
-                 de départ sur le défi, il faut vraiment qu'on le mette en
-                 avant ») — renversement assumé du choix du 21 août (« pas un
-                 troisième bouton »), rendu possible par la passe UX du même
-                 jour qui réduit tous les boutons. C'est le levier de VOLUME
-                 du jeu : chaque lien de défi est une visite gratuite. -->
-            <button id="defi-button" class="btn btn-secondary" type="button">DÉFIER UN AMI</button>
+            <!-- Rangée à deux colonnes depuis le 23 août 2026 (« écran de fin
+                 trop chargé [...] défier un ami faut le mettre plus en
+                 avant ») : deux boutons empilés (100px chacun) devenaient
+                 deux blocs de plus à lire de haut en bas. Côte à côte, DÉFIER
+                 obtient le MÊME poids visuel que PARTAGER (au lieu d'être en
+                 dessous, donc lu en second) et la carte gagne une ligne
+                 entière de hauteur. Voir #secondary-actions plus bas dans le
+                 CSS pour le gabarit (police réduite, les deux libellés
+                 tiennent sur deux lignes si besoin). -->
+            <div id="secondary-actions">
+              <button id="share-button" class="btn btn-secondary" type="button">PARTAGER</button>
+              <button id="defi-button" class="btn btn-secondary" type="button">DÉFIER UN AMI</button>
+            </div>
             <p id="defi-note">Ton ami démarre avec un boost d'étoiles offert</p>
             <!-- Le bouton « PARTAGER LE CLIP » a été retiré le 20 août 2026
                  (demandé : « tu peux enlever Partager le clip, tu mets juste
@@ -2167,6 +2302,21 @@
         </svg>
       </a>
       <button id="unlock-sheet-close" type="button" class="link-minimal">Plus tard</button>
+    </div>
+  </div>
+
+  <!-- Classement complet (23 août 2026) : la carte de fin ne montre plus
+       qu'un TOP 3 + la ligne du joueur (voir #leaderboard plus haut) — ce
+       panneau porte le classement en entier (jusqu'à 50, CONFIG.apiScoresLimit),
+       même patron de tiroir que #unlock-sheet. Rempli par screens.js à
+       l'ouverture, en réutilisant la réponse réseau déjà reçue (aucun second
+       appel à net.getTopScores). -->
+  <div id="leaderboard-sheet" aria-hidden="true">
+    <div id="leaderboard-sheet-veil"></div>
+    <div id="leaderboard-sheet-card">
+      <p id="leaderboard-sheet-title">Classement complet</p>
+      <ol id="leaderboard-sheet-list"></ol>
+      <button id="leaderboard-sheet-close" type="button" class="btn btn-secondary">Fermer</button>
     </div>
   </div>
 

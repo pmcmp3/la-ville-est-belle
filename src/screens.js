@@ -39,6 +39,11 @@ const endEyebrow = document.getElementById("end-eyebrow");
 const scoreNum = document.getElementById("score-num");
 const leaderboard = document.getElementById("leaderboard");
 const leaderboardList = document.getElementById("leaderboard-list");
+const leaderboardExpand = document.getElementById("leaderboard-expand");
+const leaderboardSheet = document.getElementById("leaderboard-sheet");
+const leaderboardSheetVeil = document.getElementById("leaderboard-sheet-veil");
+const leaderboardSheetList = document.getElementById("leaderboard-sheet-list");
+const leaderboardSheetClose = document.getElementById("leaderboard-sheet-close");
 const playButton = document.getElementById("play-button");
 const replayButton = document.getElementById("replay-button");
 const loadingBlock = document.getElementById("loading");
@@ -872,8 +877,50 @@ function syncPseudoStep() {
 // pas encore configuré (CONFIG.apiScores vide, voir net.js) ou requête
 // vide/en échec : jamais bloquant, jamais d'erreur visible, le pire cas est
 // un bloc absent comme avant.
+// Dernière réponse réseau reçue (jusqu'à CONFIG.apiScoresLimit lignes) —
+// gardée pour que le panneau « classement complet » (23 août 2026) n'ait
+// jamais besoin d'un second appel à net.getTopScores : la carte compacte et
+// le panneau lisent la MÊME liste, juste rendue différemment.
+let dernierClassement = [];
+
+// Construit une ligne <li> de classement (rang + pseudo + score), en
+// surlignant la ligne du joueur courant. Partagé entre la carte compacte
+// (#leaderboard-list) et le panneau complet (#leaderboard-sheet-list) — même
+// DOM, même comportement, juste deux conteneurs différents (23 août 2026).
+function construireLigneClassement(s, rank, pseudoJoueur) {
+  const li = document.createElement("li");
+  const rangEl = document.createElement("span");
+  rangEl.className = "rank";
+  rangEl.textContent = `${rank}`;
+  const pseudo = document.createElement("span");
+  pseudo.className = "pseudo";
+  // Le classement ne connaît QUE le pseudo public : la vue Supabase
+  // n'expose pas la colonne insta (voir net.js). Repli sur pseudo_insta
+  // pour les lignes écrites avant la séparation des deux champs.
+  const displayPseudo = (s.pseudo || s.pseudo_insta || "?").replace(/^@+/, "");
+  pseudo.textContent = displayPseudo;
+  const points = document.createElement("span");
+  points.className = "points";
+  points.textContent = `${s.score}`;
+  li.append(rangEl, pseudo, points);
+  // Surligner le score du joueur courant. Le test est prudent : même pseudo
+  // + même score, pour éviter de surligner des homonymes avec un score
+  // différent.
+  if (pseudoJoueur && displayPseudo === pseudoJoueur && s.score === deps.game.score) {
+    li.classList.add("current-score");
+  }
+  return li;
+}
+
+// Refonte du 23 août 2026 (« écran de fin trop chargé, ça respire pas ») :
+// la carte ne montre plus qu'un TOP 3 fixe, sans scroll — plus, si le joueur
+// est classé en dehors, SA ligne juste en dessous (séparée par un filet
+// pointillé, .self-gap) avec son VRAI rang. Le classement complet (jusqu'à
+// 50) part dans #leaderboard-sheet, ouvert au clic sur « Voir le classement
+// complet » — jamais affiché s'il n'y a que ces 3-4 lignes à voir.
 export function renderLeaderboard(scores) {
   leaderboardList.innerHTML = "";
+  dernierClassement = scores;
   if (!scores.length) {
     // Table réellement vide (premier joueur du concours) : rien à montrer, on
     // masque comme avant. Mais si la requête a ÉCHOUÉ, se taire était le vrai
@@ -884,6 +931,7 @@ export function renderLeaderboard(scores) {
     const raison = net.getLastError();
     if (!raison) {
       leaderboard.classList.add("hidden");
+      leaderboardExpand.classList.add("hidden");
       return;
     }
     const li = document.createElement("li");
@@ -893,58 +941,63 @@ export function renderLeaderboard(scores) {
       : "Classement indisponible pour le moment";
     leaderboardList.appendChild(li);
     leaderboard.classList.remove("hidden");
+    leaderboardExpand.classList.add("hidden");
     return;
   }
   const pseudoJoueur = cleanPseudo();
-  let current = null;   // la ligne du joueur, à centrer une fois la liste montée
-  for (const [i, s] of scores.entries()) {
-    const li = document.createElement("li");
-    const rank = document.createElement("span");
-    rank.className = "rank";
-    rank.textContent = `${i + 1}`;
-    const pseudo = document.createElement("span");
-    pseudo.className = "pseudo";
-    // Le classement ne connaît QUE le pseudo public : la vue Supabase
-    // n'expose pas la colonne insta (voir net.js). Repli sur pseudo_insta
-    // pour les lignes écrites avant la séparation des deux champs.
+  const top = scores.slice(0, 3);
+  top.forEach((s, i) => leaderboardList.appendChild(construireLigneClassement(s, i + 1, pseudoJoueur)));
+  const selfIndex = scores.findIndex((s) => {
     const displayPseudo = (s.pseudo || s.pseudo_insta || "?").replace(/^@+/, "");
-    pseudo.textContent = displayPseudo;
-    const points = document.createElement("span");
-    points.className = "points";
-    points.textContent = `${s.score}`;
-    li.append(rank, pseudo, points);
-    // Surligner le score du joueur courant dans le classement. Le test est
-    // prudent : même pseudo + même score, pour éviter de surligner des
-    // homonymes avec un score différent.
-    if (pseudoJoueur && displayPseudo === pseudoJoueur && s.score === deps.game.score) {
-      li.classList.add("current-score");
-      current = li;
-    }
-    leaderboardList.appendChild(li);
+    return pseudoJoueur && displayPseudo === pseudoJoueur && s.score === deps.game.score;
+  });
+  if (selfIndex >= 3) {
+    const ligneJoueur = construireLigneClassement(scores[selfIndex], selfIndex + 1, pseudoJoueur);
+    ligneJoueur.classList.add("self-gap");
+    leaderboardList.appendChild(ligneJoueur);
   }
   leaderboard.classList.remove("hidden");
-  scrollCurrentScoreIntoView(current);
+  // Pas la peine d'ouvrir un panneau pour voir 3 lignes qu'on voit déjà.
+  leaderboardExpand.classList.toggle("hidden", scores.length <= 3);
+}
+
+function ouvrirClassementComplet() {
+  leaderboardSheetList.innerHTML = "";
+  const pseudoJoueur = cleanPseudo();
+  let current = null;
+  for (const [i, s] of dernierClassement.entries()) {
+    const li = construireLigneClassement(s, i + 1, pseudoJoueur);
+    if (li.classList.contains("current-score")) current = li;
+    leaderboardSheetList.appendChild(li);
+  }
+  leaderboardSheet.classList.add("visible");
+  leaderboardSheet.setAttribute("aria-hidden", "false");
+  scrollCurrentScoreIntoView(current, leaderboardSheetList);
+}
+
+function fermerClassementComplet() {
+  leaderboardSheet.classList.remove("visible");
+  leaderboardSheet.setAttribute("aria-hidden", "true");
 }
 
 // « Je suis 8e, je veux que ma ligne arrive au milieu de mon écran et qu'elle
-// soit surlignée. » Le classement affiche jusqu'à 50 entrées dans une liste
-// qui défile (CONFIG.apiScoresLimit) : sans ça, un joueur classé au-delà des
-// 5 premières lignes ne voit jamais son propre score.
+// soit surlignée. » Le panneau complet affiche jusqu'à 50 entrées dans une
+// liste qui défile (CONFIG.apiScoresLimit).
 // `scrollIntoView({block:"center"})` est volontairement évité : sur Safari
 // iOS il fait aussi remonter l'ANCÊTRE scrollable (donc la page entière, qui
 // est en overflow:hidden ici) et provoque des sauts de mise en page. On
 // positionne donc le scroll de la liste à la main.
-function scrollCurrentScoreIntoView(li) {
+function scrollCurrentScoreIntoView(li, liste) {
   if (!li) return;
-  // Après le repaint : tant que #leaderboard porte .hidden (display:none),
+  // Après le repaint : tant que le conteneur est encore invisible,
   // offsetTop/clientHeight valent 0 et le calcul serait faux.
   requestAnimationFrame(() => {
     // Position de la ligne DANS le contenu défilant. `li.offsetTop` ne
     // convient pas : il se mesure depuis le premier ancêtre positionné, qui
     // n'est pas la liste (bug constaté — la ligne finissait hors champ).
-    const rectListe = leaderboardList.getBoundingClientRect();
-    const haut = li.getBoundingClientRect().top - rectListe.top + leaderboardList.scrollTop;
-    const centre = haut - (leaderboardList.clientHeight - li.offsetHeight) / 2;
+    const rectListe = liste.getBoundingClientRect();
+    const haut = li.getBoundingClientRect().top - rectListe.top + liste.scrollTop;
+    const centre = haut - (liste.clientHeight - li.offsetHeight) / 2;
     // ⚠️ Borné au contenu réel, SANS padding artificiel (revu le 20 août 2026,
     // capture à l'appui) : l'ancien code ajoutait du padding-bottom pour
     // rendre le centrage atteignable quand le joueur est en fin de classement
@@ -953,8 +1006,8 @@ function scrollCurrentScoreIntoView(li) {
     // sous la dernière ligne, dans la carte. Une ligne parmi les dernières
     // s'affiche donc près du bas de la fenêtre plutôt qu'au milieu — elle
     // reste surlignée et visible, c'est ce qui compte.
-    const maxScroll = leaderboardList.scrollHeight - leaderboardList.clientHeight;
-    leaderboardList.scrollTop = Math.min(Math.max(0, centre), Math.max(0, maxScroll));
+    const maxScroll = liste.scrollHeight - liste.clientHeight;
+    liste.scrollTop = Math.min(Math.max(0, centre), Math.max(0, maxScroll));
   });
 }
 
@@ -1129,6 +1182,10 @@ export function init(d) {
   unlockSheetClose.addEventListener("click", closeUnlockSheet);
   unlockSheetVeil.addEventListener("click", closeUnlockSheet);
 
+  leaderboardExpand.addEventListener("click", ouvrirClassementComplet);
+  leaderboardSheetClose.addEventListener("click", fermerClassementComplet);
+  leaderboardSheetVeil.addEventListener("click", fermerClassementComplet);
+
   // Seconde chance : le clic sur le CTA vaut conversion (même règle « au
   // clic » que le verrou) ET reprise immédiate — l'onglet Spotify s'ouvre à
   // côté, le jeu se fige tout seul (document.hidden) et attend le retour.
@@ -1210,6 +1267,18 @@ export function init(d) {
   // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau
   // « Tu écoutes » : le geste compte, d'où qu'il vienne.
   [endCta, ctaLink].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
+
+  // Tracking du clic (23 août 2026, voir net.postClicEP) : mesurer le taux
+  // jeu → smartlink sans dépendre du tableau de bord li.sten.to, qui ne voit
+  // que ses propres visites, jamais d'où elles viennent. ⚠️ Seulement les
+  // emplacements qui pointent VRAIMENT vers lienEP au clic — unlockSheetCta
+  // et reviveCta peuvent aussi pointer vers lienSuivre (second verrou),
+  // un funnel différent qu'on ne veut pas mélanger dans ce compteur.
+  [endCta, ctaLink, unlockSheetCta, reviveCta].forEach((lien) => {
+    lien.addEventListener("click", () => {
+      if (lien.href === window.CONFIG.lienEP) net.postClicEP();
+    });
+  });
 
   shareButton.addEventListener("click", (e) => {
     e.stopPropagation();

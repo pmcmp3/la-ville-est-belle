@@ -186,6 +186,17 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   vraiment qu'on le mette en avant ») — renversement assumé du « pas un troisième bouton » du
   21 août, rendu possible par la passe UX qui a réduit tous les boutons (50→46 px, 15→14 px,
   score de fin 40→46 px : « que tout soit plus lisible et qu'on voie un peu plus de score »).
+  ⚠️ **PARTAGER/DÉFIER côte à côte depuis le 23 août 2026** (deuxième passe le même jour,
+  « écran de fin trop chargé [...] défier un ami faut le mettre plus en avant ») : deux
+  `.btn` de largeur égale (`#secondary-actions`) au lieu de deux boutons empilés — DÉFIER
+  obtient le même poids visuel que PARTAGER (au lieu d'être lu en second, en dessous) et la
+  carte gagne une ligne de hauteur.
+  ⚠️ **Classement réduit au TOP 3 + rang du joueur** (même passe) : la carte ne montre plus une
+  liste de 5 lignes qui défile, mais 3 lignes fixes — et, si le joueur est classé au-delà, sa
+  propre ligne avec son VRAI rang juste en dessous (filet pointillé, `.self-gap`). Un lien
+  « Voir le classement complet → » ouvre `#leaderboard-sheet` (même patron de tiroir que
+  `#unlock-sheet`) avec les 50 lignes complètes, scrollable, centré sur le joueur — jamais un
+  second appel réseau, `screens.js` réutilise la réponse déjà reçue (`dernierClassement`).
 - **Course parfaite** (demandé le 21 août 2026) : parcours terminé sans un seul choc (traversante
   comprise) → bandeau « Course parfaite », pastille sur l'écran de fin, et badge
   **« LA VILLE EST PARFAITE »** sur l'image de partage, où il REMPLACE le badge de disque.
@@ -241,7 +252,20 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   - **Balises OG/Twitter** avec la pochette (`public/assets/cover-ep-og.jpg`).
   - **Compteur global de courses** (« X courses déjà jouées ») + **date de fin du concours**
     sur l'écran de fin — table `courses` insert-only, migration
-    `supabase-migration-compteur-courses.sql` **à exécuter côté Supabase**.
+    `supabase-migration-compteur-courses.sql` **à exécuter côté Supabase**. ⚠️ Compté en
+    `count=planned` (estimation du planificateur Postgres, pas un `count=exact`) pour ne pas
+    relancer un comptage complet toutes les 20 s par joueur sur l'écran de fin — le chiffre
+    affiché peut donc dériver de quelques lignes par rapport au total réel, exact ou non selon
+    que l'auto-analyze vient de tourner. Assumé, c'est de la preuve sociale, pas une mesure.
+  - **Compteur de clics sur « AJOUTER LE MORCEAU »** (23 août 2026, `net.postClicEP`/
+    `net.getClicsEPCount`) : même patron exact que le compteur de courses (table `clics_ep`
+    insert-only, migration `supabase-migration-compteur-clics-ep.sql` **à exécuter côté
+    Supabase**, comptage `planned`). Sert à mesurer le taux JEU → smartlink sans dépendre du
+    tableau de bord li.sten.to (qui voit ses visites mais jamais d'où elles viennent). Posé sur
+    les 4 emplacements qui peuvent pointer vers `lienEP` (carte de fin, CTA flottant du menu,
+    panneau de verrou, panneau de seconde chance) — mais seulement si le lien pointe VRAIMENT
+    vers `lienEP` au moment du clic : `unlockSheetCta`/`reviveCta` peuvent aussi pointer vers
+    `lienSuivre` (second verrou), un funnel volontairement exclu de ce compteur.
   - **Image de partage** : pochette de l'EP + badge disque (bronze/argent/or/platine) ; le
     partage embarque désormais texte + lien du jeu.
   - ~~**Clip vidéo des 5-10 dernières secondes**~~ — **RETIRÉ le 21 août 2026** (« tu peux

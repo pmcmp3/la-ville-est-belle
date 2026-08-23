@@ -147,6 +147,43 @@ export async function getRunsCount() {
   }
 }
 
+// --- Clics sur "AJOUTER LE MORCEAU" (23 août 2026) --------------------------
+// Même patron exact que postRun()/getRunsCount() ci-dessus : table
+// insert-only (clics_ep, migration supabase-migration-compteur-clics-ep.sql),
+// mesure planned (pas exact, même raison de coût), jamais bloquant. Sert à
+// calculer un vrai taux jeu → smartlink sans dépendre du tableau de bord
+// li.sten.to, qui ne voit que ses propres visites (pas d'où elles viennent).
+function clicsEpUrl() {
+  return window.CONFIG.apiScores.replace(/\/scores$/, "/clics_ep");
+}
+
+// Fire-and-forget, appelé au clic sur AJOUTER LE MORCEAU (screens.js) — ne
+// doit JAMAIS retarder la navigation (l'ancre part dans son nouvel onglet
+// avant même que la promesse ne résolve).
+export function postClicEP() {
+  if (!configured()) return;
+  fetch(clicsEpUrl(), {
+    method: "POST",
+    headers: headers({ Prefer: "return=minimal" }),
+    body: JSON.stringify({}),
+  }).catch(() => { /* table absente ou réseau coupé : tant pis, pas de compteur */ });
+}
+
+export async function getClicsEPCount() {
+  if (!configured()) return null;
+  try {
+    const res = await fetch(`${clicsEpUrl()}?select=id`, {
+      headers: headers({ Prefer: "count=planned", Range: "0-0" }),
+    });
+    if (!res.ok && res.status !== 206) return null;
+    const range = res.headers.get("content-range");
+    const total = range && range.includes("/") ? Number(range.split("/")[1]) : NaN;
+    return Number.isFinite(total) ? total : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchScores(base, select, limit) {
   const url = `${base}?select=${select}&order=score.desc&limit=${limit}`;
   try {
