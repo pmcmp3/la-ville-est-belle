@@ -465,20 +465,23 @@
       opacity: 1;
     }
 
-    #revive-timer {
+    #revive-timer,
+    #gate-timer {
       position: relative;
       width: 76px;
       height: 76px;
     }
 
-    #revive-timer svg {
+    #revive-timer svg,
+    #gate-timer svg {
       width: 100%;
       height: 100%;
       /* L'arc démarre à midi et se vide dans le sens horaire. */
       transform: rotate(-90deg);
     }
 
-    #revive-timer .piste {
+    #revive-timer .piste,
+    #gate-timer .piste {
       fill: none;
       stroke: rgba(225, 62, 38, 0.18);
       stroke-width: 6;
@@ -486,7 +489,8 @@
 
     /* Longueur d'arc pilotée en JS (stroke-dashoffset) — la circonférence
        (2π×33 ≈ 207,3) est posée ici ET recalculée côté screens.js. */
-    #revive-arc {
+    #revive-arc,
+    #gate-arc {
       fill: none;
       stroke: var(--rouge);
       stroke-width: 6;
@@ -495,7 +499,8 @@
       stroke-dashoffset: 0;
     }
 
-    #revive-timer-num {
+    #revive-timer-num,
+    #gate-timer-num {
       position: absolute;
       inset: 0;
       display: flex;
@@ -525,10 +530,106 @@
       width: 100%;
     }
 
-    /* Palier « attente » : REPRENDRE est visible mais verrouillé tant que le
-       décompte tourne (le clic est aussi ignoré côté JS). */
-    #revive-cta.locked {
+    /* Bouton visible mais verrouillé tant qu'un décompte tourne (le clic est
+       aussi ignoré côté JS). Sert au bouton d'action du tiroir de conversion
+       pendant le décompte 5-4-3-2-1 du retour de Spotify. */
+    #revive-cta.locked,
+    #gate-go.locked {
       opacity: 0.45;
+    }
+
+    /* --- Tiroir de conversion (#gate-sheet, 23 août 2026) -----------------
+       Même patron de tiroir que #leaderboard-sheet : il SE SOULÈVE d'en bas
+       (demandé explicitement, « le petit dropdown qui se soulève d'en bas »),
+       il ne se pose pas au centre comme la carte de mort. z-index 50 : il
+       passe au-dessus de la carte de mort (45) et du classement (40), puisque
+       c'est lui qui porte la demande. */
+    #gate-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      visibility: hidden;
+      transition: visibility 0s linear 0.3s;
+    }
+
+    #gate-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #gate-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.62);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #gate-sheet.visible #gate-veil {
+      opacity: 1;
+    }
+
+    #gate-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      box-sizing: border-box;
+      max-height: 88vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 24px calc(18px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      border-radius: 22px 22px 0 0;
+      border: 2px solid var(--panneau-bord);
+      border-bottom: none;
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+      transform: translateY(105%);
+      transition: transform 0.3s ease;
+    }
+
+    #gate-sheet.visible #gate-card {
+      transform: translateY(0);
+    }
+
+    /* Surtitre : il dit CE QUE le tiroir débloque (« pour continuer ta
+       partie » / « pour rejouer »), pour que la demande ne soit jamais lue
+       comme un péage posé au hasard. */
+    #gate-eyebrow {
+      margin: 0;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    #gate-title {
+      margin: 2px 0 0;
+      font: 900 19px var(--police);
+      color: var(--noir);
+      text-align: center;
+    }
+
+    #gate-text {
+      margin: 0 0 4px;
+      font: 500 13.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    #gate-cta,
+    #gate-go {
+      width: 100%;
+    }
+
+    #gate-cta.hidden,
+    #gate-go.hidden,
+    #gate-timer.hidden {
+      display: none;
     }
 
     /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
@@ -2278,9 +2379,17 @@
         <span id="revive-timer-num">10</span>
       </div>
       <p id="revive-title">Ta course n'est pas finie !</p>
-      <p id="revive-text">Ajoute le morceau et reprends PILE ici, avec tes <strong id="revive-score">0</strong>&nbsp;points.</p>
+      <p id="revive-text">Reprends PILE ici, avec tes <strong id="revive-score">0</strong>&nbsp;points.</p>
+      <!-- ⚠️ Depuis le 23 août 2026 (quatrième passe), cette carte ne porte
+           PLUS de lien Spotify : elle ne pose que le choix, « continuer » ou
+           « rejouer ». La demande de conversion vit dans le tiroir
+           #gate-sheet, qui se soulève par-dessus quand l'un des deux boutons
+           est touché — et les DEUX passent par exactement les mêmes
+           conditions (demandé : « pareil pour le rejouer, il faut que ce soit
+           exactement les mêmes conditions »). Le <a> reste un <a> : le tiroir
+           lui rend un href quand il redevient un lien sortant. -->
       <a id="revive-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
-        <span id="revive-cta-label">AJOUTER LE MORCEAU</span>
+        <span id="revive-cta-label">CONTINUER LA PARTIE</span>
         <svg id="revive-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
           <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
@@ -2301,6 +2410,46 @@
            (garder son score), jamais le droit de jouer. -->
       <button id="revive-replay" type="button" class="btn btn-secondary">REJOUER</button>
       <button id="revive-decline" type="button" class="link-minimal">Voir mon score</button>
+    </div>
+  </div>
+
+  <!-- Tiroir de conversion (23 août 2026, quatrième passe — demandé : « le
+       petit dropdown qui se soulève d'en bas [...] tu dois d'abord
+       pré-sauvegarder l'album de PMC sur Spotify »). Il se soulève par-dessus
+       la carte de mort OU par-dessus l'écran de fin, selon d'où vient la
+       demande, et porte l'échelle à trois paliers :
+         pré-sauvegarde de l'album → abonnement à PMC → plus rien à demander.
+       ⚠️ Les DEUX actions (continuer, rejouer) passent par ce tiroir et par
+       les mêmes paliers : c'est le point de la demande. Une fois les deux
+       paliers franchis, il ne s'ouvre plus jamais.
+       ⚠️ Même règle que partout : la conversion se donne AU CLIC, jamais sur
+       une preuve (impossible à obtenir depuis une page web). -->
+  <div id="gate-sheet" aria-hidden="true">
+    <div id="gate-veil"></div>
+    <div id="gate-card">
+      <p id="gate-eyebrow">POUR CONTINUER TA PARTIE</p>
+      <div id="gate-timer">
+        <svg viewBox="0 0 76 76" aria-hidden="true">
+          <circle class="piste" cx="38" cy="38" r="33"></circle>
+          <circle id="gate-arc" cx="38" cy="38" r="33"></circle>
+        </svg>
+        <span id="gate-timer-num">10</span>
+      </div>
+      <p id="gate-title">Pré-sauvegarde l'album</p>
+      <p id="gate-text">Pré-sauvegarde l'album de PMC sur Spotify pour continuer.</p>
+      <a id="gate-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+        <span id="gate-cta-label">PRÉ-SAUVEGARDER L'ALBUM</span>
+        <svg id="gate-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+          <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <!-- Armé seulement au retour de Spotify, et jamais déclenché tout seul :
+           la reprise reste un TAP explicite (invariant verrouillé du 22 août
+           2026 — jamais dans le dos de quelqu'un qui a posé son téléphone). -->
+      <button id="gate-go" type="button" class="btn btn-primary hidden">CONTINUER MA PARTIE</button>
+      <button id="gate-later" type="button" class="link-minimal">Plus tard</button>
     </div>
   </div>
 

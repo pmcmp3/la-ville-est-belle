@@ -56,13 +56,12 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   traversante (crosstraffic.js) reste à −1 vie (jamais fatale, invariant verrouillé). En
   contrepartie : **seconde chance à la mort** — première mort d'une partie → panneau 10 s
   (`#revive-sheet`), reprise sur place, score ET combo conservés, une fois par partie.
-  ⚠️ **Échelle de conversion à TROIS PALIERS depuis le 21 août 2026** (« la première fois
-  sauvegarder le morceau, la deuxième s'abonner à PMC, après on laisse rejouer ») : jamais
-  ajouté le morceau → CTA lienEP ; déjà ajouté mais pas abonné → CTA lienSuivre (même clé
-  `pmcSuivi` que le verrou de fin, qui ne se déclenchera donc jamais pour lui) ; tout fait →
-  plus rien à demander, le décompte de 10 s devient une simple ATTENTE qui déverrouille
-  REPRENDRE (il ne décline plus). La reprise est TOUJOURS un tap séparé (jamais « dans le
-  dos » du joueur revenu de Spotify). Voir ARCHITECTURE.md §11, vingt-quatrième passe.
+  ⚠️ **Échelle de conversion à TROIS PALIERS** (posée le 21 août 2026 — « la première fois
+  sauvegarder le morceau, la deuxième s'abonner à PMC, après on laisse rejouer »). ⚠️ Depuis la
+  quatrième passe du 23 août 2026 elle ne vit PLUS sur la carte de mort elle-même mais dans le
+  tiroir `#gate-sheet`, et elle conditionne les DEUX actions (continuer ET rejouer) : voir le
+  bloc « MODÈLE DE CONVERSION — QUATRIÈME PASSE » plus bas, qui fait foi. La reprise est
+  TOUJOURS un tap séparé (jamais « dans le dos » du joueur revenu de Spotify).
   - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
   - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
   - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
@@ -161,29 +160,57 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     pourquoi il est marqué 12 000 points [...] dis un truc genre premier palier activé ») :
     titre « PREMIER PALIER ACTIVÉ ! », sous-titre « le morceau t'attend à l'arrivée » — le
     palier est la récompense, le chiffre brut ne se lisait pas.
-- ⚠️ **MODÈLE DE CONVERSION REFONDU le 23 août 2026** (« ajouter le morceau pour continuer la
-  partie, mais que ce soit digeste dans un CTA ; réfléchis pour que ce soit logique ») : la
-  demande de conversion n'est plus un PÉAGE sur le droit de jouer, elle achète la
-  **continuation de la course en cours** — garder son score et son combo, ce qui a une vraie
-  valeur à l'instant précis de la mort. Concrètement :
-  - **Rejouer une course neuve est TOUJOURS gratuit**, partout — carte de mort (nouveau bouton
-    `#revive-replay`) comme écran de fin (REJOUER n'est plus jamais verrouillé).
-  - **La demande vit uniquement sur la carte de mort** (`openReviveSheet`), avec son escalade à
-    trois paliers intacte : morceau (« AJOUTER ET CONTINUER ») → suivre (« SUIVRE ET
-    CONTINUER ») → attente. Le texte reprend la formulation de l'artiste : « Ajoute le morceau
-    pour continuer la partie avec tes X points. »
-  - **L'écran de fin ne garde que des demandes NON bloquantes** : bouton AJOUTER LE MORCEAU en
-    secondaire, promesse de boost fan (+10 %), bandeau « Tu écoutes La ville est belle ».
+- ⚠️ **MODÈLE DE CONVERSION — QUATRIÈME PASSE, 23 août 2026** (« quand une personne arrive pour
+  la première fois, fait une partie et échoue, il faut deux boutons : continuer la partie,
+  rejouer [...] tu dois d'abord pré-sauvegarder l'album de PMC sur Spotify [...] pareil pour le
+  rejouer, il faut que ce soit exactement les mêmes conditions. L'idée c'est de la
+  transformation »). C'est le modèle COURANT ; les trois passes précédentes du même jour sont
+  l'historique, résumé plus bas.
+  - **La carte de mort ne porte plus aucun lien Spotify.** Elle pose le choix, rien d'autre :
+    `CONTINUER LA PARTIE` (garde score et combo) / `REJOUER` (course neuve) / « Voir mon score ».
+    Son décompte de **10 s** est inchangé — expiré sans choix → écran de fin.
+  - **Les DEUX boutons passent par exactement la même porte** — c'est tout le point de la
+    demande — et cette porte est un **tiroir qui se soulève d'en bas** (`#gate-sheet`,
+    `ouvrirGate`/`exigerConversion` dans `screens.js`), avec l'échelle à trois paliers :
+    `"presave"` (album jamais pré-sauvegardé → CTA `config.lienPresave`) → `"suivre"`
+    (pré-sauvegardé, pas encore abonné → CTA `config.lienSuivre`) → `"libre"` (les deux faits :
+    **le tiroir ne s'ouvre plus jamais**, les deux actions partent au premier tap).
+  - **`REJOUER` de l'écran de fin passe par la même porte.** Sans ça elle se contournerait en un
+    tap (« Voir mon score » puis REJOUER) et ne demanderait plus rien à personne.
+  - ⚠️ **`config.lienPresave` est un NOUVEAU réglage**, séparé de `lienEP` pour que le vrai lien
+    de pré-sauvegarde de l'album puisse y être collé sans toucher au smartlink du morceau. Tant
+    qu'il vaut la même URL, le palier 1 envoie sur le smartlink du morceau — fonctionnel, mais
+    **ce n'est pas une pré-sauvegarde d'album** : à remplacer dès que le lien existe.
+  - ⚠️ **Le tiroir N'EXPIRE PAS** (mesuré au banc d'essai, sur un premier jet qui lui donnait sa
+    propre fenêtre de 10 s) : la fenêtre courait pendant que le joueur LISAIT la demande,
+    expirait, rendait la main à la carte de mort dont le décompte reprenait — et le jetait sur
+    l'écran de fin sans qu'il ait rien fait. Les 10 s appartiennent à la carte de mort (offre
+    limitée) ; le tiroir pose une demande, il attend, sa seule sortie est « Plus tard ». Le
+    décompte de la carte est **gelé** tant que le tiroir est ouvert, et **repris là où il en
+    était** si le joueur referme par « Plus tard ».
+  - Au retour de Spotify, le tiroir joue le **décompte 5-4-3-2-1** (`loopMortRetour`) qui
+    rouvre le filtre de la boucle, puis **arme** le bouton d'action. ⚠️ La reprise reste un
+    **tap explicite**, jamais un redémarrage automatique (invariant du 22 août 2026).
+  - ⚠️ **La première partie reste libre** : la porte n'existe qu'APRÈS un échec. Le bouton
+    JOUER du menu n'est pas touché.
+  - ⚠️ **RENVERSEMENT ASSUMÉ** du « rejouer est toujours gratuit » posé plus tôt le même jour
+    (troisième passe), qui avait été décidé après avoir mesuré une IMPASSE sur un joueur neuf :
+    aucun chemin vers une deuxième course sans cliquer le lien, le joueur fermait l'onglet. Ce
+    qui change et évite de la reproduire : le palier se lève **au clic** sur le lien,
+    définitivement, et le tiroir **arme lui-même** l'action demandée au retour de Spotify — il y
+    a donc toujours un chemin vers la course suivante. Le joueur qui refuse le lien, lui, n'en a
+    plus : c'est la contrepartie voulue, arbitrée par l'artiste (« l'idée c'est de la
+    transformation »).
   - ⚠️ **Le REJOUER de la carte de mort finalise quand même la course** (`finalizeRun()`,
-    extrait de `endGame()` le même jour) : son score part au classement et elle compte dans le
-    compteur global. Sans ça, chaque joueur qui préfère repartir de zéro plutôt que voir son
+    extrait de `endGame()` le 23 août 2026) : son score part au classement et elle compte dans
+    le compteur global. Sans ça, chaque joueur qui préfère repartir de zéro plutôt que voir son
     score aurait fait sous-compter « X courses depuis le lancement » en silence.
-  - ~~**Sur l'écran de fin** : le vrai verrou sur REJOUER (`#unlock-sheet`)~~ — ⚠️ **SUPPRIMÉ le
-    23 août 2026**, avec le panneau lui-même. Il produisait une IMPASSE, mesurée sur un joueur
-    neuf : la carte de mort n'offrait que le lien Spotify ou « Voir mon score » ; « Voir mon
-    score » menait à l'écran de fin où REJOUER était verrouillé ; le panneau se fermait par
-    « Plus tard » sans rien relancer. Autrement dit **aucun chemin vers une deuxième course sans
-    cliquer le lien** — le joueur fermait l'onglet. Voir le nouveau modèle ci-dessous.
+  - **L'écran de fin garde ses demandes NON bloquantes** : bouton AJOUTER LE MORCEAU en
+    secondaire, promesse de boost fan (+10 %), bandeau « Tu écoutes La ville est belle ». Ces
+    clics-là lèvent aussi le palier 1 (même clé `localStorage`).
+  - ~~Verrou `#unlock-sheet` sur REJOUER~~ — supprimé le 23 août 2026 avec le panneau lui-même
+    (voir l'impasse ci-dessus). Le nouveau modèle n'y revient pas : il n'y a plus de panneau de
+    verrou, il y a un tiroir de demande qui débloque lui-même l'action.
 - **Défi à un ami** (`defi.js`, demandé le 21 août 2026) : le lien de partage embarque un score
   à battre (`?defi=23102&de=pol`). Le jeu porte la cible d'un bout à l'autre — bandeau au-dessus
   de JOUER, jauge de progression sous le score pendant la course, popup « DÉFI RELEVÉ ! » au

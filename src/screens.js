@@ -67,6 +67,20 @@ const reviveCtaLabel = document.getElementById("revive-cta-label");
 const reviveCtaIcone = document.getElementById("revive-cta-icone");
 const reviveDecline = document.getElementById("revive-decline");
 const reviveReplay = document.getElementById("revive-replay");
+// Tiroir de conversion (23 août 2026, quatrième passe) — voir #gate-sheet
+// dans index.html et la section « Tiroir de conversion » plus bas.
+const gateSheet = document.getElementById("gate-sheet");
+const gateVeil = document.getElementById("gate-veil");
+const gateEyebrow = document.getElementById("gate-eyebrow");
+const gateTimer = document.getElementById("gate-timer");
+const gateTimerNum = document.getElementById("gate-timer-num");
+const gateArc = document.getElementById("gate-arc");
+const gateTitle = document.getElementById("gate-title");
+const gateText = document.getElementById("gate-text");
+const gateCta = document.getElementById("gate-cta");
+const gateCtaLabel = document.getElementById("gate-cta-label");
+const gateGo = document.getElementById("gate-go");
+const gateLater = document.getElementById("gate-later");
 const changePseudoBtn = document.getElementById("change-pseudo");
 // Course parfaite + défi d'un ami (21 août 2026, voir defi.js).
 const perfectNote = document.getElementById("perfect-note");
@@ -162,28 +176,40 @@ export function showOverlay() {
   overlay.classList.add("visible");
 }
 
-// --- Seconde chance à la mort (revive, 21 août 2026) -----------------------
+// --- Seconde chance à la mort + tiroir de conversion -----------------------
 // Présentation seulement : la décision de l'offrir, le gel de la partie et la
-// reprise vivent dans main.js (offerRevive) — ce module reçoit les deux issues
-// en callbacks, comme tout le reste de l'API screens.
+// reprise vivent dans main.js (offerRevive) — ce module reçoit les issues en
+// callbacks, comme tout le reste de l'API screens.
 //
-// ⚠️ ÉCHELLE DE CONVERSION À TROIS PALIERS (21 août 2026, demandé : « la
-// première fois, sauvegarder le morceau ; la deuxième, s'abonner à PMC sur
-// Spotify ; après, on laisse les gens rejouer — on ne peut pas refaire
-// l'action en permanence ») :
-//   mode "morceau" — jamais ajouté le morceau : le CTA est le lien lienEP,
-//                    le clic marque la conversion (même clé que le verrou de
-//                    rejeu, donc les deux systèmes restent d'accord) ;
-//   mode "suivre"  — morceau déjà ajouté, pas encore abonné : le CTA est le
-//                    lien lienSuivre, le clic marque CLE_PMC_SUIVI (le verrou
-//                    « après 3 parties » de l'écran de fin ne se déclenchera
-//                    donc jamais pour lui : déjà satisfait) ;
-//   mode "attente" — tout est déjà fait : plus rien à demander, le décompte
-//                    de 10 s devient une simple ATTENTE — le bouton REPRENDRE
-//                    se déverrouille quand il atteint zéro, il ne décline
-//                    plus. « Voir mon score » reste disponible.
-// Dans les deux modes à lien, le décompte reste une fenêtre de DÉCISION :
-// expiré sans clic → onDecline (écran de fin).
+// ⚠️ MODÈLE REFONDU LE 23 AOÛT 2026 (quatrième passe, demandé : « quand une
+// personne arrive pour la première fois, fait une partie et échoue, il faut
+// deux boutons — continuer la partie, rejouer — [...] tu dois d'abord
+// pré-sauvegarder l'album de PMC sur Spotify [...] pareil pour le rejouer, il
+// faut que ce soit exactement les mêmes conditions »).
+//
+// La carte de mort ne porte PLUS de lien Spotify : elle pose le choix, et
+// rien d'autre.
+//   [ CONTINUER LA PARTIE ]  (garde le score et le combo)
+//   [ REJOUER ]              (course neuve)
+//   « Voir mon score »
+//
+// Les DEUX boutons passent par exactement la même porte — c'est le point de
+// la demande — et cette porte est un TIROIR qui se soulève d'en bas
+// (#gate-sheet), avec l'échelle à trois paliers :
+//   "presave" — album jamais pré-sauvegardé : le CTA est CONFIG.lienPresave ;
+//   "suivre"  — pré-sauvegardé mais pas encore abonné : CTA CONFIG.lienSuivre ;
+//   "libre"   — les deux paliers sont franchis : le tiroir ne s'ouvre PLUS
+//               JAMAIS, les deux actions partent au premier tap.
+// Le même tiroir garde REJOUER sur l'écran de fin : sans ça la porte de la
+// carte de mort se contournerait en un tap (« Voir mon score » puis REJOUER)
+// et ne demanderait plus rien à personne.
+//
+// ⚠️ RENVERSEMENT ASSUMÉ du 23 août 2026 (troisième passe), qui avait rendu
+// REJOUER gratuit PARTOUT après avoir mesuré une impasse sur un joueur neuf.
+// Ce qui change et évite de la reproduire : le palier se lève AU CLIC sur le
+// lien, définitivement, et le tiroir arme lui-même l'action demandée au retour
+// de Spotify — il y a donc toujours un chemin vers la course suivante. Le
+// joueur qui refuse le lien, lui, n'en a plus : c'est la contrepartie voulue.
 //
 // ⚠️ Le décompte survit au détour par Spotify : chaque tick soustrait au
 // maximum REVIVE_TICK_MAX_S — même quand iOS suspend totalement les timers en
@@ -191,200 +217,127 @@ export function showOverlay() {
 // document.hidden seul ne suffisait pas : au retour, le premier tick voyait
 // TOUTE l'absence dans son delta et vidait la fenêtre d'un coup — bug trouvé
 // à la revue du 21 août 2026).
-// ⚠️ Même règle que le verrou de rejeu : la conversion se donne AU CLIC,
-// jamais sur une preuve d'ajout (impossible à obtenir).
+// ⚠️ La conversion se donne AU CLIC, jamais sur une preuve d'ajout ou
+// d'abonnement (impossible à obtenir depuis une page web).
 const REVIVE_DELAI_S = 10;
 const REVIVE_TICK_MAX_S = 0.3; // plafond de temps décompté par tick (voir ci-dessus)
 const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans index.html
-let reviveCallbacks = null;
-let reviveRestant = 0;
-let reviveTimerId = 0;
-let reviveMode = "morceau";   // "morceau" | "suivre" | "attente" — posé à l'ouverture
-// ⚠️ DEUX PHASES (retour après test réel : « je suis reparti d'un seul
-// coup ») : le clic sur un lien de conversion ne relance JAMAIS la course —
-// il bascule la carte en phase "pret", et seul un tap explicite sur
-// REPRENDRE MA COURSE relance. Que le joueur revienne de Spotify dans 5
-// secondes ou 3 minutes, c'est LUI qui décide quand ses mains sont prêtes.
-// "decision" → le décompte de 10 s (fenêtre de choix)
-// "absence"  → le joueur est parti sur Spotify : plus de décompte, la boucle
-//              tourne au plus filtré et on l'attend
-// "retour"   → il est revenu : décompte 5-4-3-2-1 qui rouvre le filtre
-// "pret"     → REPRENDRE est armé, il ne reste qu'un tap
-let revivePhase = "decision";
-let reviveTotal = REVIVE_DELAI_S; // durée du décompte en cours (10 s en décision, 5 s au retour)
 
-function reviveMajAffichage() {
-  reviveTimerNum.textContent = `${Math.max(0, Math.ceil(reviveRestant))}`;
-  const t = Math.max(0, reviveRestant) / reviveTotal;
-  reviveArc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
+// L'échelle de conversion, en UN seul endroit : la carte de mort, le tiroir et
+// l'écran de fin doivent rester d'accord, sans quoi un joueur pourrait voir
+// « abonne-toi » alors qu'il n'a pas encore pré-sauvegardé.
+// ⚠️ Les clés localStorage sont celles d'avant (CLE_MORCEAU_OUVERT,
+// CLE_PMC_SUIVI) : les joueurs déjà convertis ne sont PAS remis à zéro par ce
+// changement de modèle.
+function niveauConversion() {
+  if (!morceauDejaOuvert()) return "presave";
+  if (!pmcDejaSuivi()) return "suivre";
+  return "libre";
 }
 
-// Reconstruit « préfixe <strong>score</strong> points. » sans innerHTML (un
-// innerHTML détacherait les nœuds et laisserait des références mortes).
-function poserTexteRevive(prefixe, score) {
-  reviveText.textContent = "";
-  const strong = document.createElement("strong");
-  strong.textContent = `${score}`;
-  reviveText.append(prefixe, strong, "\u00a0points.");
-}
-
-let reviveScoreCourant = 0;
-
-// Le CTA redevient un simple bouton de reprise (plus un lien). ⚠️ À ne
-// JAMAIS appeler pendant le dispatch d'un clic sur le lien : retirer le href
-// pendant le dispatch ANNULE la navigation (l'activation d'un <a> relit le
-// href après coup) — c'est le bug qui rendait toute la conversion muette,
-// prouvé au banc d'essai à la revue du 21 août 2026. D'où le setTimeout(0)
-// dans le handler de clic plus bas.
-function reviveCtaEnBoutonReprise(verrouille) {
-  reviveCtaLabel.textContent = "REPRENDRE MA COURSE";
-  reviveCtaIcone.style.display = "none";
-  reviveCta.removeAttribute("href");
-  reviveCta.removeAttribute("target");
-  reviveCta.classList.toggle("locked", Boolean(verrouille));
-}
-
-// Décompte générique (10 s de décision, ou 5 s de retour) : un seul endroit
-// qui tienne le plafond par tick, le gel quand l'onglet part, ET l'ouverture
-// du filtre de la boucle du début — les trois doivent rester d'accord.
+// Décompte circulaire, partagé par la carte de mort et le tiroir : un seul
+// endroit qui tienne le plafond par tick, le gel quand l'onglet part, ET
+// l'ouverture du filtre de la boucle du début — les trois doivent rester
+// d'accord.
 //
 // ⚠️ L'INTENSITÉ DE LA BOUCLE SUIT LE CHRONO (22 août 2026, demandé : « un
 // filtre passe-bas qui remonte au fur et à mesure du chrono, donc on a le
 // décompte et la loop du début se défiltre »). 0 au premier tick, 1 quand le
 // décompte touche zéro — le son dit donc, sans un mot, combien de temps il
-// reste.
-function demarrerDecompte(total, onZero) {
-  clearInterval(reviveTimerId);
-  reviveTotal = total;
-  reviveRestant = total;
-  reviveTimer.style.display = "";
-  reviveMajAffichage();
-  audio.setReviveIntensity(0);
-  let precedent = performance.now();
-  reviveTimerId = setInterval(() => {
-    const maintenant = performance.now();
-    // Plafond par tick : la seule protection qui tienne aussi quand iOS a
-    // suspendu le timer pendant tout le détour Spotify (voir l'en-tête).
-    const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
-    precedent = maintenant;
-    if (document.hidden) return; // figé pendant le détour (desktop/Android)
-    reviveRestant -= ecoule;
-    reviveMajAffichage();
-    audio.setReviveIntensity(1 - Math.max(0, reviveRestant) / total);
-    if (reviveRestant <= 0) {
-      clearInterval(reviveTimerId);
-      reviveTimerId = 0;
-      onZero();
-    }
-  }, 100);
+// reste. Sans effet quand la boucle ne tourne pas (audio.setReviveIntensity
+// sort tout de suite) : le tiroir peut donc s'ouvrir depuis l'écran de fin.
+function creerDecompte(boite, num, arc) {
+  let id = 0;
+  let restant = 0;
+  let total = 1;
+  const maj = () => {
+    num.textContent = `${Math.max(0, Math.ceil(restant))}`;
+    const t = Math.max(0, restant) / total;
+    arc.style.strokeDashoffset = `${REVIVE_ARC_LONGUEUR * (1 - t)}`;
+  };
+  return {
+    get restant() { return restant; },
+    arreter() { clearInterval(id); id = 0; },
+    cacher() { clearInterval(id); id = 0; boite.classList.add("hidden"); },
+    demarrer(duree, onZero) {
+      clearInterval(id);
+      total = duree;
+      restant = duree;
+      boite.classList.remove("hidden");
+      maj();
+      audio.setReviveIntensity(0);
+      let precedent = performance.now();
+      id = setInterval(() => {
+        const maintenant = performance.now();
+        // Plafond par tick : la seule protection qui tienne aussi quand iOS a
+        // suspendu le timer pendant tout le détour Spotify (voir l'en-tête).
+        const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
+        precedent = maintenant;
+        if (document.hidden) return; // figé pendant le détour (desktop/Android)
+        restant -= ecoule;
+        maj();
+        audio.setReviveIntensity(1 - Math.max(0, restant) / total);
+        if (restant <= 0) {
+          clearInterval(id);
+          id = 0;
+          onZero();
+        }
+      }, 100);
+    },
+  };
 }
 
-// Le joueur vient de cliquer un lien de conversion : on ne sait pas s'il
-// revient dans 5 secondes ou dans 3 minutes. Plus de décompte (rien ne doit
-// expirer pendant qu'il est chez Spotify), la boucle du début retombe au plus
-// filtré et au plus bas — « pas fort du tout » — et on attend son retour.
-function revivePhaseAbsence(titre) {
-  revivePhase = "absence";
-  clearInterval(reviveTimerId);
-  reviveTimerId = 0;
-  reviveTimer.style.display = "none";
-  reviveTitle.textContent = titre;
-  poserTexteRevive("Reviens dans le jeu quand tu veux — ta course t'attend, avec tes ", reviveScoreCourant);
-  reviveCtaEnBoutonReprise(true);
-  audio.setReviveIntensity(0);
-  // Filet : sur un navigateur qui ouvre le lien sans jamais masquer la page
-  // (nouvel onglet en arrière-plan sur desktop), aucun visibilitychange
-  // n'arrivera — sans ça le joueur resterait bloqué sur un bouton verrouillé.
-  clearTimeout(reviveRetourTimer);
-  reviveRetourTimer = setTimeout(() => {
-    if (revivePhase === "absence" && !document.hidden) revivePhaseRetour();
-  }, 1800);
+const decompteRevive = creerDecompte(reviveTimer, reviveTimerNum, reviveArc);
+const decompteGate = creerDecompte(gateTimer, gateTimerNum, gateArc);
+
+// Reconstruit « préfixe <strong>score</strong> points. » sans innerHTML (un
+// innerHTML détacherait les nœuds et laisserait des références mortes).
+function poserTexteScore(cible, prefixe, score) {
+  cible.textContent = "";
+  const strong = document.createElement("strong");
+  strong.textContent = `${score}`;
+  cible.append(prefixe, strong, " points.");
 }
 
-// Il est revenu dans l'appli : décompte 5-4-3-2-1 pendant lequel la boucle se
-// défiltre, puis REPRENDRE s'arme. ⚠️ La reprise reste un TAP explicite
-// (invariant verrouillé) : ce décompte prépare la main et l'oreille, il ne
-// relance jamais la course tout seul dans le dos de quelqu'un qui aurait posé
-// son téléphone.
-function revivePhaseRetour() {
-  clearTimeout(reviveRetourTimer);
-  revivePhase = "retour";
-  reviveTitle.textContent = "Prêt ? On repart";
-  poserTexteRevive("Reprise dans quelques secondes, avec tes ", reviveScoreCourant);
-  reviveCtaEnBoutonReprise(true);
-  demarrerDecompte(reviveRetourDelai(), () => revivePhasePrete("C'est reparti !"));
-}
+// --- Carte de mort ---------------------------------------------------------
 
-function reviveRetourDelai() {
-  const v = Number(window.CONFIG.loopMortRetour);
-  return Number.isFinite(v) && v > 0 ? v : 5;
-}
+let reviveCallbacks = null;
+let reviveScoreCourant = 0;
 
-let reviveRetourTimer = 0;
-
-function revivePhasePrete(titre) {
-  revivePhase = "pret";
-  clearInterval(reviveTimerId);
-  reviveTimerId = 0;
-  clearTimeout(reviveRetourTimer);
-  reviveTimer.style.display = "none"; // le décompte n'a plus d'objet
-  audio.setReviveIntensity(1);        // la boucle est en clair : la course peut repartir
-  reviveTitle.textContent = titre;
-  poserTexteRevive("Ta course t'attend — reprends quand tu es prêt, avec tes ", reviveScoreCourant);
-  reviveCtaEnBoutonReprise(false);
+// Le CTA de la carte de mort n'est plus un lien sortant : c'est le bouton
+// CONTINUER LA PARTIE. Le href est retiré ici, à l'ouverture — jamais pendant
+// le dispatch d'un clic, ce qui annulerait une navigation (voir gateCta).
+function reviveCtaEnBouton() {
+  reviveCtaLabel.textContent = "CONTINUER LA PARTIE";
+  reviveCtaIcone.style.display = "none";
+  reviveCta.removeAttribute("href");
+  reviveCta.removeAttribute("target");
+  reviveCta.classList.remove("locked");
 }
 
 export function openReviveSheet({ score, onAccept, onDecline, onReplay }) {
   reviveCallbacks = { onAccept, onDecline, onReplay };
-  revivePhase = "decision";
   reviveScoreCourant = score;
-  reviveMode = !estFan() ? "morceau" : !pmcDejaSuivi() ? "suivre" : "attente";
-  // Textes remis à l'état « décision » : la carte a pu finir une partie
-  // précédente dans un autre état.
-  reviveTimer.style.display = "";
-  reviveCta.classList.remove("locked");
-  // ⚠️ Formulation revue le 23 août 2026 (« ajouter le morceau pour continuer
-  // la partie, mais que ce soit digeste dans un CTA ») : le lien Spotify
-  // achète la CONTINUATION de la course en cours — garder son score et son
-  // combo — jamais le droit de jouer, qui reste toujours gratuit (bouton
-  // REJOUER juste en dessous). Le libellé porte les deux moitiés de l'échange
-  // (« AJOUTER ET CONTINUER ») et le texte dit ce qu'on garde.
-  if (reviveMode === "morceau") {
-    reviveTitle.textContent = "Ta course n'est pas finie !";
-    poserTexteRevive("Ajoute le morceau pour continuer la partie avec tes ", score);
-    reviveCtaLabel.textContent = "AJOUTER ET CONTINUER";
-    reviveCtaIcone.style.display = "";
-    reviveCta.href = window.CONFIG.lienEP;
-    reviveCta.target = "_blank";
-  } else if (reviveMode === "suivre") {
-    reviveTitle.textContent = "Ta course n'est pas finie !";
-    poserTexteRevive("Suis PMC sur Spotify pour continuer la partie avec tes ", score);
-    reviveCtaLabel.textContent = "SUIVRE ET CONTINUER";
-    reviveCtaIcone.style.display = "";
-    reviveCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
-    reviveCta.target = "_blank";
-  } else {
-    // Tout est déjà débloqué : l'attente EST le prix, le bouton s'armera à 0.
-    reviveTitle.textContent = "Seconde chance !";
-    poserTexteRevive("Tu as déjà tout débloqué — reprise dans quelques secondes, avec tes ", score);
-    reviveCtaEnBoutonReprise(true);
-  }
+  reviveTitle.textContent = "Ta course n'est pas finie !";
+  poserTexteScore(reviveText, "Reprends PILE ici, avec tes ", score);
+  reviveCtaEnBouton();
   reviveSheet.classList.add("visible");
   reviveSheet.setAttribute("aria-hidden", "false");
-  demarrerDecompte(REVIVE_DELAI_S, () => {
-    if (reviveMode === "attente") {
-      // L'attente est purgée : on ARME la reprise au lieu de décliner.
-      revivePhasePrete("C'est reparti !");
-    } else {
-      reviveResoudre("onDecline");
-    }
-  });
+  // Le décompte reste une fenêtre de DÉCISION : expiré sans choix → écran de
+  // fin. Il est GELÉ pendant que le tiroir de conversion est ouvert par-dessus
+  // (voir les handlers dans init) — sinon la carte déciderait toute seule
+  // pendant que le joueur lit la demande.
+  decompteRevive.demarrer(REVIVE_DELAI_S, () => reviveResoudre("onDecline"));
+}
+
+function reprendreDecompteRevive(restant) {
+  if (!reviveCallbacks) return;
+  if (restant <= 0) { reviveResoudre("onDecline"); return; }
+  decompteRevive.demarrer(restant, () => reviveResoudre("onDecline"));
 }
 
 function closeReviveSheet() {
-  clearInterval(reviveTimerId);
-  reviveTimerId = 0;
-  clearTimeout(reviveRetourTimer);
+  decompteRevive.arreter();
   reviveSheet.classList.remove("visible");
   reviveSheet.setAttribute("aria-hidden", "true");
 }
@@ -395,6 +348,155 @@ function reviveResoudre(issue) {
   reviveCallbacks = null;
   closeReviveSheet();
   cb();
+}
+
+// --- Tiroir de conversion (#gate-sheet) ------------------------------------
+// Phases, reprises telles quelles de la carte de mort du 22 août 2026 (elles
+// avaient été écrites pour ce détour-là, elles vivent maintenant ici) :
+//   "demande" → décompte de 10 s, le CTA Spotify est offert
+//   "absence" → le joueur est parti sur Spotify : plus de décompte, la boucle
+//               tourne au plus filtré et au plus bas, on l'attend
+//   "retour"  → il est revenu : décompte 5-4-3-2-1 qui rouvre le filtre
+//   "pret"    → le bouton d'action est armé, il ne reste qu'un tap
+// ⚠️ La reprise reste un TAP explicite (invariant verrouillé) : ce décompte
+// prépare la main et l'oreille, il ne relance jamais la course tout seul dans
+// le dos de quelqu'un qui aurait posé son téléphone.
+//
+// ⚠️ LE TIROIR N'EXPIRE PAS (mesuré au banc d'essai le 23 août 2026, sur le
+// premier jet qui lui donnait sa propre fenêtre de 10 s) : la fenêtre courait
+// pendant que le joueur LISAIT la demande, expirait, rendait la main à la
+// carte de mort dont le décompte reprenait — et le jetait sur l'écran de fin
+// sans qu'il ait rien fait de mal. Les 10 s appartiennent à la carte de mort,
+// qui offre une seconde chance limitée dans le temps ; le tiroir, lui, pose
+// une demande : il attend, et la seule sortie est « Plus tard ».
+let gateEtat = null; // { action, onUnlocked, onCancel, niveau, phase }
+let gateRetourTimer = 0;
+
+function gateRetourDelai() {
+  const v = Number(window.CONFIG.loopMortRetour);
+  return Number.isFinite(v) && v > 0 ? v : 5;
+}
+
+// Toute la copie du tiroir en un seul endroit : deux actions × deux paliers.
+// Le surtitre dit CE QUE la demande débloque, le titre dit L'ACTION à faire —
+// jamais l'inverse, sans quoi la demande se lit comme un péage posé au hasard.
+function gateTextes(action, niveau) {
+  const continuer = action === "continuer";
+  const presave = niveau === "presave";
+  return {
+    eyebrow: continuer ? "POUR CONTINUER TA PARTIE" : "POUR REJOUER",
+    titre: presave ? "Pré-sauvegarde l'album" : "Abonne-toi à PMC",
+    prefixe: presave
+      ? (continuer
+        ? "Pré-sauvegarde l'album de PMC sur Spotify et reprends ta course avec tes "
+        : "Pré-sauvegarde l'album de PMC sur Spotify pour relancer une course. Score en cours : ")
+      : (continuer
+        ? "Abonne-toi à PMC sur Spotify et reprends ta course avec tes "
+        : "Abonne-toi à PMC sur Spotify pour relancer une course. Score en cours : "),
+    ctaLabel: presave ? "PRÉ-SAUVEGARDER L'ALBUM" : "S'ABONNER À PMC",
+    href: presave
+      ? (window.CONFIG.lienPresave || window.CONFIG.lienEP)
+      : (window.CONFIG.lienSuivre || window.CONFIG.lienEP),
+    goLabel: continuer ? "CONTINUER MA PARTIE" : "REJOUER",
+  };
+}
+
+// ⚠️ Point d'entrée UNIQUE des deux actions : elles franchissent exactement
+// les mêmes paliers, et « libre » les laisse toutes les deux partir au premier
+// tap. Toute nouvelle action qui doit se mériter passe par ici, jamais par un
+// test de palier recopié ailleurs.
+function exigerConversion({ action, score, onOk, onCancel }) {
+  if (niveauConversion() === "libre") { onOk(); return; }
+  ouvrirGate({ action, score, onUnlocked: onOk, onCancel });
+}
+
+function ouvrirGate({ action, score, onUnlocked, onCancel }) {
+  const niveau = niveauConversion();
+  const t = gateTextes(action, niveau);
+  gateEtat = { action, onUnlocked, onCancel, niveau, phase: "demande" };
+  gateEyebrow.textContent = t.eyebrow;
+  gateTitle.textContent = t.titre;
+  poserTexteScore(gateText, t.prefixe, score);
+  gateCtaLabel.textContent = t.ctaLabel;
+  gateCta.href = t.href;
+  gateCta.target = "_blank";
+  gateCta.classList.remove("hidden");
+  gateGo.textContent = t.goLabel;
+  gateGo.classList.add("hidden");
+  gateGo.classList.add("locked");
+  gateLater.textContent = "Plus tard";
+  // Le décompte n'apparaît qu'au RETOUR de Spotify (5-4-3-2-1) : en phase de
+  // demande, rien ne court (voir la note ci-dessus).
+  decompteGate.cacher();
+  gateSheet.classList.add("visible");
+  gateSheet.setAttribute("aria-hidden", "false");
+}
+
+// Il vient de cliquer le lien : on ne sait pas s'il revient dans 5 secondes ou
+// dans 3 minutes. Plus de décompte (rien ne doit expirer pendant qu'il est
+// chez Spotify), la boucle du début retombe au plus filtré et au plus bas.
+function gatePhaseAbsence() {
+  if (!gateEtat) return;
+  gateEtat.phase = "absence";
+  decompteGate.cacher();
+  gateTitle.textContent = gateEtat.niveau === "presave" ? "Album pré-sauvegardé, merci !" : "Abonnement enregistré, merci !";
+  gateText.textContent = "Reviens dans le jeu quand tu veux — c'est débloqué.";
+  gateCta.classList.add("hidden");
+  gateGo.classList.remove("hidden");
+  gateGo.classList.add("locked");
+  audio.setReviveIntensity(0);
+  // Filet : sur un navigateur qui ouvre le lien sans jamais masquer la page
+  // (nouvel onglet en arrière-plan sur desktop), aucun visibilitychange
+  // n'arrivera — sans ça le joueur resterait bloqué sur un bouton verrouillé.
+  clearTimeout(gateRetourTimer);
+  gateRetourTimer = setTimeout(() => {
+    if (gateEtat && gateEtat.phase === "absence" && !document.hidden) gatePhaseRetour();
+  }, 1800);
+}
+
+// ⚠️ Un retour PENDANT le décompte de retour le rejoue depuis 5 : quelqu'un
+// qui fait deux allers-retours ne se retrouve jamais avec 1 seconde pour
+// reprendre ses esprits.
+function gatePhaseRetour() {
+  if (!gateEtat) return;
+  clearTimeout(gateRetourTimer);
+  gateEtat.phase = "retour";
+  gateTitle.textContent = "Prêt ? On repart";
+  gateText.textContent = "Dans quelques secondes…";
+  gateCta.classList.add("hidden");
+  gateGo.classList.remove("hidden");
+  gateGo.classList.add("locked");
+  decompteGate.demarrer(gateRetourDelai(), gatePhasePret);
+}
+
+function gatePhasePret() {
+  if (!gateEtat) return;
+  clearTimeout(gateRetourTimer);
+  gateEtat.phase = "pret";
+  decompteGate.cacher();
+  audio.setReviveIntensity(1); // la boucle est en clair : la course peut repartir
+  gateTitle.textContent = "C'est reparti !";
+  gateText.textContent = gateEtat.action === "continuer"
+    ? "Ta course t'attend — reprends quand tu es prêt."
+    : "Nouvelle course, quand tu veux.";
+  gateCta.classList.add("hidden");
+  gateGo.classList.remove("hidden");
+  gateGo.classList.remove("locked");
+}
+
+function fermerGate() {
+  decompteGate.arreter();
+  clearTimeout(gateRetourTimer);
+  gateSheet.classList.remove("visible");
+  gateSheet.setAttribute("aria-hidden", "true");
+}
+
+function gateResoudre(issue) {
+  if (!gateEtat) return;
+  const cb = issue === "onUnlocked" ? gateEtat.onUnlocked : gateEtat.onCancel;
+  gateEtat = null;
+  fermerGate();
+  if (cb) cb();
 }
 
 // --- Compteur de parties, en temps réel ------------------------------------
@@ -1140,51 +1242,57 @@ export function init(d) {
   leaderboardSheetClose.addEventListener("click", fermerClassementComplet);
   leaderboardSheetVeil.addEventListener("click", fermerClassementComplet);
 
-  // Seconde chance : le clic sur le CTA vaut conversion (même règle « au
-  // clic » que le verrou) ET reprise immédiate — l'onglet Spotify s'ouvre à
-  // côté, le jeu se fige tout seul (document.hidden) et attend le retour.
-  // Le voile est volontairement inerte : les deux issues sont les boutons.
-  // Seconde chance — clic sur le CTA selon le mode (voir l'en-tête du bloc
-  // revive) : sur un palier à LIEN (« morceau », « suivre »), le clic marque
-  // la conversion et fige la carte en « prêt » ; la reprise n'arrive QUE sur
-  // le tap suivant, jamais dans le dos du joueur parti sur l'autre appli.
-  // ⚠️ Le basculement en phase « prêt » est DIFFÉRÉ d'un setTimeout(0) : il
-  // retire le href du <a>, et le retirer PENDANT le dispatch du clic annule
-  // la navigation (l'activation d'un lien relit le href après le dispatch) —
-  // Spotify ne s'ouvrait jamais, prouvé au banc d'essai (revue du 21 août).
-  reviveCta.addEventListener("click", () => {
+  // --- Carte de mort : les deux boutons passent par la MÊME porte ---------
+  // ⚠️ Le décompte de la carte est GELÉ pendant que le tiroir est ouvert
+  // par-dessus, et REPRIS là où il en était si le joueur referme le tiroir
+  // par « Plus tard » — sans ça la carte déciderait toute seule (onDecline)
+  // pendant qu'il lit la demande, ou pire, pendant qu'il est chez Spotify.
+  function porteDepuisCarteDeMort(action, issue) {
     if (!reviveCallbacks) return;
-    if (revivePhase === "pret") { reviveResoudre("onAccept"); return; }
-    if (reviveMode === "morceau") {
-      marquerMorceauOuvert();
-      setTimeout(() => revivePhaseAbsence("Morceau ajouté, merci !"), 0);
-    } else if (reviveMode === "suivre") {
-      marquerPmcSuivi();
-      setTimeout(() => revivePhaseAbsence("Abonnement enregistré, merci !"), 0);
-    }
-    // mode "attente" en phase décision : bouton verrouillé, clic ignoré —
-    // c'est le décompte qui armera la reprise.
-  });
-  reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
-  // Sortie de secours, toujours disponible quelle que soit la phase (décision,
-  // absence, retour, prêt) et quel que soit le palier de conversion : repartir
-  // de zéro ne se mérite pas. Voir onReplay dans main.js.
-  reviveReplay.addEventListener("click", () => reviveResoudre("onReplay"));
+    const restant = decompteRevive.restant;
+    decompteRevive.arreter();
+    exigerConversion({
+      action,
+      score: reviveScoreCourant,
+      onOk: () => reviveResoudre(issue),
+      onCancel: () => reprendreDecompteRevive(restant),
+    });
+  }
 
-  // Retour dans l'appli pendant la seconde chance (22 août 2026, demandé :
+  reviveCta.addEventListener("click", () => porteDepuisCarteDeMort("continuer", "onAccept"));
+  reviveReplay.addEventListener("click", () => porteDepuisCarteDeMort("rejouer", "onReplay"));
+  reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
+
+  // --- Tiroir de conversion ----------------------------------------------
+  // ⚠️ Le basculement en phase « absence » est DIFFÉRÉ d'un setTimeout(0) :
+  // il cache le <a>, et le neutraliser PENDANT le dispatch du clic annule la
+  // navigation (l'activation d'un lien relit le href après le dispatch) —
+  // Spotify ne s'ouvrait jamais, prouvé au banc d'essai (revue du 21 août).
+  gateCta.addEventListener("click", () => {
+    if (!gateEtat || gateEtat.phase !== "demande") return;
+    if (gateEtat.niveau === "presave") marquerMorceauOuvert();
+    else marquerPmcSuivi();
+    setTimeout(gatePhaseAbsence, 0);
+  });
+  // Armé seulement en phase « prêt » : le clic est ignoré tant que le décompte
+  // de retour tourne (le bouton est aussi visuellement verrouillé).
+  gateGo.addEventListener("click", () => {
+    if (!gateEtat || gateEtat.phase !== "pret") return;
+    gateResoudre("onUnlocked");
+  });
+  gateLater.addEventListener("click", () => gateResoudre("onCancel"));
+
+  // Retour dans l'appli pendant le détour Spotify (22 août 2026, demandé :
   // « quand la personne revient sur l'app, à ce moment-là le décompte se
   // remet en mode 5, 4, 3, 2, 1 »). Pendant l'absence la boucle du début
   // tourne au plus filtré ; au retour elle se défiltre sur ce décompte-là.
-  // ⚠️ Un retour PENDANT le décompte de retour le rejoue depuis 5 : quelqu'un
-  // qui fait deux allers-retours ne se retrouve jamais avec 1 seconde pour
-  // reprendre ses esprits.
   document.addEventListener("visibilitychange", () => {
-    if (!reviveCallbacks) return; // panneau fermé : rien à piloter
+    if (!gateEtat) return; // tiroir fermé : rien à piloter
     if (document.hidden) {
       audio.setReviveIntensity(0); // « pas fort du tout » pendant le détour
       return;
     }
-    if (revivePhase === "absence" || revivePhase === "retour") revivePhaseRetour();
+    if (gateEtat.phase === "absence" || gateEtat.phase === "retour") gatePhaseRetour();
   });
 
   audio.setVolume(Number(volumeSlider.value) / 100);
@@ -1216,9 +1324,19 @@ export function init(d) {
   });
 
   playButton.addEventListener("click", startGame);
-  // Plus aucun verrou depuis le 23 août 2026 (voir la note en tête de fichier) :
-  // rejouer une course neuve est toujours gratuit.
-  replayButton.addEventListener("click", () => deps.restartGame());
+  // ⚠️ REJOUER de l'écran de fin passe par LA MÊME porte que la carte de mort
+  // (23 août 2026, quatrième passe — « pareil pour le rejouer, il faut que ce
+  // soit exactement les mêmes conditions »). Sans ça la porte se contournerait
+  // en un tap : « Voir mon score » puis REJOUER, et plus rien ne serait
+  // demandé à personne.
+  replayButton.addEventListener("click", () => {
+    exigerConversion({
+      action: "rejouer",
+      score: deps.game.score,
+      onOk: () => deps.restartGame(),
+      onCancel: () => { /* il reste sur son écran de fin */ },
+    });
+  });
 
   // Le lien du morceau lève le verrou de rejeu (et donne le boost fan), sur
   // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau

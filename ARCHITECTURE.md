@@ -1988,6 +1988,54 @@ smartlink et aucune raison d'en changer.
 
 ---
 
+### Vingt-neuvième passe — la porte de conversion sur les DEUX actions (23 août 2026)
+
+Demandé : « quand une personne arrive pour la première fois sur le site, qu'elle fait une partie
+et qu'elle échoue, il faut deux boutons : continuer la partie, rejouer. Pour les deux, le petit
+dropdown qui se soulève d'en bas [...] tu dois d'abord pré-sauvegarder l'album de PMC sur
+Spotify. Une fois que c'est fait, pour continuer, ça va être de s'abonner à PMC. Une fois que
+c'est fait, il y a que "continuer la partie". Pareil pour le rejouer : il faut que ce soit
+exactement les mêmes conditions. L'idée c'est de la transformation. »
+
+**Ce qui a changé.** La carte de mort (`#revive-sheet`) ne porte plus aucun lien Spotify : elle
+pose le choix (`CONTINUER LA PARTIE` / `REJOUER` / « Voir mon score ») et garde son décompte de
+10 s. Les deux boutons — plus `REJOUER` de l'écran de fin — passent par un point d'entrée unique,
+`exigerConversion()` (screens.js), qui ouvre le tiroir `#gate-sheet` si un palier reste à
+franchir et laisse partir l'action sinon. Trois paliers : `presave` (`config.lienPresave`, NOUVEAU
+réglage) → `suivre` (`config.lienSuivre`) → `libre` (le tiroir ne s'ouvre plus jamais). Clés
+`localStorage` inchangées (`morceauOuvert`, `pmcSuivi`) : personne n'est remis à zéro.
+
+**Le tiroir reprend la machine à phases écrite le 22 août pour la carte de mort** (demande →
+absence → retour → prêt), qui a déménagé ici avec elle : c'est ce détour-là qu'elle décrivait.
+`creerDecompte()` remplace l'ancien `demarrerDecompte` global — deux instances, une par panneau,
+mêmes garanties (plafond par tick, gel sur `document.hidden`, pilotage du filtre de la boucle).
+
+⚠️ **Le tiroir n'expire pas — trouvé au banc d'essai, pas en lisant le code.** Le premier jet lui
+donnait sa propre fenêtre de 10 s. Trace horodatée à l'appui : la fenêtre courait pendant que le
+joueur LISAIT la demande, expirait en `onCancel`, rendait la main à la carte de mort dont le
+décompte reprenait, et le `DECLINE` tombait — le joueur atterrissait sur l'écran de fin sans
+avoir rien fait. Les 10 s appartiennent à la carte de mort (une seconde chance est une offre
+limitée) ; le tiroir pose une demande, il attend. Le décompte de la carte est **gelé** pendant
+que le tiroir est ouvert et **repris là où il en était** sur « Plus tard » — sinon la carte
+décide toute seule pendant que le joueur est chez Spotify.
+
+⚠️ **Renversement assumé du « rejouer toujours gratuit »** décidé plus tôt le même jour après
+avoir mesuré une impasse (aucun chemin vers une deuxième course sans cliquer le lien, le joueur
+fermait l'onglet). Ce qui empêche de la reproduire : le palier se lève AU CLIC, définitivement,
+et le tiroir arme lui-même l'action au retour de Spotify. Le joueur qui refuse le lien n'a plus
+de chemin — c'est la contrepartie voulue, arbitrée par l'artiste.
+
+⚠️ **Piège de banc d'essai revu au passage** : `import('/src/screens.js')` sans query string
+donne une SECONDE instance du module dès que Vite a servi le fichier en HMR
+(`/src/screens.js?t=…`). Les handlers de la page appartiennent à l'autre instance : les clics
+semblent « ne rien faire », sans aucune erreur en console. Prendre l'URL réellement chargée
+(`performance.getEntriesByType('resource')`). Et l'onglet de la preview est `document.hidden`
+en permanence : les décomptes y sont gelés par conception, et Chrome bride en plus `setInterval`
+à ~1 tick/s — il faut forcer `document.hidden` à `false` pour tester une phase, sinon un
+décompte de 5 s prend ~17 s réelles.
+
+---
+
 ## 12. Comment tester
 
 Il n'y a pas de suite de tests — le projet est un jeu, la vérité est à l'écran. Deux méthodes
