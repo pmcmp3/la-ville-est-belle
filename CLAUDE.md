@@ -197,6 +197,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   « Voir le classement complet → » ouvre `#leaderboard-sheet` (même patron de tiroir que
   `#unlock-sheet`) avec les 50 lignes complètes, scrollable, centré sur le joueur — jamais un
   second appel réseau, `screens.js` réutilise la réponse déjà reçue (`dernierClassement`).
+  ⚠️ **Icônes WhatsApp/Messages/Snap sous « DÉFIER UN AMI »** (23 août 2026, « pour que les gens
+  captent ») : purement décoratives — `partagerDefi()` ouvre le partage natif du téléphone
+  (`navigator.share`), qui liste déjà ces apps si elles sont installées ; les icônes ne
+  déclenchent rien de spécifique, elles annoncent juste ce qui va s'ouvrir. Posées SEULEMENT sur
+  DÉFIER, pas sur PARTAGER MON SCORE : ce dernier envoie un fichier image (repli story/Instagram
+  cohérent, l'URL est déjà bakée dans l'image), le défi envoie un texte+lien (repli messagerie,
+  jamais une story).
 - **Course parfaite** (demandé le 21 août 2026) : parcours terminé sans un seul choc (traversante
   comprise) → bandeau « Course parfaite », pastille sur l'écran de fin, et badge
   **« LA VILLE EST PARFAITE »** sur l'image de partage, où il REMPLACE le badge de disque.
