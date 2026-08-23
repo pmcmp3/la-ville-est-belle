@@ -595,10 +595,11 @@
        REJOUER/AJOUTER LE MORCEAU (#end-screen .btn, width:100%), colonne
        interne seulement pour empiler le libellé et la rangée d'icônes. */
     /* ⚠️ La colonne (libellé + rangée d'icônes) vit dans un SPAN interne, pas
-       sur le <button> lui-même : WebKit/iOS ignore display:flex posé sur un
-       bouton et remet son contenu en ligne — capture à l'appui le 23 août
-       2026, le libellé et les icônes se retrouvaient sur UNE ligne, rognée
-       des deux côtés par le white-space:nowrap de #end-screen .btn. */
+       sur le <button> lui-même : WebKit/iOS est connu pour ignorer
+       display:flex posé sur un bouton. Défense, pas la cause du bug du
+       23 août 2026 (voir ARCHITECTURE.md §10 n°11). Le libellé, lui, a son
+       propre span #defi-label — c'est LUI que screens.js réécrit, jamais le
+       bouton, sans quoi les icônes seraient détruites. */
     #defi-button {
       display: block;
     }
@@ -619,9 +620,12 @@
       opacity: 0.55; /* indice discret, jamais plus voyant que le libellé */
     }
 
-    /* Les SVG décoratifs n'ont PAS de <title> : WebKit/iOS en affichait le
-       texte (« WhatsApp Messages Snapchat ») en clair dans le bouton. Le
-       conteneur est aria-hidden, ces titres n'apportaient rien. */
+    /* Les SVG décoratifs n'ont PAS de titre SVG : le texte d'un tel titre
+       entre dans le `textContent` du bouton, que screens.js mémorisait puis
+       réécrivait — les icônes étaient alors remplacées par la phrase
+       « DÉFIER UN AMI WhatsApp Messages Snapchat » en clair (23 août 2026,
+       voir ARCHITECTURE.md §10 n°11). Le conteneur est aria-hidden, ces
+       titres n'apportaient rien. */
     #defi-apps svg {
       display: block;
       flex: none;
