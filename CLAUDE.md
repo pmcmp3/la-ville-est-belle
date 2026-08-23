@@ -161,14 +161,29 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     pourquoi il est marqué 12 000 points [...] dis un truc genre premier palier activé ») :
     titre « PREMIER PALIER ACTIVÉ ! », sous-titre « le morceau t'attend à l'arrivée » — le
     palier est la récompense, le chiffre brut ne se lisait pas.
-  - **Sur l'écran de fin** : le vrai verrou. **REJOUER reste cliquable mais, tant que le joueur
-    n'a pas ouvert le lien du morceau une fois** (`morceauOuvert` en localStorage, donc une seule
-    fois dans sa vie), **le clic ouvre un panneau qui glisse depuis le bas** (`#unlock-sheet`,
-    voile + texte + CTA) au lieu de relancer — demandé le 21 août 2026 (« c'est quand les gens
-    cliquent sur Rejouer que tu affiches ça en pop-up à partir du bas ») à la place de la note
-    statique sous le bouton, qui encombrait la carte. ⚠️ Le verrou se lève au CLIC, jamais à une
-    preuve de lecture : sur iOS le lien part dans un autre onglet et rien ne garantit qu'on
-    revienne — l'exiger enfermerait le joueur dans un écran sans issue.
+- ⚠️ **MODÈLE DE CONVERSION REFONDU le 23 août 2026** (« ajouter le morceau pour continuer la
+  partie, mais que ce soit digeste dans un CTA ; réfléchis pour que ce soit logique ») : la
+  demande de conversion n'est plus un PÉAGE sur le droit de jouer, elle achète la
+  **continuation de la course en cours** — garder son score et son combo, ce qui a une vraie
+  valeur à l'instant précis de la mort. Concrètement :
+  - **Rejouer une course neuve est TOUJOURS gratuit**, partout — carte de mort (nouveau bouton
+    `#revive-replay`) comme écran de fin (REJOUER n'est plus jamais verrouillé).
+  - **La demande vit uniquement sur la carte de mort** (`openReviveSheet`), avec son escalade à
+    trois paliers intacte : morceau (« AJOUTER ET CONTINUER ») → suivre (« SUIVRE ET
+    CONTINUER ») → attente. Le texte reprend la formulation de l'artiste : « Ajoute le morceau
+    pour continuer la partie avec tes X points. »
+  - **L'écran de fin ne garde que des demandes NON bloquantes** : bouton AJOUTER LE MORCEAU en
+    secondaire, promesse de boost fan (+10 %), bandeau « Tu écoutes La ville est belle ».
+  - ⚠️ **Le REJOUER de la carte de mort finalise quand même la course** (`finalizeRun()`,
+    extrait de `endGame()` le même jour) : son score part au classement et elle compte dans le
+    compteur global. Sans ça, chaque joueur qui préfère repartir de zéro plutôt que voir son
+    score aurait fait sous-compter « X courses depuis le lancement » en silence.
+  - ~~**Sur l'écran de fin** : le vrai verrou sur REJOUER (`#unlock-sheet`)~~ — ⚠️ **SUPPRIMÉ le
+    23 août 2026**, avec le panneau lui-même. Il produisait une IMPASSE, mesurée sur un joueur
+    neuf : la carte de mort n'offrait que le lien Spotify ou « Voir mon score » ; « Voir mon
+    score » menait à l'écran de fin où REJOUER était verrouillé ; le panneau se fermait par
+    « Plus tard » sans rien relancer. Autrement dit **aucun chemin vers une deuxième course sans
+    cliquer le lien** — le joueur fermait l'onglet. Voir le nouveau modèle ci-dessous.
 - **Défi à un ami** (`defi.js`, demandé le 21 août 2026) : le lien de partage embarque un score
   à battre (`?defi=23102&de=pol`). Le jeu porte la cible d'un bout à l'autre — bandeau au-dessus
   de JOUER, jauge de progression sous le score pendant la course, popup « DÉFI RELEVÉ ! » au
@@ -247,10 +262,10 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   - **Boost fan ×1,1 permanent** sur les points de bonus dès que le morceau a été ajouté
     (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
     qu'il n'est pas acquis. La conversion est récompensée, pas seulement exigée.
-  - **Second verrou doux après 3 parties** : REJOUER exige « Suivre PMC sur Spotify »
-    (`lienSuivre` dans config.js — le vrai profil Spotify de PMC, vérifié le 21 août 2026 via
-    son Instagram). Passe par
-    le même panneau `#unlock-sheet` que le verrou morceau depuis le 21 août 2026.
+  - ~~**Second verrou doux après 3 parties** sur REJOUER~~ — ⚠️ **SUPPRIMÉ le 23 août 2026**
+    avec le verrou principal (le seuil `SEUIL_SUIVRE` a disparu). Suivre PMC (`lienSuivre` dans
+    config.js — le vrai profil Spotify, vérifié le 21 août 2026 via son Instagram) reste le
+    DEUXIÈME palier de la carte de mort, où il achète la continuation de la course.
   - **Bandeau « Tu écoutes La ville est belle »** sur l'écran de fin (le morceau y joue vraiment
     ~114 s) — cliquable, même smartlink. ⚠️ **Equalizer branché sur le VRAI spectre depuis le
     21 août 2026** (« même modèle que le Dynamic Island : basses à gauche, aigus à droite ») :

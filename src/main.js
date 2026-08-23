@@ -596,6 +596,21 @@ function offerRevive() {
       applyPauseState();
       endGame("gameover");
     },
+    // REJOUER (23 août 2026) : repartir de zéro TOUT DE SUITE, sans passer par
+    // l'écran de fin et sans rien devoir. ⚠️ C'est la sortie de secours qui
+    // manquait — avant ça, un joueur qui n'avait jamais ajouté le morceau
+    // n'avait AUCUN chemin vers une nouvelle course : la carte de mort n'offrait
+    // que le lien Spotify, et REJOUER sur l'écran de fin était lui aussi
+    // verrouillé (le panneau de verrou se fermait sans rien relancer).
+    // La course abandonnée est quand même finalisée : son score part au
+    // classement et elle compte dans le compteur global (voir finalizeRun).
+    onReplay: () => {
+      finalizeRun();
+      revivePaused = false;
+      applyPauseState();
+      screens.showPauseButton();
+      restartGame();
+    },
   });
 }
 
@@ -614,26 +629,36 @@ function endGame(reason) {
   // "Score valable pour le concours" était confus pour un joueur qui découvre
   // le jeu, retiré au playtest) — sert seulement à décider si le score part
   // vraiment vers Supabase, juste plus bas.
-  const contest = hud.contestStatus();
-
   screens.showEndScreen(reason);
 
-  // Envoi du score (étape 7) : seulement si le concours est ouvert et qu'un
-  // pseudo a été renseigné — jamais bloquant, aucune UI d'attente (pas
-  // d'anti-triche à confirmer, PLAN-ACTION.md §6). Se désactive tout seul si
-  // CONFIG.apiScores/apiScoresKey ne sont pas encore renseignés (net.js).
   // Le classement est relu juste après l'envoi (même s'il n'a pas eu lieu)
   // pour avoir une chance d'y voir apparaître le score qu'on vient d'envoyer.
-  // "@" éventuel retiré à l'envoi : la table Supabase stocke le pseudo brut,
-  // sans préfixe (demandé explicitement). Défensif : accepte que le joueur
-  // en tape un par habitude, on ne veut pas le forcer à connaître la règle.
-  const pseudoJoueur = screens.getPseudo();
-  (async () => {
-    if (contest.open && pseudoJoueur) {
-      await net.postScore(pseudoJoueur, screens.getInsta(), game.score);
-    }
+  finalizeRun().then(async () => {
     screens.renderLeaderboard(await net.getTopScores());
-  })();
+  });
+}
+
+// Envoi du score + comptage de la course. ⚠️ EXTRAIT de endGame() le 23 août
+// 2026 : le bouton REJOUER de la carte de mort (voir offerRevive) abandonne la
+// course SANS passer par l'écran de fin — sans cette extraction, ces courses-là
+// ne seraient ni classées ni comptées dans la preuve sociale, et le compteur
+// « X courses depuis le lancement » se mettrait à sous-compter en silence dès
+// qu'un joueur préfère repartir de zéro plutôt que voir son score.
+//
+// Envoi du score (étape 7) : seulement si le concours est ouvert et qu'un
+// pseudo a été renseigné — jamais bloquant, aucune UI d'attente (pas
+// d'anti-triche à confirmer, PLAN-ACTION.md §6). Se désactive tout seul si
+// CONFIG.apiScores/apiScoresKey ne sont pas encore renseignés (net.js).
+// "@" éventuel retiré à l'envoi : la table Supabase stocke le pseudo brut,
+// sans préfixe (demandé explicitement). Défensif : accepte que le joueur
+// en tape un par habitude, on ne veut pas le forcer à connaître la règle.
+function finalizeRun() {
+  const contest = hud.contestStatus();
+  const pseudoJoueur = screens.getPseudo();
+  // ⚠️ Capturé AVANT tout await : sur le chemin REJOUER, restartGame() remet
+  // game.score à 0 juste après cet appel — lire game.score plus tard
+  // enverrait un 0 au classement.
+  const scoreFinal = game.score;
 
   // Compteur global de courses (preuve sociale, fire-and-forget).
   // (Le clip des dernières secondes a été retiré le 20 août 2026 — « tu peux
@@ -642,6 +667,12 @@ function endGame(reason) {
   // plus le payer pour un bouton qui n'existe plus. clip.js reste sur le
   // disque mais n'est plus importé, donc plus bundlé.)
   net.postRun();
+
+  return (async () => {
+    if (contest.open && pseudoJoueur) {
+      await net.postScore(pseudoJoueur, screens.getInsta(), scoreFinal);
+    }
+  })();
 }
 
 function restartGame() {

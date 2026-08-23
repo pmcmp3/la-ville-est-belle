@@ -327,81 +327,12 @@
       margin: 2px 0 14px; /* 12→14 le 23 août 2026, même passe que #leaderboard */
     }
 
-    /* Verrou de rejeu : REJOUER reste visible et CLIQUABLE même verrouillé —
-       le clic ouvre le panneau #unlock-sheet qui explique quoi faire (revu le
-       20 août 2026, la note statique sous le bouton encombrait la carte).
-       Juste grisé pour annoncer que quelque chose se mettra en travers. */
-    #replay-button.locked {
-      opacity: 0.45;
-    }
-
-    /* Pop-up de verrou depuis le bas : voile + carte ancrée en bas d'écran
-       qui glisse vers le haut. Au-dessus de tout (z-index 40 > bascule son à
-       30) : tant qu'il est ouvert, c'est la seule décision à prendre. */
-    #unlock-sheet {
-      position: fixed;
-      inset: 0;
-      z-index: 40;
-      visibility: hidden;
-      transition: visibility 0s linear 0.3s;
-    }
-
-    #unlock-sheet.visible {
-      visibility: visible;
-      transition: visibility 0s;
-    }
-
-    #unlock-sheet-veil {
-      position: absolute;
-      inset: 0;
-      background: rgba(13, 13, 16, 0.55);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    #unlock-sheet.visible #unlock-sheet-veil {
-      opacity: 1;
-    }
-
-    #unlock-sheet-card {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      box-sizing: border-box;
-      padding: 22px 24px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
-      border-radius: 22px 22px 0 0;
-      border: 2px solid var(--panneau-bord);
-      border-bottom: none;
-      background: var(--panneau-fond);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      transform: translateY(105%);
-      transition: transform 0.3s ease;
-    }
-
-    #unlock-sheet.visible #unlock-sheet-card {
-      transform: translateY(0);
-    }
-
-    #unlock-sheet-text {
-      margin: 0;
-      font: 500 14px/1.5 var(--police);
-      color: var(--noir);
-      text-align: center;
-      max-width: 320px;
-    }
-
-    #unlock-sheet-cta {
-      width: min(280px, 100%);
-    }
-
+    /* (#replay-button.locked supprimé le 23 août 2026 avec le verrou de rejeu
+       lui-même : REJOUER n'est plus jamais conditionné, voir screens.js.) */
     /* --- Classement complet (23 août 2026) --------------------------------
-       Même tiroir que #unlock-sheet ci-dessus (mêmes noms de classes de
-       transform/veil, juste préfixées différemment) — c'est le patron
-       standard du jeu pour tout panneau qui glisse depuis le bas. */
+       Tiroir qui glisse depuis le bas : voile + carte ancrée en bas d'écran.
+       C'est le patron standard du jeu pour ce type de panneau (il servait
+       aussi au verrou de rejeu, supprimé le 23 août 2026). */
     #leaderboard-sheet {
       position: fixed;
       inset: 0;
@@ -486,7 +417,7 @@
     #revive-sheet {
       position: fixed;
       inset: 0;
-      z-index: 45; /* au-dessus de l'unlock-sheet (40) — jamais ouverts ensemble, mais autant trancher */
+      z-index: 45; /* au-dessus du tiroir de classement (40) — jamais ouverts ensemble, mais autant trancher */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -589,7 +520,8 @@
       text-align: center;
     }
 
-    #revive-cta {
+    #revive-cta,
+    #revive-replay {
       width: 100%;
     }
 
@@ -2159,14 +2091,13 @@
                (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent
                sur le lien »). Le CTA flottant en bas d'écran (#cta-link) est
                masqué sur cette vue, il ferait doublon. -->
-          <!-- ⚠️ Hiérarchie INVERSÉE le 21 août 2026 (demandé : « on peut
-               inverser la couleur des CTA [...] les gens vont cliquer sur
-               REJOUER, et on leur dit : pour rejouer, il faut ajouter le
-               morceau ») : REJOUER devient le bouton principal rouge — c'est
-               LUI que tout le monde veut presser — et le verrou de rejeu
-               (#unlock-sheet, voir screens.js) fait la conversion au clic.
-               AJOUTER LE MORCEAU reste TOUJOURS présent en secondaire, pour
-               qui préfère y aller directement. -->
+          <!-- ⚠️ Hiérarchie INVERSÉE le 21 août 2026 : REJOUER est le bouton
+               principal rouge — c'est LUI que tout le monde veut presser.
+               ⚠️ Il ne déclenche PLUS aucun verrou depuis le 23 août 2026
+               (voir screens.js) : la demande de conversion a migré sur la
+               carte de mort, où elle achète la continuation de la course en
+               cours au lieu de péager le droit de rejouer. AJOUTER LE MORCEAU
+               reste présent ici en secondaire, sans rien bloquer. -->
           <div id="end-actions">
             <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
             <a id="end-cta" class="btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">
@@ -2293,33 +2224,10 @@
     </div>
   </div>
 
-  <!-- Verrou de rejeu en pop-up depuis le bas (20 août 2026 : « c'est quand
-       les gens cliquent sur Rejouer que tu fais afficher ça en pop-up à
-       partir du bas »). Sert les DEUX verrous — ajouter le morceau, puis
-       suivre PMC après 3 parties — avec texte et lien posés par screens.js.
-       Hors de #overlay : .view.active porte un transform d'animation qui
-       deviendrait le référentiel de ce position:fixed (piège déjà rencontré
-       sur #countdown-caption, voir plus haut). -->
-  <div id="unlock-sheet" aria-hidden="true">
-    <div id="unlock-sheet-veil"></div>
-    <div id="unlock-sheet-card">
-      <p id="unlock-sheet-text"></p>
-      <a id="unlock-sheet-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
-        <span id="unlock-sheet-cta-label">AJOUTER LE MORCEAU</span>
-        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
-          <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-          <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </a>
-      <button id="unlock-sheet-close" type="button" class="link-minimal">Plus tard</button>
-    </div>
-  </div>
-
   <!-- Classement complet (23 août 2026) : la carte de fin ne montre plus
        qu'un TOP 3 + la ligne du joueur (voir #leaderboard plus haut) — ce
        panneau porte le classement en entier (jusqu'à 50, CONFIG.apiScoresLimit),
-       même patron de tiroir que #unlock-sheet. Rempli par screens.js à
+       même patron de tiroir que la carte de mort. Rempli par screens.js à
        l'ouverture, en réutilisant la réponse réseau déjà reçue (aucun second
        appel à net.getTopScores). -->
   <div id="leaderboard-sheet" aria-hidden="true">
@@ -2361,6 +2269,13 @@
            et le partage. Renommé pour dire ce qui se passe vraiment, sans
            faire porter au joueur le mot « terminer » au moment où il vient
            de mourir. -->
+      <!-- Sortie de secours (23 août 2026) : repartir de zéro sans rien
+           devoir. ⚠️ Avant ce bouton, un joueur qui n'avait jamais ajouté le
+           morceau n'avait AUCUN moyen de rejouer — cette carte n'offrait que
+           le lien Spotify, et REJOUER sur l'écran de fin était verrouillé lui
+           aussi. Le lien Spotify achète la CONTINUATION de la course en cours
+           (garder son score), jamais le droit de jouer. -->
+      <button id="revive-replay" type="button" class="btn btn-secondary">REJOUER</button>
       <button id="revive-decline" type="button" class="link-minimal">Voir mon score</button>
     </div>
   </div>

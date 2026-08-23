@@ -55,14 +55,6 @@ const endCta = document.getElementById("end-cta");
 const fanNote = document.getElementById("fan-note");
 const runsCount = document.getElementById("runs-count");
 const runsCountNum = document.getElementById("runs-count-num");
-// Pop-up de verrou depuis le bas (remplace l'ancienne note statique sous
-// REJOUER et le lien « Suis PMC » — voir syncVerrouRejeu).
-const unlockSheet = document.getElementById("unlock-sheet");
-const unlockSheetVeil = document.getElementById("unlock-sheet-veil");
-const unlockSheetText = document.getElementById("unlock-sheet-text");
-const unlockSheetCta = document.getElementById("unlock-sheet-cta");
-const unlockSheetCtaLabel = document.getElementById("unlock-sheet-cta-label");
-const unlockSheetClose = document.getElementById("unlock-sheet-close");
 // Panneau de seconde chance à la mort (voir openReviveSheet).
 const reviveSheet = document.getElementById("revive-sheet");
 const reviveArc = document.getElementById("revive-arc");
@@ -74,6 +66,7 @@ const reviveCta = document.getElementById("revive-cta");
 const reviveCtaLabel = document.getElementById("revive-cta-label");
 const reviveCtaIcone = document.getElementById("revive-cta-icone");
 const reviveDecline = document.getElementById("revive-decline");
+const reviveReplay = document.getElementById("revive-replay");
 const changePseudoBtn = document.getElementById("change-pseudo");
 // Course parfaite + défi d'un ami (21 août 2026, voir defi.js).
 const perfectNote = document.getElementById("perfect-note");
@@ -97,11 +90,12 @@ const instaLink = document.getElementById("insta-link");
 // de fin : il n'y a plus de partie à casser, et c'est déjà une pause naturelle.
 // Mémorisé une fois pour toutes : on ne redemande pas à chaque game over.
 const CLE_MORCEAU_OUVERT = "morceauOuvert";
-// Second verrou doux (20 août 2026) : après 3 parties, REJOUER demande de
-// suivre PMC sur Spotify — même mécanique (clic = levée, mémorisé à vie).
+// Deuxième palier de conversion : suivre PMC sur Spotify (clic = levée,
+// mémorisé à vie). ⚠️ Il ne conditionne PLUS REJOUER depuis le 23 août 2026
+// (le seuil SEUIL_SUIVRE = 3 parties a disparu avec le verrou) : il sert
+// uniquement à choisir le palier de la carte de mort — voir openReviveSheet.
 const CLE_PMC_SUIVI = "pmcSuivi";
 const CLE_PARTIES = "partiesJouees";
-const SEUIL_SUIVRE = 3;
 
 function morceauDejaOuvert() {
   try { return localStorage.getItem(CLE_MORCEAU_OUVERT) === "1"; } catch (e) { return true; }
@@ -125,55 +119,37 @@ function marquerMorceauOuvert() {
   try { localStorage.setItem(CLE_MORCEAU_OUVERT, "1"); } catch (e) { /* navigation privée : on n'insiste pas */ }
   fanCache = true;
   fanNote.classList.add("hidden"); // la promesse est tenue, plus rien à annoncer
-  syncVerrouRejeu();
 }
 
 function marquerPmcSuivi() {
   try { localStorage.setItem(CLE_PMC_SUIVI, "1"); } catch (e) { /* idem */ }
-  syncVerrouRejeu();
 }
 
-// ⚠️ Le verrou se lève au CLIC sur le lien, pas à un retour effectif sur la
-// page : sur iOS le lien s'ouvre dans un autre onglet et rien ne garantit
-// qu'on repasse par ici. Le lier à une preuve de lecture enfermerait le joueur
-// dans un écran sans issue — ce qui coûterait bien plus que le clic gagné.
+// ⚠️ VERROU DE REJEU SUPPRIMÉ le 23 août 2026. Il conditionnait REJOUER (écran
+// de fin) à l'ajout du morceau, puis au suivi de PMC après 3 parties, via un
+// panneau #unlock-sheet — supprimé avec lui.
 //
-// ⚠️ Présentation revue le 20 août 2026 (« c'est quand les gens cliquent sur
-// Rejouer que tu fais afficher ça en pop-up à partir du bas ») : REJOUER
-// n'est plus disabled — il reste cliquable, et si un verrou est actif le clic
-// ouvre le panneau #unlock-sheet au lieu de relancer. La note statique sous
-// le bouton et le lien « Suis PMC » inline ont disparu avec ce changement.
-// `verrouActif` : null (libre), "morceau" ou "suivre".
-let verrouActif = null;
-
-function syncVerrouRejeu() {
-  const verrouMorceau = !morceauDejaOuvert();
-  // Le verrou « suivre » n'arrive qu'APRÈS le verrou morceau (jamais les deux
-  // en même temps) et seulement à partir de la 3e partie.
-  const verrouSuivre = !verrouMorceau && partiesJouees() >= SEUIL_SUIVRE && !pmcDejaSuivi();
-  verrouActif = verrouMorceau ? "morceau" : verrouSuivre ? "suivre" : null;
-  replayButton.classList.toggle("locked", verrouActif !== null);
-  if (!verrouActif) closeUnlockSheet();
-}
-
-function openUnlockSheet() {
-  if (verrouActif === "suivre") {
-    unlockSheetText.textContent = "Encore une chose : suis PMC sur Spotify pour débloquer une nouvelle course.";
-    unlockSheetCtaLabel.textContent = "SUIVRE PMC SUR SPOTIFY";
-    unlockSheetCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
-  } else {
-    unlockSheetText.textContent = "Ajoute le morceau pour débloquer une nouvelle course — et gagne +10 % de score sur toutes tes courses.";
-    unlockSheetCtaLabel.textContent = "AJOUTER LE MORCEAU";
-    unlockSheetCta.href = window.CONFIG.lienEP;
-  }
-  unlockSheet.classList.add("visible");
-  unlockSheet.setAttribute("aria-hidden", "false");
-}
-
-function closeUnlockSheet() {
-  unlockSheet.classList.remove("visible");
-  unlockSheet.setAttribute("aria-hidden", "true");
-}
+// Ce que ça produisait, mesuré sur un joueur neuf : la carte de mort n'offrait
+// que le lien Spotify ou « Voir mon score » ; « Voir mon score » menait à
+// l'écran de fin où REJOUER était verrouillé ; le panneau de verrou se fermait
+// par « Plus tard » sans rien relancer. Autrement dit AUCUN chemin vers une
+// deuxième course sans cliquer le lien — le joueur fermait l'onglet.
+//
+// La demande de conversion n'a pas disparu, elle a changé de contrepartie
+// (« ajouter le morceau pour continuer la partie, mais que ce soit digeste
+// dans un CTA ») : elle vit désormais uniquement sur la carte de mort
+// (openReviveSheet), où elle achète la CONTINUATION de la course en cours —
+// garder son score et son combo, ce qui a une vraie valeur à cet instant
+// précis. Repartir de zéro est toujours gratuit, partout. L'escalade à trois
+// paliers (morceau → suivre → attente) survit intacte, mais sur cette carte-là.
+//
+// L'écran de fin garde ses demandes NON bloquantes : le bouton AJOUTER LE
+// MORCEAU en secondaire, la promesse de boost fan (+10 %), le bandeau
+// « Tu écoutes La ville est belle ».
+//
+// ⚠️ Le verrou se levait au CLIC sur le lien, jamais sur une preuve d'ajout
+// (impossible à obtenir) — cette règle-là reste vraie pour la carte de mort et
+// pour le boost fan : voir marquerMorceauOuvert ci-dessus.
 
 export function showOverlay() {
   overlay.classList.add("visible");
@@ -209,7 +185,7 @@ export function showOverlay() {
 // TOUTE l'absence dans son delta et vidait la fenêtre d'un coup — bug trouvé
 // à la revue du 21 août 2026).
 // ⚠️ Même règle que le verrou de rejeu : la conversion se donne AU CLIC,
-// jamais sur une preuve d'ajout (impossible à obtenir, voir syncVerrouRejeu).
+// jamais sur une preuve d'ajout (impossible à obtenir).
 const REVIVE_DELAI_S = 10;
 const REVIVE_TICK_MAX_S = 0.3; // plafond de temps décompté par tick (voir ci-dessus)
 const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans index.html
@@ -351,8 +327,8 @@ function revivePhasePrete(titre) {
   reviveCtaEnBoutonReprise(false);
 }
 
-export function openReviveSheet({ score, onAccept, onDecline }) {
-  reviveCallbacks = { onAccept, onDecline };
+export function openReviveSheet({ score, onAccept, onDecline, onReplay }) {
+  reviveCallbacks = { onAccept, onDecline, onReplay };
   revivePhase = "decision";
   reviveScoreCourant = score;
   reviveMode = !estFan() ? "morceau" : !pmcDejaSuivi() ? "suivre" : "attente";
@@ -360,17 +336,23 @@ export function openReviveSheet({ score, onAccept, onDecline }) {
   // précédente dans un autre état.
   reviveTimer.style.display = "";
   reviveCta.classList.remove("locked");
+  // ⚠️ Formulation revue le 23 août 2026 (« ajouter le morceau pour continuer
+  // la partie, mais que ce soit digeste dans un CTA ») : le lien Spotify
+  // achète la CONTINUATION de la course en cours — garder son score et son
+  // combo — jamais le droit de jouer, qui reste toujours gratuit (bouton
+  // REJOUER juste en dessous). Le libellé porte les deux moitiés de l'échange
+  // (« AJOUTER ET CONTINUER ») et le texte dit ce qu'on garde.
   if (reviveMode === "morceau") {
     reviveTitle.textContent = "Ta course n'est pas finie !";
-    poserTexteRevive("Ajoute le morceau et reprends PILE ici, avec tes ", score);
-    reviveCtaLabel.textContent = "AJOUTER LE MORCEAU";
+    poserTexteRevive("Ajoute le morceau pour continuer la partie avec tes ", score);
+    reviveCtaLabel.textContent = "AJOUTER ET CONTINUER";
     reviveCtaIcone.style.display = "";
     reviveCta.href = window.CONFIG.lienEP;
     reviveCta.target = "_blank";
   } else if (reviveMode === "suivre") {
     reviveTitle.textContent = "Ta course n'est pas finie !";
-    poserTexteRevive("Abonne-toi à PMC sur Spotify et reprends PILE ici, avec tes ", score);
-    reviveCtaLabel.textContent = "SUIVRE PMC SUR SPOTIFY";
+    poserTexteRevive("Suis PMC sur Spotify pour continuer la partie avec tes ", score);
+    reviveCtaLabel.textContent = "SUIVRE ET CONTINUER";
     reviveCtaIcone.style.display = "";
     reviveCta.href = window.CONFIG.lienSuivre || window.CONFIG.lienEP;
     reviveCta.target = "_blank";
@@ -1124,7 +1106,6 @@ export function showEndScreen(reason) {
   // écrans (demandé explicitement). Le morceau continue de tourner sur
   // l'écran de fin — c'est justement là qu'on peut vouloir le couper.
   leaderboard.classList.add("hidden"); // masqué le temps de la requête, évite d'afficher le classement de la partie précédente
-  syncVerrouRejeu();
 
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
 }
@@ -1147,16 +1128,6 @@ export function init(d) {
     e.stopPropagation();
     partagerDefi(); // synchrone : même règle de geste que le partage d'image
   });
-
-  // Panneau de verrou : le CTA lève le verrou COURANT (morceau ou suivre) au
-  // clic — même règle que partout, le geste suffit, pas de preuve de lecture.
-  unlockSheetCta.addEventListener("click", () => {
-    if (verrouActif === "suivre") marquerPmcSuivi();
-    else marquerMorceauOuvert();
-    closeUnlockSheet();
-  });
-  unlockSheetClose.addEventListener("click", closeUnlockSheet);
-  unlockSheetVeil.addEventListener("click", closeUnlockSheet);
 
   leaderboardExpand.addEventListener("click", ouvrirClassementComplet);
   leaderboardSheetClose.addEventListener("click", fermerClassementComplet);
@@ -1188,6 +1159,10 @@ export function init(d) {
     // c'est le décompte qui armera la reprise.
   });
   reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
+  // Sortie de secours, toujours disponible quelle que soit la phase (décision,
+  // absence, retour, prêt) et quel que soit le palier de conversion : repartir
+  // de zéro ne se mérite pas. Voir onReplay dans main.js.
+  reviveReplay.addEventListener("click", () => reviveResoudre("onReplay"));
 
   // Retour dans l'appli pendant la seconde chance (22 août 2026, demandé :
   // « quand la personne revient sur l'app, à ce moment-là le décompte se
@@ -1234,10 +1209,9 @@ export function init(d) {
   });
 
   playButton.addEventListener("click", startGame);
-  replayButton.addEventListener("click", () => {
-    if (verrouActif) { openUnlockSheet(); return; }
-    deps.restartGame();
-  });
+  // Plus aucun verrou depuis le 23 août 2026 (voir la note en tête de fichier) :
+  // rejouer une course neuve est toujours gratuit.
+  replayButton.addEventListener("click", () => deps.restartGame());
 
   // Le lien du morceau lève le verrou de rejeu (et donne le boost fan), sur
   // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau
@@ -1246,28 +1220,24 @@ export function init(d) {
 
   // Tracking du clic (23 août 2026, voir net.postClicEP) : mesurer le taux
   // jeu → smartlink sans dépendre du tableau de bord li.sten.to, qui ne voit
-  // que ses propres visites, jamais d'où elles viennent. ⚠️ Seulement les
-  // emplacements qui pointent VRAIMENT vers lienEP au clic — unlockSheetCta
-  // et reviveCta peuvent aussi pointer vers lienSuivre (second verrou),
-  // un funnel différent qu'on ne veut pas mélanger dans ce compteur.
-  [endCta, ctaLink, unlockSheetCta, reviveCta].forEach((lien) => {
+  // que ses propres visites, jamais d'où elles viennent. ⚠️ Seulement si le
+  // lien pointe VRAIMENT vers lienEP au clic — reviveCta peut aussi pointer
+  // vers lienSuivre (palier « suivre » de la carte de mort), un funnel
+  // différent qu'on ne veut pas mélanger dans ce compteur.
+  [endCta, ctaLink, reviveCta].forEach((lien) => {
     lien.addEventListener("click", () => {
       if (lien.href === window.CONFIG.lienEP) net.postClicEP();
     });
   });
 
-  syncVerrouRejeu();
   skipCountdownBtn.addEventListener("click", skipCountdown);
 
   // Entrée/espace au clavier : confort de test sur desktop uniquement.
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Enter" && e.code !== "Space") return;
     if (!overlay.classList.contains("visible")) return;
-    // Même règle qu'au clic : un verrou actif ouvre le panneau au lieu de
-    // relancer (avant ce correctif, Entrée contournait le verrou de rejeu).
     if (currentView === "end") {
-      if (verrouActif) openUnlockSheet();
-      else deps.restartGame();
+      deps.restartGame();
       return;
     }
     if (currentView === "onboarding" && stepOrder[stepIndex] === "play" && !playButton.disabled) {
