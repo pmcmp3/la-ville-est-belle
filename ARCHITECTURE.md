@@ -867,6 +867,23 @@ Chacun a déjà coûté du temps. À lire avant de débugger quoi que ce soit.
     vraie coupure réseau : pointer `fichierAudio` vers un hôte injoignable
     (`http://127.0.0.1:9/…`), qui fait bien rejeter `fetch()`.
 
+11. **`element.textContent = "…"` sur un bouton qui contient des SVG les DÉTRUIT.** C'est ce
+    qui a défiguré « DÉFIER UN AMI » du 23 août 2026 : `screens.js` mémorisait
+    `DEFI_LABEL = defiButton.textContent.trim()` — or `textContent` d'un bouton concatène AUSSI
+    le texte des `<title>` des SVG qu'il contient, donc le libellé mémorisé valait déjà
+    « DÉFIER UN AMI WhatsApp Messages Snapchat ». La réécriture (`defiButton.textContent =
+    DEFI_LABEL`, exécutée à CHAQUE `showEndScreen`) remplaçait ensuite tout le contenu du bouton
+    par cette chaîne : les trois `<svg>` disparaissaient et la phrase s'écrivait en clair, sur
+    une ligne rognée des deux côtés par le `white-space: nowrap` de `#end-screen .btn`.
+    ⚠️ Ce n'était PAS un bug WebKit (première hypothèse, fausse) : il se reproduit partout, mais
+    seulement au vrai rendu de l'écran de fin — le forçage du panneau en CSS depuis la console ne
+    passe pas par `showEndScreen` et montrait un rendu correct. **Règle : le libellé d'un bouton
+    à contenu mixte vit dans un `<span>` dédié** (`#defi-label`), jamais sur le bouton. En
+    défense, deux règles de plus : **pas de `<title>` dans un SVG décoratif** (le conteneur est
+    `aria-hidden`, il n'apporte rien et pollue `textContent`), et **pas de mise en page flex sur
+    un `<button>`** — la poser sur un span interne (`#defi-inner`), WebKit/iOS étant connu pour
+    ignorer `display:flex` sur les boutons.
+
 ---
 
 ## 11. Dettes et points ouverts

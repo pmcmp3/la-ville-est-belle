@@ -75,9 +75,16 @@ const defiBanner = document.getElementById("defi-banner");
 const defiBannerQui = document.getElementById("defi-banner-qui");
 const defiBannerNum = document.getElementById("defi-banner-num");
 const defiButton = document.getElementById("defi-button");
+// ⚠️ Le libellé vit dans un SPAN dédié, JAMAIS sur le bouton lui-même : le
+// bouton contient aussi la rangée d'icônes WhatsApp/Messages/Snap, et écrire
+// dans son `textContent` détruisait ces SVG en les remplaçant par du texte
+// brut (« DÉFIER UN AMI WhatsApp Messages Snapchat », capture à l'appui le
+// 23 août 2026 — `textContent` d'un bouton concatène aussi les <title> des
+// SVG qu'il contient, puis les écrase tous à la réécriture).
+const defiLabel = document.getElementById("defi-label");
 // Libellé d'origine, mémorisé avant tout remplacement temporaire (« Lien
 // copié ! » du repli presse-papiers).
-const DEFI_LABEL = defiButton.textContent.trim();
+const DEFI_LABEL = defiLabel.textContent.trim();
 const instaLink = document.getElementById("insta-link");
 
 // --- Verrou de rejeu (19 août 2026) --------------------------------------
@@ -1051,8 +1058,8 @@ function partagerDefi() {
   // sans ça, le bouton ne ferait rien du tout et passerait pour cassé.
   const complet = `${texte} ${url}`;
   const fini = () => {
-    defiButton.textContent = "Lien copié !";
-    setTimeout(() => { defiButton.textContent = DEFI_LABEL; }, 2500);
+    defiLabel.textContent = "Lien copié !";
+    setTimeout(() => { defiLabel.textContent = DEFI_LABEL; }, 2500);
   };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(complet).then(fini).catch(() => {
@@ -1086,7 +1093,7 @@ export function showEndScreen(reason) {
   // Défier avec 0 point n'a pas de sens — et le lien serait de toute façon
   // rejeté à la lecture (defi.js n'accepte qu'une cible strictement positive).
   defiButton.classList.toggle("hidden", deps.game.score <= 0);
-  defiButton.textContent = DEFI_LABEL;
+  defiLabel.textContent = DEFI_LABEL;
 
   // Compteur de parties : nourrit le verrou « suivre PMC » (3 parties).
   try { localStorage.setItem(CLE_PARTIES, String(partiesJouees() + 1)); } catch (e) { /* rien */ }
