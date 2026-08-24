@@ -1357,6 +1357,17 @@ export function init(d) {
 
   skipCountdownBtn.addEventListener("click", skipCountdown);
 
+  // Échap = pause (24 août 2026, demandé : « les gens sur l'ordi, quand ils
+  // appuient sur Échap, ça fait pause »). Bascule : ouvre le menu pause en
+  // course, le referme s'il est déjà ouvert. openPauseMenu() se refuse tout
+  // seul hors course (pauseButton.hidden) — aucun risque d'ouvrir la pause
+  // sur le menu d'accueil ou l'écran de fin.
+  window.addEventListener("keydown", (e) => {
+    if (e.code !== "Escape") return;
+    if (deps.isManuallyPaused()) closePauseMenu();
+    else openPauseMenu();
+  });
+
   // Entrée/espace au clavier : confort de test sur desktop uniquement.
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Enter" && e.code !== "Space") return;

@@ -94,63 +94,26 @@ export const LEAD_IN =
   (LEAD_IN_START_Z - LEAD_IN_VISIBILITY_MARGIN - road.PLAYER_NEAR_Z) / road.getSpeed() -
   window.CONFIG.premierTempsOffset;
 
-// --- Ligne d'arrivée + quota exact d'étoiles -------------------------------
-// Demandé : la course se termine après un nombre fixe d'objets, pas au bout
-// du morceau. Le morceau lui, continue à jouer jusqu'à la fin — cohérent
-// avec l'objectif "donner envie d'écouter le morceau".
-// TOTAL_STARS est désormais LE réglage central (demandé explicitement :
-// « chaque partie doit avoir le même nombre d'étoiles [...] admettons que le
-// total soit 200, pour que le meilleur score soit extrêmement difficile à
-// atteindre — sous-entendu qu'il faut prendre toutes les étoiles »).
-// TOTAL_OBSTACLES fixe la difficulté en face (voitures tripées, voir plus
-// bas) ; TOTAL_OBJECTS (= la ligne d'arrivée) en découle.
-// 200 → 140 le 17 août 2026 : dureeCourse a été raccourcie à 70 % (205 → 143,5
-// s, "course trop longue") — à quota FIXE, un parcours 30 % plus court aurait
-// laissé moins de créneaux totaux (TOTAL_OBJECTS) que d'étoiles à y caser,
-// rendant BONUS_RATIO_START > 1 (le cas dégénéré déjà rencontré une fois, qui
-// avait fait perdre une étoile en silence — voir isBonusQuota plus bas).
-// TOTAL_STARS baisse donc à la MÊME proportion (×0,7) pour garder la même
-// densité de jeu sur un parcours plus court, pas juste éviter le bug.
-// ⚠️ N'est plus une constante écrite à la main depuis le 19 août 2026 : c'est
-// désormais le nombre d'étoiles que produit la loi de difficulté
-// (obstacleRatioAt, plus bas), COMPTÉ sur le parcours réel. Défini tout en bas
-// du fichier, une fois `isBonusQuota` construit — voir la note d'arbitrage
-// là-bas. La propriété produit ne bouge pas (« chaque partie a exactement le
-// même nombre d'étoiles, le score max est un nombre connu »), seule sa valeur
-// est maintenant une conséquence de la difficulté demandée au lieu d'une
-// contrainte qui la bridait.
-// ⚠️ Deuxième renversement (12 août 2026, même jour, retour ultérieur) : la
-// ligne d'arrivée n'est plus calée sur la fin du morceau (`dureeMorceau`) mais
-// sur `dureeCourse` (config.js, 205 s = "03:25"), un réglage séparé — demandé
-// explicitement pour que la course soit plus courte que le morceau. Le
-// morceau, lui, continue de jouer après la ligne jusqu'à sa fin réelle
-// (257,9 s) : l'écran de fin/le classement s'affichent pendant que le
-// morceau tourne encore ~53 s, cohérent avec l'objectif "donner envie
-// d'écouter le morceau". Dernier créneau qui tient AVANT dureeCourse.
+// --- Course INFINIE (24 août 2026) -----------------------------------------
+// La ligne d'arrivée est SUPPRIMÉE (demandé explicitement : « on peut
+// supprimer le principe de la ligne d'arrivée, puisque le jeu va devenir
+// infini »). Motif : trois ou quatre joueurs ont atteint le score maximum
+// théorique — le concours ne départage plus personne. Un parcours sans fin
+// n'a plus de score max : le classement redevient un vrai classement.
+// La partie ne se termine plus que par la mort (game over). La vitesse, elle,
+// reste plafonnée à `vitesseMax` (road.js) — plafond déjà atteint vers 102 s,
+// AVANT l'ancienne ligne d'arrivée : « garde la vitesse au moment de la ligne
+// d'arrivée actuelle » est donc déjà la valeur en place, rien à changer.
+// TOTAL_OBJECTS ne marque plus une fin : c'est la LONGUEUR DE LA RAMPE de
+// difficulté (timeRampT plus bas) — au-delà, tous les réglages restent à leur
+// valeur de fin de rampe (régime de croisière le plus dur).
 export const TOTAL_OBJECTS = Math.floor(
   (window.CONFIG.dureeCourse - window.CONFIG.premierTempsOffset) / (CADENCE * clock.beatPeriod)
 );
-// Ce qui reste une fois les étoiles placées. ⚠️ Commentaire remis à jour le
-// 19 août 2026 : il décrivait encore l'état du 12 août (« les 200 étoiles ne
-// bougent pas », course de 205 s) et concluait qu'il faudrait un jour baisser
-// TOTAL_STARS pour retrouver la densité de danger d'avant. C'est fait depuis
-// le 17 août — TOTAL_STARS est passé à 140, à la même proportion que
-// dureeCourse (×0,7), donc la densité par créneau ne bouge plus. Valeurs
-// actuelles : 191 créneaux, 140 étoiles, 51 obstacles (vérifié par balayage
-// hors ligne, voir ARCHITECTURE.md §5.4).
-// (TOTAL_STARS / TOTAL_OBSTACLES sont définis plus bas, après isBonusQuota :
-// ils se COMPTENT sur le quota réellement produit par la loi de difficulté.)
-export function finishBeatN() { return TOTAL_OBJECTS * CADENCE; }
-export function finishTime() { return clock.timeOfBeat(finishBeatN()); }
-// Nombre d'objets déjà "passés" au sens du parcours (créneaux au niveau ou
-// derrière le joueur). Sert au HUD/écran de fin. Formule pure — pas besoin
-// d'un compteur incrémenté à chaque frame.
-export function objectsPassed(now = clock.now()) {
-  return Math.max(0, Math.min(TOTAL_OBJECTS, Math.floor(clock.beatIndexAt(now) / CADENCE)));
-}
-export function isFinished(now = clock.now()) {
-  return now >= finishTime();
-}
+// Gardés pour les modules qui les importent (cameo.js pose son caméo
+// d'arrivée sur finishTime() : à l'infini, il n'apparaît simplement jamais).
+export function finishTime() { return Infinity; }
+export function isFinished() { return false; }
 const Z_WINDOW = 1.0;      // fenêtre (unités-monde) autour du joueur pour tester la collision
 const Z_WINDOW_AIR = 2.2;  // fenêtre élargie pour les bonus aériens (le timing du saut doit être tolérant)
 // Plus de rayon de collision en unités-monde : depuis le passage aux 4 voies,
@@ -285,44 +248,18 @@ function obstacleRatioAt(slotIndex) {
 // atteint) et 0,62 (départ) : jamais près de 1, la marge est structurelle et
 // non plus le fruit d'une dérivation à surveiller.
 
-// Marge après la ligne d'arrivée : visibleSlots() peut regarder jusqu'à
-// LOOKAHEAD_SLOTS créneaux au-delà du dernier passé, il faut donc un tableau
-// un peu plus long que TOTAL_OBJECTS pour ne jamais lire hors limites.
-const QUOTA_MARGIN = LOOKAHEAD_SLOTS + 1;
-const isBonusQuota = (() => {
-  const arr = new Array(TOTAL_OBJECTS + QUOTA_MARGIN).fill(false);
-  for (let i = 0; i < GRACE_SLOTS && i < arr.length; i++) arr[i] = true;
-
-  let cumul = 0;
-  let prevFloor = 0;
-  for (let i = GRACE_SLOTS; i < arr.length; i++) {
-    const ratio = 1 - obstacleRatioAt(i);
-    cumul += ratio;
-    // Epsilon : le cumul final vaut EXACTEMENT le quota par construction, donc
-    // il tombe pile sur un entier — l'endroit précis où une addition flottante
-    // qui atterrit à 196,999999 coûte une étoile pour rien.
-    const floor = Math.floor(cumul + 1e-9);
-    arr[i] = floor > prevFloor;
-    prevFloor = floor;
-  }
-  return arr;
-})();
-
+// ⚠️ FIN DU QUOTA EXACT (24 août 2026). L'ancienne diffusion d'erreur
+// garantissait le même nombre d'étoiles à chaque partie — c'était le socle du
+// « score max connu », devenu LE problème (plusieurs joueurs à égalité au
+// plafond). Le parcours est désormais infini ET tiré au hash SEEDÉ par partie
+// (voir runSeed) : un créneau est une étoile avec la probabilité
+// 1 − obstacleRatioAt(slot), la même courbe de difficulté qu'avant — mais le
+// tirage change à chaque partie et ne s'arrête jamais.
 function isBonusAt(slotIndex) {
-  return slotIndex >= 0 && slotIndex < isBonusQuota.length && isBonusQuota[slotIndex];
+  if (slotIndex < 0) return false;
+  if (slotIndex < GRACE_SLOTS) return true;
+  return hash(slotIndex * 3 + 55) < 1 - obstacleRatioAt(slotIndex);
 }
-
-// Quota réellement produit par la loi de difficulté, COMPTÉ sur les créneaux
-// du parcours (la marge de lookahead est exclue : ces créneaux-là sont
-// calculés mais jamais joués, visibleSlots() s'arrête à TOTAL_OBJECTS).
-// C'est ce comptage qui garantit la propriété produit : le nombre est le même
-// à chaque partie (tout est déterministe, ARCHITECTURE.md §5.2) et connu
-// d'avance, donc le score maximum reste calculable — c'est seulement sa VALEUR
-// qui a changé le 19 août 2026 avec le doublement de difficulté (140 → ~80).
-export const TOTAL_STARS = isBonusQuota
-  .slice(0, TOTAL_OBJECTS)
-  .reduce((n, estEtoile) => n + (estEtoile ? 1 : 0), 0);
-export const TOTAL_OBSTACLES = TOTAL_OBJECTS - TOTAL_STARS;
 
 // Bonus musique/studio (voir config.js pour les scores). Poids inchangés
 // depuis les anciens noms (clementine→cd, clavier→piano, sourire→appareil,
@@ -484,6 +421,14 @@ function applyPontLateBoost(slotIndex, weights) {
 // fonction pure de l'index). Pilotée par main.js, une fois par frame.
 let currentScore = 0;
 export function setScore(score) { currentScore = score; }
+
+// Vies courantes, même canal que le score : servent UNIQUEMENT à décider si
+// un créneau bonus peut porter un CADEAU MAGIQUE (+1 cœur, voir GIFT_RATE) —
+// inutile d'en faire apparaître quand le joueur est déjà au maximum. Comme le
+// score, la décision est figée au premier calcul du créneau (rawContentCache) :
+// un cadeau déjà visible ne disparaît pas si un cœur revient entre-temps.
+let currentLives = window.CONFIG.viesDepart;
+export function setLives(lives) { currentLives = lives; }
 
 // Mémoïsation du tirage de créneau (voir rawSlotContent plus bas) : sans
 // elle, un score qui franchit un palier (voir applyScoreTierBoost) pendant
@@ -667,11 +612,33 @@ function pickLanes(slotIndex, count) {
   return lanes.slice(0, count).sort((a, b) => a - b);
 }
 
+// --- Graine par partie (24 août 2026) --------------------------------------
+// Demandé explicitement : « il faut s'assurer que chaque partie soit
+// différente [...] pour les gens qui jouent plusieurs fois, c'est trop facile
+// de faire le score maximum ». Le parcours reste une fonction pure de l'index
+// de créneau PENDANT une partie (rien ne bouge sous les pieds du joueur),
+// mais la graine change à chaque nouvelle course : types, voies, étoiles
+// dorées, rangées de voitures — tout est retiré. reseed() est appelé par
+// main.js/restartGame() ; la première partie utilise la graine tirée au
+// chargement du module.
+let runSeed = Math.random() * 1000;
+export function reseed() {
+  runSeed = Math.random() * 1000;
+  rawContentCache.clear();
+  invalidateSlotCache();
+}
+// Exposée pour crosstraffic.js : ses traversantes doivent changer de partie
+// en partie comme le reste, avec la même graine.
+export function getRunSeed() {
+  return runSeed;
+}
+
 // Exporté : entities-render.js s'en sert aussi (couleurs de voiture, choix
 // d'outfit piéton/cycliste) — même source de hasard déterministe des deux
-// côtés de la frontière logique/rendu.
+// côtés de la frontière logique/rendu. ⚠️ Seedé par partie depuis le 24 août
+// 2026 (voir runSeed ci-dessus).
 export function hash(n) {
-  const x = Math.sin(n * 78.233) * 43758.5453;
+  const x = Math.sin(n * 78.233 + runSeed) * 43758.5453;
   return x - Math.floor(x);
 }
 
@@ -716,14 +683,86 @@ function rawSlotContent(slotIndex) {
 }
 
 // Étoile DORÉE rare (20 août 2026, « excellente idée ») : ×2 sur les points de
-// l'étoile, teinte particulière et rotation plus rapide (entities-render.js).
-// Tirée au HASH par créneau — déterministe, comme tout le parcours : même
-// nombre d'étoiles dorées à chaque partie, le score maximum reste un nombre
-// connu (invariant CLAUDE.md). ~12 % des étoiles (≈ 9-10 sur 80).
+// l'étoile, teinte particulière, rotation plus rapide ET badge « ×2 » affiché
+// sur l'étoile elle-même (24 août 2026 : « il faudrait que l'étoile x2 ait
+// marqué x2 sur l'étoile, ou qu'elle brille beaucoup plus » — les deux sont
+// faits, voir entities-render.js). Tirée au hash SEEDÉ par partie : leur
+// nombre et leurs positions changent à chaque course.
 const GOLD_STAR_RATE = 0.12;
 
+// CADEAU MAGIQUE (24 août 2026, demandé : « des cadeaux magiques qui
+// permettent de récupérer un cœur ») : bonus rare qui rend UN cœur (plafonné
+// à viesDepart, main.js). Ne remplace un créneau étoile que si le joueur a
+// effectivement un cœur manquant au moment où le créneau se calcule (voir
+// setLives) — jamais pendant la période de grâce.
+const GIFT_RATE = 0.07;
+
+// --- Vague de 3 vélos (24 août 2026) ---------------------------------------
+// Demandé : « toutes les 45 secondes, trois vélos qui arrivent de manière un
+// peu désynchronisée en même temps face à toi, et qui ne sont pas en conflit
+// avec des voitures ou un pont ». Implémentation : toutes les
+// WAVE_PERIOD_SLOTS (~45 s de créneaux), TROIS créneaux consécutifs sont
+// forcés « cycliste », chacun sur une voie différente (permutation seedée des
+// 3 voies) — l'écart d'un créneau (~0,75 s) entre eux fait la
+// désynchronisation demandée, et le facteur d'approche des cyclistes (×1,35)
+// les fait fondre sur le joueur. Les cyclistes restant franchissables au
+// saut, une vague sur les 3 voies laisse toujours une porte de sortie.
+// L'anti-conflit est traité aux deux bouts : les créneaux ±1 autour d'une
+// vague ne peuvent porter ni voiture ni pont (convertis en cône, voir plus
+// bas dans computeRawSlotContent).
+const WAVE_PERIOD_SLOTS = Math.max(8, Math.round(45 / (CADENCE * clock.beatPeriod)));
+const WAVE_SIZE = 3;
+// Rang du créneau dans sa vague (0..WAVE_SIZE-1), ou -1 hors vague. La toute
+// première vague arrive à ~45 s (jamais dans l'ouverture de course).
+function waveMember(slotIndex) {
+  if (slotIndex < WAVE_PERIOD_SLOTS) return -1;
+  const k = slotIndex % WAVE_PERIOD_SLOTS;
+  return k < WAVE_SIZE ? k : -1;
+}
+// Créneau immédiatement avant/après une vague : là où voiture et pont sont
+// interdits (un pont collé à la vague fermerait la seule voie de repli).
+function isWaveNeighbor(slotIndex) {
+  const k = slotIndex % WAVE_PERIOD_SLOTS;
+  return (k === WAVE_SIZE && slotIndex >= WAVE_PERIOD_SLOTS) ||
+         (k === WAVE_PERIOD_SLOTS - 1 && slotIndex >= WAVE_PERIOD_SLOTS - 1);
+}
+// Voie du membre `k` de la vague : permutation de Fisher-Yates seedée par
+// l'index de vague — les 3 vélos couvrent les 3 voies, dans un ordre qui
+// change à chaque vague et à chaque partie.
+function waveLaneFor(slotIndex) {
+  const group = Math.floor(slotIndex / WAVE_PERIOD_SLOTS);
+  const lanes = Array.from({ length: road.LANE_COUNT }, (_, i) => i);
+  for (let i = lanes.length - 1; i > 0; i--) {
+    const j = Math.floor(hash(group * 631 + i * 17 + 44) * (i + 1));
+    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+  }
+  return lanes[waveMember(slotIndex) % lanes.length];
+}
+
+// --- Boost de cyclistes après 1 min 30 (24 août 2026) ----------------------
+// Demandé : « beaucoup plus de vélos qui apparaissent à partir d'une minute
+// trente de jeu ». S'empile sur le boost temporel de 63 s (×1,6) et sur les
+// paliers de score — scaleWeights renormalise à chaque composition.
+const CYCLIST_LATE_BOOST_TIME_S = 90;
+const CYCLIST_LATE_BOOST_SLOT = Math.floor(clock.beatIndexAt(CYCLIST_LATE_BOOST_TIME_S) / CADENCE);
+const CYCLIST_LATE_BOOST_FACTOR = 2.2;
+function applyCyclistLateBoost(slotIndex, weights) {
+  if (slotIndex < CYCLIST_LATE_BOOST_SLOT) return weights;
+  return scaleWeights(weights, { cycliste: CYCLIST_LATE_BOOST_FACTOR });
+}
+
 function computeRawSlotContent(slotIndex) {
+  // Vague de 3 vélos : prime sur tout le reste (y compris le tirage étoile),
+  // c'est un événement scripté du parcours.
+  const membre = waveMember(slotIndex);
+  if (membre >= 0) {
+    return { isBonus: false, kind: "cycliste", waveLane: waveLaneFor(slotIndex) };
+  }
   if (isBonusAt(slotIndex)) {
+    if (slotIndex >= GRACE_SLOTS && currentLives < window.CONFIG.viesDepart &&
+        hash(slotIndex * 3 + 91) < GIFT_RATE) {
+      return { isBonus: true, kind: "cadeau" };
+    }
     return {
       isBonus: true,
       kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)),
@@ -735,8 +774,13 @@ function computeRawSlotContent(slotIndex) {
   }
   const timeBoost = slotIndex >= CAR_TIME_BOOST_SLOT;
   const baseWeights = timeBoost ? TIME_BOOSTED_OBSTACLE_WEIGHTS : OBSTACLE_WEIGHTS;
-  const weights = applyPontLateBoost(slotIndex, applyScoreTierBoost(baseWeights));
-  const kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
+  const weights = applyPontLateBoost(slotIndex, applyCyclistLateBoost(slotIndex, applyScoreTierBoost(baseWeights)));
+  let kind = pickWeighted(weights, hash(slotIndex * 3 + 1));
+  // Anti-conflit de vague : pas de voiture ni de pont collé à une vague de
+  // vélos (voir isWaveNeighbor) — remplacé par un cône, petit et sautable.
+  if (isWaveNeighbor(slotIndex) && (kind === "voiture" || kind === "pont")) {
+    kind = "cone";
+  }
   if (kind === "voiture") {
     const carCount = pickWeighted(carRowSizesAt(slotIndex), hash(slotIndex * 3 + 10));
     return { isBonus: false, kind: "voiture", carCount };
@@ -782,7 +826,12 @@ const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à l
 function slotContent(slotIndex) {
   const raw = rawSlotContent(slotIndex);
   if (raw.isBonus) return raw;
-  if (raw.kind === "pont") return bridgeGuard(slotIndex, raw);
+  // ⚠️ Plus de garde côté PONT (l'ancien bridgeGuard tournait les voies
+  // ouvertes pour fuir un bonus voisin) : depuis le 24 août 2026, c'est le
+  // BONUS qui s'adapte au pont et aux voitures, jamais l'inverse — voir
+  // lanesBlockedByNeighbors() dans slotLanes(). Deux gardes qui se déplacent
+  // l'une l'autre auraient créé une dépendance circulaire (le pont fuit le
+  // bonus qui vient de se caler sur ses voies ouvertes).
   if (!UNJUMPABLE_KINDS.has(raw.kind)) return raw;
 
   // Voies rendues interdites par un bonus voisin immédiat.
@@ -811,38 +860,28 @@ function slotContent(slotIndex) {
               // toujours ≥1 libre) ; garde-fou quand même, on ne renvoie jamais undefined
 }
 
-// Garde anti-piège, variante pont. Un piéton/cycliste n'a qu'UNE voie de
-// repli possible (laneOverride) ; un pont a PLUSIEURS voies ouvertes à la
-// fois, donc la question n'est pas "quelle voie libre choisir" mais "reste-
-// t-il au moins une voie ouverte du pont qui ne coïncide pas avec un bonus
-// voisin (±1 créneau) ». Si toutes ses voies ouvertes sont prises, on fait
-// tourner (rotation modulo LANE_COUNT, décalage tiré au hash) la combinaison
-// de voies ouvertes jusqu'à en trouver une qui en laisse au moins une libre —
-// la rotation préserve le nombre de voies ouvertes et leur espacement.
-function bridgeGuard(slotIndex, raw) {
-  const blockedByBonus = new Set();
+// Voies interdites à un BONUS par ses voisins immédiats (±1 créneau) :
+// piliers de pont et voitures. Demandé le 24 août 2026 : « les étoiles ne
+// doivent pas être positionnées au même endroit que les ponts, ni au même
+// endroit que les voitures ». On lit le tirage BRUT des voisins (jamais
+// slotContent, qui regarde lui-même ses voisins — récursion garantie sinon) :
+// voitures et ponts ne sont jamais déplacés par une garde, leur tirage brut
+// est donc leur position finale.
+function lanesBlockedByNeighbors(slotIndex) {
+  const blocked = new Set();
   for (let d = -PIETON_BONUS_GUARD_SLOTS; d <= PIETON_BONUS_GUARD_SLOTS; d++) {
     if (d === 0) continue;
     const n = slotIndex + d;
     if (n < 0) continue;
     const neighbor = rawSlotContent(n);
-    if (!neighbor.isBonus) continue;
-    blockedByBonus.add(slotLanes(n, neighbor)[0]);
-  }
-
-  const baseOpen = pickLanes(slotIndex, raw.openCount || 1);
-  if (baseOpen.some((l) => !blockedByBonus.has(l))) return raw;
-
-  const start = 1 + Math.floor(hash(slotIndex * 3 + 97) * (road.LANE_COUNT - 1));
-  for (let i = 0; i < road.LANE_COUNT; i++) {
-    const offset = (start + i) % road.LANE_COUNT;
-    const candidate = baseOpen.map((l) => (l + offset) % road.LANE_COUNT);
-    if (candidate.some((l) => !blockedByBonus.has(l))) {
-      return { ...raw, openLanesOverride: candidate };
+    if (neighbor.isBonus) continue;
+    if (isCarSlot(neighbor)) {
+      for (const l of pickLanes(n, neighbor.carCount || 1)) blocked.add(l);
+    } else if (isBridgeSlot(neighbor)) {
+      for (const l of bridgeBlockedLanes(n, neighbor)) blocked.add(l);
     }
   }
-  return raw; // inatteignable quel que soit LANE_COUNT ≥ 3 pour 2 voisins de bonus (même
-              // raisonnement que plus haut) ; garde-fou quand même, on ne renvoie jamais undefined
+  return blocked;
 }
 
 // Voies occupées par le contenu d'un créneau. Renvoie toujours un TABLEAU :
@@ -854,6 +893,8 @@ function slotLanes(slotIndex, content) {
   // Voie imposée par la garde anti-piège (voir slotContent) : elle prime sur
   // le tirage au hash, c'est tout l'intérêt du déplacement.
   if (content && content.laneOverride != null) return [content.laneOverride];
+  // Membre d'une vague de vélos : sa voie sort de la permutation de vague.
+  if (content && content.waveLane != null) return [content.waveLane];
   if (content && isCarSlot(content)) {
     return pickLanes(slotIndex, content.carCount || 1);
   }
@@ -869,7 +910,27 @@ function slotLanes(slotIndex, content) {
   if (slotIndex < GRACE_SLOTS) {
     return [h < 0.5 ? 0 : road.LANE_COUNT - 1];
   }
-  return [Math.min(Math.floor(h * road.LANE_COUNT), road.LANE_COUNT - 1)];
+  const lane = Math.min(Math.floor(h * road.LANE_COUNT), road.LANE_COUNT - 1);
+  // Garde côté BONUS : jamais dans une voie occupée par un pilier de pont ou
+  // une voiture à ±1 créneau — une étoile inatteignable (derrière un pilier)
+  // ou plantée « dans » une voiture est exactement le conflit signalé au
+  // playtest. Déplacée vers la première voie libre, parcourue depuis un
+  // décalage tiré au hash (sinon tout atterrirait sur « voie + 1 », motif
+  // visible). Si tout est bloqué (rare : deux voisins qui couvrent les 3
+  // voies à eux deux), on garde la voie tirée — l'étoile reste ramassable en
+  // sautant par-dessus la voiture, seul le cas pont+pont total serait un vrai
+  // piège et deux ponts ne sont jamais à ±1 (LARGE espacement des ponts).
+  if (content && content.isBonus) {
+    const blocked = lanesBlockedByNeighbors(slotIndex);
+    if (blocked.has(lane)) {
+      const start = 1 + Math.floor(hash(slotIndex * 3 + 97) * (road.LANE_COUNT - 1));
+      for (let i = 0; i < road.LANE_COUNT; i++) {
+        const alt = (lane + start + i) % road.LANE_COUNT;
+        if (!blocked.has(alt)) return [alt];
+      }
+    }
+  }
+  return [lane];
 }
 
 // Position latérale (unités-monde) du centre du contenu — sert seulement aux
@@ -907,14 +968,9 @@ function slotZ(slotIndex, now, speed) {
 function* visibleSlots(now, speed) {
   const currentSlot = Math.floor(clock.beatIndexAt(now) / CADENCE);
   for (let n = Math.max(0, currentSlot - 1); n <= currentSlot + LOOKAHEAD_SLOTS; n++) {
-    // 🐛 Rien au-delà de la ligne d'arrivée (retour du 12 août 2026 : « à la
-    // ligne d'arrivée, il y a des objets qui s'entremêlent »). Le parcours
-    // continuait de peupler les créneaux d'APRÈS l'arrivée ; comme la caméra
-    // freine pendant la séquence de fin (road.brake), leur profondeur — qui
-    // est un temps restant × la vitesse — s'écrase d'un coup et les tassait
-    // les uns dans les autres devant le joueur. Après la ligne, la route est
-    // vide : c'est fini.
-    if (n >= TOTAL_OBJECTS) break;
+    // Plus de coupure à TOTAL_OBJECTS : le parcours est infini (24 août 2026),
+    // les créneaux se génèrent sans fin — TOTAL_OBJECTS ne sert plus qu'à
+    // borner la rampe de difficulté (timeRampT).
     // Le contenu se calcule AVANT la profondeur : c'est lui qui dit à quelle
     // vitesse le créneau se rapproche (voir APPROACH_FACTOR).
     const content = slotContent(n);
@@ -1086,6 +1142,7 @@ export function reset() {
   debugOverrides.clear();
   rawContentCache.clear();
   currentScore = 0;
+  currentLives = window.CONFIG.viesDepart;
   invalidateSlotCache();
 }
 

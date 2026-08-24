@@ -335,12 +335,93 @@ function drawStar3D(ctx, R, spin, gold) {
 // doit se repérer en une fraction de seconde au milieu des jaunes. Le halo
 // est peint derrière l'étoile 3D (1-2 dorées visibles à la fois au maximum,
 // le gradient par frame est négligeable).
-function drawGoldHalo(ctx, R) {
-  const halo = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.5);
-  halo.addColorStop(0, "rgba(255,220,120,0.55)");
+// ⚠️ Nettement RENFORCÉ le 24 août 2026 (« on ne voit pas trop le type des
+// étoiles [...] il faut qu'elle brille beaucoup plus ») : plus opaque, plus
+// large, avec une pulsation lente — et un badge « ×2 » peint SUR l'étoile
+// (voir drawGoldLabel), l'autre moitié de la même demande.
+function drawGoldHalo(ctx, R, now = 0) {
+  const pulse = 1 + 0.12 * Math.sin(now * 5);
+  const r = R * 1.9 * pulse;
+  const halo = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, r);
+  halo.addColorStop(0, "rgba(255,235,160,0.85)");
+  halo.addColorStop(0.5, "rgba(255,220,120,0.4)");
   halo.addColorStop(1, "rgba(255,220,120,0)");
   ctx.fillStyle = halo;
-  ctx.fillRect(-R * 1.5, -R * 1.5, R * 3, R * 3);
+  ctx.fillRect(-r, -r, r * 2, r * 2);
+}
+
+// Badge « ×2 » au-dessus de l'étoile dorée (24 août 2026, demandé : « il
+// faudrait que l'étoile x2 ait marqué x2 sur l'étoile en elle-même »).
+// Peint APRÈS l'étoile 3D, ancré au-dessus de la pointe haute (qui ne bouge
+// pas pendant la rotation) — même contour sombre que l'étoile pour rester
+// lisible sur le ciel comme sur le bitume.
+const GOLD_LABEL_FONT = '"Stage Grotesk", system-ui, sans-serif';
+function drawGoldLabel(ctx, R) {
+  const fs = Math.max(8, R * 0.9);
+  ctx.font = `900 ${Math.round(fs)}px ${GOLD_LABEL_FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(2, fs * 0.22);
+  ctx.strokeStyle = STAR_LINE;
+  const y = -R * 1.5;
+  ctx.strokeText("×2", 0, y);
+  ctx.fillStyle = "#fff3c2";
+  ctx.fillText("×2", 0, y);
+}
+
+// --- Cadeau magique (+1 cœur, 24 août 2026) --------------------------------
+// « Des cadeaux magiques qui permettent de récupérer un cœur. » Boîte cadeau
+// violette à ruban jaune, avec un CŒUR qui flotte au-dessus — c'est le cœur
+// qui dit instantanément ce que ça rapporte. Violet volontairement hors des
+// deux codes couleur du jeu (jaune = gain de points, rouge = danger) : c'est
+// une troisième famille, le soin.
+const GIFT_BOX = "#8a3fd4";
+const GIFT_BOX_DARK = "#5e2a94";
+const GIFT_RIBBON = "#ffcf2e";
+const GIFT_HEART = "#ff5a7a";
+const GIFT_ICON = makeIcon((ictx, cx, cy, r) => {
+  const w = r * 1.5, h = r * 1.15;
+  const boxY = cy + r * 0.05;
+  // Boîte
+  ictx.fillStyle = GIFT_BOX;
+  ictx.fillRect(cx - w / 2, boxY, w, h);
+  // Ombre du flanc droit (volume)
+  ictx.fillStyle = GIFT_BOX_DARK;
+  ictx.fillRect(cx + w * 0.2, boxY, w * 0.3, h);
+  // Couvercle (légèrement plus large)
+  ictx.fillStyle = GIFT_BOX;
+  ictx.fillRect(cx - w * 0.58, boxY - h * 0.28, w * 1.16, h * 0.28);
+  ictx.fillStyle = GIFT_BOX_DARK;
+  ictx.fillRect(cx + w * 0.22, boxY - h * 0.28, w * 0.36, h * 0.28);
+  // Ruban vertical + nœud
+  ictx.fillStyle = GIFT_RIBBON;
+  ictx.fillRect(cx - w * 0.09, boxY - h * 0.28, w * 0.18, h * 1.28);
+  ictx.fillRect(cx - w * 0.28, boxY - h * 0.5, w * 0.2, h * 0.22);
+  ictx.fillRect(cx + w * 0.08, boxY - h * 0.5, w * 0.2, h * 0.22);
+  // Cœur au-dessus (deux cercles + triangle)
+  const hy = cy - r * 1.15, hr = r * 0.28;
+  ictx.fillStyle = GIFT_HEART;
+  circle(ictx, cx - hr * 0.55, hy, hr * 0.62, GIFT_HEART);
+  circle(ictx, cx + hr * 0.55, hy, hr * 0.62, GIFT_HEART);
+  ictx.beginPath();
+  ictx.moveTo(cx - hr * 1.12, hy + hr * 0.18);
+  ictx.lineTo(cx + hr * 1.12, hy + hr * 0.18);
+  ictx.lineTo(cx, hy + hr * 1.35);
+  ictx.closePath();
+  ictx.fill();
+});
+
+// Halo rose du cadeau, même recette que le halo doré : il doit se repérer
+// de loin comme « celui-là est spécial ».
+function drawGiftHalo(ctx, R, now = 0) {
+  const pulse = 1 + 0.1 * Math.sin(now * 4);
+  const r = R * 1.7 * pulse;
+  const halo = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, r);
+  halo.addColorStop(0, "rgba(255,138,184,0.6)");
+  halo.addColorStop(1, "rgba(255,138,184,0)");
+  ctx.fillStyle = halo;
+  ctx.fillRect(-r, -r, r * 2, r * 2);
 }
 
 // Rouge de charte (+ une teinte plus sombre pour le modelé) : les obstacles
@@ -748,13 +829,25 @@ function paintSlot(ctx, width, height, now, e) {
   // ⚠️ Depuis la refonte du 21 août 2026, c'est un vrai solide extrudé rendu
   // par drawStar3D (voir plus haut) : l'épaisseur et le profil découlent de
   // la géométrie, plus d'astuce cosinus/capsule.
-  if (e.isBonus) {
+  if (e.isBonus && e.kind === "cadeau") {
+    // Cadeau magique : icône pré-rendue + halo rose pulsant + léger
+    // flottement vertical (calé sur l'horloge musicale, comme le flottement
+    // des bonus aériens — purement cosmétique, aucune collision n'en dépend).
+    const bob = size * 0.06 * Math.sin(now * 3 + e.slotIndex);
+    const R = size * 0.42;
+    ctx.save();
+    ctx.translate(p.x, p.y - size / 2 - bob);
+    drawGiftHalo(ctx, R, now);
+    ctx.drawImage(GIFT_ICON, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  } else if (e.isBonus) {
     const spin = now * Math.PI * (e.gold ? 2 : 1);
     const R = size * 0.34 * (STAR_TIERS[e.kind] || 1);
     ctx.save();
     ctx.translate(p.x, p.y - size / 2 - airOffset);
-    if (e.gold) drawGoldHalo(ctx, R);
+    if (e.gold) drawGoldHalo(ctx, R, now);
     drawStar3D(ctx, R, spin, e.gold);
+    if (e.gold) drawGoldLabel(ctx, R);
     ctx.restore();
   } else {
     ctx.drawImage(icon, p.x - size / 2, p.y - size - airOffset, size, size);

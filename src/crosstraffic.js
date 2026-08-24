@@ -29,7 +29,7 @@
 // terminer la course sur une situation que le joueur ne pouvait pas éviter.
 
 import * as road from "./road.js";
-import { slotsFor, isBridgeSlot } from "./entities.js";
+import { slotsFor, isBridgeSlot, getRunSeed } from "./entities.js";
 import { clock } from "./clock.js";
 
 // Probabilité qu'un carrefour porte un véhicule. ⚠️ Nulle en début de course,
@@ -94,10 +94,12 @@ const COULEURS = [
 ];
 
 // Hash local (même recette que world.js/entities.js, multiplicateur distinct)
-// pour que ce module reste une fonction pure de l'index de carrefour, sans
-// dépendre d'un autre module de gameplay.
+// pour que ce module reste une fonction pure de l'index de carrefour.
+// ⚠️ Seedé par partie depuis le 24 août 2026 (même graine que la grille
+// musicale, via entities.getRunSeed) : les traversantes changent de carrefour
+// et de sens à chaque partie, comme tout le reste du parcours.
 function hash(n) {
-  const x = Math.sin(n * 45.164) * 43758.5453;
+  const x = Math.sin(n * 45.164 + getRunSeed()) * 43758.5453;
   return x - Math.floor(x);
 }
 

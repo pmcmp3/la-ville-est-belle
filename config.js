@@ -7,8 +7,8 @@ window.CONFIG = {
   // === MORCEAU / RYTHME ===
   bpm: 120,                 // Tempo mesuré sur le master (à affiner avec la grille de debug)
   premierTempsOffset: 0.01, // Décalage en secondes du 1er temps depuis le début du fichier
-  dureeMorceau: 257.9,      // Durée du MORCEAU (audio) en secondes — sert au fondu de sortie et à la vérif de durée du MP3 (audio.js). Le morceau continue de jouer après la ligne d'arrivée (objectif "donner envie d'écouter le morceau") : voir dureeCourse, distinct, pour la longueur du PARCOURS.
-  dureeCourse: 143.5,       // ⚠️ Longueur du PARCOURS en secondes = quand la ligne d'arrivée atteint le joueur. 205 → 143,5 (×0,7, "course trop longue", demandé le 17 août 2026). Distinct de dureeMorceau : le morceau continue après, jusqu'à sa fin réelle, pendant que le joueur est déjà sur l'écran de fin — marge encore plus large maintenant (257,9 - 143,5 ≈ 114 s). D'où dérive TOTAL_OBJECTS (entities.js) — donc le nombre d'obstacles rencontrés. TOTAL_STARS (entities.js) a été réduit à la MÊME proportion (200 → 140) : à quota fixe, un parcours 30 % plus court n'aurait plus assez de créneaux pour caser 200 étoiles ET des obstacles (revit le bug de diffusion d'erreur déjà corrigé une fois en août, voir entities.js).
+  dureeMorceau: 257.9,      // Durée du MORCEAU (audio) en secondes — sert à la vérif de durée du MP3 (audio.js). Depuis le passage au jeu infini (24 août 2026), le morceau tourne en BOUCLE, raccord arrondi à la mesure pour rester calé sur la grille rythmique (audio.js, playNow).
+  dureeCourse: 143.5,       // ⚠️ Depuis le 24 août 2026, le jeu est INFINI : plus de ligne d'arrivée. Ce réglage ne marque plus une fin — c'est la LONGUEUR DE LA RAMPE de difficulté (entities.js, timeRampT/obstacleRatioAt) : à cette échéance, tous les curseurs (densité d'obstacles, rangées de voitures, ponts à voie unique) ont atteint leur régime de croisière maximal et n'évoluent plus.
   fichierAudio: "assets/la-ville-est-belle.mp3", // MP3/AAC servi en prod (léger)
   fonduEntree: 1.2,         // Fondu à l'entrée, en secondes
   fonduSortie: 2.0,         // Fondu à la sortie (juste avant la fin du MORCEAU, pas de la course), en secondes
@@ -32,7 +32,7 @@ window.CONFIG = {
 
   // === VITESSE / PILOTAGE ===
   vitesseBase: 1.8,         // Playtest 3 : "plus progressif, trop intense au début" — 2.3 → 1.5, puis +20% (retour explicite : "accélère un peu plus la vitesse globale") — 1.5 → 1.8.
-  vitesseMax: 7.65,         // Plafond de la courbe exponentielle (road.js) = vitesse de fin de course (atteinte avant la ligne d'arrivée, voir road.js). 4.0 → 5.0 → 6.0, puis ×1,5 (17 août 2026) — 6.0 → 9.0, puis −15 % (21 août 2026, « réduis un petit peu la vitesse à la fin de 15% c'est trop hardcore ») — 9.0 → 7.65.
+  vitesseMax: 7.65,         // Plafond de la courbe exponentielle (road.js), atteint vers ~102 s puis CONSTANT à jamais — c'est le « plafond de vitesse infranchissable » demandé pour le jeu infini (24 août 2026) : la vitesse au moment de l'ancienne ligne d'arrivée, gardée telle quelle. 4.0 → 5.0 → 6.0, puis ×1,5 (17 août 2026) — 6.0 → 9.0, puis −15 % (21 août 2026, « réduis un petit peu la vitesse à la fin de 15% c'est trop hardcore ») — 9.0 → 7.65.
   sensibiliteDirection: 2.2,// Sensibilité de la direction : plus haut = plus réactif — 1.0 → 1.375 → 2.75 → 2.2 (playtest : "un peu trop sensible, réduis de 20 %"). Module la vitesse de rattrapage de la voie visée (main.js, LANE_TWEEN).
   // zoneMorteGyro / agressiviteVirages retirés le 19 août 2026 : plus aucun
   // usage dans src/ depuis le retrait du gyroscope et le passage au pilotage

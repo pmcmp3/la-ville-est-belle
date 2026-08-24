@@ -24,6 +24,24 @@ la musique continue de jouer après un game over.
 - **Deadline publique** : 11 septembre 2026.
 - **Concours** : meilleur score = un vinyle de l'EP. Scores dans Supabase, identité = pseudo + Insta.
 
+> ⚠️ **CHANGEMENT MAJEUR DU 24 AOÛT 2026 — le jeu est INFINI et chaque partie est DIFFÉRENTE.**
+> Plusieurs joueurs avaient atteint le score maximum théorique : le concours ne départageait plus
+> personne. En conséquence, plusieurs invariants décrits plus bas dans ce fichier sont TOMBÉS ce
+> jour-là (les sections concernées n'ont pas toutes été réécrites — CLAUDE.md fait foi) :
+> - **Plus de ligne d'arrivée** (`finish.js` non importé, `finishTime()` renvoie `Infinity`,
+>   séquence `finishing` supprimée de main.js). Seule la mort termine une partie.
+> - **Plus de quota exact d'étoiles** (§5.4 obsolète) : tirage au hash **seedé par partie**
+>   (`runSeed`/`reseed()`, entities.js — partagé avec crosstraffic.js), même courbe de
+>   difficulté. Le « score max = nombre connu » (§5.2) n'existe plus, c'était le but.
+> - **Le morceau tourne en boucle** (audio.js, `sourceNode.loop`, raccord arrondi à la mesure
+>   pour rester sur la grille rythmique ; plus de fondu de sortie programmé).
+> - **Nouveautés gameplay** : vague de 3 cyclistes toutes les ~45 s (un par voie, ±1 créneau
+>   sans voiture/pont), boost cyclistes ×2,2 après 90 s, **cadeau magique** (+1 cœur, seulement
+>   si un cœur manque, `setLives`), badge « ×2 » + halo renforcé sur l'étoile dorée, garde
+>   « étoile jamais dans la voie d'un pilier/d'une voiture voisine » (`lanesBlockedByNeighbors` —
+>   l'ancien `bridgeGuard` est supprimé, l'autorité est voitures/ponts > bonus > piéton),
+>   **Échap = pause** sur desktop (screens.js).
+
 ---
 
 ## 2. Démarrer

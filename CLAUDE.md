@@ -42,14 +42,45 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 - **Contrôle 100 % au geste**, aucun contrôle à l'écran : swipe gauche/droite = une voie,
   swipe haut = saut, swipe bas = glissade rapide. **Le gyroscope a été retiré** après plusieurs
   sessions à fiabiliser la permission iOS — ne pas le réintroduire.
-- Parcours **fini** : la ligne d'arrivée arrive quand le morceau atteint **`config.dureeCourse`
-  (143,5 s, "02:23,5")**, PAS à la fin du morceau. 205 s → 143,5 s le 17 août 2026 (×0,7,
-  « course trop longue », demandé explicitement) — avant ça, deuxième renversement du 12 août
-  2026 (c'était d'abord 343 objets/257,3 s calé sur toute la durée du morceau, 257,9 s de
-  musique). Le morceau, lui, continue de jouer jusqu'à sa fin réelle (`dureeMorceau`) pendant
-  que le joueur est déjà sur l'écran de fin (~114 s de marge désormais, contre ~53 s avant) —
-  cohérent avec l'objectif "donner envie d'écouter le morceau". `TOTAL_OBJECTS` (entities.js)
-  dérive de `dureeCourse`, pas de `dureeMorceau`. **120 BPM**, offset ~0,01 s.
+- ⚠️ **Parcours INFINI depuis le 24 août 2026** (troisième renversement, demandé explicitement :
+  trois ou quatre joueurs avaient atteint le score maximum théorique, le concours ne départageait
+  plus personne — « on peut supprimer le principe de la ligne d'arrivée, puisque le jeu va
+  devenir infini »). Plus de ligne d'arrivée (`finish.js` reste sur le disque, non importé),
+  plus de séquence de fin, plus d'écran « Parcours terminé » : **seule la mort termine une
+  partie**. Le morceau **tourne en boucle** (audio.js, raccord arrondi à la mesure pour rester
+  calé sur la grille rythmique). La vitesse **plafonne à `vitesseMax`** (atteinte vers ~102 s,
+  jamais dépassée — « garde la vitesse au moment de la ligne d'arrivée actuelle », qui était
+  déjà le plafond). `config.dureeCourse` (143,5 s) ne marque plus une fin : c'est la longueur
+  de la RAMPE de difficulté (`TOTAL_OBJECTS`/`timeRampT`, entities.js) — au-delà, régime de
+  croisière maximal constant. **120 BPM**, offset ~0,01 s.
+- ⚠️ **Chaque partie est DIFFÉRENTE depuis le 24 août 2026** (« il faut s'assurer que chaque
+  partie soit différente [...] pour les gens qui jouent plusieurs fois, c'est trop facile de
+  faire le score maximum ») : graine aléatoire par course (`runSeed`/`reseed()`, entities.js,
+  partagée avec crosstraffic.js). Le parcours reste une fonction pure de l'index de créneau
+  PENDANT une partie, mais types, voies, étoiles dorées, rangées, traversantes changent d'une
+  course à l'autre. ⚠️ Conséquence assumée : **le score maximum n'est plus un nombre connu** —
+  c'était le but (plus d'égalité au plafond possible).
+- **Vague de 3 vélos toutes les ~45 s** (24 août 2026, demandé) : 3 créneaux consécutifs forcés
+  « cycliste », un par voie (permutation seedée), ~0,75 s d'écart — désynchronisés, face au
+  joueur. Les créneaux ±1 autour d'une vague ne portent jamais voiture ni pont (convertis en
+  cône). `WAVE_PERIOD_SLOTS`/`waveMember()`, entities.js.
+- **Beaucoup plus de vélos après 1 min 30** (24 août 2026) : `applyCyclistLateBoost()`
+  (entities.js), ×2,2 sur le poids `cycliste` à partir de 90 s, cumulé aux autres boosts.
+- **Cadeau magique = +1 cœur** (24 août 2026, « des cadeaux magiques qui permettent de récupérer
+  un cœur ») : bonus rare (`GIFT_RATE` 7 % des créneaux étoile), n'apparaît QUE si un cœur
+  manque au moment où le créneau se calcule (`setLives`, entities.js). Aucun point, ne touche
+  pas au combo. Boîte violette + cœur + halo rose (entities-render.js), popup « +1 VIE ».
+- **L'étoile dorée s'annonce** (24 août 2026, « il faudrait qu'il y ait marqué x2 sur l'étoile,
+  ou qu'elle brille beaucoup plus » — les deux sont faits) : badge « ×2 » au-dessus de l'étoile
+  + halo nettement renforcé et pulsant (entities-render.js).
+- **Une étoile n'est jamais dans la voie d'un pilier de pont ni d'une voiture voisine (±1
+  créneau)** (24 août 2026, « les étoiles ne doivent pas être positionnées au même endroit que
+  les ponts/les voitures ») : garde côté BONUS (`lanesBlockedByNeighbors`, entities.js) qui
+  déplace l'étoile vers une voie libre. ⚠️ L'ancien `bridgeGuard` (le pont qui fuyait les bonus)
+  est SUPPRIMÉ — deux gardes qui se déplacent l'une l'autre boucleraient ; l'autorité est :
+  voitures/ponts (tirage brut) > bonus (s'adapte) > piéton (s'adapte au bonus).
+- **Échap = pause sur ordinateur** (24 août 2026) : bascule ouvre/ferme le menu pause
+  (screens.js), inactif hors course.
 - **3 vies**, **5 obstacles**, **5 bonus**. ⚠️ **Depuis le 21 août 2026, TOUS les obstacles de
   la grille sont FATALS** (« je veux que tous les obstacles fassent trois cœurs ») — les coûts
   « −1 vie » listés plus bas sont l'HISTORIQUE, plus la règle courante. Seule la voiture
@@ -103,13 +134,11 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost par palier ci-dessus
     (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au
     modèle décrit en `ARCHITECTURE.md` §5.2. Les deux se cumulent avec le palier de score.
-- **Un nombre d'étoiles EXACT et identique à chaque partie**, pour que le score maximum soit un
-  nombre connu. ⚠️ **Ce nombre n'est plus 140 et n'est plus écrit à la main depuis le 19 août
-  2026** : il vaut **85** et il est DÉRIVÉ de la loi de difficulté (`TOTAL_STARS` se compte sur
-  `isBonusQuota`, `entities.js`). C'est la propriété qui est verrouillée (même total à chaque
-  partie, score max calculable), pas sa valeur. Historique : 200 → 140 (17 août) → 80 (19 août)
-  → 85 (21 août, détente de fin de course + grâce allongée, voir ci-dessous).
-  `TOTAL_OBSTACLES` (= `TOTAL_OBJECTS` − `TOTAL_STARS`) vaut donc **106**.
+- ~~**Un nombre d'étoiles EXACT et identique à chaque partie**~~ — ⚠️ **INVARIANT SUPPRIMÉ le
+  24 août 2026** avec le passage au jeu infini + seedé : le quota exact (diffusion d'erreur,
+  `isBonusQuota`) est remplacé par un tirage au hash seedé suivant la MÊME courbe de difficulté
+  (`isBonusAt`/`obstacleRatioAt`, entities.js). Le « score max connu » était devenu LE problème
+  (plusieurs joueurs à égalité au plafond). `TOTAL_STARS`/`TOTAL_OBSTACLES` n'existent plus.
 - ⚠️ **Difficulté : la densité d'obstacles DOUBLE toutes les 25 s** (`OBSTACLE_DOUBLING_TIME_S`,
   `entities.js`), de 38 % des créneaux au départ jusqu'à un plafond de **60 %**
   (`OBSTACLE_RATIO_MAX`, atteint vers 16 s). Demandé le 19 août 2026 : « multiplie par deux le
@@ -126,9 +155,10 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   redescend linéairement de 0,60 à **0,45** (`OBSTACLE_END_TAPER_START_S`/`OBSTACLE_RATIO_END`,
   `entities.js`) — justifié par les véhicules traversants (HORS quota) à densité maximale après
   100 s, qui cumulaient les deux sources de danger. Dernières 30 s : 16 → 19 étoiles.
-- **Ligne d'arrivée en volume** (`finish.js`) : damier au sol + portique (deux pylônes + poutre à
-  damier qui enjambe la route), façon Formule 1 — demandé explicitement le 12 août 2026 pour
-  remplacer le simple damier plat d'origine.
+- ~~**Ligne d'arrivée en volume** (`finish.js`)~~ — ⚠️ **RETIRÉE le 24 août 2026** avec le
+  passage au jeu infini. `finish.js` reste sur le disque, non importé, non bundlé — même sort
+  que `clip.js`/`share.js`. Le second caméo Soberland (posé sur `finishTime()`, désormais
+  `Infinity`) n'apparaît plus non plus.
 - Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
   **Aucun anti-triche** : la vérité du concours se fait au screenshot.
 - Image de partage **carrée 1080×1080** (`share.js`). ⚠️ **Bouton « PARTAGER MON SCORE » retiré

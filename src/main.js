@@ -9,7 +9,6 @@ import * as audio from "./audio.js";
 import * as player from "./player.js";
 import * as entities from "./entities.js";
 import * as entitiesRender from "./entities-render.js";
-import * as finish from "./finish.js";
 import * as cameo from "./cameo.js";
 import * as pmc from "./pmc.js";
 import * as crosstraffic from "./crosstraffic.js";
@@ -71,28 +70,9 @@ function laneBlurMax() {
   return LANE_BLUR_BASE + LANE_BLUR_SPEED_BOOST * road.getSpeedRatio();
 }
 
-// Flou de mouvement supplémentaire autour de la ligne d'arrivée (demandé
-// explicitement le 12 août 2026 : « augmente le flou de mouvement à partir du
-// moment où je suis très, très proche de l'arrivée »). Monte en fondu à
-// l'approche, plafonne pile sur la ligne, redescend pendant la séquence de
-// fin (voir finishing.active plus bas) — même fenêtre des deux côtés plutôt
-// qu'un pic asymétrique, pour rester simple. Indépendant du flou de
-// changement de voie ci-dessus (le max des deux est pris, voir
-// renderPlayer()) : les deux ne se cumulent pas, ils se complètent.
-const FINISH_BLUR_WINDOW = 3; // s de part et d'autre de la ligne
-const FINISH_BLUR_MAX = 3.5;  // px, au plus fort (pile sur la ligne)
-function finishBlur(now) {
-  // 🐛 Uniquement en course. Avant le départ, clock.now() compte le temps
-  // écoulé depuis le CHARGEMENT de la page (voir clock.js) : un joueur qui
-  // reste ~143 s sur le menu ou le décompte traversait la fenêtre de
-  // finishTime() et voyait son personnage se flouter sur l'écran d'accueil,
-  // sans qu'aucune course ait commencé.
-  if (!gameStarted || game.ended) return 0;
-  const remaining = entities.finishTime() - now;
-  const t = Math.abs(remaining) / FINISH_BLUR_WINDOW;
-  if (t >= 1) return 0;
-  return FINISH_BLUR_MAX * (1 - t);
-}
+// (Le flou de mouvement supplémentaire autour de la ligne d'arrivée a disparu
+// avec la ligne d'arrivée elle-même — la course est infinie depuis le
+// 24 août 2026, voir entities.js.)
 const PEDAL_BOB = 0.05;     // amplitude du rebond de pédalage, en unités-monde
 // Calé pour ~0,125 s par frame du cycle de pédalage (4 frames, player.js) à
 // la vitesse de départ (BASE_SPEED × vitesseBase = 11 u/s) — 2x plus rapide
@@ -474,7 +454,6 @@ function closePauseMenuState() {
 
 screens.init({
   game,
-  etoilesTotal: entities.TOTAL_STARS, // pour le « x/y étoiles » de l'image de partage
   requestGameStart,
   isGameStartRequested,
   restartGame,
@@ -483,18 +462,9 @@ screens.init({
   isManuallyPaused: () => manualPaused,
 });
 
-// --- Séquence de fin (ligne d'arrivée franchie) --------------------------
-// Playtest : "arrête la caméra de manière smooth mais laisse le personnage
-// partir loin devant et disparaître à l'horizon". État intermédiaire entre
-// la partie jouée et l'affichage de l'écran de fin : la route décélère
-// (road.brake, ~3 s), le joueur continue d'avancer (sa profondeur monde
-// grimpe de PLAYER_NEAR_Z jusque près de HORIZON_Z), son sprite se fond
-// dans le lointain sur la dernière seconde, puis on bascule sur endGame().
-// Aucune collision testée pendant cette phase (entities.update n'est plus
-// appelé). Le mot "finishing" en anglais est utilisé pour ne pas confondre
-// avec "finished" (l'état terminé après l'écran de fin).
-const FINISH_DURATION = 3.5;
-const FINISH_FADE = 1.0;
+// (La séquence de fin « ligne d'arrivée franchie » — freinage caméra, joueur
+// qui file à l'horizon — a été retirée avec la ligne d'arrivée : la course
+// est infinie, elle ne se termine plus que par la mort.)
 
 // --- Clignotement "dégât" ------------------------------------------------
 // Playtest : "quand on prend un truc rouge, le perso doit clignoter 3 fois
@@ -523,28 +493,6 @@ function triggerShake(amp, duration) {
   shake.duration = duration;
   shake.time = duration;
 }
-const finishing = {
-  active: false,
-  elapsed: 0,
-  playerZ: 0,
-  playerSpeed: 0,
-  alpha: 1,
-};
-
-function beginFinish() {
-  finishing.active = true;
-  finishing.elapsed = 0;
-  finishing.playerZ = road.PLAYER_NEAR_Z;
-  finishing.playerSpeed = road.getSpeed(); // vitesse relative héritée du moment du franchissement
-  finishing.alpha = 1;
-  screens.hidePauseButton(); // la caméra freine jusqu'à l'écran de fin, plus rien à mettre en pause ici
-}
-function resetFinish() {
-  finishing.active = false;
-  finishing.elapsed = 0;
-  finishing.alpha = 1;
-}
-
 // --- Seconde chance à la mort (revive, 21 août 2026) ----------------------
 // « À partir du moment où quelqu'un meurt, un écran qui dit : dix secondes
 // pour prendre une décision [...] tu peux sauvegarder le morceau et ça relance
@@ -721,10 +669,10 @@ function restartGame() {
   game.milestoneShown = 0;
   game.milestoneTimer = 0;
 
+  entities.reseed(); // nouvelle graine : chaque partie a un parcours différent (24 août 2026)
   entities.reset();
-  crosstraffic.reset(); // sinon les carrefours déjà traversés resteraient « résolus » au rejeu
+  crosstraffic.reset(); // sinon les carrefours déjà traversés resteraient « résolus » au rejeu (et la graine a changé)
   road.reset();
-  resetFinish();
   damageFlash = 0;
   shake.time = 0; // sinon la secousse d'un choc de fin de partie survit au rejeu
   pickupFlash = 0;
@@ -812,7 +760,7 @@ function step(dt) {
   // l'ancien bornage en unités-monde : sortir de la route est devenu
   // impossible par construction, pas par correction.
   const move = consumeLaneMove();
-  if (move && !game.ended && !finishing.active) {
+  if (move && !game.ended) {
     playerState.lane = Math.max(0, Math.min(road.LANE_COUNT - 1, playerState.lane + move));
   }
   // (La démonstration automatique du tutoriel a été retirée : elle jouait de
@@ -926,16 +874,13 @@ function step(dt) {
   // La route ne défile qu'une fois la chanson lancée (course = durée du morceau),
   // et se fige à la fin de partie (game over ou morceau terminé).
   if (gameStarted && !game.ended) {
-    // Pendant la séquence de fin (finishing) : plus aucune collision testée,
-    // score/vies figés — le joueur est visuellement en train de s'éloigner
-    // vers l'horizon, ça n'aurait aucun sens de continuer à décrocher des
-    // bonus ou de perdre des vies sur des objets qu'il a "dépassés".
-    if (!finishing.active) {
+    {
       // Une voiture au sol n'est mortelle que si le joueur est en 'ground'.
       // Le mode 'air' comme 'onCar' rendent le joueur invulnérable aux
       // voitures (mais pas au piéton/cône — voir entities.js pour le
       // comportement par kind).
-      entities.setScore(game.score); // intensification des vélos au-delà de CYCLIST_BOOST_SCORE (entities.js)
+      entities.setScore(game.score); // intensification voitures/vélos/ponts par palier de score (entities.js)
+      entities.setLives(game.lives); // conditionne l'apparition des cadeaux magiques (+1 cœur)
       // Deux sources de collisions, deux grilles indépendantes : la grille
       // MUSICALE (entities.js, bonus/obstacles calés sur les beats) et la
       // grille de DISTANCE (crosstraffic.js, véhicules qui traversent aux
@@ -944,6 +889,15 @@ function step(dt) {
       const events = entities.update(playerState.lane, jump.mode !== 'ground')
         .concat(crosstraffic.update(playerState.lane, jump.mode !== 'ground'));
       for (const e of events) {
+        if (e.type === "bonus" && e.kind === "cadeau") {
+          // Cadeau magique (24 août 2026) : rend UN cœur, plafonné au maximum
+          // de départ. Aucun point, ne touche pas au combo (ni ne le casse,
+          // ni ne l'avance) — c'est un soin, pas une étoile.
+          game.lives = Math.min(window.CONFIG.viesDepart, game.lives + 1);
+          pickupFlash = 1;
+          pousserPopup("+1 VIE", "#ff8ab8");
+          continue;
+        }
         if (e.type === "bonus") {
           const palierAvant = Math.floor(game.streak / window.CONFIG.comboSeuil);
           game.streak += 1;
@@ -1071,27 +1025,10 @@ function step(dt) {
       // consommée, toute mort suivante est définitive.
       if (!reviveOffered) offerRevive();
       else endGame("gameover");
-    } else if (entities.isFinished(now) || finishing.active) {
-      // Ligne d'arrivée franchie (TOTAL_OBJECTS créneaux, dérivé de
-      // config.dureeCourse — voir entities.js). Le morceau continue de jouer
-      // jusqu'à SA fin réelle (config.dureeMorceau, plus longue, objectif
-      // "donner envie d'écouter le morceau"), mais la course s'arrête ici :
-      // caméra qui freine smooth, personnage qui continue jusqu'à l'horizon
-      // (voir beginFinish/render).
-      if (!finishing.active) beginFinish();
-      road.brake(dt);
-      finishing.elapsed += dt;
-      finishing.playerZ += finishing.playerSpeed * dt;
-      // Le joueur décélère moins vite que la route (0.5/s vs 1.2/s) : il
-      // s'éloigne visiblement au lieu de s'immobiliser en même temps.
-      finishing.playerSpeed += (0 - finishing.playerSpeed) * Math.min(1, 0.5 * dt);
-      if (finishing.elapsed > FINISH_DURATION - FINISH_FADE) {
-        finishing.alpha = Math.max(0, (FINISH_DURATION - finishing.elapsed) / FINISH_FADE);
-      }
-      if (finishing.elapsed >= FINISH_DURATION) {
-        endGame("finished");
-      }
     } else {
+      // Course INFINIE (24 août 2026) : plus de ligne d'arrivée, la route
+      // avance tant qu'on est en vie. La vitesse plafonne à vitesseMax
+      // (road.js) — même plafond qu'au moment de l'ancienne arrivée.
       road.update(dt, now);
     }
   } else if (tutorial.estActif()) {
@@ -1146,17 +1083,12 @@ function updateHealthFilterIfChanged() {
 }
 
 function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
-  // Pendant la séquence de fin, on rend le perso à sa profondeur *courante*
-  // au lieu de PLAYER_NEAR_Z fixe : il s'éloigne vers l'horizon, son
-  // sprite rétrécit naturellement (project() gère la mise à l'échelle).
-  const z = finishing.active ? finishing.playerZ : road.PLAYER_NEAR_Z;
-  if (z >= road.HORIZON_Z) return; // déjà au-delà du repli de la courbe
+  const z = road.PLAYER_NEAR_Z;
   const p = road.project(renderX, z, width, height);
   const hop = renderY * p.scale;
   const bob = Math.sin(renderPedalPhase) * PEDAL_BOB * p.scale;
   const wasAlpha = ctx.globalAlpha;
   let alpha = wasAlpha;
-  if (finishing.active) alpha *= finishing.alpha;
   // Clignotement dégât : 6 alternances sur DAMAGE_FLASH_DURATION → 3 flashs
   // (Math.floor(x * 10) % 2 : x va de 0 à 0.9, floor(x*10) va de 0 à 8,
   // donc 9 valeurs alternées visible/atténué ≈ 3 cycles complets).
@@ -1174,7 +1106,7 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
   // jamais à toute la scène.
   const blurCap = laneBlurMax();
   const laneBlurPx = Math.min(blurCap, (Math.abs(playerState.vx) / LATERAL_SPEED) * blurCap);
-  const blurPx = Math.max(laneBlurPx, finishBlur(clock.now()));
+  const blurPx = laneBlurPx;
   if (blurPx > 0.05) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   player.renderPickupGlow(ctx, p.x, p.y - hop - bob, p.scale, pickupFlash);
   const sway = Math.sin(perfClock() * Math.PI * 2 * SWAY_HZ) * SWAY_AMP;
@@ -1264,17 +1196,12 @@ function render(alpha) {
     const extras = cameo.getExtras(ctx, width, height, clock.now())
       .concat(crosstraffic.getExtras(ctx, width, height));
     extras.push({
-      z: finishing.active ? finishing.playerZ : road.PLAYER_NEAR_Z,
+      z: road.PLAYER_NEAR_Z,
       draw: () => renderPlayer(renderX, renderLean, renderPedalPhase, renderY),
     });
     entitiesRender.render(ctx, width, height, extras);
-    // Ligne d'arrivée : rien pendant l'essentiel du morceau, apparaît à 5s
-    // de la fin et arrive au niveau du joueur pile quand la partie se
-    // termine (voir finish.js). Dessinée APRÈS les entités pour que
-    // portière/piéton/cône dépassent en la traversant (question ouverte
-    // dans le plan : « ligne d'arrivée cosmétique » plutôt que d'inventer
-    // une nouvelle condition de fin).
-    finish.render(ctx, width, height);
+    // (Plus de ligne d'arrivée à dessiner : la course est infinie — finish.js
+    // n'est plus importé.)
   } else if (tutorial.estActif()) {
     // Tutoriel : les objets de démonstration et le joueur sont triés par
     // profondeur et peints du plus loin au plus près — même ordre du peintre

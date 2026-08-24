@@ -396,3 +396,72 @@ il suffit de me donner les dimensions exactes retenues pour que je recale les co
 13. **Icônes HUD "vie"** (optionnel) — actuellement de simples cercles dessinés (3 vies) — suggestion **16 × 16 à 24 × 24 px** par icône si on veut remplacer par un vrai motif (cœur, roue, etc.).
 14. **Boutons SAUT / Rejouer** (optionnel) — actuellement du CSS pur, pas d'image — habillage visuel façon arcade si tu veux, sinon on garde tel quel.
 15. **Image de partage** (étape 7, plus tard) — canvas **1080 × 1920 px**, style écran de fin de borne d'arcade 80s : cadre de borne, logo, zone score/high score. À détailler le moment venu (§7 du plan).
+
+---
+
+## Journal — Session du 24 août 2026 : « jeu infini » (grosse commande vocale)
+
+**Contexte de la demande** : trois ou quatre joueurs ont atteint le score maximum théorique —
+égalité en tête, le concours ne départage plus. L'artiste a dicté une refonte en une seule
+commande vocale. Tout ce qui suit a été livré dans la session, vérifié en preview mobile
+(375×812, `?debug`, zéro erreur console), puis déployé.
+
+- ✅ **Le jeu devient INFINI** — « on peut supprimer le principe de la ligne d'arrivée, puisque
+  le jeu va devenir infini ». Plus de ligne d'arrivée ni de séquence de fin (`finish.js` et le
+  bloc `finishing` de main.js retirés, `finishTime()` renvoie `Infinity`) ; seule la mort
+  termine une partie. Les créneaux se génèrent sans fin ; `dureeCourse` ne sert plus que de
+  longueur de rampe de difficulté (au-delà : régime de croisière maximal constant).
+- ✅ **Vitesse plafonnée, jamais dépassée** — « garde la vitesse d'accélération que tu as en
+  place au moment de la ligne d'arrivée actuelle ». Rien à changer : `vitesseMax` était déjà
+  atteinte vers ~102 s, avant l'ancienne arrivée à 143,5 s — le plafond existant EST la valeur
+  demandée.
+- ✅ **Chaque partie est différente** — graine aléatoire par course (`runSeed`/`reseed()`,
+  entities.js, partagée avec crosstraffic.js). Le quota exact d'étoiles (diffusion d'erreur)
+  est remplacé par un tirage au hash seedé suivant la même courbe de difficulté. ⚠️ Invariant
+  « score max = nombre connu » supprimé sciemment : c'était le problème à résoudre.
+- ✅ **Le morceau tourne en boucle** (audio.js) : `loop` sur la source, raccord arrondi à la
+  MESURE (2 s à 120 BPM) pour que la grille rythmique des créneaux reste calée sur les temps à
+  chaque tour ; plus de fondu de sortie programmé ; offset de reprise replié dans la boucle
+  quand la course dépasse la durée du morceau (l'horloge de jeu, elle, reste continue).
+- ✅ **Étoiles jamais au même endroit que les ponts/voitures** — garde côté bonus
+  (`lanesBlockedByNeighbors`) : une étoile évite les voies des piliers de pont et des voitures
+  à ±1 créneau. L'ancien `bridgeGuard` (le pont qui fuyait les bonus) est supprimé — deux
+  gardes qui se déplacent l'une l'autre auraient bouclé. Autorité : voitures/ponts (tirage
+  brut) > bonus (s'adapte) > piéton (s'adapte au bonus).
+- ✅ **Étoile dorée enfin lisible** — « qu'il y ait marqué x2 sur l'étoile, ou qu'elle brille
+  beaucoup plus » : les deux. Badge « ×2 » au-dessus de la pointe haute (qui ne tourne pas) +
+  halo nettement renforcé et pulsant (entities-render.js).
+- ✅ **Cadeau magique = +1 cœur** — bonus rare (7 % des créneaux étoile), n'apparaît QUE si un
+  cœur manque au moment où le créneau se calcule (`setLives`, mémoïsé — un cadeau visible ne
+  disparaît pas si un cœur revient). Aucun point, ne touche pas au combo. Boîte violette à
+  ruban jaune + cœur + halo rose, popup « +1 VIE ». Vérifié par sonde : 0 cadeau à vies
+  pleines, ~4/200 créneaux à 1 vie.
+- ✅ **Beaucoup plus de vélos après 1 min 30** — `applyCyclistLateBoost()` : ×2,2 sur le poids
+  `cycliste` à partir de 90 s, composé avec les boosts existants (renormalisation par
+  `scaleWeights`, comme les autres).
+- ✅ **Vague de 3 vélos toutes les ~45 s** — « trois vélos qui arrivent de manière un peu
+  désynchronisée en même temps face à toi, pas en conflit avec des voitures ou un pont » :
+  3 créneaux consécutifs forcés cycliste (~0,75 s d'écart = la désynchronisation), un par voie
+  (permutation Fisher-Yates seedée par vague), et les créneaux ±1 convertis en cône s'ils
+  tiraient voiture/pont. Vérifié par sonde : vague aux créneaux 120-122 sur voies 1/0/2,
+  créneau 123 redevenu bonus.
+- ✅ **Échap = pause sur ordinateur** (screens.js) : bascule ouvre/ferme le menu pause, inerte
+  hors course (openPauseMenu se refuse si le bouton pause est caché). Vérifié : ouverture ET
+  fermeture au clavier.
+- ✅ **Vérifications en preview** : cycle menu → tutoriel (passé) → course → pause Échap →
+  rejeu (graine différente confirmée : 518,5 → 616,5) → +160 s de course au-delà de l'ancienne
+  arrivée (jeu toujours vivant, étoiles + traversantes) → mort forcée → panneau seconde chance
+  (boucle du début OK). Aucune erreur console sur toute la session. ⚠️ Le décompte du panneau
+  de mort reste figé dans la preview : l'onglet y est « caché » (comportement documenté, pas
+  une régression).
+- ✅ **Docs mises à jour** : CLAUDE.md (décisions verrouillées réécrites), ARCHITECTURE.md
+  (encart « changement majeur du 24 août » en tête de §1 — les §5.2/5.4 n'ont pas été réécrits
+  en profondeur, l'encart fait foi), config.js (commentaires dureeMorceau/dureeCourse/
+  vitesseMax).
+- ⚠️ **À savoir** : `share.js` affiche encore « x/y étoiles » mais n'est plus importé (mort
+  depuis le 23 août) — pas touché. Le caméo Soberland d'arrivée n'apparaît plus (posé sur
+  `finishTime()` = Infinity) ; celui du départ est intact. L'écran « Parcours terminé » et le
+  badge « course parfaite » sont devenus inatteignables (toute partie finit par une mort) —
+  code laissé en place, à nettoyer un jour si confirmé.
+- ⚠️ **Classement Supabase à vider avant le lancement** : plus que jamais — les scores des
+  anciens barèmes plafonnés n'ont plus de sens face à des scores infinis.

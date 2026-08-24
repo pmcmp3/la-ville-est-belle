@@ -315,6 +315,29 @@ function playNow(offset = 0) {
   sourceNode.buffer = buffer;
   currentSource = sourceNode;
 
+  // --- Morceau en BOUCLE (24 août 2026, jeu infini) -------------------------
+  // La course n'a plus de fin (voir entities.js) : le morceau ne doit plus
+  // s'arrêter. Longueur de boucle arrondie à la MESURE inférieure (4 temps à
+  // 120 BPM = 2 s) : le raccord retombe pile sur la grille rythmique du jeu
+  // (clock.timeOfBeat), donc les créneaux restent calés sur les temps du
+  // morceau à chaque tour de boucle — c'est la même astuce que la boucle de
+  // mort (loopMortDuree = 4 mesures pile).
+  const debutBoucle = window.CONFIG.premierTempsOffset;
+  const mesure = beatPeriod * 4;
+  const longueurBoucle = Math.max(mesure,
+    Math.floor((buffer.duration - debutBoucle) / mesure) * mesure);
+  sourceNode.loop = true;
+  sourceNode.loopStart = debutBoucle;
+  sourceNode.loopEnd = debutBoucle + longueurBoucle;
+  // L'offset de LECTURE est replié dans la boucle si la course a dépassé la
+  // durée du morceau (reprise/rembobinage tard dans une longue partie) —
+  // l'horloge de jeu, elle, reste continue : startCtxTime plus bas est
+  // toujours calculé sur l'offset NON replié. Le repli étant un multiple de
+  // mesures, la musique reste sur la même grille de temps que la course.
+  const audioOffset = offset <= sourceNode.loopEnd
+    ? offset
+    : debutBoucle + ((offset - debutBoucle) % longueurBoucle);
+
   envelopeGain = audioCtx.createGain();
   volumeGain = audioCtx.createGain();
   volumeGain.gain.value = pendingVolume;
@@ -337,12 +360,13 @@ function playNow(offset = 0) {
   focusGain.connect(analyser);
   analyser.connect(audioCtx.destination);
 
-  const { fonduEntree, fonduSortie } = window.CONFIG;
+  const { fonduEntree } = window.CONFIG;
   const now = audioCtx.currentTime;
-  const end = now + Math.max(0, buffer.duration - offset);
 
   // Le fondu d'entrée n'a de sens qu'au vrai début du morceau : reprendre en
   // plein milieu avec une montée de 1,2 s s'entendrait comme un gonflement.
+  // (Plus de fondu de SORTIE programmé : le morceau boucle sans fin depuis le
+  // passage au jeu infini — voir la section boucle plus haut.)
   if (offset > 0) {
     // Fondu très court (pas les 1,2 s du vrai début, qui s'entendraient comme
     // un gonflement en plein morceau) : sans lui, une reprise en pleine forme
@@ -355,10 +379,8 @@ function playNow(offset = 0) {
     envelopeGain.gain.setValueAtTime(0, now);
     envelopeGain.gain.linearRampToValueAtTime(1, now + fonduEntree);
   }
-  envelopeGain.gain.setValueAtTime(1, Math.max(now + (offset > 0 ? REPRISE_FONDU : fonduEntree), end - fonduSortie));
-  envelopeGain.gain.linearRampToValueAtTime(0, end);
 
-  sourceNode.start(0, offset);
+  sourceNode.start(0, audioOffset);
   startCtxTime = now - offset; // now() doit renvoyer `offset` à cet instant précis
   clockShift = 0;              // la lecture repart calée sur la course : plus aucun retard à traîner
   started = true;
@@ -778,11 +800,12 @@ export function setPlaybackMode(next) {
     const positionMorceau = audioCtx.currentTime - startCtxTime;
     const ecart = Math.max(0, positionMorceau - clockShift - reprise);
     const rattrapage = Math.round(ecart / beatPeriod) * beatPeriod;
-    const morceauFini = buffer && positionMorceau >= buffer.duration;
 
-    if (morceauFini || clockShift + rattrapage > window.CONFIG.pauseDeriveMax) {
-      // Soupape : le morceau est fini, ou il finirait avant la ligne
-      // d'arrivée. C'est le seul cas où on rembobine encore.
+    // (Plus de cas « morceau fini » : il boucle sans fin depuis le passage au
+    // jeu infini — seule la dérive excessive déclenche encore la soupape.)
+    if (clockShift + rattrapage > window.CONFIG.pauseDeriveMax) {
+      // Soupape : la course a pris trop de retard sur le morceau — on
+      // relance la lecture pile sur la position de la course.
       playNow(reprise);
       // playNow() a recréé tout le graphe (donc un filtre neuf, ouvert par
       // défaut puisque mode vaut déjà "running") : on le repose fermé avant de
