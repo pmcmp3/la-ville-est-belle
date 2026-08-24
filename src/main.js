@@ -538,6 +538,14 @@ function offerRevive() {
       revivePaused = false;
       applyPauseState();
       screens.showPauseButton();
+      // Rendre VISIBLE ce que la reprise redonne (24 août 2026, retour :
+      // « on n'a plus qu'un seul cœur et on perd le combo ») — les trois
+      // cœurs et le combo étaient déjà restaurés/conservés, mais rien ne le
+      // disait à l'écran : le joueur repartait en croyant avoir tout perdu.
+      pousserPopup("3 CŒURS RESTAURÉS", "#ff8ab8");
+      if (game.streak >= window.CONFIG.comboSeuil) {
+        pousserPopup(`COMBO ${formatMultiplicateur(comboMultiplier())} CONSERVÉ`, JAUNE_ETOILE);
+      }
     },
     onDecline: () => {
       revivePaused = false;

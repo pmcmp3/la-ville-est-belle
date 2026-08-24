@@ -173,8 +173,16 @@ function positionLaterale(vehicule, z, speed) {
 // géométrique de 6 unités (demi-voiture + fenêtres de collision + profondeur
 // de la poutre). Mesuré après recalibrage (balayage zDerniere complet) :
 // 5 suppressions sur 58, toutes des chevauchements réels — contre 20 à 0,5 s.
-const PONT_MARGE_S = 0.15;
-const PONT_MARGE_Z_MIN = 6;
+// ⚠️ 0,15 → 0,35 s le 24 août 2026 (retour direct après mise en ligne :
+// « parfois on ne peut juste pas passer, pont + voiture qui passe au
+// centre ») : à 0,15 s la traversante pouvait occuper la trouée du pont
+// 0,2 s après son passage — le joueur devait passer la trouée AU SOL puis
+// sauter dans le même souffle, un enchaînement au-delà du temps de réaction.
+// À 0,35 s (~29 unités au plafond de vitesse), la trouée et la traversante
+// redeviennent deux problèmes successifs, pas un seul mur. Le plancher
+// géométrique monte à 8 unités pour la même raison aux vitesses basses.
+const PONT_MARGE_S = 0.35;
+const PONT_MARGE_Z_MIN = 8;
 const supprimes = new Set();
 
 // Les z des ponts visibles + la marge, calculés UNE fois par balayage de

@@ -454,19 +454,17 @@ function gatePhaseAbsence() {
   }, 1800);
 }
 
-// ⚠️ Un retour PENDANT le décompte de retour le rejoue depuis 5 : quelqu'un
-// qui fait deux allers-retours ne se retrouve jamais avec 1 seconde pour
-// reprendre ses esprits.
+// ⚠️ Le décompte 5-4-3-2-1 du retour a été SUPPRIMÉ le 24 août 2026 (retour
+// direct après mise en ligne : « faut quand même attendre 10 secondes ») :
+// au retour de Spotify, le bouton d'action est armé IMMÉDIATEMENT — l'attente
+// imposée était la friction de trop sur un joueur qui vient déjà de rendre
+// service. Le filtre de la boucle se rouvre en une rampe courte (audio.js,
+// setReviveIntensity lisse déjà sur ~0,25 s) au lieu de suivre un chrono. La
+// reprise reste un TAP explicite (invariant verrouillé) : rien ne repart tout
+// seul, il n'y a juste plus rien à attendre avant de pouvoir taper.
 function gatePhaseRetour() {
   if (!gateEtat) return;
-  clearTimeout(gateRetourTimer);
-  gateEtat.phase = "retour";
-  gateTitle.textContent = "Prêt ? On repart";
-  gateText.textContent = "Dans quelques secondes…";
-  gateCta.classList.add("hidden");
-  gateGo.classList.remove("hidden");
-  gateGo.classList.add("locked");
-  decompteGate.demarrer(gateRetourDelai(), gatePhasePret);
+  gatePhasePret();
 }
 
 function gatePhasePret() {

@@ -751,7 +751,14 @@ function applyCyclistLateBoost(slotIndex, weights) {
   return scaleWeights(weights, { cycliste: CYCLIST_LATE_BOOST_FACTOR });
 }
 
-function computeRawSlotContent(slotIndex) {
+// ⚠️ SCINDÉ le 24 août 2026 (retour direct : « parfois on ne peut juste pas
+// passer, pont + voiture ») : computeBaseContent est le tirage PUR d'un
+// créneau, sans AUCUNE lecture de voisin — c'est lui que les gardes de
+// voisinage consultent (jamais computeRawSlotContent, qui applique lui-même
+// une garde de voisinage : deux ponts voisins se liraient l'un l'autre à
+// l'infini). computeRawSlotContent = base + garde pont (voir
+// bridgeNeighborGuard plus bas).
+function computeBaseContent(slotIndex) {
   // Vague de 3 vélos : prime sur tout le reste (y compris le tirage étoile),
   // c'est un événement scripté du parcours.
   const membre = waveMember(slotIndex);
@@ -793,6 +800,59 @@ function computeRawSlotContent(slotIndex) {
     return { isBonus: false, kind: "pont", openCount };
   }
   return { isBonus: false, kind };
+}
+
+// --- Garde anti-blocage du pont (24 août 2026) -----------------------------
+// Retour direct : « parfois on ne peut juste pas passer ». Deux cas traités,
+// en ne lisant QUE le tirage de base des voisins (pur, aucune récursion) :
+//   1. Deux ponts à ±1 créneau (0,75 s) : même avec des trouées différentes,
+//      enchaîner deux changements de voie en 0,75 s à pleine vitesse est
+//      infaisable — le second pont est rétrogradé en cône (petit, sautable).
+//      Asymétrique (on ne regarde que n-1) : le premier pont reste, le
+//      suivant cède, jamais les deux.
+//   2. Toutes les voies OUVERTES du pont bouchées par des voitures au créneau
+//      voisin : passer la trouée au sol puis sauter la voiture 0,75 s plus
+//      tard est jouable mais brutal — la combinaison de voies ouvertes est
+//      tournée (rotation modulo LANE_COUNT, décalage au hash) jusqu'à ce
+//      qu'au moins une trouée soit libre de voitures. Même mécanique que feu
+//      l'ancien bridgeGuard, mais contre les VOITURES (dont le tirage ne
+//      dépend d'aucun voisin), jamais contre les bonus (qui, eux, s'adaptent
+//      au pont — voir lanesBlockedByNeighbors : l'autorité reste à sens
+//      unique, aucune boucle possible).
+function bridgeNeighborGuard(slotIndex, base) {
+  if (slotIndex > 0 && computeBaseContent(slotIndex - 1).kind === "pont") {
+    return { isBonus: false, kind: "cone" };
+  }
+
+  const carLanes = new Set();
+  for (const d of [-1, 1]) {
+    const n = slotIndex + d;
+    if (n < 0) continue;
+    const neighbor = computeBaseContent(n);
+    if (!neighbor.isBonus && neighbor.kind === "voiture") {
+      for (const l of pickLanes(n, neighbor.carCount || 1)) carLanes.add(l);
+    }
+  }
+  if (carLanes.size === 0) return base;
+
+  const baseOpen = pickLanes(slotIndex, base.openCount || 1);
+  if (baseOpen.some((l) => !carLanes.has(l))) return base;
+
+  const start = 1 + Math.floor(hash(slotIndex * 3 + 43) * (road.LANE_COUNT - 1));
+  for (let i = 0; i < road.LANE_COUNT; i++) {
+    const offset = (start + i) % road.LANE_COUNT;
+    const candidate = baseOpen.map((l) => (l + offset) % road.LANE_COUNT);
+    if (candidate.some((l) => !carLanes.has(l))) {
+      return { ...base, openLanesOverride: candidate };
+    }
+  }
+  return base; // voitures sur les 3 voies à ±1 : impossible (jamais LANE_COUNT voitures par rangée)
+}
+
+function computeRawSlotContent(slotIndex) {
+  const base = computeBaseContent(slotIndex);
+  if (base.isBonus || base.kind !== "pont") return base;
+  return bridgeNeighborGuard(slotIndex, base);
 }
 
 // Piéton = « mur humain plein », infranchissable même en sautant (voir
