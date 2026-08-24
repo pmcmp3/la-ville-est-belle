@@ -465,3 +465,37 @@ commande vocale. Tout ce qui suit a été livré dans la session, vérifié en p
   code laissé en place, à nettoyer un jour si confirmé.
 - ⚠️ **Classement Supabase à vider avant le lancement** : plus que jamais — les scores des
   anciens barèmes plafonnés n'ont plus de sens face à des scores infinis.
+
+## Journal — Session du 24 août 2026 (après-midi) : retours de Pablo, premier béta-testeur
+
+**Source** : conversation WhatsApp Paul ↔ Pablo transmise telle quelle, quelques heures après la
+mise en ligne du jeu infini. Verdicts de Pablo : Échap ✓, random ✓, fondu de pause ✓, cadeau
++1 vie ✓, « le jeu est chaud là c'est parfait », AUCUNE situation impossible depuis le fix
+anti-blocage (« je meurs parce que c'est dur, c'est un manque de skill »). Scores observés :
+129 k (Pablo), 214 k (pikboum) — d'où l'urgence du plafond de combo.
+
+- ✅ **Cadeaux plafonnés à 2 par partie** (`config.cadeauxMaxParPartie`) — « il y a beaucoup
+  trop de cadeaux, t'es invincible ». Le taux ne change pas, le TOTAL est borné ; compte les
+  cadeaux apparus (un raté consomme le budget). Mesuré : 2 pile sur 3 000 créneaux à 1 vie.
+- ✅ **Combo plafonné à ×5** (`config.comboMultiplicateurMax`) — demande de Paul : « il faut
+  réduire le combo, sinon on va avoir des scores à des millions ; 500 000 doit être ultra
+  difficile ». ×5 à 40 étoiles d'affilée, ~30 k/min en jeu parfait → 500 k ≈ 15 min sans
+  faute. Le popup COMBO se tait une fois le plafond atteint.
+- ✅ **Pluie d'étoiles** (idée de Pablo, validée) : à 50/100/150… étoiles ramassées d'affilée,
+  ~10 s de route tout en étoiles, sans obstacles de grille (traversantes conservées), posée
+  hors champ puis sortie de la brume. Popup « PLUIE D'ÉTOILES ! » + long arpège. Vérifié en
+  jeu : 8 créneaux étoile consécutifs à l'écran pile sur la fenêtre, reprise normale après.
+  L'idée jumelle (bonus de streak à la mort) écartée — remplacée par celle-ci par son auteur.
+- ✅ **Easter egg 500 000 câblé, EN ATTENTE DU FICHIER** : vocal de PMC par-dessus le morceau
+  écarté en sidechain (audio.js, playVoiceClip), une fois par partie, préchargé à 80 % du
+  seuil. ⚠️ Paul doit livrer l'enregistrement → `public/assets/easter-500k.mp3`, puis
+  redéployer. Absent = inactif en silence.
+- ✅ **Garde-fou technique** : le tirage de base des créneaux est désormais mémoïsé
+  (`baseContentAt`, entities.js) — la garde pont sondait les voisins hors cache et aurait
+  fait décompter plusieurs fois le même cadeau du budget.
+- ⚠️ **Nettoyage classement demandé par Paul** (comptes multiples de Pablo) : `Ppoz53`
+  (163 113), `Pab` (105 226), `maman2pmc` (105 226) — plus `zz_test` (385, ligne de test de
+  cette session). Vérifié : la clé anon NE PEUT PAS supprimer (RLS, DELETE renvoie 200 avec 0
+  ligne). À faire par Paul dans Supabase (SQL Editor) :
+  `delete from scores where pseudo in ('Ppoz53','Pab','maman2pmc','zz_test');`
+  Le reste du classement ne doit PAS être touché (consigne explicite).

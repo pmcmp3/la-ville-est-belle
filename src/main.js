@@ -398,8 +398,11 @@ const game = {
 // affichée dans tous les cas ici, mais l'arrondi protège les futurs réglages
 // de comboBonusParPalier qui n'y donneraient pas forcément un entier).
 function comboMultiplier() {
-  const { comboSeuil, comboBonusParPalier } = window.CONFIG;
-  return 1 + comboBonusParPalier * Math.floor(game.streak / comboSeuil);
+  const { comboSeuil, comboBonusParPalier, comboMultiplicateurMax } = window.CONFIG;
+  const brut = 1 + comboBonusParPalier * Math.floor(game.streak / comboSeuil);
+  // Plafond (24 août 2026) : sans lui, les scores du jeu infini partaient en
+  // millions — voir le commentaire de comboMultiplicateurMax dans config.js.
+  return Math.min(comboMultiplicateurMax || Infinity, brut);
 }
 
 // Jaune des étoiles (STAR_FILL, entities-render.js) : le multiplicateur de
@@ -516,6 +519,9 @@ function triggerShake(amp, duration) {
 let reviveOffered = false;      // une seule offre par partie
 let reviveShieldUntil = -1;     // temps musical jusqu'auquel les chocs sont ignorés
 const REVIVE_SHIELD_S = 2;
+
+// Easter egg 500 000 : joué une seule fois par partie (voir le bloc dans step()).
+let easterEggJoue = false;
 
 function offerRevive() {
   reviveOffered = true;
@@ -690,6 +696,7 @@ function restartGame() {
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
   reviveOffered = false;   // la seconde chance revient à chaque nouvelle partie
   reviveShieldUntil = -1;
+  easterEggJoue = false;   // le vocal des 500 k revient à chaque nouvelle partie
   revivePaused = false;    // défensif : ne doit jamais être vrai ici
 
   screens.hideOverlay();
@@ -908,6 +915,7 @@ function step(dt) {
         }
         if (e.type === "bonus") {
           const palierAvant = Math.floor(game.streak / window.CONFIG.comboSeuil);
+          const comboAvant = comboMultiplier();
           game.streak += 1;
           // Étoile dorée = ×2 (entities.js, GOLD_STAR_RATE). Boost fan = ×1,1
           // permanent pour qui a ajouté le morceau (screens.estFan) — la
@@ -921,7 +929,11 @@ function step(dt) {
           game.stars += 1;
           game.bestCombo = Math.max(game.bestCombo, comboMultiplier());
           const palierApres = Math.floor(game.streak / window.CONFIG.comboSeuil);
-          if (palierApres > palierAvant && palierApres > 0) {
+          // `comboMultiplier() > comboAvant` : une fois le PLAFOND atteint
+          // (config.comboMultiplicateurMax), les paliers continuent de se
+          // franchir mais le multiplicateur ne bouge plus — sans cette garde,
+          // « COMBO ×5 » se réannoncerait toutes les 5 étoiles pour rien.
+          if (palierApres > palierAvant && palierApres > 0 && comboMultiplier() > comboAvant) {
             // Passage de palier : LE moment qui mérite une annonce (« pour dire
             // que ça s'améliore »). Même jaune que les étoiles et que le
             // multiplicateur du HUD — c'est la couleur du gain dans ce jeu.
@@ -1009,6 +1021,32 @@ function step(dt) {
           }
           damageFlash = DAMAGE_FLASH_DURATION;
         }
+      }
+    }
+
+    // Pluie d'étoiles : la série courante est poussée à entities.js, qui
+    // détecte lui-même le franchissement d'un palier (config.pluieEtoilesSeuil)
+    // et pose la fenêtre d'étoiles hors champ — ici on ne fait qu'annoncer.
+    if (entities.setStreak(game.streak)) {
+      pousserPopup("PLUIE D'ÉTOILES !", JAUNE_ETOILE);
+      audio.playComboJingle(6); // l'arpège le plus long : c'est le plus gros événement positif du jeu
+    }
+
+    // Easter egg 500 000 (idée du premier béta-testeur, validée) : un vocal de
+    // PMC par-dessus le morceau, écarté en sidechain (audio.js). Préchargé à
+    // l'approche du seuil (jamais au chargement de la page : le fichier peut
+    // ne pas exister encore, inutile de faire un 404 à chaque visiteur), joué
+    // UNE fois par partie au franchissement. Si le fichier manque, il ne se
+    // passe rien — silencieusement.
+    if (game.score >= window.CONFIG.easterEggScore * 0.8) {
+      audio.prefetchVoiceClip();
+    }
+    if (!easterEggJoue && game.score >= window.CONFIG.easterEggScore) {
+      if (audio.playVoiceClip()) {
+        easterEggJoue = true;
+        pousserPopup("500 000 ?!", JAUNE_ETOILE);
+      } else if (audio.isVoiceClipUnavailable()) {
+        easterEggJoue = true; // fichier absent/illisible : on n'insiste pas
       }
     }
 

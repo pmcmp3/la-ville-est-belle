@@ -625,6 +625,7 @@ let runSeed = Math.random() * 1000;
 export function reseed() {
   runSeed = Math.random() * 1000;
   rawContentCache.clear();
+  baseContentCache.clear();
   invalidateSlotCache();
 }
 // Exposée pour crosstraffic.js : ses traversantes doivent changer de partie
@@ -695,7 +696,14 @@ const GOLD_STAR_RATE = 0.12;
 // à viesDepart, main.js). Ne remplace un créneau étoile que si le joueur a
 // effectivement un cœur manquant au moment où le créneau se calcule (voir
 // setLives) — jamais pendant la période de grâce.
+// ⚠️ PLAFONNÉ à config.cadeauxMaxParPartie le jour même de la mise en ligne
+// (retour du premier béta-testeur : « il y a beaucoup trop de cadeaux, t'es
+// invincible ») : le compteur compte les cadeaux APPARUS (calculés), pas les
+// ramassés — un cadeau raté consomme donc le budget, assumé (le contenu d'un
+// créneau est figé au premier calcul, on ne peut pas « rendre » un cadeau
+// déjà posé sur la route).
 const GIFT_RATE = 0.07;
+let giftsSpawned = 0;
 
 // --- Vague de 3 vélos (24 août 2026) ---------------------------------------
 // Demandé : « toutes les 45 secondes, trois vélos qui arrivent de manière un
@@ -758,6 +766,18 @@ function applyCyclistLateBoost(slotIndex, weights) {
 // une garde de voisinage : deux ponts voisins se liraient l'un l'autre à
 // l'infini). computeRawSlotContent = base + garde pont (voir
 // bridgeNeighborGuard plus bas).
+// ⚠️ MÉMOÏSÉ (baseContentAt) : le tirage de base a un effet de bord — le
+// compteur de cadeaux (giftsSpawned) — et la garde pont sonde les voisins
+// directement en base ; sans cache, chaque sonde recompterait le même cadeau.
+const baseContentCache = new Map();
+function baseContentAt(slotIndex) {
+  const cached = baseContentCache.get(slotIndex);
+  if (cached) return cached;
+  const content = computeBaseContent(slotIndex);
+  baseContentCache.set(slotIndex, content);
+  return content;
+}
+
 function computeBaseContent(slotIndex) {
   // Vague de 3 vélos : prime sur tout le reste (y compris le tirage étoile),
   // c'est un événement scripté du parcours.
@@ -767,7 +787,9 @@ function computeBaseContent(slotIndex) {
   }
   if (isBonusAt(slotIndex)) {
     if (slotIndex >= GRACE_SLOTS && currentLives < window.CONFIG.viesDepart &&
+        giftsSpawned < (window.CONFIG.cadeauxMaxParPartie ?? 2) &&
         hash(slotIndex * 3 + 91) < GIFT_RATE) {
+      giftsSpawned += 1;
       return { isBonus: true, kind: "cadeau" };
     }
     return {
@@ -820,7 +842,7 @@ function computeBaseContent(slotIndex) {
 //      au pont — voir lanesBlockedByNeighbors : l'autorité reste à sens
 //      unique, aucune boucle possible).
 function bridgeNeighborGuard(slotIndex, base) {
-  if (slotIndex > 0 && computeBaseContent(slotIndex - 1).kind === "pont") {
+  if (slotIndex > 0 && baseContentAt(slotIndex - 1).kind === "pont") {
     return { isBonus: false, kind: "cone" };
   }
 
@@ -828,7 +850,7 @@ function bridgeNeighborGuard(slotIndex, base) {
   for (const d of [-1, 1]) {
     const n = slotIndex + d;
     if (n < 0) continue;
-    const neighbor = computeBaseContent(n);
+    const neighbor = baseContentAt(n);
     if (!neighbor.isBonus && neighbor.kind === "voiture") {
       for (const l of pickLanes(n, neighbor.carCount || 1)) carLanes.add(l);
     }
@@ -850,9 +872,55 @@ function bridgeNeighborGuard(slotIndex, base) {
 }
 
 function computeRawSlotContent(slotIndex) {
-  const base = computeBaseContent(slotIndex);
+  const base = baseContentAt(slotIndex);
   if (base.isBonus || base.kind !== "pont") return base;
   return bridgeNeighborGuard(slotIndex, base);
+}
+
+// --- Pluie d'étoiles (24 août 2026, idée du premier béta-testeur, validée :
+// « quand t'atteins N étoiles de suite, un chunk combo où il n'y a plus
+// d'obstacles pendant 10 secondes avec plein d'étoiles — comme ça le bonus de
+// combo est ingame ») -------------------------------------------------------
+// Tous les config.pluieEtoilesSeuil ramassages d'affilée (50, 100, 150… ; une
+// série cassée repart au premier palier), une fenêtre de CHUNK_SLOTS créneaux
+// (~10 s) est posée juste AU-DELÀ du champ de vision : tout ce qui y tombe
+// devient une étoile, aucun obstacle. Elle commence hors champ pour que rien
+// ne se transforme sous les yeux du joueur — les objets déjà visibles
+// finissent leur trajectoire, la pluie sort de la brume derrière eux (~2 s à
+// pleine vitesse). Les voitures TRAVERSANTES (crosstraffic.js, autre grille)
+// restent actives pendant la fenêtre : 10 s de points, pas 10 s d'invincibilité.
+// Comme le boost de score, c'est une donnée de GAMEPLAY (la série vit dans
+// main.js, poussée par setStreak) — la fenêtre, elle, est posée en index de
+// créneau, donc stable une fois annoncée.
+const CHUNK_SLOTS = 13; // ~10 s à 0,75 s par créneau
+function chunkSeuil() {
+  const v = Number(window.CONFIG.pluieEtoilesSeuil);
+  return Number.isFinite(v) && v > 0 ? v : 50;
+}
+let currentStreak = 0;
+let nextChunkAt = chunkSeuil();
+let chunkStart = -1;
+let chunkEnd = -1;
+
+function inChunk(slotIndex) {
+  return slotIndex >= chunkStart && slotIndex < chunkEnd;
+}
+
+// Poussée par main.js à chaque tick (même canal que setScore/setLives).
+// Renvoie true quand une pluie vient d'être déclenchée — main.js s'en sert
+// pour l'annoncer (popup), l'état lui-même vit ici.
+export function setStreak(streak) {
+  if (streak < currentStreak) nextChunkAt = chunkSeuil(); // série cassée : on repart au premier palier
+  currentStreak = streak;
+  if (streak < nextChunkAt) return false;
+  nextChunkAt += chunkSeuil();
+  // Premier créneau ENCORE INVISIBLE à cet instant : celui qui arrivera dans
+  // (VISIBLE_Z_MAX − PLAYER_NEAR_Z) / vitesse secondes.
+  const speed = Math.max(1, road.getSpeed());
+  const deltaT = (VISIBLE_Z_MAX - road.PLAYER_NEAR_Z) / speed;
+  chunkStart = Math.floor(clock.beatIndexAt(clock.now() + deltaT) / CADENCE) + 1;
+  chunkEnd = chunkStart + CHUNK_SLOTS;
+  return true;
 }
 
 // Piéton = « mur humain plein », infranchissable même en sautant (voir
@@ -884,6 +952,17 @@ const PIETON_BONUS_GUARD_SLOTS = 1; // ±1 créneau ≈ 0,75 s de battement à l
 // infranchissable n'est plus dans la voie du bonus voisin) sans toucher à la
 // distribution des types, qui redevient donc celle qu'annoncent les poids.
 function slotContent(slotIndex) {
+  // Pluie d'étoiles : la fenêtre écrase tout (obstacles, vagues, cadeaux) —
+  // que des étoiles, tirées comme n'importe quel créneau bonus. Appliquée ICI
+  // (au-dessus du cache brut) : la fenêtre est un état de gameplay posé en
+  // cours de partie, elle doit s'imposer même aux créneaux déjà mémoïsés.
+  if (inChunk(slotIndex)) {
+    return {
+      isBonus: true,
+      kind: pickWeighted(BONUS_TYPES, hash(slotIndex * 3 + 1)),
+      gold: hash(slotIndex * 3 + 77) < GOLD_STAR_RATE,
+    };
+  }
   const raw = rawSlotContent(slotIndex);
   if (raw.isBonus) return raw;
   // ⚠️ Plus de garde côté PONT (l'ancien bridgeGuard tournait les voies
@@ -1201,8 +1280,14 @@ export function reset() {
   consumed.clear();
   debugOverrides.clear();
   rawContentCache.clear();
+  baseContentCache.clear();
   currentScore = 0;
   currentLives = window.CONFIG.viesDepart;
+  giftsSpawned = 0;
+  currentStreak = 0;
+  nextChunkAt = chunkSeuil();
+  chunkStart = -1;
+  chunkEnd = -1;
   invalidateSlotCache();
 }
 

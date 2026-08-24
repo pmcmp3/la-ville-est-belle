@@ -74,12 +74,46 @@ window.CONFIG = {
   // pénalité de collision.
   comboSeuil: 5,
   comboBonusParPalier: 0.5,
+  // ⚠️ PLAFOND du multiplicateur (24 août 2026, après le passage au jeu infini :
+  // « il faut réduire le combo, c'est beaucoup trop hardcore, le score va être
+  // beaucoup trop gros — il faut que ce soit vraiment ultra difficile d'arriver
+  // à 500 000 »). Sans plafond, une série de 200 étoiles montait à ×21 et les
+  // scores partaient en millions. À ×5 (atteint à 40 étoiles d'affilée), un jeu
+  // parfait en régime de croisière rapporte ~30 k/min : 500 000 = ~15 minutes
+  // sans une seule faute. Le début de partie ne change pas (×1,5 → ×5, mêmes
+  // paliers appris).
+  comboMultiplicateurMax: 5,
+  // Pluie d'étoiles (24 août 2026, idée de Pablo validée : « quand t'atteins N
+  // étoiles de suite, un chunk combo où il n'y a plus d'obstacles pendant 10 s
+  // avec plein d'étoiles ») : tous les `pluieEtoilesSeuil` ramassages d'affilée
+  // (50, 100, 150… — la série cassée repart au premier palier), ~10 s de route
+  // sans obstacles, que des étoiles. Les voitures traversantes restent actives
+  // (sinon c'est 10 s de points gratuits sans aucun risque).
+  pluieEtoilesSeuil: 50,
   // Boost de départ du DÉFI (23 août 2026) : qui arrive par un lien
   // « ?defi=… » démarre la course avec ce nombre de paliers de combo déjà
   // acquis (1 → ×1,5 dès la première étoile, perdu au premier obstacle
   // touché, comme n'importe quel combo). C'est l'appât qui rend le lien de
   // défi attirant à ouvrir — le levier de VOLUME du jeu. 0 pour désactiver.
   defiBoostPaliers: 1,
+
+  // === CADEAUX MAGIQUES ===
+  // Plafond de cadeaux (+1 cœur) par partie. Retour du premier béta-testeur le
+  // jour même de la mise en ligne : « il y a beaucoup trop de cadeaux, ça donne
+  // tellement de vies — dès que t'as une vie il y a pas mal de cadeaux, t'es
+  // invincible ». Le taux d'apparition (GIFT_RATE, entities.js) ne change pas :
+  // c'est le TOTAL par course qui est borné.
+  cadeauxMaxParPartie: 2,
+
+  // === EASTER EGG 500 000 ===
+  // « À 500 k tu mets un vocal de toi » (idée de Pablo, validée). Le morceau
+  // continue derrière, écarté en sidechain pendant la voix (audio.js,
+  // playVoiceClip). ⚠️ Le FICHIER n'existe pas encore — l'artiste doit
+  // l'enregistrer et le déposer dans public/assets/ sous ce nom : tant qu'il
+  // est absent, rien ne se passe (le jeu ne tente le chargement qu'à
+  // l'approche du seuil, jamais au démarrage).
+  easterEggScore: 500000,
+  fichierEasterEgg: "assets/easter-500k.mp3",
 
   // === OBSTACLES ===
   cadenceSpawnBeats: 1.5,   // Un événement (bonus/obstacle) tous les N temps (calage rythmique) — 2 → 1.5 (playtest : "un peu plus d'objets")

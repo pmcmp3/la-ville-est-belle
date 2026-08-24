@@ -70,6 +70,34 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   un cœur ») : bonus rare (`GIFT_RATE` 7 % des créneaux étoile), n'apparaît QUE si un cœur
   manque au moment où le créneau se calcule (`setLives`, entities.js). Aucun point, ne touche
   pas au combo. Boîte violette + cœur + halo rose (entities-render.js), popup « +1 VIE ».
+  ⚠️ **PLAFONNÉ à `config.cadeauxMaxParPartie` (= 2) le jour même** (retour du premier
+  béta-testeur : « il y a beaucoup trop de cadeaux, t'es invincible ») — le compteur compte les
+  cadeaux APPARUS, pas les ramassés (un cadeau raté consomme le budget, assumé).
+- **Combo PLAFONNÉ à ×5** (`config.comboMultiplicateurMax`, 24 août 2026, demandé : « il faut
+  réduire le combo, c'est beaucoup trop hardcore [...] il faut que ce soit vraiment ultra
+  difficile d'arriver à 500 000 ») : sans plafond, le jeu infini envoyait les scores en
+  millions. ×5 atteint à 40 étoiles d'affilée ; jeu parfait en croisière ≈ 30 k/min →
+  500 000 ≈ 15 min sans faute. Le popup « COMBO ×N » ne sort plus une fois le plafond atteint
+  (garde `comboMultiplier() > comboAvant`, main.js).
+- **Pluie d'étoiles** (24 août 2026, idée de Pablo — premier béta-testeur — validée : « quand
+  t'atteins N étoiles de suite, un chunk combo sans obstacles pendant 10 s avec plein
+  d'étoiles ») : tous les `config.pluieEtoilesSeuil` (= 50) ramassages d'affilée (50, 100,
+  150… ; série cassée → on repart au premier palier), fenêtre de 13 créneaux (~10 s) TOUT EN
+  ÉTOILES, posée juste AU-DELÀ du champ de vision (rien ne se transforme sous les yeux du
+  joueur — elle sort de la brume ~2 s plus tard à pleine vitesse). Les TRAVERSANTES restent
+  actives pendant la fenêtre (des points, pas de l'invincibilité). Popup « PLUIE D'ÉTOILES ! »
+  + arpège long. `setStreak()`/`inChunk()`, entities.js — état de gameplay comme le score,
+  appliqué au-dessus du cache brut dans `slotContent()`. ⚠️ L'idée jumelle du même testeur
+  (« bonus de streak ajouté au score à la mort ») a été écartée : il l'a lui-même remplacée
+  par celle-ci, et le multiplicateur récompense déjà la série en continu.
+- **Easter egg 500 000** (24 août 2026, idée de Pablo : « à 500 k tu mets un vocal de toi ») :
+  au franchissement de `config.easterEggScore`, un vocal de PMC joue PAR-DESSUS le morceau,
+  qui s'écarte en sidechain le temps de la voix (audio.js, `playVoiceClip` — le morceau
+  descend à 25 % puis remonte). Une fois par partie. ⚠️ **LE FICHIER N'EXISTE PAS ENCORE**
+  (`config.fichierEasterEgg` = `assets/easter-500k.mp3`) : l'artiste doit enregistrer le vocal
+  et le déposer dans `public/assets/` sous ce nom, puis redéployer. Tant qu'il manque, RIEN ne
+  se passe (chargement tenté seulement à 80 % du seuil — jamais de 404 au chargement de la
+  page — et un échec désactive l'easter egg en silence).
 - **L'étoile dorée s'annonce** (24 août 2026, « il faudrait qu'il y ait marqué x2 sur l'étoile,
   ou qu'elle brille beaucoup plus » — les deux sont faits) : badge « ×2 » au-dessus de l'étoile
   + halo nettement renforcé et pulsant (entities-render.js).

@@ -657,6 +657,68 @@ export function playComboJingle(palier) {
   }
 }
 
+// --- Easter egg 500 000 : vocal de PMC en sidechain --------------------------
+// « À 500 k tu mets un vocal de toi — la musique continue mais il y a un
+// sidechain avec ma voix par-dessus » (24 août 2026). Le fichier
+// (config.fichierEasterEgg) peut NE PAS EXISTER : il n'est chargé qu'à la
+// demande (main.js appelle prefetchVoiceClip à l'approche du seuil), jamais au
+// démarrage — pas de 404 pour les 99,9 % de visiteurs qui n'approcheront
+// jamais 500 000. Décodé hors-ligne comme le morceau (aucun geste requis).
+let voiceBuffer = null;
+let voiceFetchStarted = false;
+let voiceFailed = false;
+
+export function prefetchVoiceClip() {
+  if (voiceFetchStarted) return;
+  const url = window.CONFIG.fichierEasterEgg;
+  if (!url) { voiceFailed = true; voiceFetchStarted = true; return; }
+  voiceFetchStarted = true;
+  fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer();
+    })
+    .then((data) => {
+      const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      return decodeWith(new Offline(1, 1, 44100), data);
+    })
+    .then((decoded) => { voiceBuffer = decoded; })
+    .catch(() => { voiceFailed = true; }); // fichier absent/illisible : easter egg simplement inactif
+}
+
+export function isVoiceClipUnavailable() {
+  return voiceFailed;
+}
+
+// Joue le vocal par-dessus le morceau, avec le sidechain demandé : le morceau
+// s'écarte (envelopeGain descend à ~25 %) le temps de la voix, puis remonte.
+// envelopeGain est le bon endroit : c'est le gain « du morceau seul » (le
+// slider et le mute, partagés, s'appliquent aussi à la voix — elle entre par
+// volumeGain, comme le jingle de combo). À 500 000 points, le fondu d'entrée
+// du morceau est passé depuis longtemps : rien d'autre n'est programmé sur ce
+// gain à cet instant. Renvoie false tant que le vocal n'est pas prêt — main.js
+// retente au tick suivant.
+export function playVoiceClip() {
+  if (!audioCtx || !voiceBuffer || audioCtx.state !== "running" || mode !== "running") return false;
+  const t = audioCtx.currentTime;
+  const fin = t + voiceBuffer.duration;
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = voiceBuffer;
+  src.connect(volumeGain || audioCtx.destination);
+
+  if (envelopeGain) {
+    envelopeGain.gain.cancelScheduledValues(t);
+    envelopeGain.gain.setValueAtTime(envelopeGain.gain.value, t);
+    envelopeGain.gain.linearRampToValueAtTime(0.25, t + 0.2);
+    envelopeGain.gain.setValueAtTime(0.25, Math.max(t + 0.2, fin - 0.05));
+    envelopeGain.gain.linearRampToValueAtTime(1, fin + 0.5);
+  }
+
+  src.start(t);
+  return true;
+}
+
 // --- Modes de lecture (course / menu pause / onglet quitté) ------------------
 // Trois états, et un seul point d'entrée pour en changer : main.js calcule le
 // mode voulu à partir de ses deux drapeaux (menu pause ouvert, onglet caché)
