@@ -499,3 +499,26 @@ anti-blocage (« je meurs parce que c'est dur, c'est un manque de skill »). Sco
   ligne). À faire par Paul dans Supabase (SQL Editor) :
   `delete from scores where pseudo in ('Ppoz53','Pab','maman2pmc','zz_test');`
   Le reste du classement ne doit PAS être touché (consigne explicite).
+
+## Journal — 24 août 2026 (soir) : fausse alerte sur le tunnel de conversion
+
+**Signalement** : « tu as fait sauter une clause hyper importante — pré-save à la 1re relance,
+abonnement à la 2e, +10 % de boost ». Capture d'écran à l'appui : la carte de mort ne montre
+aucun lien Spotify.
+
+- ✅ **Vérifié bout en bout : RIEN n'avait sauté.** Test sur un joueur neuf (localStorage vidé) :
+  mort → CONTINUER → le tiroir s'ouvre sur « Pré-sauvegarde l'album » (`lienPresave`) ; clic →
+  `morceauOuvert=1` + boost fan ×1,1 acquis ; relance suivante → « Abonne-toi à PMC »
+  (`lienSuivre`, vrai profil Spotify). Idem sur REJOUER, carte de mort ET écran de fin.
+- 🔍 **Cause du malentendu** : l'artiste a cliqué ses propres liens des dizaines de fois en
+  testant → `niveauConversion()` renvoie « libre » sur SON téléphone → le tiroir ne s'ouvre plus
+  jamais chez lui (comportement voulu depuis le 23 août). La carte de mort nue qu'il voyait est
+  le design verrouillé de la quatrième passe : elle pose le choix, la demande vient AU TAP.
+- ⚠️ **Piège de méthode à retenir** : un premier test avait « prouvé » le bug en lisant
+  `#gate-title` — qui contenait « Pré-sauvegarde l'album »… parce que c'est le texte STATIQUE
+  d'`index.html`. Le clic n'avait rien déclenché (panneau pas encore ouvert, `reviveCallbacks`
+  null). Toujours vérifier la classe `visible` ET un champ que seul le JS peut écrire (ici
+  `href`, `#` en statique) avant de conclure.
+- ✅ **Ajouté : `?neuf` dans l'URL** remet les deux paliers de conversion à zéro (et rien
+  d'autre — pseudo/insta/`partiesJouees` conservés), pour que l'artiste puisse revoir le tunnel
+  depuis son propre téléphone sans vider son navigateur.

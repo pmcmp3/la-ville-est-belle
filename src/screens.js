@@ -118,6 +118,22 @@ const CLE_MORCEAU_OUVERT = "morceauOuvert";
 const CLE_PMC_SUIVI = "pmcSuivi";
 const CLE_PARTIES = "partiesJouees";
 
+// ⚠️ VÉRIFICATION DU TUNNEL DE CONVERSION — `?neuf` dans l'URL (24 août 2026).
+// L'artiste a cliqué ses propres liens des dizaines de fois en testant : son
+// navigateur le classe donc « libre » (les deux paliers franchis) et le tiroir
+// ne s'ouvre PLUS JAMAIS chez lui. Vu de son téléphone, la demande de
+// pré-sauvegarde a l'air d'avoir disparu — alors qu'elle s'affiche pour tout
+// joueur neuf. Ce drapeau remet les DEUX paliers à zéro, et RIEN d'autre : le
+// pseudo, l'insta et le compteur de parties (donc le tutoriel) sont conservés.
+// À poser AVANT `fanCache` plus bas, qui lit l'état une fois pour toutes au
+// chargement du module.
+try {
+  if (new URLSearchParams(location.search).has("neuf")) {
+    localStorage.removeItem(CLE_MORCEAU_OUVERT);
+    localStorage.removeItem(CLE_PMC_SUIVI);
+  }
+} catch (e) { /* navigation privée : il n'y a rien à remettre à zéro */ }
+
 function morceauDejaOuvert() {
   try { return localStorage.getItem(CLE_MORCEAU_OUVERT) === "1"; } catch (e) { return true; }
 }

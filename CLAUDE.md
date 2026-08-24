@@ -251,6 +251,13 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     **tap explicite**, jamais un redémarrage automatique (invariant du 22 août 2026).
   - ⚠️ **La première partie reste libre** : la porte n'existe qu'APRÈS un échec. Le bouton
     JOUER du menu n'est pas touché.
+  - ⚠️ **`?neuf` dans l'URL remet les deux paliers à zéro** (24 août 2026) — outil de
+    VÉRIFICATION, pas de gameplay. Motif : l'artiste a cliqué ses propres liens des dizaines de
+    fois en testant, son navigateur le classe donc « libre » et le tiroir ne s'ouvre plus jamais
+    chez lui — d'où « la clause a sauté » alors que le tunnel tourne pour tout joueur neuf
+    (vérifié bout en bout le 24 août : palier 1 → `lienPresave` + boost fan, palier 2 →
+    `lienSuivre`, sur CONTINUER comme sur REJOUER, carte de mort comme écran de fin). Ne touche
+    QUE les deux clés de conversion : pseudo, insta et `partiesJouees` sont conservés.
   - ⚠️ **RENVERSEMENT ASSUMÉ** du « rejouer est toujours gratuit » posé plus tôt le même jour
     (troisième passe), qui avait été décidé après avoir mesuré une IMPASSE sur un joueur neuf :
     aucun chemin vers une deuxième course sans cliquer le lien, le joueur fermait l'onglet. Ce
