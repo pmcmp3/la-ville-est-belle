@@ -350,6 +350,87 @@ function pousserPopup(texte, couleur) {
   if (popups.length > PICKUP_POPUP_MAX) popups.shift();
 }
 
+// --- Sparkles au ramassage (24 août 2026, demandé : « des sparkles quand on
+// prend une étoile, super petit, léger — ça montre qu'on a bien pris un
+// truc ») ------------------------------------------------------------------
+// Référence fournie : les étincelles à 4 branches de Mario Sunshine. Volontai-
+// rement DISCRET : une poignée de particules, 0,45 s, additives — c'est un
+// accusé de réception, pas un feu d'artifice (le halo de `pickupFlash` reste
+// le signal principal). Vivent en espace ÉCRAN, semées à la position projetée
+// du joueur : elles ne sont pas des objets du monde, elles ne doivent donc ni
+// défiler avec la route ni passer derrière une voiture.
+const SPARKLE_DUREE = 0.45;
+const SPARKLE_MAX = 40;      // garde-fou mémoire : au-delà on ne sème plus
+const SPARKLE_PAR_ETOILE = 5;
+// Silhouette unitaire d'une étincelle à 4 branches (verticale longue,
+// horizontale courte, taille creusée) — la forme qui se lit « scintillement »
+// plutôt que « point lumineux ».
+const SPARKLE_FORME = [
+  [0, -1], [0.15, -0.15], [0.52, 0], [0.15, 0.15],
+  [0, 1], [-0.15, 0.15], [-0.52, 0], [-0.15, -0.15],
+];
+const sparkles = [];
+
+function semerSparkles(cx, cy, couleur) {
+  for (let i = 0; i < SPARKLE_PAR_ETOILE && sparkles.length < SPARKLE_MAX; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 10 + Math.random() * 22;
+    sparkles.push({
+      x: cx + Math.cos(angle) * dist * 0.75,
+      y: cy + Math.sin(angle) * dist * 0.6,
+      vx: Math.cos(angle) * (14 + Math.random() * 30),
+      vy: Math.sin(angle) * (10 + Math.random() * 20) - 30, // biais vers le haut : ça « monte »
+      // ⚠️ Calibré à l'écran : à 3,5-7 px les étincelles se noyaient dans le
+      // sprite (vérifié en composant un burst sur une vraie frame — on ne les
+      // voyait littéralement pas). 5-9 px reste « super petit et léger » comme
+      // demandé, mais se lit enfin comme un accusé de réception.
+      r: 5 + Math.random() * 4,
+      spin: Math.random() * Math.PI,
+      age: 0,
+      couleur,
+    });
+  }
+}
+
+function majSparkles(dt) {
+  for (let i = sparkles.length - 1; i >= 0; i--) {
+    const s = sparkles[i];
+    s.age += dt;
+    if (s.age >= SPARKLE_DUREE) { sparkles.splice(i, 1); continue; }
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vy += 42 * dt;   // retombée douce
+    s.vx *= 0.94;
+  }
+}
+
+function renderSparkles(ctx) {
+  if (!sparkles.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter"; // additif : ça brille sur le bitume sombre
+  for (const s of sparkles) {
+    const t = s.age / SPARKLE_DUREE;
+    // Enveloppe : jaillit sur le premier quart, s'éteint ensuite.
+    const taille = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+    if (taille <= 0) continue;
+    const r = s.r * taille;
+    ctx.globalAlpha = Math.min(1, taille * 1.2);
+    ctx.fillStyle = s.couleur;
+    ctx.beginPath();
+    for (let i = 0; i < SPARKLE_FORME.length; i++) {
+      const [px, py] = SPARKLE_FORME[i];
+      // Rotation propre à chaque étincelle : elles ne sont jamais toutes
+      // alignées sur le même axe, sinon ça se lit comme une grille.
+      const x = s.x + (px * Math.cos(s.spin) - py * Math.sin(s.spin)) * r;
+      const y = s.y + (px * Math.sin(s.spin) + py * Math.cos(s.spin)) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Fondu d'entrée du HUD : il apparaît avec la partie au lieu de surgir d'un
 // coup à la fermeture du menu. Même intention que les fondus CSS de l'overlay.
 const HUD_FADE_DURATION = 0.6;
@@ -691,6 +772,7 @@ function restartGame() {
   shake.time = 0; // sinon la secousse d'un choc de fin de partie survit au rejeu
   pickupFlash = 0;
   popups.length = 0;      // sinon un « +150 » de la partie précédente survit au rejeu
+  sparkles.length = 0;    // idem pour les étincelles en vol
   etoilesRamassees = 0;   // les 5 popups pédagogiques reviennent à chaque nouvelle partie
   game.penaltyTimer = 0; // sinon le "-500" de la partie précédente survit au rejeu
   hudAlpha = 0; // le HUD remonte en fondu, comme au premier départ
@@ -820,6 +902,7 @@ function step(dt) {
   if (damageFlash > 0) {
     damageFlash = Math.max(0, damageFlash - dt);
   }
+  majSparkles(dt);
   if (shake.time > 0) {
     shake.time = Math.max(0, shake.time - dt);
   }
@@ -910,6 +993,7 @@ function step(dt) {
           // ni ne l'avance) — c'est un soin, pas une étoile.
           game.lives = Math.min(window.CONFIG.viesDepart, game.lives + 1);
           pickupFlash = 1;
+          semerSparkles(...ancrageJoueur(), "#ffc2d6");
           pousserPopup("+1 VIE", "#ff8ab8");
           continue;
         }
@@ -925,6 +1009,7 @@ function step(dt) {
           );
           game.score += gagne;
           pickupFlash = 1;
+          semerSparkles(...ancrageJoueur(), e.gold ? "#fff3c2" : "#ffe9a8");
           etoilesRamassees += 1;
           game.stars += 1;
           game.bestCombo = Math.max(game.bestCombo, comboMultiplier());
@@ -1168,6 +1253,14 @@ function renderPlayer(renderX, renderLean, renderPedalPhase, renderY) {
 // pas les variables CSS, d'où la constante dupliquée ici aussi.
 const POPUP_POLICE = '"Stage Grotesk", system-ui, sans-serif';
 
+// Position ÉCRAN du buste du joueur — d'où jaillissent les sparkles. Même
+// projection que les popups, à mi-hauteur du sprite plutôt qu'au-dessus de la
+// tête : les étincelles doivent naître sur l'objet ramassé, pas au-dessus.
+function ancrageJoueur() {
+  const p = road.project(playerState.x, road.PLAYER_NEAR_Z, width, height);
+  return [p.x, p.y - player.HEIGHT_WORLD * player.DRAW_SCALE * p.scale * 0.55];
+}
+
 function renderPickupPopups(ctx, renderX) {
   if (!popups.length) return;
   const p = road.project(renderX, road.PLAYER_NEAR_Z, width, height);
@@ -1285,6 +1378,7 @@ function render(alpha) {
   // pas un objet du monde — donc peint APRÈS la scène, jamais masqué par une
   // voiture ou un pont qui passerait devant.
   renderPickupPopups(ctx, renderX);
+  renderSparkles(ctx);
 
   if (shakeActive) ctx.restore(); // fin de la secousse : le HUD ne bouge pas
 

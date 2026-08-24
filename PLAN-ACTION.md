@@ -545,3 +545,28 @@ il est — j'ai l'impression qu'il n'existe pas dans ta chaîne ».
 - ✅ **`conversion=` ajouté à l'overlay `?debug`** (presave/suivre/libre) : sur téléphone, c'est
   la seule façon de distinguer « tunnel cassé » de « ce navigateur a déjà tout franchi ». Les
   deux fausses alertes de la journée venaient exactement de cette confusion.
+
+## Journal — 24 août 2026 (soir, 3e passe) : sparkles au ramassage + audit des stats
+
+- ✅ **Sparkles au ramassage** (demandé : « super petit, léger — ça montre qu'on a bien pris un
+  truc », référence Mario Sunshine) : 5 étincelles à 4 branches, additives, 0,45 s, semées à la
+  position écran du buste du joueur. Elles vivent en espace ÉCRAN (pas dans le monde) : ce n'est
+  pas un objet de la scène, il ne doit ni défiler ni passer derrière une voiture. Le cadeau
+  magique en sème aussi, en rose.
+  - ⚠️ **Calibrées à l'écran, pas au jugé** : la première version (r 3,5-7 px, dispersion 6-16 px)
+    était littéralement INVISIBLE — noyée dans le sprite. Constaté en composant un burst sur une
+    vraie frame de jeu et en le figeant en overlay DOM. Portées à r 5-9 px, dispersion 10-32 px.
+  - ⚠️ **Piège d'environnement à connaître** : dans le panneau de preview, `requestAnimationFrame`
+    ne tourne QUE pendant une capture d'écran — le jeu est gelé entre deux commandes, et une
+    capture fait avancer ~15-35 s de temps de jeu d'un coup. Un effet de 0,45 s est donc
+    IMPOSSIBLE à attraper sur une capture. D'où la méthode retenue : composer l'effet sur un
+    instantané du canvas et le figer dans une balise <img> hors du canvas. (C'est aussi ce qui a
+    fait croire, pendant une demi-heure, que les ramassages ne fonctionnaient plus : le jeu était
+    simplement en pause, `document.hidden` étant vrai.)
+- 📊 **Audit des données Supabase** (à la demande de l'artiste) : 1 670 courses enregistrées,
+  364 pseudos classés, du 21/08 09h37 au 24/08 19h55. Détail dans la réponse de session.
+- 🐛 **TROUVÉ : la table `clics_ep` N'EXISTE PAS** côté Supabase — la migration
+  `supabase-migration-compteur-clics-ep.sql` (écrite le 23 août) n'a jamais été exécutée. Le jeu
+  appelle `net.postClicEP()` depuis 4 emplacements et l'appel échoue en silence (net.js
+  n'exception jamais, par conception). **Aucun clic vers le smartlink n'a donc jamais été
+  compté** — le funnel jeu → morceau est aveugle depuis le début. Migration à exécuter.
