@@ -522,3 +522,26 @@ aucun lien Spotify.
 - ✅ **Ajouté : `?neuf` dans l'URL** remet les deux paliers de conversion à zéro (et rien
   d'autre — pseudo/insta/`partiesJouees` conservés), pour que l'artiste puisse revoir le tunnel
   depuis son propre téléphone sans vider son navigateur.
+
+## Journal — 24 août 2026 (soir, 2e passe) : le palier 2 « existe-t-il ? »
+
+**Signalement** : « j'ai fait la pré-sauvegarde, mais le "Abonne-toi à PMC", je ne vois pas où
+il est — j'ai l'impression qu'il n'existe pas dans ta chaîne ».
+
+- ✅ **Vérifié : le palier 2 existe et fonctionne.** Chaîne complète rejouée bout en bout sur un
+  joueur neuf, journal à l'appui : (1) CONTINUER → « Pré-sauvegarde l'album » / `lienPresave` ;
+  (1b) clic → `morceauOuvert=1` ; (2) REJOUER → « **Abonne-toi à PMC** » / vrai profil Spotify ;
+  (2b) clic → `pmcSuivi=1` ; (3) REJOUER suivant → **aucun tiroir**, la course part au premier
+  tap. Capture d'écran du palier 2 à l'appui.
+- 🐛 **Bug RÉEL trouvé et corrigé — `?neuf` restait dans l'URL.** Le drapeau ajouté quelques
+  heures plus tôt rejouait sa remise à zéro à CHAQUE rechargement de la page tant qu'il était
+  dans la barre d'adresse — retour de Spotify compris. Un joueur qui franchissait le palier 1
+  puis revenait dans le jeu voyait donc son palier effacé et le tunnel tourner en rond sur
+  « Pré-sauvegarde l'album », sans jamais atteindre le palier 2. C'est très probablement ce qui
+  a été vécu. ✅ Le drapeau se retire maintenant de l'URL dès qu'il est consommé
+  (`history.replaceState`).
+- ✅ **Palier 2 = promesse de parties illimitées** (demandé) : « Dernière étape : abonne-toi à
+  PMC sur Spotify et rejoue autant que tu veux. »
+- ✅ **`conversion=` ajouté à l'overlay `?debug`** (presave/suivre/libre) : sur téléphone, c'est
+  la seule façon de distinguer « tunnel cassé » de « ce navigateur a déjà tout franchi ». Les
+  deux fausses alertes de la journée venaient exactement de cette confusion.

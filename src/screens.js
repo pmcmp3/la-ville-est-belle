@@ -131,6 +131,16 @@ try {
   if (new URLSearchParams(location.search).has("neuf")) {
     localStorage.removeItem(CLE_MORCEAU_OUVERT);
     localStorage.removeItem(CLE_PMC_SUIVI);
+    // ⚠️ Le drapeau se RETIRE de l'URL aussitôt consommé : sans ça, il reste
+    // dans la barre d'adresse et REJOUE sa remise à zéro à chaque
+    // rechargement (retour de Spotify compris) — le palier de pré-sauvegarde
+    // qu'on vient de franchir serait effacé en boucle, et le tunnel semblerait
+    // tourner en rond sur le premier palier.
+    try {
+      const url = new URL(location.href);
+      url.searchParams.delete("neuf");
+      history.replaceState(null, "", url.toString());
+    } catch (e) { /* history indisponible : au pire le reset se rejoue */ }
   }
 } catch (e) { /* navigation privée : il n'y a rien à remettre à zéro */ }
 
@@ -245,6 +255,12 @@ const REVIVE_ARC_LONGUEUR = 2 * Math.PI * 33; // r=33, voir #revive-arc dans ind
 // ⚠️ Les clés localStorage sont celles d'avant (CLE_MORCEAU_OUVERT,
 // CLE_PMC_SUIVI) : les joueurs déjà convertis ne sont PAS remis à zéro par ce
 // changement de modèle.
+// Exposé pour l'overlay `?debug` (main.js → debug.js) : sur un téléphone il
+// n'y a ni console ni localStorage inspectable, et c'est LA donnée qui explique
+// pourquoi le tiroir s'ouvre ou pas. Un palier resté à "libre" d'une session de
+// test précédente est indiscernable d'un tunnel cassé sans cette ligne.
+export function niveauConversionCourant() { return niveauConversion(); }
+
 function niveauConversion() {
   if (!morceauDejaOuvert()) return "presave";
   if (!pmcDejaSuivi()) return "suivre";
@@ -407,8 +423,8 @@ function gateTextes(action, niveau) {
         ? "Pré-sauvegarde l'album de PMC sur Spotify et reprends ta course avec tes "
         : "Pré-sauvegarde l'album de PMC sur Spotify pour relancer une course. Score en cours : ")
       : (continuer
-        ? "Abonne-toi à PMC sur Spotify et reprends ta course avec tes "
-        : "Abonne-toi à PMC sur Spotify pour relancer une course. Score en cours : "),
+        ? "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Tu reprends avec tes "
+        : "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Score en cours : "),
     ctaLabel: presave ? "PRÉ-SAUVEGARDER L'ALBUM" : "S'ABONNER À PMC",
     href: presave
       ? (window.CONFIG.lienPresave || window.CONFIG.lienEP)

@@ -251,6 +251,15 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     **tap explicite**, jamais un redémarrage automatique (invariant du 22 août 2026).
   - ⚠️ **La première partie reste libre** : la porte n'existe qu'APRÈS un échec. Le bouton
     JOUER du menu n'est pas touché.
+  - ⚠️ **Le palier 2 promet les parties ILLIMITÉES** (24 août 2026, demandé : « la dernière
+    étape c'est t'abonner à PMC sur Spotify [...] pour lui dire : fais autant de parties que tu
+    veux ») : le texte du tiroir « suivre » annonce désormais « Dernière étape : abonne-toi à
+    PMC sur Spotify et rejoue autant que tu veux ». C'est ce qui donne sa contrepartie au
+    dernier péage — après lui, le tiroir ne s'ouvre plus jamais.
+  - ⚠️ **`conversion=presave|suivre|libre` dans l'overlay `?debug`** : LA ligne qui tranche
+    « le tunnel est cassé » vs « ce téléphone a déjà tout franchi ». Sur mobile il n'y a ni
+    console ni localStorage inspectable — sans elle, les deux cas sont indiscernables (piège
+    vécu deux fois le 24 août).
   - ⚠️ **`?neuf` dans l'URL remet les deux paliers à zéro** (24 août 2026) — outil de
     VÉRIFICATION, pas de gameplay. Motif : l'artiste a cliqué ses propres liens des dizaines de
     fois en testant, son navigateur le classe donc « libre » et le tiroir ne s'ouvre plus jamais

@@ -98,6 +98,10 @@ export function renderStats(ctx, stats) {
     // "secours" ou si `temps` ne bouge pas, le problème est là.
     `audio=${stats.audioStatus ?? "?"}`,
     `horloge=${stats.clockSource ?? "?"}`,
+    // Palier de conversion courant (presave → suivre → libre) : c'est lui qui
+    // décide si le tiroir s'ouvre. « libre » sur un téléphone de test explique
+    // à lui seul un tunnel qui semble avoir disparu — voir `?neuf`.
+    `conversion=${stats.conversion ?? "?"}`,
     `debug: ↑+10s  F=fin  G=game over  B=bonus  O=obstacle`,
   ];
 

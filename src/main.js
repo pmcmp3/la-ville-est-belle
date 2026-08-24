@@ -1307,6 +1307,7 @@ function render(alpha) {
     playerX: renderX,
     audioStatus: audio.getStatus(),
     clockSource: audioDrivesClock ? "audio" : "secours",
+    conversion: screens.niveauConversionCourant(),
   });
 }
 
