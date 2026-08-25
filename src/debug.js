@@ -102,6 +102,10 @@ export function renderStats(ctx, stats) {
     // décide si le tiroir s'ouvre. « libre » sur un téléphone de test explique
     // à lui seul un tunnel qui semble avoir disparu — voir `?neuf`.
     `conversion=${stats.conversion ?? "?"}`,
+    // Classement : nombre de lignes reçues, ou la raison de l'échec. Un
+    // « 0 lignes » alors que des scores existent = la vue publique ne répond
+    // plus (voir le journal du 24 août 2026).
+    `classement=${stats.classement ?? "?"}`,
     `debug: ↑+10s  F=fin  G=game over  B=bonus  O=obstacle`,
   ];
 

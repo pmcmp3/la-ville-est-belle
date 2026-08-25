@@ -570,3 +570,30 @@ il est — j'ai l'impression qu'il n'existe pas dans ta chaîne ».
   appelle `net.postClicEP()` depuis 4 emplacements et l'appel échoue en silence (net.js
   n'exception jamais, par conception). **Aucun clic vers le smartlink n'a donc jamais été
   compté** — le funnel jeu → morceau est aveugle depuis le début. Migration à exécuter.
+
+## Journal — 24 août 2026 (nuit) : le classement a disparu de l'écran de fin
+
+**Symptôme** : plus aucun classement en fin de partie.
+
+- 🔍 **Diagnostic** : `scores_public` répond **HTTP 200 avec `[]`** (0 ligne), alors que la table
+  `courses` continue de grossir (1 670 → 1 927 pendant le diagnostic : les gens jouent). Donc ni
+  panne réseau, ni projet Supabase en pause, ni concours fermé (`contestStatus()` est bien
+  `open`, dates 17/08 → 11/10).
+- 🔍 **L'écriture des scores fonctionne** : un POST identique à celui de `net.js`
+  (`Prefer: return=minimal`) renvoie **201**. ⚠️ Les 401 obtenus avec `return=representation` /
+  `return=headers-only` sont un FAUX POSITIF de diagnostic : sous PostgreSQL, un
+  `INSERT ... RETURNING` exige que la ligne passe aussi la policy SELECT — or elle a été retirée
+  VOLONTAIREMENT sur `scores` (l'Insta doit rester privé, voir migration pseudo-insta). Ne pas
+  « réparer » ça : c'est le design.
+- 🎯 **Cause la plus probable : la vue `scores_public` est passée en `security_invoker = on`.**
+  Dans ce mode la vue applique la RLS de l'APPELANT (anon), qui n'a précisément pas le droit de
+  lire `scores` → la vue renvoie vide pour tout le monde, alors que les données sont intactes.
+  C'est exactement ce que propose le « Security Advisor » de Supabase quand on ouvre le
+  dashboard — et le dashboard a été ouvert ce jour-là pour supprimer les comptes multiples.
+  Correctif : `alter view public.scores_public set (security_invoker = off);`
+- ✅ **Rendu VISIBLE côté jeu** : nouvelle ligne `classement=` dans l'overlay `?debug` (nombre de
+  lignes reçues, ou la raison de l'échec). Un classement vide et un classement en erreur sont
+  indiscernables à l'écran — le bloc est masqué dans les deux cas — et c'est ce qui a laissé la
+  panne invisible pendant des heures. Même intention que la ligne `conversion=`.
+- ⚠️ **Lignes de test à supprimer** (créées pendant ce diagnostic) : `zz_diag`, `zz_a`, `zz_b`,
+  `zz_c`, `zz_head`, plus `zz_test` d'une session précédente.

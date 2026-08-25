@@ -677,7 +677,14 @@ function endGame(reason) {
   // Le classement est relu juste après l'envoi (même s'il n'a pas eu lieu)
   // pour avoir une chance d'y voir apparaître le score qu'on vient d'envoyer.
   finalizeRun().then(async () => {
-    screens.renderLeaderboard(await net.getTopScores());
+    const classement = await net.getTopScores();
+    // Mémorisé pour l'overlay `?debug` : un classement VIDE et un classement
+    // EN ERREUR se ressemblent à l'écran (le bloc est masqué dans les deux
+    // cas). Le 24 août 2026, la vue `scores_public` s'est mise à répondre
+    // « 200 + tableau vide » et le classement a disparu du jeu pendant des
+    // heures sans que rien ne le signale nulle part.
+    dernierClassementN = classement.length;
+    screens.renderLeaderboard(classement);
   });
 }
 
@@ -804,6 +811,9 @@ window.addEventListener("keydown", (e) => {
     entities.forceSpawn(false, "cone", playerState.lane); // force un obstacle pile devant le joueur
   }
 });
+
+// Nombre de lignes du dernier classement reçu (overlay ?debug).
+let dernierClassementN = -1;
 
 const perf = {
   fps: 0,
@@ -1402,6 +1412,7 @@ function render(alpha) {
     audioStatus: audio.getStatus(),
     clockSource: audioDrivesClock ? "audio" : "secours",
     conversion: screens.niveauConversionCourant(),
+    classement: net.getLastError() || (dernierClassementN < 0 ? "pas encore lu" : `${dernierClassementN} lignes`),
   });
 }
 
