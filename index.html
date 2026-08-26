@@ -1476,6 +1476,53 @@
 
     .field-note strong { font-weight: 500; }
 
+    .field-note a { color: var(--rouge); text-underline-offset: 2px; }
+
+    /* Case « j'accepte le règlement ». Même largeur que les champs et la note,
+       posée juste au-dessus de « Suivant » qu'elle conditionne. La cible de tap
+       est le <label> entier (44px de haut minimum, recommandation Apple), pas
+       la seule case de 18px : sur mobile, cocher une case de 18px au pouce est
+       le genre de friction qui fait abandonner l'onboarding. */
+    #reglement-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      width: 240px;
+      min-height: 44px;
+      margin: 0 0 16px;
+      font: 500 11.5px/1.45 var(--police);
+      color: rgba(0, 0, 0, 0.72);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #reglement-check {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--rouge);
+      cursor: pointer;
+    }
+
+    #reglement-row a { color: var(--rouge); text-underline-offset: 2px; }
+
+    /* Pied de page légal de l'écran de fin : discret, jamais en concurrence
+       avec les CTA au-dessus, mais toujours atteignable. */
+    #legal-links {
+      margin: 18px 0 0;
+      font: 500 11px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.42);
+      text-align: center;
+    }
+
+    #legal-links a {
+      color: rgba(0, 0, 0, 0.58);
+      text-underline-offset: 2px;
+    }
+
+    #legal-links span { margin: 0 6px; }
+
     /* Rappel son de l'étape 2/2 (demandé : « il faut mettre une notification
        qui dit aux gens de monter le son, sinon ils ne sont pas au courant que
        la musique existe »). Encadré, pas une petite ligne grise : c'est le
@@ -2036,7 +2083,16 @@
                 maxlength="40"
               />
             </div>
-            <p class="field-note">Seul ton pseudo apparaît au classement. Ton insta est obligatoire, PMC va te contacter si tu gagnes avec ce nom. Il n'est visible que par lui.</p>
+            <p class="field-note">Seul ton pseudo apparaît au classement. Ton insta est obligatoire, PMC va te contacter si tu gagnes avec ce nom. Il n'est visible que par lui. <a href="mentions-legales/" target="_blank" rel="noopener">Détails</a></p>
+            <!-- Acceptation du règlement : obligatoire pour enregistrer un
+                 score au concours (un lot est en jeu). JAMAIS pré-cochée, et
+                 elle bloque « Suivant » au même titre que les deux champs —
+                 voir syncPseudoStep() dans screens.js. Le lien s'ouvre dans un
+                 onglet à part : quitter la page perdrait l'onboarding. -->
+            <label id="reglement-row">
+              <input type="checkbox" id="reglement-check" />
+              <span>J'ai lu et j'accepte le <a href="reglement/" target="_blank" rel="noopener">règlement du jeu-concours</a></span>
+            </label>
             <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant →</button>
           </div>
         </div>
@@ -2270,6 +2326,14 @@
                  (demandé : « tu peux enlever Partager le clip, tu mets juste
                  Partager mon score ») — l'enregistrement clip.js est coupé
                  avec lui, voir main.js. -->
+            <!-- Pied de page légal : un lot est en jeu, le règlement doit
+                 rester atteignable à tout moment, pas seulement au moment de
+                 cocher la case à l'accueil. -->
+            <p id="legal-links">
+              <a href="reglement/" target="_blank" rel="noopener">Règlement</a>
+              <span aria-hidden="true">·</span>
+              <a href="mentions-legales/" target="_blank" rel="noopener">Mentions légales</a>
+            </p>
           </div>
         </div>
       </div>

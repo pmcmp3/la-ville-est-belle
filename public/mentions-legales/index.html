@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mentions légales — La ville est belle</title>
+<meta name="description" content="Mentions légales et politique de confidentialité du site du jeu « La ville est belle » de PMC : éditeur, hébergement, données personnelles et cookies." />
+<link rel="icon" href="../favicon.png" />
+<link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+<style>
+  @font-face {
+    font-family: "Flawsome";
+    src: url("../fonts/Flawsome-Regular.ttf") format("truetype");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "Stage Grotesk";
+    src: url("../fonts/StageGrotesk-Medium.otf") format("opentype");
+    font-weight: 500; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "Stage Grotesk";
+    src: url("../fonts/StageGrotesk-Black.otf") format("opentype");
+    font-weight: 900; font-style: normal; font-display: swap;
+  }
+
+  /* Voir reglement/index.html : Stage Grotesk dessine « et » comme deux
+     chevrons espacés, qui se lisent comme un bug. Ces deux caractères seuls
+     partent sur une fonte système ; à défaut, on retombe sur Stage Grotesk. */
+  @font-face {
+    font-family: "Guillemets";
+    src: local("Helvetica Neue"), local("Helvetica"), local("Arial"), local("Roboto");
+    unicode-range: U+00AB, U+00BB;
+  }
+
+  :root {
+    --rouge: #e13e26;
+    --rouge-fonce: #8f2415;
+    --panneau-fond: #fdf3e4;
+    --panneau-bord: #1a120c;
+    --police: "Guillemets", "Stage Grotesk", system-ui, sans-serif;
+    --titre: "Flawsome", "Guillemets", "Stage Grotesk", system-ui, sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding:
+      calc(20px + var(--safe-top)) 18px
+      calc(40px + var(--safe-bottom));
+    background: var(--panneau-bord);
+    color: var(--panneau-bord);
+    font-family: var(--police);
+    font-weight: 500;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .sheet {
+    max-width: 720px;
+    margin: 0 auto;
+    background: var(--panneau-fond);
+    border: 3px solid var(--panneau-bord);
+    border-radius: 14px;
+    box-shadow: 0 6px 0 var(--rouge-fonce);
+    padding: 26px 20px 30px;
+  }
+
+  .eyebrow {
+    margin: 0 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rouge);
+  }
+
+  h1 {
+    font-family: var(--titre);
+    font-weight: 400;
+    font-size: clamp(28px, 7vw, 40px);
+    line-height: 1.1;
+    margin: 0 0 18px;
+  }
+
+  h2 {
+    font-family: var(--titre);
+    font-weight: 400;
+    font-size: clamp(19px, 4.6vw, 23px);
+    line-height: 1.2;
+    margin: 30px 0 8px;
+    padding-top: 16px;
+    border-top: 2px solid rgba(26, 18, 12, 0.16);
+  }
+
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+
+  h3 {
+    font-family: var(--police);
+    font-weight: 900;
+    font-size: 16px;
+    margin: 18px 0 6px;
+  }
+
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--rouge-fonce); text-underline-offset: 2px; }
+  a:hover { color: var(--rouge); }
+
+  strong { font-weight: 900; }
+
+  .todo {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #ffe9a8;
+    border: 1px dashed var(--rouge-fonce);
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+
+  .back {
+    display: inline-block;
+    margin-top: 28px;
+    padding: 12px 20px;
+    background: var(--rouge);
+    color: #fff;
+    font-weight: 900;
+    text-decoration: none;
+    border: 3px solid var(--panneau-bord);
+    border-radius: 10px;
+    box-shadow: 0 4px 0 var(--rouge-fonce);
+  }
+
+  footer {
+    max-width: 720px;
+    margin: 22px auto 0;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(253, 243, 228, 0.66);
+  }
+  footer a { color: rgba(253, 243, 228, 0.9); }
+</style>
+</head>
+<body>
+
+<main class="sheet">
+  <p class="eyebrow">La ville est belle</p>
+  <h1>Mentions légales</h1>
+
+  <h2>Éditeur du site</h2>
+  <p>Le site <a href="https://la-ville-est-belle-pmc.fr">la-ville-est-belle-pmc.fr</a> est édité par Paul Mathieu Collin, artiste indépendant connu sous le nom de PMC.</p>
+  <p>
+    Adresse : <span class="todo">[ADRESSE_POSTALE à compléter]</span><br />
+    Contact : <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a><br />
+    Directeur de la publication : Paul Mathieu Collin
+  </p>
+
+  <h2>Hébergement</h2>
+  <p>Le site est hébergé par <strong>GitHub, Inc.</strong>, 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis — <a href="https://github.com" rel="noopener">github.com</a> (service GitHub Pages).</p>
+  <p>Le nom de domaine est enregistré auprès d'<strong>OVH SAS</strong>, 2 rue Kellermann, 59100 Roubaix, France — <a href="https://www.ovhcloud.com" rel="noopener">ovhcloud.com</a>.</p>
+  <p>La base de données du classement est hébergée par <strong>Supabase, Inc.</strong> — <a href="https://supabase.com" rel="noopener">supabase.com</a>. Région d'hébergement : <span class="todo">[RÉGION SUPABASE à vérifier dans le tableau de bord]</span>.</p>
+
+  <h2>Propriété intellectuelle</h2>
+  <p>L'ensemble des contenus du site (jeu vidéo, code source, graphismes, pixel art, musiques, textes, visuels, logos) est protégé par le Code de la propriété intellectuelle. Les musiques sont des œuvres de PMC, déclarées à la SACEM. Toute reproduction, représentation, adaptation ou exploitation, totale ou partielle, sans autorisation écrite préalable est interdite.</p>
+  <p>Le site est indépendant et n'est affilié ni à Spotify, ni à Instagram, Meta, TikTok, Apple ou Deezer. Les noms et logos de ces services appartiennent à leurs propriétaires respectifs.</p>
+
+  <h2>Politique de confidentialité</h2>
+
+  <h3>Données collectées</h3>
+  <p>Le site collecte, uniquement lorsque l'utilisateur enregistre un score : <strong>son pseudo public, son identifiant Instagram, son score et la version du jeu</strong>. <strong>Aucune adresse e-mail n'est collectée.</strong> Aucune donnée n'est collectée en jouant sans enregistrer de score, en dehors des données techniques décrites ci-dessous.</p>
+  <p>Le site enregistre également deux compteurs strictement <strong>anonymes</strong>, qui ne contiennent aucune donnée permettant d'identifier une personne : le nombre total de parties jouées et le nombre de clics sur le lien d'écoute du morceau.</p>
+
+  <h3>Finalités et bases légales</h3>
+  <ul>
+    <li>Classement du jeu-concours, désignation et contact du gagnant, prévention de la fraude : exécution du règlement du jeu-concours accepté par l'utilisateur.</li>
+    <li>Mesure anonyme de l'audience du jeu (compteurs de parties et de clics) : intérêt légitime de l'éditeur à connaître l'usage de son site, sans identification des personnes.</li>
+  </ul>
+
+  <h3>Durée de conservation</h3>
+  <p>Les données du classement sont conservées 3 mois après la fin du jeu-concours, puis supprimées. Les données du gagnant (identité, adresse postale de livraison) sont conservées le temps nécessaire à l'envoi du lot puis supprimées.</p>
+
+  <h3>Destinataires</h3>
+  <p>Les données sont accessibles uniquement à l'éditeur du site et à ses prestataires techniques (hébergement du site, hébergement de la base de données). Elles ne sont ni vendues, ni cédées.</p>
+  <p>Le pseudo public est visible de tous les visiteurs dans le classement du jeu. L'identifiant Instagram, lui, n'est jamais exposé publiquement : la vue de lecture du classement ne contient pas cette colonne.</p>
+
+  <h3>Vos droits</h3>
+  <p>Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité de vos données, ainsi que du droit de retirer votre consentement à tout moment. Pour l'exercer : <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a>. Vous pouvez également saisir la CNIL (<a href="https://www.cnil.fr" rel="noopener">cnil.fr</a>).</p>
+
+  <h3>Cookies et mesure d'audience</h3>
+  <p>Le site n'utilise <strong>aucun outil de mesure d'audience</strong> et ne dépose <strong>aucun cookie</strong>. Il utilise uniquement le stockage local du navigateur (<em>localStorage</em>) pour le fonctionnement du jeu : mémorisation du pseudo et de l'identifiant Instagram saisis, du nombre de parties jouées et de la progression dans le jeu. Ces informations restent sur l'appareil de l'utilisateur et peuvent être effacées à tout moment en vidant les données du site dans les réglages du navigateur. Aucun cookie publicitaire n'est déposé. Si un outil de mesure d'audience non exempté de consentement est ajouté, un bandeau de consentement sera mis en place conformément aux recommandations de la CNIL.</p>
+
+  <h2>Jeu-concours</h2>
+  <p>Le jeu-concours « La ville est belle » est régi par un règlement consultable à l'adresse <a href="../reglement/">la-ville-est-belle-pmc.fr/reglement</a>.</p>
+
+  <h2>Crédits</h2>
+  <p>Conception, code, musiques et visuels : PMC. <span class="todo">[Autres crédits à compléter : direction artistique, pixel art, etc.]</span></p>
+
+  <a class="back" href="../">← Retour au jeu</a>
+</main>
+
+<footer>
+  <a href="../reglement/">Règlement du jeu-concours</a> · <a href="../">Le jeu</a>
+</footer>
+
+</body>
+</html>

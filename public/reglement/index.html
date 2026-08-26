@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Règlement du jeu-concours — La ville est belle</title>
+<meta name="description" content="Règlement complet du jeu-concours « La ville est belle » de PMC : conditions de participation, lot, désignation du gagnant et données personnelles." />
+<link rel="icon" href="../favicon.png" />
+<link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+<style>
+  @font-face {
+    font-family: "Flawsome";
+    src: url("../fonts/Flawsome-Regular.ttf") format("truetype");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "Stage Grotesk";
+    src: url("../fonts/StageGrotesk-Medium.otf") format("opentype");
+    font-weight: 500; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "Stage Grotesk";
+    src: url("../fonts/StageGrotesk-Black.otf") format("opentype");
+    font-weight: 900; font-style: normal; font-display: swap;
+  }
+
+  /* Stage Grotesk dessine « et » comme deux chevrons simples très espacés :
+     lisible, mais ça passe pour un bug d'affichage dans un texte juridique.
+     unicode-range route CES DEUX caractères vers une fonte système, sans
+     toucher au reste du texte. Si aucun local() ne répond, on retombe sur
+     Stage Grotesk — l'aspect d'avant, jamais une case vide. */
+  @font-face {
+    font-family: "Guillemets";
+    src: local("Helvetica Neue"), local("Helvetica"), local("Arial"), local("Roboto");
+    unicode-range: U+00AB, U+00BB;
+  }
+
+  :root {
+    --rouge: #e13e26;
+    --rouge-fonce: #8f2415;
+    --panneau-fond: #fdf3e4;
+    --panneau-bord: #1a120c;
+    --police: "Guillemets", "Stage Grotesk", system-ui, sans-serif;
+    --titre: "Flawsome", "Guillemets", "Stage Grotesk", system-ui, sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding:
+      calc(20px + var(--safe-top)) 18px
+      calc(40px + var(--safe-bottom));
+    background: var(--panneau-bord);
+    color: var(--panneau-bord);
+    font-family: var(--police);
+    font-weight: 500;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .sheet {
+    max-width: 720px;
+    margin: 0 auto;
+    background: var(--panneau-fond);
+    border: 3px solid var(--panneau-bord);
+    border-radius: 14px;
+    box-shadow: 0 6px 0 var(--rouge-fonce);
+    padding: 26px 20px 30px;
+  }
+
+  .eyebrow {
+    margin: 0 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rouge);
+  }
+
+  h1 {
+    font-family: var(--titre);
+    font-weight: 400;
+    font-size: clamp(28px, 7vw, 40px);
+    line-height: 1.1;
+    margin: 0 0 10px;
+  }
+
+  h2 {
+    font-family: var(--titre);
+    font-weight: 400;
+    font-size: clamp(19px, 4.6vw, 23px);
+    line-height: 1.2;
+    margin: 30px 0 8px;
+    padding-top: 16px;
+    border-top: 2px solid rgba(26, 18, 12, 0.16);
+  }
+
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+
+  .maj {
+    margin: 0 0 22px;
+    font-size: 14px;
+    opacity: 0.72;
+  }
+
+  a { color: var(--rouge-fonce); text-underline-offset: 2px; }
+  a:hover { color: var(--rouge); }
+
+  strong { font-weight: 900; }
+
+  .todo {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #ffe9a8;
+    border: 1px dashed var(--rouge-fonce);
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+
+  .back {
+    display: inline-block;
+    margin-top: 28px;
+    padding: 12px 20px;
+    background: var(--rouge);
+    color: #fff;
+    font-weight: 900;
+    text-decoration: none;
+    border: 3px solid var(--panneau-bord);
+    border-radius: 10px;
+    box-shadow: 0 4px 0 var(--rouge-fonce);
+  }
+
+  footer {
+    max-width: 720px;
+    margin: 22px auto 0;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(253, 243, 228, 0.66);
+  }
+  footer a { color: rgba(253, 243, 228, 0.9); }
+</style>
+</head>
+<body>
+
+<main class="sheet">
+  <p class="eyebrow">La ville est belle</p>
+  <h1>Règlement du jeu-concours</h1>
+  <p class="maj">Règlement en vigueur à compter du 17 août 2026. Dernière mise à jour : 26 août 2026.</p>
+
+  <h2>Article 1 – Organisateur</h2>
+  <p>Le jeu-concours « La ville est belle » (ci-après « le Jeu ») est organisé par Paul Mathieu Collin, artiste indépendant connu sous le nom de PMC, domicilié <span class="todo">[ADRESSE_POSTALE à compléter]</span> (ci-après « l'Organisateur »), joignable à l'adresse <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a>.</p>
+  <p>Le Jeu n'est ni organisé, ni parrainé, ni soutenu par Spotify, Instagram, Meta, TikTok, Apple ou Deezer, qui n'ont aucune responsabilité dans son organisation.</p>
+
+  <h2>Article 2 – Objet du Jeu</h2>
+  <p>Le Jeu est un jeu vidéo en ligne de type « endless runner » accessible à l'adresse <a href="https://la-ville-est-belle-pmc.fr">la-ville-est-belle-pmc.fr</a>. Le joueur incarne un cycliste dans un Paris en pixel art et cumule un score. À l'issue de la période du Jeu, le participant ayant enregistré le meilleur score au classement remporte le lot décrit à l'article 6.</p>
+
+  <h2>Article 3 – Durée</h2>
+  <p>Le Jeu se déroule du 17 août 2026 à 00h00 au 11 octobre 2026 à 23h59 (heure de Paris). Seuls les scores enregistrés dans cette période sont pris en compte. L'Organisateur se réserve le droit de prolonger, écourter, suspendre ou annuler le Jeu en cas de force majeure, de problème technique ou de fraude avérée, sans que sa responsabilité puisse être engagée. Toute modification fera l'objet d'une mise à jour du présent règlement sur cette page.</p>
+
+  <h2>Article 4 – Conditions de participation</h2>
+  <p>4.1. Le Jeu est gratuit et sans obligation d'achat. Aucun achat, aucun abonnement payant, aucune contrepartie financière n'est nécessaire pour participer ou pour gagner.</p>
+  <p>4.2. Le Jeu est ouvert à toute personne physique résidant en France métropolitaine, Belgique, Suisse ou Luxembourg. Les personnes mineures peuvent participer sous réserve de l'accord préalable de leur représentant légal. L'Organisateur pourra demander une preuve écrite de cet accord avant la remise du lot.</p>
+  <p>4.3. Sont exclus du Jeu l'Organisateur, les personnes ayant participé au développement du Jeu, et les membres de leur famille proche.</p>
+  <p>4.4. La participation est strictement personnelle. Un participant ne peut enregistrer des scores que sous un seul pseudo et un seul identifiant Instagram. L'usage de plusieurs identités entraîne l'exclusion de tous les scores concernés.</p>
+  <p>4.5. Les frais de connexion à Internet et d'utilisation d'un appareil restent à la charge du participant.</p>
+
+  <h2>Article 5 – Modalités de participation</h2>
+  <p>5.1. Pour participer, le joueur se connecte à <a href="https://la-ville-est-belle-pmc.fr">la-ville-est-belle-pmc.fr</a>, joue une ou plusieurs parties, puis enregistre son score en renseignant un pseudo et un identifiant Instagram valide et en acceptant le présent règlement.</p>
+  <p>5.2. Le nombre de parties est illimité. Seul le meilleur score de chaque participant est conservé au classement.</p>
+  <p>5.3. L'identifiant Instagram sert uniquement à identifier le participant et à contacter le gagnant. Il n'est pas affiché publiquement et n'est pas exposé par le classement. Le pseudo, lui, est affiché dans le classement public. Tout pseudo injurieux, discriminatoire ou trompeur pourra être supprimé.</p>
+  <p>5.4. Le Jeu propose, lorsqu'une partie se termine, une possibilité de reprendre la partie en cours ou d'en relancer une après avoir visité la page Spotify de l'artiste. Cette option est <strong>gratuite</strong>, ne suppose aucun achat ni abonnement payant, et est proposée à tous les participants dans les mêmes conditions. Le participant reste libre de pré-sauvegarder ou non l'album et de suivre ou non l'artiste : <strong>aucune vérification n'est effectuée</strong>, seule la visite du lien est prise en compte, et aucune de ces actions n'est nécessaire pour participer au Jeu ni pour recevoir le lot.</p>
+  <p>5.5. <strong>Bonus « fan ».</strong> Le participant qui a ouvert au moins une fois le lien d'écoute du morceau depuis le Jeu bénéficie, pour ses parties suivantes, d'une majoration de 10 % des points de bonus ramassés. Cet avantage est gratuit, accessible à tout participant sans condition d'achat, d'abonnement payant ou d'inscription, en ouvrant simplement le lien depuis le Jeu. Il est mentionné ici parce qu'il influe sur le score et donc sur le classement.</p>
+  <p>5.6. <strong>Bonus « défi ».</strong> Le participant qui arrive sur le Jeu par un lien de défi envoyé par un autre joueur démarre sa partie avec un palier de combo d'avance. Cet avantage est lui aussi gratuit et sans condition d'achat.</p>
+  <p>5.7. Toute tentative de fraude, de triche, de modification du code du Jeu, d'utilisation de scripts, de bots ou de tout moyen automatisé, ou toute manipulation du classement, entraîne la disqualification immédiate du participant et la suppression de ses scores. L'Organisateur se réserve le droit de demander au gagnant potentiel une vidéo ou toute preuve raisonnable de sa partie avant la remise du lot.</p>
+
+  <h2>Article 6 – Lot</h2>
+  <p>6.1. Le lot mis en jeu est : <span class="todo">[DESCRIPTION_LOT à compléter]</span> — un exemplaire vinyle de l'EP « La ville est belle » de PMC —, d'une valeur commerciale indicative de <span class="todo">[VALEUR_LOT à compléter]</span>.</p>
+  <p>6.2. Le lot ne peut faire l'objet d'aucune contrepartie en espèces, ni d'aucun échange. En cas d'indisponibilité du lot, l'Organisateur pourra le remplacer par un lot de valeur équivalente.</p>
+  <p>6.3. Les frais d'envoi du lot vers la France métropolitaine, la Belgique, la Suisse et le Luxembourg sont pris en charge par l'Organisateur.</p>
+
+  <h2>Article 7 – Désignation du gagnant</h2>
+  <p>7.1. À l'issue de la période du Jeu, le participant ayant enregistré le meilleur score valide est désigné gagnant. En cas d'égalité, le score enregistré en premier chronologiquement l'emporte.</p>
+  <p>7.2. Le gagnant est contacté par message privé sur Instagram, à l'identifiant renseigné lors de l'enregistrement de son score, dans un délai de 15 jours après la fin du Jeu. Il dispose de 15 jours à compter de ce message pour confirmer son identité et communiquer une adresse postale de livraison. Sans réponse dans ce délai, ou en cas de non-respect du présent règlement, le lot est attribué au participant suivant au classement.</p>
+  <p>7.3. Le lot est expédié dans un délai de 60 jours après réception de l'adresse de livraison. L'Organisateur ne peut être tenu responsable des retards, pertes ou dommages imputables au transporteur.</p>
+  <p>7.4. Le résultat pourra être annoncé sur le site du Jeu et sur les réseaux sociaux de l'artiste, avec le pseudo du gagnant uniquement.</p>
+
+  <h2>Article 8 – Données personnelles</h2>
+  <p>8.1. Dans le cadre du Jeu, l'Organisateur collecte les données suivantes : <strong>pseudo public, identifiant Instagram, score et version du Jeu</strong>. Responsable du traitement : Paul Mathieu Collin, <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a>. Aucune adresse e-mail n'est collectée par le Jeu.</p>
+  <p>8.2. Finalités : gestion du classement, désignation et contact du gagnant, prévention de la fraude. Base légale : exécution du présent règlement (contrat) accepté par le participant.</p>
+  <p>8.3. Les données sont conservées 3 mois après la fin du Jeu, puis supprimées. Les données du gagnant (identité, adresse postale) sont conservées le temps nécessaire à l'envoi du lot puis supprimées.</p>
+  <p>8.4. Les données sont hébergées par Supabase (base de données du classement) et le site par GitHub Pages. Elles ne sont ni vendues, ni transmises à des tiers, à l'exception des prestataires techniques strictement nécessaires. Le détail des hébergeurs figure dans les <a href="../mentions-legales/">mentions légales</a>.</p>
+  <p>8.5. Conformément au Règlement (UE) 2016/679 (RGPD) et à la loi Informatique et Libertés, chaque participant dispose d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité de ses données, exerçable par e-mail à <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a>. Il peut également introduire une réclamation auprès de la CNIL (<a href="https://www.cnil.fr" rel="noopener">cnil.fr</a>).</p>
+
+  <h2>Article 9 – Responsabilité</h2>
+  <p>9.1. L'Organisateur met tout en œuvre pour assurer le bon fonctionnement du Jeu, mais ne peut garantir un accès ininterrompu ni l'absence de bugs. Il ne saurait être tenu responsable d'un dysfonctionnement du réseau Internet, de l'appareil du participant, d'un navigateur non compatible, d'une perte de score liée à un problème technique, ou de tout événement indépendant de sa volonté.</p>
+  <p>9.2. La participation au Jeu implique l'acceptation pleine et entière du présent règlement.</p>
+
+  <h2>Article 10 – Propriété intellectuelle</h2>
+  <p>Le Jeu, son code, ses graphismes, ses musiques et l'ensemble des éléments qui le composent sont protégés par le droit d'auteur et restent la propriété exclusive de Paul Mathieu Collin et de ses ayants droit. Toute reproduction ou exploitation non autorisée est interdite.</p>
+
+  <h2>Article 11 – Règlement et litiges</h2>
+  <p>Le présent règlement est consultable gratuitement à tout moment à l'adresse <a href="https://la-ville-est-belle-pmc.fr/reglement/">la-ville-est-belle-pmc.fr/reglement</a> et peut être adressé par e-mail sur simple demande à <a href="mailto:pmc.musiccc@gmail.com">pmc.musiccc@gmail.com</a>. Il est soumis au droit français. Toute contestation doit être adressée par e-mail à l'Organisateur dans un délai de 30 jours après la fin du Jeu. À défaut d'accord amiable, les tribunaux français sont compétents.</p>
+
+  <a class="back" href="../">← Retour au jeu</a>
+</main>
+
+<footer>
+  <a href="../mentions-legales/">Mentions légales</a> · <a href="../">Le jeu</a>
+</footer>
+
+</body>
+</html>
