@@ -973,17 +973,8 @@ function closePauseMenu() {
 const pseudoInput = document.getElementById("pseudo-input");
 const instaInput = document.getElementById("insta-input");
 const pseudoNext = document.getElementById("pseudo-next");
-const reglementCheck = document.getElementById("reglement-check");
-
-// Acceptation du règlement du concours. Mémorisée pour ne la demander qu'une
-// fois — mais l'absence de cette clé REDONNE l'étape 1 à un joueur pourtant
-// connu (voir identiteConnue plus bas) : les joueurs arrivés avant la mise en
-// ligne du règlement ont un pseudo en mémoire et n'ont jamais rien accepté.
-const CLE_REGLEMENT = "reglementAccepte";
-
 function cleanPseudo() { return pseudoInput.value.trim(); }
 function cleanInsta() { return instaInput.value.trim().replace(/^@+/, ""); }
-function reglementAccepte() { return localStorage.getItem(CLE_REGLEMENT) === "1"; }
 
 export function getPseudo() { return cleanPseudo(); }
 export function getInsta() { return cleanInsta(); }
@@ -995,11 +986,7 @@ function syncPseudoStep() {
   // seul au classement ne suffit pas). On bloque l'étape plutôt que de
   // laisser jouer puis de découvrir un score orphelin au moment de remettre
   // le lot.
-  // Le règlement s'ajoute aux deux champs : un lot est en jeu, on ne peut pas
-  // enregistrer un score au concours sans que le joueur ait accepté ses
-  // conditions. Case jamais pré-cochée (index.html) — consentement explicite.
-  pseudoNext.disabled =
-    cleanPseudo().length === 0 || cleanInsta().length === 0 || !reglementCheck.checked;
+  pseudoNext.disabled = cleanPseudo().length === 0 || cleanInsta().length === 0;
 }
 
 // --- Classement (étape 7) --------------------------------------------------
@@ -1342,7 +1329,6 @@ export function init(d) {
 
   pseudoInput.value = localStorage.getItem("pseudoJoueur") || "";
   instaInput.value = localStorage.getItem("pseudoInsta") || "";
-  reglementCheck.checked = reglementAccepte();
   syncPseudoStep();
 
   // ⚠️ Retour d'un joueur connu (21 août 2026, demandé : « quand les gens
@@ -1351,8 +1337,7 @@ export function init(d) {
   // directement sur « JOUER ». Un lien discret permet de changer d'identité
   // (téléphone prêté) — voir changePseudo ci-dessous. En navigation privée,
   // localStorage est vide : le nouveau venu garde le parcours complet.
-  const identiteConnue =
-    cleanPseudo().length > 0 && cleanInsta().length > 0 && reglementAccepte();
+  const identiteConnue = cleanPseudo().length > 0 && cleanInsta().length > 0;
   if (identiteConnue) {
     changePseudoBtn.textContent = `Pas ${cleanPseudo()} ? Modifier`;
     changePseudoBtn.classList.remove("hidden");
@@ -1433,19 +1418,9 @@ export function init(d) {
     localStorage.setItem("pseudoInsta", cleanInsta());
     syncPseudoStep();
   });
-  reglementCheck.addEventListener("change", () => {
-    // Décocher retire le consentement : la clé disparaît, on ne garde pas la
-    // trace d'une acceptation que le joueur vient de reprendre.
-    if (reglementCheck.checked) localStorage.setItem(CLE_REGLEMENT, "1");
-    else localStorage.removeItem(CLE_REGLEMENT);
-    syncPseudoStep();
-  });
   // Empêche la frappe/le focus de fuiter vers les gestes de jeu (swipes),
   // même traitement que les autres contrôles superposés au canvas.
-  // La case du règlement est superposée au canvas comme les champs : sans ce
-  // garde, la cocher partirait aussi en swipe. stopPropagation n'empêche pas
-  // la case de basculer (c'est l'action par défaut, pas la remontée).
-  [pseudoInput, instaInput, document.getElementById("reglement-row")].forEach((el) => {
+  [pseudoInput, instaInput].forEach((el) => {
     ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((type) => {
       el.addEventListener(type, (e) => e.stopPropagation());
     });
