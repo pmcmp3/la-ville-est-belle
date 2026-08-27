@@ -222,8 +222,11 @@ export function showOverlay() {
 // Les DEUX boutons passent par exactement la même porte — c'est le point de
 // la demande — et cette porte est un TIROIR qui se soulève d'en bas
 // (#gate-sheet), avec l'échelle à trois paliers :
-//   "presave" — album jamais pré-sauvegardé : le CTA est CONFIG.lienPresave ;
-//   "suivre"  — pré-sauvegardé mais pas encore abonné : CTA CONFIG.lienSuivre ;
+//   "presave" — album jamais ouvert : le CTA est CONFIG.lienAlbum. ⚠️ La clé
+//               garde son nom d'origine (elle datait de la pré-sauvegarde),
+//               mais depuis le 28 août 2026 — jour de la sortie — la demande
+//               est « écoute l'album et ajoute-le à ta bibliothèque » ;
+//   "suivre"  — album ouvert mais pas encore abonné : CTA CONFIG.lienSuivre ;
 //   "libre"   — les deux paliers sont franchis : le tiroir ne s'ouvre PLUS
 //               JAMAIS, les deux actions partent au premier tap.
 // Le même tiroir garde REJOUER sur l'écran de fin : sans ça la porte de la
@@ -417,17 +420,17 @@ function gateTextes(action, niveau) {
   const presave = niveau === "presave";
   return {
     eyebrow: continuer ? "POUR CONTINUER TA PARTIE" : "POUR REJOUER",
-    titre: presave ? "Pré-sauvegarde l'album" : "Abonne-toi à PMC",
+    titre: presave ? "Ajoute l'album à ta bibliothèque" : "Abonne-toi à PMC",
     prefixe: presave
       ? (continuer
-        ? "Pré-sauvegarde l'album de PMC sur Spotify et reprends ta course avec tes "
-        : "Pré-sauvegarde l'album de PMC sur Spotify pour relancer une course. Score en cours : ")
+        ? "L'album est sorti : écoute-le et ajoute-le à ta bibliothèque, puis reprends ta course avec tes "
+        : "L'album est sorti : écoute-le et ajoute-le à ta bibliothèque pour relancer une course. Score en cours : ")
       : (continuer
         ? "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Tu reprends avec tes "
         : "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Score en cours : "),
-    ctaLabel: presave ? "PRÉ-SAUVEGARDER L'ALBUM" : "S'ABONNER À PMC",
+    ctaLabel: presave ? "ÉCOUTER L'ALBUM" : "S'ABONNER À PMC",
     href: presave
-      ? (window.CONFIG.lienPresave || window.CONFIG.lienEP)
+      ? (window.CONFIG.lienAlbum || window.CONFIG.lienEP)
       : (window.CONFIG.lienSuivre || window.CONFIG.lienEP),
     goLabel: continuer ? "CONTINUER MA PARTIE" : "REJOUER",
   };
@@ -471,7 +474,7 @@ function gatePhaseAbsence() {
   if (!gateEtat) return;
   gateEtat.phase = "absence";
   decompteGate.cacher();
-  gateTitle.textContent = gateEtat.niveau === "presave" ? "Album pré-sauvegardé, merci !" : "Abonnement enregistré, merci !";
+  gateTitle.textContent = gateEtat.niveau === "presave" ? "Bonne écoute, merci !" : "Abonnement enregistré, merci !";
   gateText.textContent = "Reviens dans le jeu quand tu veux — c'est débloqué.";
   gateCta.classList.add("hidden");
   gateGo.classList.remove("hidden");

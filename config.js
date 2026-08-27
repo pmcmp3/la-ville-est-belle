@@ -125,15 +125,19 @@ window.CONFIG = {
 
   // === LIENS ===
   lienEP: "https://li.sten.to/la-ville-est-belle", // "Ajouter le morceau" — smartlink fourni par l'artiste (remplace le linktr.ee)
-  // ⚠️ PREMIER PALIER DE CONVERSION (23 août 2026, demandé : « tu dois
-  // d'abord pré-sauvegarder l'album de PMC sur Spotify »). Séparé de lienEP
-  // pour que l'artiste puisse y coller le VRAI lien de pré-sauvegarde de
-  // l'album sans toucher au smartlink du morceau, qui reste utilisé partout
-  // ailleurs (écran de fin, CTA flottant, bandeau « Tu écoutes »).
-  // ⚠️ Tant qu'il vaut la même URL que lienEP, le palier « pré-sauvegarde »
-  // envoie sur le smartlink du morceau — fonctionnel, mais ce n'est PAS une
-  // pré-sauvegarde d'album : à remplacer dès que le lien existe.
-  lienPresave: "https://li.sten.to/la-ville-est-belle",
+  // ⚠️ PREMIER PALIER DE CONVERSION. Posé le 23 août 2026 en PRÉ-SAUVEGARDE
+  // (« tu dois d'abord pré-sauvegarder l'album de PMC sur Spotify »), devenu
+  // un AJOUT À LA BIBLIOTHÈQUE le 28 août 2026 : l'album est sorti (Apple
+  // Music et Deezer le matin, Spotify une heure plus tard), il n'y a plus rien
+  // à pré-sauvegarder — on demande maintenant d'aller l'écouter et de
+  // l'ajouter, ce qui est ce que comptent vraiment les plateformes (sauvegarde
+  // + écoute, pas une promesse).
+  // ⚠️ Ce lien doit pointer vers l'ALBUM (page de sortie), pas vers le
+  // pré-save : la campagne Feature.fm (li.sten.to) bascule d'elle-même de
+  // « Pre-save » à « Écouter » à la date de sortie renseignée dans le
+  // tableau de bord — si la page affiche encore « Pre-save », c'est la date
+  // qui est à corriger côté Feature.fm, pas ici.
+  lienAlbum: "https://li.sten.to/la-ville-est-belle",
   // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).

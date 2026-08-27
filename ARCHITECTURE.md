@@ -2019,8 +2019,11 @@ exactement les mêmes conditions. L'idée c'est de la transformation. »
 pose le choix (`CONTINUER LA PARTIE` / `REJOUER` / « Voir mon score ») et garde son décompte de
 10 s. Les deux boutons — plus `REJOUER` de l'écran de fin — passent par un point d'entrée unique,
 `exigerConversion()` (screens.js), qui ouvre le tiroir `#gate-sheet` si un palier reste à
-franchir et laisse partir l'action sinon. Trois paliers : `presave` (`config.lienPresave`, NOUVEAU
-réglage) → `suivre` (`config.lienSuivre`) → `libre` (le tiroir ne s'ouvre plus jamais). Clés
+franchir et laisse partir l'action sinon. Trois paliers : `presave` (`config.lienAlbum`) →
+`suivre` (`config.lienSuivre`) → `libre` (le tiroir ne s'ouvre plus jamais). ⚠️ Le palier
+`presave` demandait une PRÉ-SAUVEGARDE jusqu'au 28 août 2026 ; depuis la sortie de l'album il
+demande de l'ÉCOUTER et de l'AJOUTER (même clé de palier, même clé `localStorage`, seul le
+libellé et `lienPresave` → `lienAlbum` ont changé). Clés
 `localStorage` inchangées (`morceauOuvert`, `pmcSuivi`) : personne n'est remis à zéro.
 
 **Le tiroir reprend la machine à phases écrite le 22 août pour la carte de mort** (demande →

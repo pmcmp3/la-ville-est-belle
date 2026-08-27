@@ -230,15 +230,22 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   - **Les DEUX boutons passent par exactement la même porte** — c'est tout le point de la
     demande — et cette porte est un **tiroir qui se soulève d'en bas** (`#gate-sheet`,
     `ouvrirGate`/`exigerConversion` dans `screens.js`), avec l'échelle à trois paliers :
-    `"presave"` (album jamais pré-sauvegardé → CTA `config.lienPresave`) → `"suivre"`
-    (pré-sauvegardé, pas encore abonné → CTA `config.lienSuivre`) → `"libre"` (les deux faits :
+    `"presave"` (album jamais ouvert → CTA `config.lienAlbum`) → `"suivre"`
+    (album ouvert, pas encore abonné → CTA `config.lienSuivre`) → `"libre"` (les deux faits :
     **le tiroir ne s'ouvre plus jamais**, les deux actions partent au premier tap).
   - **`REJOUER` de l'écran de fin passe par la même porte.** Sans ça elle se contournerait en un
     tap (« Voir mon score » puis REJOUER) et ne demanderait plus rien à personne.
-  - ⚠️ **`config.lienPresave` est un NOUVEAU réglage**, séparé de `lienEP` pour que le vrai lien
-    de pré-sauvegarde de l'album puisse y être collé sans toucher au smartlink du morceau. Tant
-    qu'il vaut la même URL, le palier 1 envoie sur le smartlink du morceau — fonctionnel, mais
-    **ce n'est pas une pré-sauvegarde d'album** : à remplacer dès que le lien existe.
+  - ⚠️ **PALIER 1 : PRÉ-SAUVEGARDE → ÉCOUTE, LE 28 AOÛT 2026** (jour de la SORTIE de l'album —
+    Apple Music et Deezer le matin, Spotify une heure plus tard). Il n'y a plus rien à
+    pré-sauvegarder : le tiroir demande désormais « Ajoute l'album à ta bibliothèque », CTA
+    **ÉCOUTER L'ALBUM** vers `config.lienAlbum` (ex-`lienPresave`, renommé le même jour). La
+    clé de palier reste `"presave"` en interne et la clé `localStorage` reste `morceauOuvert` :
+    personne n'est remis à zéro, et l'overlay `?debug` continue d'afficher `conversion=presave`.
+    ⚠️ `lienAlbum` doit pointer vers la page de SORTIE : la campagne Feature.fm (`li.sten.to`)
+    bascule d'elle-même de « Pre-save » à « Écouter » à la date de sortie renseignée dans son
+    tableau de bord — si la page montre encore « Pre-save », c'est cette date qu'il faut
+    corriger côté Feature.fm, pas l'URL ici (vérifié le 28 août : la page servait encore trois
+    boutons « Pre-save » Spotify/Apple/Deezer dix minutes après la sortie).
   - ⚠️ **Le tiroir N'EXPIRE PAS** (mesuré au banc d'essai, sur un premier jet qui lui donnait sa
     propre fenêtre de 10 s) : la fenêtre courait pendant que le joueur LISAIT la demande,
     expirait, rendait la main à la carte de mort dont le décompte reprenait — et le jetait sur
@@ -264,7 +271,7 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     VÉRIFICATION, pas de gameplay. Motif : l'artiste a cliqué ses propres liens des dizaines de
     fois en testant, son navigateur le classe donc « libre » et le tiroir ne s'ouvre plus jamais
     chez lui — d'où « la clause a sauté » alors que le tunnel tourne pour tout joueur neuf
-    (vérifié bout en bout le 24 août : palier 1 → `lienPresave` + boost fan, palier 2 →
+    (vérifié bout en bout le 24 août : palier 1 → `lienAlbum` + boost fan, palier 2 →
     `lienSuivre`, sur CONTINUER comme sur REJOUER, carte de mort comme écran de fin). Ne touche
     QUE les deux clés de conversion : pseudo, insta et `partiesJouees` sont conservés.
   - ⚠️ **RENVERSEMENT ASSUMÉ** du « rejouer est toujours gratuit » posé plus tôt le même jour
