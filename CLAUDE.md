@@ -246,6 +246,17 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     tableau de bord — si la page montre encore « Pre-save », c'est cette date qu'il faut
     corriger côté Feature.fm, pas l'URL ici (vérifié le 28 août : la page servait encore trois
     boutons « Pre-save » Spotify/Apple/Deezer dix minutes après la sortie).
+  - ⚠️ **NOUVEAU SMARTLINK LE 28 AOÛT 2026** : l'ancienne campagne
+    (`li.sten.to/la-ville-est-belle`) est restée bloquée en pré-sauvegarde après la sortie.
+    Refaite sous **`li.sten.to/la-ville-est-belle-pmc`**, en mode sortie, avec Spotify → Deezer
+    → Apple Music en tête. `lienEP` ET `lienAlbum` pointent tous les deux dessus. ⚠️ Chez
+    Feature.fm, **RÉORDONNER les services est payant, les DÉSACTIVER est gratuit** : c'est en
+    coupant TIDAL/YouTube Music/etc. qu'on garde les trois plateformes voulues en tête, jamais
+    en passant au plan Pro.
+  - ⚠️ **« L'album est sorti » vit sur le CTA flottant du MENU** (`#cta-link`, ex-« Écouter le
+    morceau ») : seule ligne vue par 100 % des joueurs, avant même d'appuyer sur JOUER. Le
+    bouton secondaire de l'écran de fin dit « ÉCOUTER L'ALBUM » (ex-« AJOUTER LE MORCEAU ») et
+    le bandeau de palier en course « l'album t'attend à l'arrivée ».
   - ⚠️ **Le tiroir N'EXPIRE PAS** (mesuré au banc d'essai, sur un premier jet qui lui donnait sa
     propre fenêtre de 10 s) : la fenêtre courait pendant que le joueur LISAIT la demande,
     expirait, rendait la main à la carte de mort dont le décompte reprenait — et le jetait sur

@@ -124,7 +124,14 @@ window.CONFIG = {
   // Hors fenêtre : le jeu reste jouable, mais le score n'est pas comptabilisé au classement.
 
   // === LIENS ===
-  lienEP: "https://li.sten.to/la-ville-est-belle", // "Ajouter le morceau" — smartlink fourni par l'artiste (remplace le linktr.ee)
+  // Smartlink de l'EP (Feature.fm / li.sten.to). ⚠️ CHANGÉ LE 28 AOÛT 2026,
+  // jour de la sortie : l'ancienne URL (`.../la-ville-est-belle`) est restée
+  // bloquée sur la page de PRÉ-SAUVEGARDE après la sortie (vérifié : trois
+  // boutons « Pre-save » dix minutes après). La campagne a été refaite sous
+  // `-pmc`, en mode sortie, avec Spotify / Deezer / Apple Music en tête —
+  // l'ordre d'affichage se paie chez Feature.fm, mais DÉSACTIVER les autres
+  // services est gratuit : c'est comme ça que les trois restent en tête.
+  lienEP: "https://li.sten.to/la-ville-est-belle-pmc",
   // ⚠️ PREMIER PALIER DE CONVERSION. Posé le 23 août 2026 en PRÉ-SAUVEGARDE
   // (« tu dois d'abord pré-sauvegarder l'album de PMC sur Spotify »), devenu
   // un AJOUT À LA BIBLIOTHÈQUE le 28 août 2026 : l'album est sorti (Apple
@@ -137,7 +144,7 @@ window.CONFIG = {
   // « Pre-save » à « Écouter » à la date de sortie renseignée dans le
   // tableau de bord — si la page affiche encore « Pre-save », c'est la date
   // qui est à corriger côté Feature.fm, pas ici.
-  lienAlbum: "https://li.sten.to/la-ville-est-belle",
+  lienAlbum: "https://li.sten.to/la-ville-est-belle-pmc",
   // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).

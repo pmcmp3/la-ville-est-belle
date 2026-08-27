@@ -2254,7 +2254,7 @@
           <div id="end-actions">
             <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
             <a id="end-cta" class="btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">
-              <span>AJOUTER LE MORCEAU</span>
+              <span>ÉCOUTER L'ALBUM</span>
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
                 <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
@@ -2264,7 +2264,7 @@
             <!-- Boost fan : annoncé tant que le joueur n'a pas ajouté le
                  morceau — la conversion est récompensée (+10 % de score),
                  pas seulement exigée. -->
-            <p id="fan-note" class="hidden">Ajoute le morceau : +10 % de score sur toutes tes courses (boost fan)</p>
+            <p id="fan-note" class="hidden">Ajoute l'album : +10 % de score sur toutes tes courses (boost fan)</p>
             <!-- PARTAGER MON SCORE retiré le 23 août 2026 (« tout le monde
                  s'en fout, tu laisses défier un ami prendre toute la
                  place ») — share.js reste sur le disque mais n'est plus
@@ -2310,7 +2310,10 @@
          le clic (demandé : « il faut que tu mettes une icône à droite, à
          l'intérieur du bouton »). -->
     <a id="cta-link" href="#" target="_blank" rel="noopener noreferrer">
-      <span>Écouter le morceau</span>
+      <!-- ⚠️ 28 août 2026, jour de la sortie : ce CTA flottant est la seule
+           ligne que 100 % des joueurs voient, avant même d'appuyer sur JOUER.
+           C'est donc là qu'on annonce la sortie, pas sur l'écran de fin. -->
+      <span>L'album est sorti</span>
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
         <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>

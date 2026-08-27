@@ -189,7 +189,7 @@ export function renderMilestone(ctx, width, height, game) {
   // sans explication ne se lisait pas comme une récompense. Le PALIER devient
   // le titre, le chiffre passe en sous-titre.
   const texteHaut = "PREMIER PALIER ACTIVÉ !";
-  const texteBas = "le morceau t'attend à l'arrivée";
+  const texteBas = "l'album t'attend à l'arrivée";
   // Âge du bandeau depuis son apparition (0 → milestoneDuree), pour
   // l'animation d'entrée ; le fondu de sortie lit le timer directement.
   const age = (game.milestoneDuree || 4) - game.milestoneTimer;
