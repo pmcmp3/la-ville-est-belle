@@ -595,6 +595,36 @@
       transform: translateY(0);
     }
 
+    /* --- Responsive des tiroirs (28 août 2026) --------------------------
+       Le jeu est portrait natif, mais il se joue aussi au navigateur de
+       bureau : un tiroir en `left:0;right:0` y occupait TOUTE la largeur de
+       l'écran (« ça prend l'ensemble de l'écran, c'est pas très digeste »).
+       Deux corrections, valables pour les deux tiroirs du jeu :
+         1. une largeur max, centrée — le tiroir garde le gabarit d'un
+            téléphone quelle que soit la fenêtre ;
+         2. au-delà de 700 px de large ET 600 px de haut, il se DÉCOLLE du bas
+            et devient une carte flottante à coins arrondis. L'animation ne
+            change pas (translateY(105%) le sort toujours de l'écran), donc
+            rien à revérifier côté transition. */
+    #gate-card,
+    #leaderboard-sheet-card {
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 700px) and (min-height: 600px) {
+      #gate-card,
+      #leaderboard-sheet-card {
+        bottom: 28px;
+        border-radius: 22px;
+        border-bottom: 2px solid var(--panneau-bord);
+        padding-bottom: 22px;
+      }
+
+      #gate-card { max-height: min(84vh, 760px); }
+      #leaderboard-sheet-card { max-height: min(78vh, 720px); }
+    }
+
     /* Surtitre : il dit CE QUE le tiroir débloque (« pour continuer ta
        partie » / « pour rejouer »), pour que la demande ne soit jamais lue
        comme un péage posé au hasard. */

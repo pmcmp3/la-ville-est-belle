@@ -144,7 +144,10 @@ window.CONFIG = {
   // n'existe pas côté Supabase (migration supabase-migration-clic-plateforme.sql).
   // Envoyer un champ inconnu ferait échouer l'insert et on perdrait le compteur
   // global de clics, qui marche aujourd'hui — d'où l'interrupteur.
-  compteurPlateformes: false,
+  // ✅ Passé à `true` le 28 août 2026 : la table `clics_ep` ET sa colonne
+  // `plateforme` existent bien côté Supabase (vérifié par lecture de la table,
+  // 1 ligne enregistrée à 00:16:59 — le clic de test sur YouTube Music).
+  compteurPlateformes: true,
   // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).
