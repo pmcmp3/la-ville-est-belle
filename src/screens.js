@@ -50,7 +50,8 @@ const loadingFill = document.getElementById("loading-fill");
 const loadingLabel = document.getElementById("loading-label");
 const ctaLink = document.getElementById("cta-link");
 // Même lien, deux emplacements : le CTA flottant (menu) et l'action principale
-// de la carte de fin. C'est toujours config.js qui fait foi (lienEP).
+// de la carte de fin. Depuis le 28 août 2026 ils n'ont plus de href : ils
+// ouvrent le panneau de plateformes (ouvrirEcoute), seul chemin vers l'album.
 const endCta = document.getElementById("end-cta");
 const fanNote = document.getElementById("fan-note");
 const runsCount = document.getElementById("runs-count");
@@ -230,7 +231,7 @@ export function showOverlay() {
 // Les DEUX boutons passent par exactement la même porte — c'est le point de
 // la demande — et cette porte est un TIROIR qui se soulève d'en bas
 // (#gate-sheet), avec l'échelle à trois paliers :
-//   "presave" — album jamais ouvert : le CTA est CONFIG.lienAlbum. ⚠️ La clé
+//   "presave" — album jamais ouvert : le panneau de plateformes. ⚠️ La clé
 //               garde son nom d'origine (elle datait de la pré-sauvegarde),
 //               mais depuis le 28 août 2026 — jour de la sortie — la demande
 //               est « écoute l'album et ajoute-le à ta bibliothèque » ;
@@ -424,6 +425,21 @@ function gateRetourDelai() {
 // Le surtitre dit CE QUE la demande débloque, le titre dit L'ACTION à faire —
 // jamais l'inverse, sans quoi la demande se lit comme un péage posé au hasard.
 function gateTextes(action, niveau) {
+  // ⚠️ « ecouter » n'est PAS un péage : c'est le même panneau de plateformes,
+  // ouvert depuis le CTA du menu ou de l'écran de fin, sans rien conditionner
+  // (28 août 2026 — le smartlink li.sten.to a été retiré du jeu, le panneau
+  // est devenu le seul chemin vers l'album, gratuit comme payant).
+  if (action === "ecouter") {
+    return {
+      eyebrow: "L'ALBUM EST SORTI",
+      titre: "Ouvre l'album de PMC",
+      prefixe: "Choisis ta plateforme — et ajoute l'album à ta bibliothèque, c'est ce qui compte vraiment pour lui.",
+      sansScore: true,
+      ctaLabel: "",
+      href: "#",
+      goLabel: "FERMER",
+    };
+  }
   const continuer = action === "continuer";
   const presave = niveau === "presave";
   return {
@@ -437,9 +453,13 @@ function gateTextes(action, niveau) {
         ? "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Tu reprends avec tes "
         : "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Score en cours : "),
     ctaLabel: presave ? "ÉCOUTER L'ALBUM" : "S'ABONNER À PMC",
+    // ⚠️ Le palier 1 n'utilise plus ce href : il affiche le panneau de
+    // plateformes. Il ne sert que de repli si CONFIG.plateformesAlbum est vide
+    // — et dans ce cas la première plateforme fait office de destination
+    // unique, faute de smartlink (retiré du jeu le 28 août 2026).
     href: presave
-      ? (window.CONFIG.lienAlbum || window.CONFIG.lienEP)
-      : (window.CONFIG.lienSuivre || window.CONFIG.lienEP),
+      ? ((plateformes()[0] || {}).url || "#")
+      : (window.CONFIG.lienSuivre || "#"),
     goLabel: continuer ? "CONTINUER MA PARTIE" : "REJOUER",
   };
 }
@@ -544,6 +564,16 @@ function cacherPlateformes() {
   gateHint.classList.add("hidden");
 }
 
+// Panneau d'écoute libre : le CTA flottant du menu et le bouton secondaire de
+// l'écran de fin ouvrent CE panneau (28 août 2026, demandé : « on enlève le
+// lien du jeu puisque c'est toi qui gères tous les liens »). Plus aucun
+// smartlink dans le jeu : un seul endroit décrit où écouter l'album, et c'est
+// CONFIG.plateformesAlbum.
+export function ouvrirEcoute() {
+  if (!plateformes().length) return;
+  ouvrirGate({ action: "ecouter", niveauForce: "presave", onUnlocked: null, onCancel: null });
+}
+
 // ⚠️ Point d'entrée UNIQUE des deux actions : elles franchissent exactement
 // les mêmes paliers, et « libre » les laisse toutes les deux partir au premier
 // tap. Toute nouvelle action qui doit se mériter passe par ici, jamais par un
@@ -553,13 +583,17 @@ function exigerConversion({ action, score, onOk, onCancel }) {
   ouvrirGate({ action, score, onUnlocked: onOk, onCancel });
 }
 
-function ouvrirGate({ action, score, onUnlocked, onCancel }) {
-  const niveau = niveauConversion();
+function ouvrirGate({ action, score, onUnlocked, onCancel, niveauForce }) {
+  // niveauForce : le panneau « ecouter » montre TOUJOURS les plateformes, même
+  // chez quelqu'un qui en est au palier « suivre » — ce n'est pas un péage,
+  // c'est un raccourci vers l'album.
+  const niveau = niveauForce || niveauConversion();
   const t = gateTextes(action, niveau);
   gateEtat = { action, onUnlocked, onCancel, niveau, phase: "demande" };
   gateEyebrow.textContent = t.eyebrow;
   gateTitle.textContent = t.titre;
-  poserTexteScore(gateText, t.prefixe, score);
+  if (t.sansScore) gateText.textContent = t.prefixe;
+  else poserTexteScore(gateText, t.prefixe, score);
   gateCtaLabel.textContent = t.ctaLabel;
   gateCta.href = t.href;
   gateCta.target = "_blank";
@@ -573,7 +607,9 @@ function ouvrirGate({ action, score, onUnlocked, onCancel }) {
   gateGo.textContent = t.goLabel;
   gateGo.classList.add("hidden");
   gateGo.classList.add("locked");
-  gateLater.textContent = "Plus tard";
+  // « Plus tard » quand il y a une demande à repousser ; « Fermer » quand le
+  // panneau est ouvert librement depuis le menu ou l'écran de fin.
+  gateLater.textContent = action === "ecouter" ? "Fermer" : "Plus tard";
   // Le décompte n'apparaît qu'au RETOUR de Spotify (5-4-3-2-1) : en phase de
   // demande, rien ne court (voir la note ci-dessus).
   decompteGate.cacher();
@@ -592,7 +628,9 @@ function gatePhaseAbsence() {
   // peut pas savoir, et il ne conditionne rien dessus. Elle est là parce
   // qu'elle rattrape ceux qui ont ouvert l'album et oublié le geste.
   gateTitle.textContent = gateEtat.niveau === "presave" ? "Tu l'as ajouté ? Merci !" : "Abonnement enregistré, merci !";
-  gateText.textContent = "Reviens dans le jeu quand tu veux — c'est débloqué.";
+  gateText.textContent = gateEtat.action === "ecouter"
+    ? "Reviens dans le jeu quand tu veux."
+    : "Reviens dans le jeu quand tu veux — c'est débloqué.";
   cacherPlateformes();
   gateCta.classList.add("hidden");
   gateGo.classList.remove("hidden");
@@ -627,10 +665,12 @@ function gatePhasePret() {
   decompteGate.cacher();
   audio.setReviveIntensity(1); // la boucle est en clair : la course peut repartir
   cacherPlateformes();
-  gateTitle.textContent = "C'est reparti !";
+  gateTitle.textContent = gateEtat.action === "ecouter" ? "Merci !" : "C'est reparti !";
   gateText.textContent = gateEtat.action === "continuer"
     ? "Ta course t'attend — reprends quand tu es prêt."
-    : "Nouvelle course, quand tu veux.";
+    : gateEtat.action === "ecouter"
+      ? "Bonne écoute."
+      : "Nouvelle course, quand tu veux.";
   gateCta.classList.add("hidden");
   gateGo.classList.remove("hidden");
   gateGo.classList.remove("locked");
@@ -1376,10 +1416,19 @@ export function showEndScreen(reason) {
 export function init(d) {
   deps = d;
 
-  ctaLink.href = window.CONFIG.lienEP;
-  endCta.href = window.CONFIG.lienEP;
+  // ⚠️ PLUS AUCUN SMARTLINK DANS LE JEU (28 août 2026) : ces deux CTA
+  // n'ouvrent plus li.sten.to, ils ouvrent le panneau de plateformes — le
+  // même que le tiroir de conversion. Un seul endroit décrit où écouter
+  // l'album (CONFIG.plateformesAlbum), et un tap de moins pour le joueur.
+  [ctaLink, endCta].forEach((lien) => {
+    lien.removeAttribute("href");
+    lien.removeAttribute("target");
+    lien.removeAttribute("rel");
+    lien.setAttribute("role", "button");
+    lien.addEventListener("click", (e) => { e.preventDefault(); ouvrirEcoute(); });
+  });
   // Instagram de l'artiste sur l'écran de fin (config.js fait foi, comme
-  // pour lienEP/lienSuivre).
+  // pour lienSuivre).
   instaLink.href = window.CONFIG.lienInsta;
 
   // Défi reçu par lien : le bandeau se pose une fois pour toutes au menu.
@@ -1490,21 +1539,12 @@ export function init(d) {
   });
 
   // Le lien du morceau lève le verrou de rejeu (et donne le boost fan), sur
-  // TOUS les emplacements — carte de fin, CTA flottant du menu, bandeau
-  // « Tu écoutes » : le geste compte, d'où qu'il vienne.
-  [endCta, ctaLink].forEach((lien) => lien.addEventListener("click", marquerMorceauOuvert));
-
-  // Tracking du clic (23 août 2026, voir net.postClicEP) : mesurer le taux
-  // jeu → smartlink sans dépendre du tableau de bord li.sten.to, qui ne voit
-  // que ses propres visites, jamais d'où elles viennent. ⚠️ Seulement si le
-  // lien pointe VRAIMENT vers lienEP au clic — reviveCta peut aussi pointer
-  // vers lienSuivre (palier « suivre » de la carte de mort), un funnel
-  // différent qu'on ne veut pas mélanger dans ce compteur.
-  [endCta, ctaLink, reviveCta].forEach((lien) => {
-    lien.addEventListener("click", () => {
-      if (lien.href === window.CONFIG.lienEP) net.postClicEP();
-    });
-  });
+  // ⚠️ Le boost fan (+10 %) et le comptage des clics ne sont PLUS posés sur ces
+  // deux boutons depuis le 28 août 2026 : ils n'ouvrent qu'un panneau, ils ne
+  // mènent nulle part. Les deux se donnent maintenant au clic sur une
+  // PLATEFORME (voir construirePlateformes), c'est-à-dire au moment où le
+  // joueur part vraiment vers l'album — d'où qu'il vienne, panneau libre ou
+  // tiroir de conversion, un seul endroit qui compte.
 
   skipCountdownBtn.addEventListener("click", skipCountdown);
 

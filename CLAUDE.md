@@ -282,6 +282,14 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     reste à `false` tant que `supabase-migration-clic-plateforme.sql` n'a pas été exécuté côté
     Supabase. PostgREST rejette un insert portant une colonne inconnue — envoyer le champ trop
     tôt ferait tomber en silence le compteur GLOBAL de clics, qui marche.
+  - ⚠️ **PLUS AUCUN SMARTLINK DANS LE JEU** (28 août 2026, « on enlève le lien du jeu puisque
+    c'est toi qui gères tous les liens ») : `config.lienEP` et `config.lienAlbum` sont
+    SUPPRIMÉS. Le CTA flottant du menu et le bouton secondaire de l'écran de fin n'ont plus de
+    `href` — ils ouvrent le MÊME panneau de plateformes (`ouvrirEcoute`, action `"ecouter"`),
+    sans rien conditionner. Le smartlink li.sten.to reste utile hors du jeu (bio Instagram,
+    posts) ; il n'a plus sa place dedans. ⚠️ Conséquence : le boost fan et le comptage des
+    clics ne sont plus posés sur ces boutons (ils ne mènent nulle part) mais sur le clic d'une
+    PLATEFORME — un seul endroit, quel que soit le panneau d'où il vient.
   - ⚠️ **« L'album est sorti » vit sur le CTA flottant du MENU** (`#cta-link`, ex-« Écouter le
     morceau ») : seule ligne vue par 100 % des joueurs, avant même d'appuyer sur JOUER. Le
     bouton secondaire de l'écran de fin dit « ÉCOUTER L'ALBUM » (ex-« AJOUTER LE MORCEAU ») et

@@ -124,44 +124,14 @@ window.CONFIG = {
   // Hors fenêtre : le jeu reste jouable, mais le score n'est pas comptabilisé au classement.
 
   // === LIENS ===
-  // Smartlink de l'EP (Feature.fm / li.sten.to). ⚠️ CHANGÉ LE 28 AOÛT 2026,
-  // jour de la sortie : l'ancienne URL (`.../la-ville-est-belle`) est restée
-  // bloquée sur la page de PRÉ-SAUVEGARDE après la sortie (vérifié : trois
-  // boutons « Pre-save » dix minutes après). La campagne a été refaite sous
-  // `-pmc`, en mode sortie, avec Spotify / Deezer / Apple Music en tête —
-  // l'ordre d'affichage se paie chez Feature.fm, mais DÉSACTIVER les autres
-  // services est gratuit : c'est comme ça que les trois restent en tête.
-  lienEP: "https://li.sten.to/la-ville-est-belle-pmc",
-  // ⚠️ PREMIER PALIER DE CONVERSION. Posé le 23 août 2026 en PRÉ-SAUVEGARDE
-  // (« tu dois d'abord pré-sauvegarder l'album de PMC sur Spotify »), devenu
-  // un AJOUT À LA BIBLIOTHÈQUE le 28 août 2026 : l'album est sorti (Apple
-  // Music et Deezer le matin, Spotify une heure plus tard), il n'y a plus rien
-  // à pré-sauvegarder — on demande maintenant d'aller l'écouter et de
-  // l'ajouter, ce qui est ce que comptent vraiment les plateformes (sauvegarde
-  // + écoute, pas une promesse).
-  // ⚠️ Ce lien doit pointer vers l'ALBUM (page de sortie), pas vers le
-  // pré-save : la campagne Feature.fm (li.sten.to) bascule d'elle-même de
-  // « Pre-save » à « Écouter » à la date de sortie renseignée dans le
-  // tableau de bord — si la page affiche encore « Pre-save », c'est la date
-  // qui est à corriger côté Feature.fm, pas ici.
-  lienAlbum: "https://li.sten.to/la-ville-est-belle-pmc",
+  // ⚠️ SMARTLINK RETIRÉ DU JEU LE 28 AOÛT 2026 (« on enlève le lien du jeu
+  // puisque c'est toi qui gères tous les liens »). `lienEP` et `lienAlbum`
+  // n'existent plus : plus aucune page li.sten.to entre le joueur et l'album.
+  // Partout où le jeu proposait d'écouter — CTA flottant du menu, bouton de
+  // l'écran de fin, tiroir de conversion — c'est le PANNEAU ci-dessous qui
+  // s'ouvre, et un tap va droit dans l'application. Le smartlink reste utile
+  // hors du jeu (bio Instagram, posts), il n'a juste plus sa place dedans.
 
-  // ⚠️ PANNEAU DE PLATEFORMES DANS LE JEU (28 août 2026, demandé : « au lieu
-  // de passer par ce multi-lien, un panneau directement marqué Spotify,
-  // Deezer, Apple Music… ils cliquent directement sur Spotify »). Le tiroir de
-  // conversion n'envoie plus sur le smartlink : il affiche ces boutons, et un
-  // tap ouvre l'album dans l'APPLICATION native. Une page intermédiaire de
-  // moins, ~1 s de moins, aucune bannière cookies, aucun formulaire e-mail.
-  // ⚠️ URL nettoyées à la main : pas de `?si=` (jeton de partage qui suit
-  // l'expéditeur) et pas de `/intl-fr/` sur Spotify (force la page web au lieu
-  // de l'app). Format « universal link » en https pour chaque plateforme —
-  // JAMAIS le scheme `spotify:album:`, qui déclenche une confirmation iOS.
-  // ⚠️ `couleur` sert à une pastille, PAS à un badge : les règles de marque
-  // d'Apple interdisent de recréer soi-même un badge Apple Music. On affiche
-  // le nom en texte, point.
-  // `geste` dit quoi toucher UNE FOIS DANS L'APP — c'est la ligne qui fait
-  // réellement monter le taux de sauvegarde : personne ne le fait parce que
-  // personne ne le demande explicitement.
   plateformesAlbum: [
     { id: "spotify",      nom: "Spotify",       couleur: "#1DB954", geste: "appuie sur ＋ Ajouter",  url: "https://open.spotify.com/album/5nR4uZiJgNJCIRaRAo6qcX" },
     { id: "deezer",       nom: "Deezer",        couleur: "#A238FF", geste: "appuie sur ♥",           url: "https://www.deezer.com/album/1039050902" },
