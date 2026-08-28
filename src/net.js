@@ -160,12 +160,19 @@ function clicsEpUrl() {
 // Fire-and-forget, appelé au clic sur AJOUTER LE MORCEAU (screens.js) — ne
 // doit JAMAIS retarder la navigation (l'ancre part dans son nouvel onglet
 // avant même que la promesse ne résolve).
-export function postClicEP() {
+// ⚠️ `plateforme` n'est envoyé QUE si CONFIG.compteurPlateformes est vrai —
+// c'est-à-dire une fois la colonne créée côté Supabase
+// (supabase-migration-clic-plateforme.sql). PostgREST rejette un insert qui
+// porte une colonne inconnue : envoyer le champ trop tôt ne casserait pas le
+// jeu, mais ferait silencieusement tomber le compteur GLOBAL de clics, qui
+// marche aujourd'hui. D'où l'interrupteur plutôt qu'un envoi optimiste.
+export function postClicEP(plateforme) {
   if (!configured()) return;
+  const corps = plateforme && window.CONFIG.compteurPlateformes ? { plateforme } : {};
   fetch(clicsEpUrl(), {
     method: "POST",
     headers: headers({ Prefer: "return=minimal" }),
-    body: JSON.stringify({}),
+    body: JSON.stringify(corps),
   }).catch(() => { /* table absente ou réseau coupé : tant pis, pas de compteur */ });
 }
 

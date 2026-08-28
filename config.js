@@ -145,6 +145,36 @@ window.CONFIG = {
   // tableau de bord — si la page affiche encore « Pre-save », c'est la date
   // qui est à corriger côté Feature.fm, pas ici.
   lienAlbum: "https://li.sten.to/la-ville-est-belle-pmc",
+
+  // ⚠️ PANNEAU DE PLATEFORMES DANS LE JEU (28 août 2026, demandé : « au lieu
+  // de passer par ce multi-lien, un panneau directement marqué Spotify,
+  // Deezer, Apple Music… ils cliquent directement sur Spotify »). Le tiroir de
+  // conversion n'envoie plus sur le smartlink : il affiche ces boutons, et un
+  // tap ouvre l'album dans l'APPLICATION native. Une page intermédiaire de
+  // moins, ~1 s de moins, aucune bannière cookies, aucun formulaire e-mail.
+  // ⚠️ URL nettoyées à la main : pas de `?si=` (jeton de partage qui suit
+  // l'expéditeur) et pas de `/intl-fr/` sur Spotify (force la page web au lieu
+  // de l'app). Format « universal link » en https pour chaque plateforme —
+  // JAMAIS le scheme `spotify:album:`, qui déclenche une confirmation iOS.
+  // ⚠️ `couleur` sert à une pastille, PAS à un badge : les règles de marque
+  // d'Apple interdisent de recréer soi-même un badge Apple Music. On affiche
+  // le nom en texte, point.
+  // `geste` dit quoi toucher UNE FOIS DANS L'APP — c'est la ligne qui fait
+  // réellement monter le taux de sauvegarde : personne ne le fait parce que
+  // personne ne le demande explicitement.
+  plateformesAlbum: [
+    { id: "spotify",      nom: "Spotify",       couleur: "#1DB954", geste: "appuie sur ＋ Ajouter",  url: "https://open.spotify.com/album/5nR4uZiJgNJCIRaRAo6qcX" },
+    { id: "deezer",       nom: "Deezer",        couleur: "#A238FF", geste: "appuie sur ♥",           url: "https://www.deezer.com/album/1039050902" },
+    { id: "apple-music",  nom: "Apple Music",   couleur: "#FA243C", geste: "appuie sur ＋",          url: "https://music.apple.com/fr/album/la-ville-est-belle-ep/6795042969" },
+    { id: "tidal",        nom: "TIDAL",         couleur: "#000000", geste: "appuie sur ♥",           url: "https://tidal.com/album/546720750" },
+    { id: "youtube-music", nom: "YouTube Music", couleur: "#FF0033", geste: "appuie sur Enregistrer", url: "https://music.youtube.com/playlist?list=OLAK5uy_lRwuoRCrfJSQCxEMH_GwNJCyITGAhdfNE" },
+  ],
+
+  // ⚠️ Comptage des clics PAR PLATEFORME : reste à `false` tant que la colonne
+  // n'existe pas côté Supabase (migration supabase-migration-clic-plateforme.sql).
+  // Envoyer un champ inconnu ferait échouer l'insert et on perdrait le compteur
+  // global de clics, qui marche aujourd'hui — d'où l'interrupteur.
+  compteurPlateformes: false,
   // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).

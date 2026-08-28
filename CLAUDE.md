@@ -253,6 +253,35 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     Feature.fm, **RÉORDONNER les services est payant, les DÉSACTIVER est gratuit** : c'est en
     coupant TIDAL/YouTube Music/etc. qu'on garde les trois plateformes voulues en tête, jamais
     en passant au plan Pro.
+  - ⚠️ **PANNEAU DE PLATEFORMES DANS LE JEU, 28 août 2026** (demandé : « au lieu de passer par
+    ce multi-lien, un panneau directement marqué Spotify, Deezer, Apple Music… ils cliquent
+    directement sur Spotify ») : au palier 1, le tiroir n'envoie PLUS sur le smartlink — il
+    affiche les 5 plateformes (`config.plateformesAlbum`) et un tap ouvre l'album dans l'APP
+    native. Une page intermédiaire de moins, ~1 s de moins, ni bannière cookies ni formulaire
+    e-mail tiers. Le choix est mémorisé (`plateformeAlbum`) : au passage suivant il remonte en
+    tête, en plein gabarit rouge, les autres restent dessous. Palier 2 (s'abonner à PMC) garde
+    le bouton unique, il n'a qu'une destination. Repli automatique sur le smartlink si
+    `plateformesAlbum` est vide.
+  - ⚠️ **CE QUE LE TIROIR ÉCHANGE, C'EST L'OUVERTURE DE L'ALBUM, PAS LA SAUVEGARDE** (arbitré le
+    28 août 2026 après vérification des règles des plateformes). La clause Spotify vise
+    « artificially increase play counts, follow counts […] by providing any compensation
+    (financial **or otherwise**) » — promettre une partie CONTRE un ajout en bibliothèque tombe
+    dedans ; l'équivalent existe chez YouTube et dans les règles App Store. Or le jeu n'a jamais
+    pu vérifier un ajout : **le palier se lève au CLIC**, depuis le premier jour. La demande
+    d'ajout est donc posée à CÔTÉ du troc — titre « Ouvre l'album de PMC », ligne de geste sous
+    les boutons, « Tu l'as ajouté ? Merci ! » au retour — et jamais comme son prix. Même
+    mécanique, même taux, hors de la zone grise. **Ne pas réécrire cette copie en « ajoute
+    l'album pour continuer »** sans mesurer le risque (amendes de streaming artificiel
+    répercutées par le distributeur, retrait de playlists).
+  - ⚠️ **Nom en TEXTE + pastille de couleur, jamais un badge recréé** : les règles de marque
+    d'Apple Music l'interdisent explicitement (« Never create your own Apple Music badge »).
+  - ⚠️ **URL nettoyées à la main** dans `plateformesAlbum` : pas de `?si=` (jeton de partage qui
+    piste l'expéditeur), pas de `/intl-fr/` sur Spotify (force la page web au lieu de l'app), et
+    jamais le scheme `spotify:album:` (déclenche une confirmation iOS). Universal links https.
+  - ⚠️ **Comptage des clics PAR PLATEFORME derrière un interrupteur** : `config.compteurPlateformes`
+    reste à `false` tant que `supabase-migration-clic-plateforme.sql` n'a pas été exécuté côté
+    Supabase. PostgREST rejette un insert portant une colonne inconnue — envoyer le champ trop
+    tôt ferait tomber en silence le compteur GLOBAL de clics, qui marche.
   - ⚠️ **« L'album est sorti » vit sur le CTA flottant du MENU** (`#cta-link`, ex-« Écouter le
     morceau ») : seule ligne vue par 100 % des joueurs, avant même d'appuyer sur JOUER. Le
     bouton secondaire de l'écran de fin dit « ÉCOUTER L'ALBUM » (ex-« AJOUTER LE MORCEAU ») et

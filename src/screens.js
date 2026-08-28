@@ -71,6 +71,8 @@ const reviveReplay = document.getElementById("revive-replay");
 // dans index.html et la section « Tiroir de conversion » plus bas.
 const gateSheet = document.getElementById("gate-sheet");
 const gateVeil = document.getElementById("gate-veil");
+const gatePlatforms = document.getElementById("gate-platforms");
+const gateHint = document.getElementById("gate-hint");
 const gateEyebrow = document.getElementById("gate-eyebrow");
 const gateTimer = document.getElementById("gate-timer");
 const gateTimerNum = document.getElementById("gate-timer-num");
@@ -117,6 +119,11 @@ const CLE_MORCEAU_OUVERT = "morceauOuvert";
 // uniquement à choisir le palier de la carte de mort — voir openReviveSheet.
 const CLE_PMC_SUIVI = "pmcSuivi";
 const CLE_PARTIES = "partiesJouees";
+// Plateforme choisie la dernière fois dans le panneau de conversion : elle
+// remonte en tête et en plein gabarit au prochain passage, pour qu'il n'y ait
+// plus qu'un seul bouton à viser. Pure commodité d'affichage — elle ne
+// conditionne rien.
+const CLE_PLATEFORME = "plateformeAlbum";
 
 // ⚠️ VÉRIFICATION DU TUNNEL DE CONVERSION — `?neuf` dans l'URL (24 août 2026).
 // L'artiste a cliqué ses propres liens des dizaines de fois en testant : son
@@ -131,6 +138,7 @@ try {
   if (new URLSearchParams(location.search).has("neuf")) {
     localStorage.removeItem(CLE_MORCEAU_OUVERT);
     localStorage.removeItem(CLE_PMC_SUIVI);
+    localStorage.removeItem(CLE_PLATEFORME); // sinon le panneau garde un préféré et on ne revoit jamais la liste complète
     // ⚠️ Le drapeau se RETIRE de l'URL aussitôt consommé : sans ça, il reste
     // dans la barre d'adresse et REJOUE sa remise à zéro à chaque
     // rechargement (retour de Spotify compris) — le palier de pré-sauvegarde
@@ -420,11 +428,11 @@ function gateTextes(action, niveau) {
   const presave = niveau === "presave";
   return {
     eyebrow: continuer ? "POUR CONTINUER TA PARTIE" : "POUR REJOUER",
-    titre: presave ? "Ajoute l'album à ta bibliothèque" : "Abonne-toi à PMC",
+    titre: presave ? "Ouvre l'album de PMC" : "Abonne-toi à PMC",
     prefixe: presave
       ? (continuer
-        ? "L'album est sorti : écoute-le et ajoute-le à ta bibliothèque, puis reprends ta course avec tes "
-        : "L'album est sorti : écoute-le et ajoute-le à ta bibliothèque pour relancer une course. Score en cours : ")
+        ? "Choisis ta plateforme — et ajoute l'album à ta bibliothèque, c'est ce qui compte vraiment pour lui. Tu reprends avec tes "
+        : "Choisis ta plateforme — et ajoute l'album à ta bibliothèque, c'est ce qui compte vraiment pour lui. Score en cours : ")
       : (continuer
         ? "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Tu reprends avec tes "
         : "Dernière étape : abonne-toi à PMC sur Spotify et rejoue autant que tu veux. Score en cours : "),
@@ -434,6 +442,106 @@ function gateTextes(action, niveau) {
       : (window.CONFIG.lienSuivre || window.CONFIG.lienEP),
     goLabel: continuer ? "CONTINUER MA PARTIE" : "REJOUER",
   };
+}
+
+// --- Panneau de plateformes (28 août 2026) ---------------------------------
+// Remplace le smartlink au palier 1 : un tap ouvre l'album dans l'APPLICATION
+// native, sans page intermédiaire (li.sten.to coûtait un chargement, une
+// bannière cookies, un formulaire e-mail et un second tap).
+//
+// ⚠️ CE QUE LE TIROIR ÉCHANGE, C'EST L'OUVERTURE DE L'ALBUM, PAS LA
+// SAUVEGARDE. Le jeu n'a jamais pu vérifier un ajout en bibliothèque — le
+// palier se lève au CLIC, comme depuis le premier jour. La demande d'ajout est
+// posée à côté (titre, ligne de geste, remerciement au retour) mais n'est
+// jamais le prix à payer : promettre une partie CONTRE un save tomberait
+// pile sous la clause Spotify « don't artificially increase play counts,
+// follow counts […] by providing any compensation (financial or otherwise) ».
+// Même mécanique, même taux, hors de la zone grise — ne pas réécrire cette
+// copie en « ajoute pour continuer » sans en mesurer le risque.
+//
+// ⚠️ Nom en TEXTE + pastille de couleur, jamais un badge recréé : les règles
+// de marque d'Apple Music l'interdisent explicitement.
+function plateformes() {
+  const liste = window.CONFIG.plateformesAlbum;
+  return Array.isArray(liste) ? liste.filter((p) => p && p.url && p.nom) : [];
+}
+
+function plateformePreferee() {
+  try { return localStorage.getItem(CLE_PLATEFORME) || ""; } catch (e) { return ""; }
+}
+
+function marquerPlateforme(id) {
+  try { localStorage.setItem(CLE_PLATEFORME, id); } catch (e) { /* navigation privée */ }
+}
+
+// La ligne qui dit QUOI TOUCHER une fois dans l'app. C'est le seul levier
+// honnête qui fasse monter le taux de sauvegarde : le geste n'est évident
+// pour personne, et personne ne le demande jamais explicitement.
+function texteGeste(liste) {
+  const pref = liste.find((p) => p.id === plateformePreferee());
+  const geste = pref && pref.geste ? pref.geste : "appuie sur ＋ ou ♥";
+  return `Une fois dans l'app : ${geste} pour ajouter l'album à ta bibliothèque.`;
+}
+
+function construirePlateformes() {
+  const liste = plateformes();
+  gatePlatforms.textContent = "";
+  if (!liste.length) return false; // pas de panneau configuré : on retombe sur le smartlink
+
+  const prefId = plateformePreferee();
+  const pref = liste.find((p) => p.id === prefId);
+  // Le choix précédent passe en tête et en plein gabarit : la 2e fois, il n'y
+  // a plus qu'un bouton à viser.
+  const ordre = pref ? [pref, ...liste.filter((p) => p !== pref)] : liste.slice();
+
+  ordre.forEach((p, i) => {
+    if (pref && i === 1) {
+      const sep = document.createElement("p");
+      sep.className = "plat-sep";
+      sep.textContent = "ou sur une autre plateforme";
+      gatePlatforms.appendChild(sep);
+    }
+    const a = document.createElement("a");
+    a.className = pref && i === 0 ? "plat-btn prefere" : "plat-btn";
+    a.href = p.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.dataset.plateforme = p.id || p.nom;
+
+    const dot = document.createElement("span");
+    dot.className = "plat-dot";
+    dot.style.background = p.couleur || "var(--noir)";
+    dot.setAttribute("aria-hidden", "true");
+
+    const nom = document.createElement("span");
+    nom.className = "plat-nom";
+    nom.textContent = pref && i === 0 ? `Ouvrir dans ${p.nom}` : p.nom;
+
+    const fleche = document.createElement("span");
+    fleche.className = "plat-fleche";
+    fleche.textContent = "↗";
+    fleche.setAttribute("aria-hidden", "true");
+
+    a.append(dot, nom, fleche);
+    // ⚠️ Même piège que #gate-cta : basculer en phase « absence » PENDANT le
+    // dispatch du clic cache le <a> et annule la navigation (l'activation
+    // relit le href après le dispatch). D'où le setTimeout(0).
+    a.addEventListener("click", () => {
+      if (!gateEtat || gateEtat.phase !== "demande") return;
+      marquerPlateforme(p.id || p.nom);
+      marquerMorceauOuvert();
+      net.postClicEP(p.id || p.nom);
+      setTimeout(gatePhaseAbsence, 0);
+    });
+    gatePlatforms.appendChild(a);
+  });
+  gateHint.textContent = texteGeste(liste);
+  return true;
+}
+
+function cacherPlateformes() {
+  gatePlatforms.classList.add("hidden");
+  gateHint.classList.add("hidden");
 }
 
 // ⚠️ Point d'entrée UNIQUE des deux actions : elles franchissent exactement
@@ -455,7 +563,13 @@ function ouvrirGate({ action, score, onUnlocked, onCancel }) {
   gateCtaLabel.textContent = t.ctaLabel;
   gateCta.href = t.href;
   gateCta.target = "_blank";
-  gateCta.classList.remove("hidden");
+  // Palier 1 : le panneau de plateformes REMPLACE le bouton unique (un tap =
+  // l'app native). Palier 2 (s'abonner à PMC) n'a qu'une destination, il garde
+  // le bouton. Repli sur le smartlink si aucune plateforme n'est configurée.
+  const panneau = niveau === "presave" && construirePlateformes();
+  gatePlatforms.classList.toggle("hidden", !panneau);
+  gateHint.classList.toggle("hidden", !panneau);
+  gateCta.classList.toggle("hidden", panneau);
   gateGo.textContent = t.goLabel;
   gateGo.classList.add("hidden");
   gateGo.classList.add("locked");
@@ -474,8 +588,12 @@ function gatePhaseAbsence() {
   if (!gateEtat) return;
   gateEtat.phase = "absence";
   decompteGate.cacher();
-  gateTitle.textContent = gateEtat.niveau === "presave" ? "Bonne écoute, merci !" : "Abonnement enregistré, merci !";
+  // ⚠️ « Tu l'as ajouté ? » est une QUESTION, pas une vérification : le jeu ne
+  // peut pas savoir, et il ne conditionne rien dessus. Elle est là parce
+  // qu'elle rattrape ceux qui ont ouvert l'album et oublié le geste.
+  gateTitle.textContent = gateEtat.niveau === "presave" ? "Tu l'as ajouté ? Merci !" : "Abonnement enregistré, merci !";
   gateText.textContent = "Reviens dans le jeu quand tu veux — c'est débloqué.";
+  cacherPlateformes();
   gateCta.classList.add("hidden");
   gateGo.classList.remove("hidden");
   gateGo.classList.add("locked");
@@ -508,6 +626,7 @@ function gatePhasePret() {
   gateEtat.phase = "pret";
   decompteGate.cacher();
   audio.setReviveIntensity(1); // la boucle est en clair : la course peut repartir
+  cacherPlateformes();
   gateTitle.textContent = "C'est reparti !";
   gateText.textContent = gateEtat.action === "continuer"
     ? "Ta course t'attend — reprends quand tu es prêt."

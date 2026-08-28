@@ -628,8 +628,97 @@
 
     #gate-cta.hidden,
     #gate-go.hidden,
+    #gate-platforms.hidden,
+    #gate-hint.hidden,
     #gate-timer.hidden {
       display: none;
+    }
+
+    /* --- Panneau de plateformes (28 août 2026) --------------------------
+       Une ligne par plateforme, nom en TEXTE + pastille de couleur : jamais
+       un badge recréé (les règles de marque d'Apple l'interdisent
+       explicitement). Le choix précédent remonte en tête et passe en plein
+       gabarit (.prefere) — la 2e fois, il n'y a plus qu'un bouton à viser. */
+    #gate-platforms {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin: 2px 0 0;
+    }
+
+    .plat-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 11px 14px;
+      border: 2px solid var(--panneau-bord);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--noir);
+      font: 700 14px var(--police);
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .plat-btn:active {
+      transform: translateY(1px);
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .plat-btn .plat-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .plat-btn .plat-nom {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+
+    .plat-btn .plat-fleche {
+      flex: 0 0 auto;
+      opacity: 0.4;
+      font-size: 13px;
+    }
+
+    /* Plateforme déjà choisie la fois d'avant : plein gabarit, rouge de
+       charte, en tête de liste. Les autres restent accessibles dessous. */
+    .plat-btn.prefere {
+      background: var(--rouge);
+      border-color: var(--rouge);
+      color: #fff;
+      padding: 14px;
+      font: 900 15px var(--police);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .plat-btn.prefere .plat-fleche { opacity: 0.75; }
+
+    /* Séparateur muet avant les autres plateformes, quand il y a un
+       préféré : « ou sur une autre plateforme ». */
+    #gate-platforms .plat-sep {
+      margin: 3px 0 1px;
+      font: 500 10px var(--police);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.38);
+      text-align: center;
+    }
+
+    /* LA ligne qui fait monter le taux de sauvegarde : elle dit quoi toucher
+       une fois dans l'app. Personne ne le fait parce que personne ne le
+       demande. */
+    #gate-hint {
+      margin: 4px 0 0;
+      font: 500 12px/1.45 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
     }
 
     /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
@@ -2472,6 +2561,14 @@
       </div>
       <p id="gate-title">Ajoute l'album à ta bibliothèque</p>
       <p id="gate-text">Écoute l'album de PMC et ajoute-le à ta bibliothèque pour continuer.</p>
+      <!-- Panneau de plateformes (28 août 2026) : rempli par screens.js à
+           partir de CONFIG.plateformesAlbum. Il REMPLACE le smartlink au
+           palier 1 — un tap ouvre l'album dans l'app native, sans page
+           intermédiaire. Le <a id="gate-cta"> juste dessous reste utilisé
+           par le palier 2 (s'abonner à PMC sur Spotify), qui n'a qu'une
+           seule destination. -->
+      <div id="gate-platforms" class="hidden"></div>
+      <p id="gate-hint" class="hidden"></p>
       <a id="gate-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
         <span id="gate-cta-label">ÉCOUTER L'ALBUM</span>
         <svg id="gate-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
