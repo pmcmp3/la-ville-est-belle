@@ -466,6 +466,12 @@ const game = {
   // de le rejouer à chaque frame une fois le seuil franchi.
   milestoneShown: 0,
   milestoneTimer: 0,
+  // Horodatage du départ (perfClock), pour mesurer la durée réelle de la
+  // partie — envoyée à Supabase par finalizeRun (tracking du 30 août 2026).
+  // ⚠️ Il court dès l'appui sur JOUER, donc il INCLUT le tutoriel sur les
+  // trois premières parties : c'est voulu (c'est le temps passé dans le jeu),
+  // mais ça rend les durées des 3 premières parties plus longues.
+  startedAt: 0,
   // Durée totale du bandeau, exposée pour que hud.js puisse calculer l'âge
   // de l'animation d'entrée (le timer seul ne dit pas d'où il part).
   milestoneDuree: MILESTONE_DUREE,
@@ -521,6 +527,7 @@ function requestGameStart() {
   if (game.defiCible) {
     game.streak = window.CONFIG.comboSeuil * (window.CONFIG.defiBoostPaliers || 0);
   }
+  game.startedAt = perfClock();
   startRequested = true;
   startRequestedAt = perfClock();
 }
@@ -648,7 +655,7 @@ function offerRevive() {
     // La course abandonnée est quand même finalisée : son score part au
     // classement et elle compte dans le compteur global (voir finalizeRun).
     onReplay: () => {
-      finalizeRun();
+      finalizeRun("rejoue");
       revivePaused = false;
       applyPauseState();
       screens.showPauseButton();
@@ -702,7 +709,7 @@ function endGame(reason) {
 // "@" éventuel retiré à l'envoi : la table Supabase stocke le pseudo brut,
 // sans préfixe (demandé explicitement). Défensif : accepte que le joueur
 // en tape un par habitude, on ne veut pas le forcer à connaître la règle.
-function finalizeRun() {
+function finalizeRun(fin) {
   const contest = hud.contestStatus();
   const pseudoJoueur = screens.getPseudo();
   // ⚠️ Capturé AVANT tout await : sur le chemin REJOUER, restartGame() remet
@@ -716,7 +723,15 @@ function finalizeRun() {
   // son coût d'encodage sur téléphone n'avait jamais été mesuré, autant ne
   // plus le payer pour un bouton qui n'existe plus. clip.js reste sur le
   // disque mais n'est plus importé, donc plus bundlé.)
-  net.postRun();
+  // ⚠️ Les champs détaillés ne partent que si CONFIG.trackingDetaille est vrai
+  // (net.detail) — sinon c'est l'insert vide d'avant, à l'identique.
+  net.postRun({
+    duree_s: game.startedAt ? Math.round((perfClock() - game.startedAt) * 10) / 10 : undefined,
+    score: scoreFinal,
+    etoiles: game.stars,
+    combo_max: game.bestCombo,
+    fin: fin || "mort",
+  });
 
   return (async () => {
     if (contest.open && pseudoJoueur) {
@@ -755,6 +770,7 @@ function restartGame() {
 
   game.lives = window.CONFIG.viesDepart;
   game.score = 0;
+  game.startedAt = perfClock();
   game.ended = false;
   game.endReason = null;
   // Boost de départ du défi (23 août 2026, voir defi.js/config.js) : arriver

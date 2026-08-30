@@ -108,18 +108,22 @@ export async function getTopScores(limit = window.CONFIG.apiScoresLimit || 10) {
 // philosophie que le reste du fichier : jamais bloquant, jamais d'exception —
 // tant que la table n'existe pas, postRun() échoue en silence et
 // getRunsCount() renvoie null (la ligne ne s'affiche pas, c'est tout).
+// Racine REST du projet, dérivée d'apiScores comme partout ailleurs dans ce
+// fichier (config.js reste le seul endroit où l'URL est écrite en dur).
+const BASE_TABLES = () => window.CONFIG.apiScores.replace(/\/scores$/, "");
+
 function coursesUrl() {
   return window.CONFIG.apiScores.replace(/\/scores$/, "/courses");
 }
 
 // Une course vient de se terminer (game over OU arrivée) : +1 au compteur.
 // Fire-and-forget, appelé depuis endGame() (main.js).
-export function postRun() {
+export function postRun(infos) {
   if (!configured()) return;
   fetch(coursesUrl(), {
     method: "POST",
     headers: headers({ Prefer: "return=minimal" }),
-    body: JSON.stringify({}),
+    body: JSON.stringify(detail(infos)),
   }).catch(() => { /* table absente ou réseau coupé : tant pis, pas de compteur */ });
 }
 
@@ -168,7 +172,8 @@ function clicsEpUrl() {
 // marche aujourd'hui. D'où l'interrupteur plutôt qu'un envoi optimiste.
 export function postClicEP(plateforme) {
   if (!configured()) return;
-  const corps = plateforme && window.CONFIG.compteurPlateformes ? { plateforme } : {};
+  const plat = plateforme && window.CONFIG.compteurPlateformes ? { plateforme } : {};
+  const corps = { ...plat, ...detail() };
   fetch(clicsEpUrl(), {
     method: "POST",
     headers: headers({ Prefer: "return=minimal" }),
@@ -189,6 +194,75 @@ export async function getClicsEPCount() {
   } catch {
     return null;
   }
+}
+
+// --- Tracking détaillé (30 août 2026) ---------------------------------------
+// Trois manques rendaient les chiffres inexploitables : on ne savait pas
+// combien de PERSONNES distinctes cliquaient (une ligne par clic, sans
+// identifiant), combien franchissaient le palier 2 (aucun compteur), ni où
+// les joueurs décrochaient du tutoriel. Tout ça se règle avec un identifiant
+// anonyme et deux tables de plus (supabase-migration-tracking.sql).
+//
+// ⚠️ INTERRUPTEUR, même patron exact que `compteurPlateformes` : tant que
+// CONFIG.trackingDetaille vaut false, AUCUN champ nouveau n'est envoyé.
+// PostgREST rejette un insert portant une colonne inconnue — envoyer trop tôt
+// ferait tomber en silence les compteurs qui marchent (courses, clics_ep).
+// Passer à true seulement UNE FOIS la migration exécutée côté Supabase.
+
+const CLE_JOUEUR = "lvbJoueur";
+
+// Identifiant ALÉATOIRE, tiré une fois par navigateur. Il ne dit rien de la
+// personne : il sert uniquement à savoir que deux clics viennent du même
+// appareil. ⚠️ Ne JAMAIS le remplacer par le pseudo Instagram — ces tables
+// sont lisibles par la clé anon, ce serait rouvrir la fuite fermée par
+// supabase-migration-pseudo-insta.sql. En navigation privée il change à
+// chaque session : les personnes distinctes sont donc un MAJORANT, assumé.
+export function joueurId() {
+  try {
+    let id = localStorage.getItem(CLE_JOUEUR);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)).slice(0, 18);
+      localStorage.setItem(CLE_JOUEUR, id);
+    }
+    return id;
+  } catch (e) {
+    return null; // navigation privée verrouillée : la ligne partira sans joueur
+  }
+}
+
+// Corps d'insert enrichi, ou {} si l'interrupteur est fermé. Les champs
+// undefined sont retirés : une partie sans score connu ne doit pas envoyer
+// `score: null` et écraser la colonne pour rien.
+function detail(infos) {
+  if (!window.CONFIG.trackingDetaille) return {};
+  const corps = { joueur: joueurId(), ...(infos || {}) };
+  for (const k of Object.keys(corps)) if (corps[k] === undefined) delete corps[k];
+  return corps;
+}
+
+// Palier 2 du tunnel de conversion (« S'ABONNER À PMC ») — le seul clic du
+// jeu qui n'était pas compté, alors que c'est lui qui débloque les parties
+// illimitées. Même fire-and-forget que le reste : jamais bloquant, jamais
+// d'exception, la navigation part avant que la promesse résolve.
+export function postClicSuivre() {
+  if (!configured() || !window.CONFIG.trackingDetaille) return;
+  fetch(`${BASE_TABLES()}/clics_suivre`, {
+    method: "POST",
+    headers: headers({ Prefer: "return=minimal" }),
+    body: JSON.stringify(detail()),
+  }).catch(() => { /* table absente ou réseau coupé : tant pis */ });
+}
+
+// Un événement par étape de tutoriel franchie, plus un à l'achèvement. Une
+// étape sans ligne suivante = un abandon à cette étape : c'est ce qui donne
+// l'entonnoir « combien de gens vont au bout ».
+export function postTutoriel(partie, etape, cle, termine) {
+  if (!configured() || !window.CONFIG.trackingDetaille) return;
+  fetch(`${BASE_TABLES()}/tutoriel`, {
+    method: "POST",
+    headers: headers({ Prefer: "return=minimal" }),
+    body: JSON.stringify(detail({ partie, etape, cle, termine: Boolean(termine) })),
+  }).catch(() => { /* idem */ });
 }
 
 async function fetchScores(base, select, limit) {

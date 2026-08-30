@@ -2105,3 +2105,29 @@ serveur de dev (`localhost`, requêtes bloquées avant même le chargement de la
 (figement par `AudioContext`), donc pas la même cause. Symptôme à surveiller : si les deux méthodes
 ci-dessus deviennent aussi inutilisables, la seule vérification qui reste est un vrai test sur
 téléphone après déploiement.
+
+---
+
+## 13. Mesure et tracking (30 août 2026)
+
+Trois tables Supabase alimentent la mesure, toutes **insert-only**, toutes lisibles par la clé
+anon (nécessaire au `count` PostgREST) : `courses`, `clics_ep`, `clics_suivre`, `tutoriel`. La
+vue `scores_public` (pseudo + score) reste la seule fenêtre sur les scores.
+
+⚠️ **`config.trackingDetaille` est un INTERRUPTEUR, exactement comme `compteurPlateformes`.**
+PostgREST **rejette** un insert portant une colonne inconnue. Envoyer les nouveaux champs avant
+que `supabase-migration-tracking.sql` soit passé ferait donc tomber **en silence** les compteurs
+qui marchent (`courses`, `clics_ep`) — piège déjà vécu le 28 août 2026 avec `plateforme`. Ordre
+obligatoire : migration côté Supabase → `trackingDetaille: true` → build → déploiement.
+
+⚠️ **`joueur` est un identifiant ALÉATOIRE** (`net.joueurId()`, localStorage `lvbJoueur`), jamais
+le pseudo Instagram. Ces tables sont lisibles publiquement : y écrire un `pseudo_insta`
+rouvrirait exactement la fuite que `supabase-migration-pseudo-insta.sql` a fermée. En navigation
+privée il change à chaque session, donc le nombre de « personnes distinctes » est un **majorant**.
+
+⚠️ **`game.startedAt` court dès l'appui sur JOUER**, donc `duree_s` **inclut le tutoriel** sur les
+trois premières parties d'un joueur. Comparer des durées entre parties 1-3 et parties suivantes
+est trompeur ; filtrer sur `fin = 'mort'` et croiser avec `tutoriel` si besoin.
+
+`outils/rapport-stats.mjs` (`npm run rapport`) régénère un rapport texte complet depuis la base.
+Il est **en lecture seule** et lit `config.js` pour l'URL et la clé — aucune valeur en dur.

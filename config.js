@@ -148,6 +148,16 @@ window.CONFIG = {
   // `plateforme` existent bien côté Supabase (vérifié par lecture de la table,
   // 1 ligne enregistrée à 00:16:59 — le clic de test sur YouTube Music).
   compteurPlateformes: true,
+
+  // ⚠️ TRACKING DÉTAILLÉ (30 août 2026) — durée et score des parties,
+  // identifiant anonyme pour dédupliquer les clics, compteur du palier 2
+  // (« s'abonner à PMC »), entonnoir du tutoriel. Reste à `false` tant que
+  // supabase-migration-tracking.sql n'a pas été exécuté côté Supabase :
+  // PostgREST rejette un insert portant une colonne inconnue, et l'envoyer
+  // trop tôt ferait tomber en silence les compteurs qui marchent aujourd'hui
+  // (même piège que `compteurPlateformes` le 28 août). Passer à `true` APRÈS
+  // la migration, puis redéployer.
+  trackingDetaille: true,
   // Profil Spotify de PMC (vérifié le 21 août 2026 : c'est bien celui relié à
   // instagram.com/pmc.mp3) : sert au second verrou de conversion — après 3
   // parties, REJOUER demande de suivre PMC (une seule fois, mémorisé).

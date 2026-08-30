@@ -23,3 +23,12 @@ reels/
 # dans l'historique public la dernière fois, et il a fallu réécrire tout le
 # dépôt pour les en sortir.
 3D assets/
+
+# Skills Claude installés localement (5,6 Mo de polices) — outillage de poste,
+# sans rapport avec le jeu. Même raison que le WAV maître plus haut : le
+# snapshot `main` est PUBLIC, on n'y met pas de binaires inutiles.
+.claude/skills/
+
+# Rapports générés (npm run rapport) — sortie régénérable, et ce sont des
+# chiffres de campagne qui n'ont rien à faire dans un dépôt public.
+rapports/

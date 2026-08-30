@@ -32,6 +32,7 @@
 import * as road from "./road.js";
 import { peindreObjet } from "./entities-render.js";
 import { isAirBonus } from "./entities.js";
+import * as net from "./net.js";
 
 // Durée du petit temps de félicitation entre deux étapes.
 const DUREE_REUSSITE = 0.75;
@@ -150,9 +151,15 @@ const etat = {
   phaseGeste: 0,    // avance l'animation de la main fantôme
   fini: false,
   derniereVoie: null,
+  partie: 1,       // 1..3 — pour la mesure de l'entonnoir, ne pilote rien
 };
 
-export function demarrer() {
+// `partie` = 1, 2 ou 3 (le tutoriel rejoue sur les trois premières parties).
+// Sert uniquement à la mesure : savoir si les gens décrochent dès la première
+// exposition ou seulement quand ils l'ont déjà vu (tracking du 30 août 2026).
+export function demarrer(partie) {
+  etat.partie = partie || 1;
+  net.postTutoriel(etat.partie, -1, "debut", false);
   etat.actif = true;
   etat.index = 0;
   etat.faits = 0;
@@ -166,6 +173,12 @@ export function demarrer() {
 }
 
 export function arreter() {
+  // Abandon : le joueur a appuyé sur « Passer l'intro », ou le plafond de
+  // sécurité de 30 s a sauté. Une étape sans ligne suivante = un décrochage à
+  // cette étape ; cette ligne-là dit en plus qu'il a été volontaire.
+  if (etat.actif && !etat.fini) {
+    net.postTutoriel(etat.partie, etat.index, "passe", false);
+  }
   etat.actif = false;
   etat.props = [];
 }
@@ -231,10 +244,13 @@ export function avancer(dt, obs) {
   if (etat.reussite > 0) {
     etat.reussite -= dt;
     if (etat.reussite <= 0) {
+      // Étape franchie : une ligne par étape, c'est ce qui dessine l'entonnoir.
+      net.postTutoriel(etat.partie, etat.index, ETAPES[etat.index]?.cle, false);
       etat.index += 1;
       if (etat.index >= ETAPES.length) {
         etat.fini = true;
         etat.props = [];
+        net.postTutoriel(etat.partie, ETAPES.length, "fini", true);
         return;
       }
       chargerEtape();

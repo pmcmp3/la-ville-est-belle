@@ -862,7 +862,7 @@ let skipButtonTimer = null;
 
 function runTutorial() {
   setView("countdown");
-  tutorial.demarrer();
+  tutorial.demarrer(partiesJouees() + 1);
   tutoDeadline = performance.now() + TUTO_PLAFOND_S * 1000;
   tutoDernierTexte = "";
   countdownCaption.classList.remove("hidden");
@@ -1471,7 +1471,13 @@ export function init(d) {
   gateCta.addEventListener("click", () => {
     if (!gateEtat || gateEtat.phase !== "demande") return;
     if (gateEtat.niveau === "presave") marquerMorceauOuvert();
-    else marquerPmcSuivi();
+    else {
+      marquerPmcSuivi();
+      // Palier 2 : le seul clic du tunnel qui n'était compté nulle part
+      // (30 août 2026). Fire-and-forget, jamais bloquant — la navigation vers
+      // Spotify part avant que la requête résolve, comme pour postClicEP.
+      net.postClicSuivre();
+    }
     setTimeout(gatePhaseAbsence, 0);
   });
   // Armé seulement en phase « prêt » : le clic est ignoré tant que le décompte
