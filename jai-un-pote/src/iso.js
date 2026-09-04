@@ -1,50 +1,50 @@
-// iso.js — Vue 3/4 du dessus façon Crossy Road (refonte du 4 septembre 2026,
-// retour direct : « pas la fausse 3D [...] revoir pour avoir une perspective
-// comme ça »). Plus de point de fuite : projection OBLIQUE à échelle
-// constante, la route monte tout droit vers le haut de l'écran, chaque objet
-// est un cube avec trois faces visibles (dessus clair, face avant, flanc
-// droit sombre). Le décor et les obstacles partagent drawBox().
+// iso.js — Vue ISOMÉTRIQUE façon Crossy Road (troisième perspective du
+// 4 septembre 2026, retour : « on n'a pas la perspective de Crossy Road, on a
+// un entre-deux [...] j'aimerais vraiment une carte comme Crossy Road, tout
+// en semi-3D »). Projection dimétrique 2:1, le monde tourné de 45° : la
+// route file vers le HAUT-GAUCHE de l'écran, les traversants la coupent le
+// long de l'autre diagonale (bas-gauche → haut-droite). Chaque objet est un
+// cube à trois faces visibles : dessus, face gauche, face droite.
 //
-//   sx = centre + (u − camU)·K + h·K·SHEAR      (u = latéral, h = hauteur)
-//   sy = base   − (v − camV)·K·TILT − h·K·VERT  (v = avance sur la route)
+//   sx = ancre.x + (u − camU)·K − (v − camV)·K
+//   sy = ancre.y − (u − camU)·K·ISO − (v − camV)·K·ISO − h·K·VERT
 //
-// La route reste tout droit (pas de diagonale comme Crossy) : un runner qui
-// avance tout seul a besoin de VOIR loin devant, et en portrait c'est la
-// hauteur de l'écran qui donne cette distance.
+// La caméra suit le joueur ; il reste ancré en bas à droite de l'écran, la
+// route devant lui occupe le haut-gauche. Ordre du peintre : profondeur
+// = u + v (le plus grand = le plus loin), dessiné en premier.
 
 import { shade } from "./voxel.js";
 
 export const COLS = 3;
-export const COL_W = 1.25;                     // largeur d'une colonne de route
+export const COL_W = 1.25;
 export const ROAD_HALF = (COLS * COL_W) / 2;   // 1,875
-export const UNITS_ACROSS = 9;                 // unités-monde visibles en largeur
-const TILT = 0.74;
-const SHEAR = 0.28;
-const VERT = 0.86;
-const PLAYER_SCREEN_Y = 0.72;                  // fraction de la hauteur où roule le joueur
-export const PLAYER_BACK_ROWS = 3.5;           // rangées visibles derrière le joueur
-export const ROWS_AHEAD = 15;                  // rangées calculées devant
-export const ROWS_BEHIND = 8;                  // rangées dessinées derrière la caméra (bas d'écran)
+const UNITS_ACROSS = 12.5;                     // K = largeur d'écran / ceci (plus petit = on voit plus loin)
+const ISO = 0.5;                               // 2:1 — « baisse un peu la caméra » : 0,5 au lieu de 0,58
+const VERT = 0.95;                             // hauteur des cubes (caméra basse = faces hautes)
+const ANCHOR = { x: 0.66, y: 0.66 };           // joueur en bas à droite : ~8 rangées de route visibles devant lui
+export const ROWS_AHEAD = 13;
+export const ROWS_BEHIND = 9;
+const U_SPAN = 9;                              // demi-largeur de monde dessinée en u
 
-let W = 375, H = 812, K = 41.7, baseY = 585;
+let W = 375, H = 812, K = 32.6;
 let camV = 0, camU = 0;
 
-export function setViewport(width, height) {
-  W = width; H = height;
-  K = width / UNITS_ACROSS;
-  baseY = height * PLAYER_SCREEN_Y;
-}
-export function setCamera(v, u = 0) { camV = v - PLAYER_BACK_ROWS; camU = u; }
+export function setViewport(width, height) { W = width; H = height; K = width / UNITS_ACROSS; }
+export function setCamera(v, u = 0) { camV = v; camU = u; }
 export function getCamV() { return camV; }
 export function scale() { return K; }
 export function colU(c) { return (c - (COLS - 1) / 2) * COL_W; }
 
 export function project(u, v, h = 0) {
+  const du = u - camU, dv = v - camV;
   return {
-    x: W / 2 + (u - camU) * K + h * K * SHEAR,
-    y: baseY - (v - camV) * K * TILT - h * K * VERT,
+    x: W * ANCHOR.x + du * K - dv * K,
+    y: H * ANCHOR.y - du * K * ISO - dv * K * ISO - h * K * VERT,
   };
 }
+
+// Profondeur pour l'ordre du peintre (plus grand = plus loin de la caméra).
+export function depth(u, v) { return u + v; }
 
 function poly(ctx, pts, color) {
   ctx.fillStyle = color;
@@ -56,31 +56,27 @@ function poly(ctx, pts, color) {
 }
 
 // Cube posé au sol : empreinte (u, v) → (u+du, v+dv), hauteur h, surélevé de
-// `lift`. Trois faces, de l'arrière vers l'avant.
+// `lift`. Faces visibles : gauche (u = u_min, éclairée), droite (v = v_min,
+// dans l'ombre), dessus (la plus claire). Même vocabulaire que Crossy.
 export function drawBox(ctx, u, v, du, dv, h, color, lift = 0) {
-  const A = project(u, v, lift), B = project(u + du, v, lift);
-  const C = project(u + du, v + dv, lift), Dp = project(u, v + dv, lift + h);
+  const A = project(u, v, lift), B = project(u + du, v, lift), D = project(u, v + dv, lift);
   const A2 = project(u, v, lift + h), B2 = project(u + du, v, lift + h);
-  const C2 = project(u + du, v + dv, lift + h);
-  poly(ctx, [B, C, C2, B2], shade(color, -38));     // flanc droit
-  poly(ctx, [A, B, B2, A2], color);                  // face avant
-  poly(ctx, [A2, B2, C2, Dp], shade(color, 26));     // dessus
+  const C2 = project(u + du, v + dv, lift + h), D2 = project(u, v + dv, lift + h);
+  poly(ctx, [A, D, D2, A2], shade(color, -14));     // face gauche (le long de v)
+  poly(ctx, [A, B, B2, A2], shade(color, -40));     // face droite (le long de u)
+  poly(ctx, [A2, B2, C2, D2], shade(color, 24));    // dessus
 }
 
-// Aplat au sol (pas de hauteur) : dalle, ombre, marquage.
+// Aplat au sol : parallélogramme.
 export function drawFlat(ctx, u, v, du, dv, color) {
-  const A = project(u, v), B = project(u + du, v), C = project(u + du, v + dv), D = project(u, v + dv);
-  poly(ctx, [A, B, C, D], color);
+  poly(ctx, [project(u, v), project(u + du, v), project(u + du, v + dv), project(u, v + dv)], color);
 }
 
-export function drawShadow(ctx, u, v, ru, rv, alpha = 0.28) {
-  const p = project(u, v);
+// Ombre au sol : losange translucide de demi-côtés ru, rv, centré en (u, v).
+export function drawShadow(ctx, u, v, ru, rv, alpha = 0.26) {
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.ellipse(p.x, p.y, ru * K, rv * K * TILT, 0, 0, Math.PI * 2);
-  ctx.fill();
+  drawFlat(ctx, u - ru, v - rv, ru * 2, rv * 2, "#000");
   ctx.restore();
 }
 
@@ -96,134 +92,107 @@ function hash(n) {
   return x - Math.floor(x);
 }
 
-const ZONE_ROWS = 90; // blé → tournesols → vignes, par tranches de 90 rangées
+const ZONE_ROWS = 90;
 function zoneAt(r) { return ["ble", "tournesol", "vigne"][Math.floor(Math.max(0, r) / ZONE_ROWS) % 3]; }
 const SOIL = { ble: "#c9a648", tournesol: "#6f8c2f", vigne: "#8a6a45" };
 
-// Une rangée = une bande de 1 unité de profondeur, sur toute la largeur.
+// Une rangée r couvre v ∈ [r − 0,5 ; r + 0,5[ sur toute la largeur.
 function renderRow(ctx, r) {
-  const v = r - 0.5; // la rangée r couvre [r − 0,5 ; r + 0,5[ (rows.js : floor(v + 0,5))
-  const g = GRASS[r % 2];
+  const v = r - 0.5;
+  const g = GRASS[((r % 2) + 2) % 2];
   const soil = SOIL[zoneAt(r)];
-  const half = UNITS_ACROSS / 2 + 1;
-  // Champs de chaque côté, puis herbe, terre, asphalte.
-  drawFlat(ctx, -half, v, half - ROAD_HALF - 0.9, 1, r % 6 < 3 ? soil : shade(soil, -10));
-  drawFlat(ctx, ROAD_HALF + 0.9, v, half - ROAD_HALF - 0.9, 1, r % 6 < 3 ? soil : shade(soil, -10));
+  const sc = r % 6 < 3 ? soil : shade(soil, -10);
+  drawFlat(ctx, -U_SPAN, v, U_SPAN - ROAD_HALF - 0.9, 1, sc);
+  drawFlat(ctx, ROAD_HALF + 0.9, v, U_SPAN - ROAD_HALF - 0.9, 1, sc);
   drawFlat(ctx, -ROAD_HALF - 0.9, v, 0.9, 1, g);
   drawFlat(ctx, ROAD_HALF, v, 0.9, 1, g);
-  drawFlat(ctx, -ROAD_HALF - 0.25, v, 0.25, 1, DIRT);
-  drawFlat(ctx, ROAD_HALF, v, 0.25, 1, DIRT);
-  drawFlat(ctx, -ROAD_HALF, v, ROAD_HALF * 2, 1, ROAD[r % 2]);
+  drawFlat(ctx, -ROAD_HALF - 0.22, v, 0.22, 1, DIRT);
+  drawFlat(ctx, ROAD_HALF, v, 0.22, 1, DIRT);
+  drawFlat(ctx, -ROAD_HALF, v, ROAD_HALF * 2, 1, ROAD[((r % 2) + 2) % 2]);
   if (r % 2 === 0) drawFlat(ctx, -0.06, v + 0.2, 0.12, 0.6, LINE);
 }
 
-// Plantes et props d'une rangée : blocs hashés, stables d'une frame à l'autre.
-function renderRowProps(ctx, r) {
+// Décor d'une rangée, renvoyé comme éléments à trier (ils ont une profondeur).
+export function rowDecor(ctx, r) {
+  const out = [];
   const zone = zoneAt(r);
+  const push = (u, v, draw) => out.push({ d: depth(u, v), draw });
   for (const side of [-1, 1]) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const a = hash(r * 31 + i * 7 + side * 101);
       const b = hash(r * 17 + i * 5 + side * 53);
-      const u = side * (ROAD_HALF + 1.1 + a * 2.6);
+      const u = side * (ROAD_HALF + 1.1 + a * 4.5);
       const v = r - 0.5 + b * 0.8;
       if (zone === "ble") {
-        drawBox(ctx, u, v, 0.28, 0.28, 0.55 + a * 0.35, "#c9a23b");
-        drawBox(ctx, u, v, 0.28, 0.28, 0.16, "#e8c65a", 0.55 + a * 0.35);
+        push(u, v, () => { drawBox(ctx, u, v, 0.28, 0.28, 0.55 + a * 0.35, "#c9a23b"); drawBox(ctx, u, v, 0.28, 0.28, 0.16, "#e8c65a", 0.55 + a * 0.35); });
       } else if (zone === "tournesol") {
-        drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a");
-        drawBox(ctx, u - 0.05, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85);
-        drawBox(ctx, u + 0.08, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95);
+        push(u, v, () => { drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a"); drawBox(ctx, u - 0.05, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85); drawBox(ctx, u + 0.08, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95); });
       } else {
-        drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e");
-        drawBox(ctx, u - 0.15, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55);
+        push(u, v, () => { drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
       }
     }
-    // Ligne d'arbres au fond, un sur deux.
     if ((r + (side > 0 ? 1 : 0)) % 2 === 0) {
       const a = hash(r * 13 + side * 7);
-      const u = side * (ROAD_HALF + 4.2 + a * 0.6);
-      drawBox(ctx, u, r - 0.4, 0.3, 0.3, 0.7, "#5c4a3a");
-      drawBox(ctx, u - 0.35, r - 0.7, 1.0, 0.9, 1.1 + a * 0.6, "#2f6a2a", 0.7);
+      const u = side * (ROAD_HALF + 6.2 + a * 0.8), v = r - 0.4;
+      push(u, v, () => { drawBox(ctx, u, v, 0.3, 0.3, 0.7, "#5c4a3a"); drawBox(ctx, u - 0.35, v - 0.3, 1.0, 0.9, 1.1 + a * 0.6, "#2f6a2a", 0.7); });
     }
-    // Poteau électrique côté droit toutes les 5 rangées.
     if (side > 0 && r % 5 === 0) {
-      drawBox(ctx, ROAD_HALF + 0.45, r - 0.1, 0.14, 0.14, 2.6, "#5c4a3a");
-      drawBox(ctx, ROAD_HALF + 0.05, r - 0.08, 0.95, 0.1, 0.1, "#3a2e24", 2.35);
+      const u = ROAD_HALF + 0.45, v = r - 0.1;
+      push(u, v, () => { drawBox(ctx, u, v, 0.14, 0.14, 2.6, "#5c4a3a"); drawBox(ctx, u - 0.4, v + 0.02, 0.95, 0.1, 0.1, "#3a2e24", 2.35); });
     }
-    // Botte de foin de temps en temps sur l'herbe.
-    if (hash(r * 41 + side) < 0.12) drawBox(ctx, side * (ROAD_HALF + 0.35) - (side < 0 ? 0.5 : 0), r - 0.25, 0.55, 0.55, 0.5, "#d0a84a");
+    if (hash(r * 41 + side) < 0.12) {
+      const u = side * (ROAD_HALF + 0.35) - (side < 0 ? 0.5 : 0), v = r - 0.25;
+      push(u, v, () => drawBox(ctx, u, v, 0.55, 0.55, 0.5, "#d0a84a"));
+    }
   }
+  return out;
 }
 
-// Panneau de village : plaque blanche à liseré rouge sur un poteau, texte
-// sur la face avant.
+// Panneau de village : poteau + plaque, texte en étiquette écran au-dessus.
 export function drawSign(ctx, r, side, village) {
   const [nom, dep] = village;
-  const u = side * (ROAD_HALF + 0.5);
-  drawBox(ctx, u - 0.06, r - 0.1, 0.12, 0.12, 1.3, "#8a8d98");
-  const w = 1.7;
-  drawBox(ctx, u - w / 2, r - 0.1, w, 0.08, 0.55, "#e13e26", 1.3);
-  const p = project(u - w / 2 + 0.06, r - 0.1, 1.36);
-  const wpx = (w - 0.12) * K, hpx = 0.43 * K * VERT;
+  const u = side * (ROAD_HALF + 0.5), v = r - 0.1;
+  drawBox(ctx, u - 0.06, v, 0.12, 0.12, 1.3, "#8a8d98");
+  drawBox(ctx, u - 0.8, v, 1.6, 0.1, 0.55, "#e13e26", 1.3);
+  const p = project(u, v + 0.05, 1.58);
+  const wpx = 1.5 * K, hpx = 0.42 * K;
   ctx.fillStyle = "#f7f2e6";
-  ctx.fillRect(p.x, p.y - hpx, wpx, hpx);
+  ctx.fillRect(p.x - wpx / 2, p.y - hpx / 2, wpx, hpx);
   ctx.fillStyle = "#0d0d10";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `900 ${Math.max(6, K * 0.2)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(nom, p.x + wpx / 2, p.y - hpx * 0.62);
+  ctx.fillText(nom, p.x, p.y - hpx * 0.18);
   ctx.font = `500 ${Math.max(5, K * 0.13)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(`(${dep})`, p.x + wpx / 2, p.y - hpx * 0.25);
-}
-
-// Ciel au-dessus de la dernière rangée + brume qui mange les rangées lointaines.
-export function renderSky(ctx) {
-  const top = project(0, camV + ROWS_AHEAD + 1).y;
-  const sky = ctx.createLinearGradient(0, 0, 0, Math.max(1, top));
-  sky.addColorStop(0, "#26397a");
-  sky.addColorStop(0.5, "#7d8fc0");
-  sky.addColorStop(0.85, "#efb890");
-  sky.addColorStop(1, HAZE);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, Math.max(0, top));
-  // Soleil bas à droite.
-  const sx = W * 0.72, sy = top - K * 0.5, r = K * 0.9;
-  const halo = ctx.createRadialGradient(sx, sy, r * 0.5, sx, sy, r * 3);
-  halo.addColorStop(0, "rgba(255,226,150,0.5)");
-  halo.addColorStop(1, "rgba(255,200,120,0)");
-  ctx.fillStyle = halo;
-  ctx.fillRect(sx - r * 3, sy - r * 3, r * 6, r * 3 + (top - sy));
-  ctx.fillStyle = "#ffe08a";
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = HAZE;
-  ctx.fillRect(0, top, W, H - top);
-}
-
-export function renderHaze(ctx) {
-  const yFar = project(0, camV + ROWS_AHEAD + 1).y;
-  const yNear = project(0, camV + ROWS_AHEAD - 7).y;
-  const g = ctx.createLinearGradient(0, yNear, 0, yFar);
-  g.addColorStop(0, "rgba(241,217,179,0)");
-  g.addColorStop(1, "rgba(241,217,179,0.92)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, yFar - 2, W, yNear - yFar + 2);
-}
-
-// Sol + décor de toutes les rangées visibles, de la plus lointaine à la plus
-// proche. Les objets de jeu (rows.js, friends, joueur) se peignent ensuite,
-// rangée par rangée, dans main.js.
-export function renderGround(ctx, signAt) {
-  const r0 = Math.floor(camV) - ROWS_BEHIND;
-  for (let r = r0 + ROWS_BEHIND + ROWS_AHEAD + 1; r >= r0; r--) renderRow(ctx, r);
-}
-
-export function renderProps(ctx, r, signAt) {
-  renderRowProps(ctx, r);
-  const s = signAt(r);
-  if (s) drawSign(ctx, r, s.side, s.village);
+  ctx.fillText(`(${dep})`, p.x, p.y + hpx * 0.26);
 }
 
 export function rowRange() {
   const r0 = Math.floor(camV) - ROWS_BEHIND;
-  return { from: r0, to: r0 + ROWS_BEHIND + ROWS_AHEAD + 1 };
+  return { from: r0, to: r0 + ROWS_BEHIND + ROWS_AHEAD };
+}
+
+// Fond + sol de toutes les rangées visibles.
+export function renderGround(ctx) {
+  ctx.fillStyle = HAZE;
+  ctx.fillRect(0, 0, W, H);
+  const { from, to } = rowRange();
+  for (let r = to; r >= from; r--) renderRow(ctx, r);
+}
+
+// Brume du matin sur le haut de l'écran (le lointain se dissout), et une
+// pointe de ciel rose dans le coin haut-gauche, là où la route s'en va.
+export function renderHaze(ctx) {
+  const g = ctx.createLinearGradient(0, 0, 0, H * 0.42);
+  g.addColorStop(0, "rgba(241,217,179,0.95)");
+  g.addColorStop(0.45, "rgba(241,217,179,0.45)");
+  g.addColorStop(1, "rgba(241,217,179,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H * 0.42);
+  const s = ctx.createRadialGradient(W * 0.12, H * 0.05, 0, W * 0.12, H * 0.05, W * 0.75);
+  s.addColorStop(0, "rgba(255,214,150,0.85)");
+  s.addColorStop(0.35, "rgba(240,160,130,0.35)");
+  s.addColorStop(1, "rgba(120,110,190,0)");
+  ctx.fillStyle = s;
+  ctx.fillRect(0, 0, W, H * 0.5);
 }

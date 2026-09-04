@@ -133,7 +133,7 @@
     }
     #pseudo-input::placeholder { color: rgba(0,0,0,0.32); }
     #pseudo-input:focus { outline: none; border-bottom-color: var(--rouge); }
-    .field-note { width: 240px; margin: 12px 0 18px; font: 500 11.5px/1.45 var(--police); color: rgba(0,0,0,0.55); text-align: left; }
+    .field-note { width: 240px; margin: 14px 0 22px; font: 500 13px/1.45 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
     .regle { width: 240px; margin: 0 0 18px; padding: 0; list-style: none; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); }
     .regle li { display: flex; gap: 8px; }
     .regle b { font-weight: 900; color: var(--noir); min-width: 62px; }
@@ -259,7 +259,7 @@
   <div id="vignette" aria-hidden="true"></div>
 
   <div id="overlay">
-    <h1 id="menu-title" class="fade"><span class="titre-mot">j'ai un pote</span><span class="titre-sous">Un jeu de PMC · La ville est belle</span></h1>
+    <h1 id="menu-title" class="fade"><span class="titre-mot">j'ai un pote</span></h1>
 
     <div id="onboarding" class="view active">
       <div class="panel">
@@ -269,12 +269,7 @@
             <span class="icon">@</span>
             <input type="text" id="pseudo-input" placeholder="ton_insta ou ton nom" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
           </div>
-          <p class="field-note">Un seul champ. C'est ce nom qui apparaîtra si tu fais un gros score.</p>
-          <ul class="regle">
-            <li><b>Étoiles</b><span>Elles te font gagner des potes.</span></li>
-            <li><b>Potes</b><span>Chaque pote = +25 % de mètres.</span></li>
-            <li><b>Obstacles</b><span>Tu perds des potes. Seul, tu perds la course.</span></li>
-          </ul>
+          <p class="field-note">Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement.</p>
           <div id="loading">
             <div id="loading-track"><div id="loading-fill"></div></div>
             <span id="loading-label">0 %</span>

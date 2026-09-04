@@ -2239,11 +2239,11 @@ navigateur Instagram verrouillé portrait).
 
 | Module | Rôle |
 |---|---|
-| `iso.js` | Projection OBLIQUE à échelle constante (pas de point de fuite) : `sx = centre + u·K + h·K·SHEAR`, `sy = base − v·K·TILT − h·K·VERT`. La route monte tout droit (pas en diagonale comme Crossy : un runner qui avance seul doit voir loin, et en portrait c'est la hauteur qui donne la distance). `drawBox()` = cube à 3 faces (dessus clair, avant, flanc droit sombre), partagé par décor et obstacles. Sol par RANGÉES de 1 unité (`renderRow`), plantes/arbres/poteaux/bottes hashés par rangée, zones blé → tournesols → vignes (90 rangées), ciel de lever de soleil au-dessus de la dernière rangée, brume sur les 7 dernières. `ROWS_BEHIND` = 8 rangées dessinées derrière le joueur (sans elles, le bas de l'écran était vide). |
+| `iso.js` | **Vue isométrique dimétrique 2:1** (troisième perspective du même jour, retour : « on n'a pas la perspective de Crossy Road, on a un entre-deux [...] baisse un peu la caméra ») : le monde est tourné de 45°, la route file vers le HAUT-GAUCHE de l'écran, les traversants la coupent le long de l'autre diagonale. `sx = ancre + (u−camU)·K − (v−camV)·K`, `sy = ancre − (u+v)·K·0,5 − h·K·0,95`. Le joueur est ancré en bas à droite (0,66 ; 0,66), la caméra le suit en v et glisse un peu en u ; ~8 rangées de route visibles devant lui (`UNITS_ACROSS` 12,5 → K ≈ 30 px). `drawBox()` = cube à 3 faces (dessus, gauche éclairée, droite sombre), `drawFlat()` = parallélogramme au sol. Ordre du peintre : profondeur **u + v** (plus grand = plus loin), décor de rangée compris (`rowDecor` renvoie des éléments triables). Pas de ciel : brume claire sur le haut de l'écran + lueur rose dans le coin haut-gauche. |
 | `rows.js` | Une rangée `r` (couvre `[r−0,5 ; r+0,5[`, `floor(v+0,5)`) = fonction pure de l'index + graine : `safe` (étoile 1 fois sur 2), `traverse` (poule/vache/voiture/tracteur qui passent d'un bord à l'autre, position = fonction du TEMPS, période, sens opposé à la rangée voisine) ou `statique` (botte, canapé, baignoire, piano, avion sur 1-2 colonnes). Densité 36 % → 74 % sur 700 rangées, jamais plus de 2 (puis 3) rangées dangereuses d'affilée. `checkMember(id, u, v, airborne, t)` résout étoiles et chocs PAR MEMBRE (joueur et chaque pote), une fois par instance. |
 | `props.js` | Les obstacles en cubes : poule qui sautille, vache tachetée, voiture (5 couleurs), tracteur, botte, canapé, baignoire, piano, avion (aile en travers). |
 | `input.js` | Swipe gauche/droite = colonne (un cran par contact), tap = saut (déclenché au RELÂCHER pour le distinguer d'un début de swipe), swipe haut = saut aussi. Clavier : flèches/QD, espace. |
-| `friends.js` | Peloton en SERPENT derrière le joueur (1,15 rangée d'écart), qui suit sa TRACE (`recordPlayer` : échantillons (v, u) + marques de saut — un pote saute là où le joueur a sauté). Premier pote = Soberland (étiquette). Arrivée en chute du ciel, départ éjecté. `members()` = ceux à tester en collision. |
+| `friends.js` | Peloton en HORDE autour du joueur (retour : « qu'ils se déplacent avec nous et tournent un peu autour ») : 8 places à côté / juste derrière (`SLOTS`), rejointes en douceur (`FOLLOW`), avec une ondulation sinusoïdale par pote. **Arrivée depuis le champ, sur le côté** (« l'ami arrive d'un champ sur le côté », plus de chute du ciel), départ éjecté. Ils sautent quand le joueur saute, décalés de 0,08 s par rangée d'écart (`onPlayerJump`). Premier pote = Soberland (étiquette). `members()` = ceux sur la route, à tester en collision. |
 | `rider.js` | `player.js` du premier jeu paramétré par palette (`pmc`, `soberland`, 7 potes), cache de sprites. |
 | `hud.js`, `screens.js`, `index.html` | Mètres en serif, multiplicateur, rangée de 8 potes + jauge, décompte 3-2-1-GO, bandeaux ; menu à UN champ, carte de mort, tiroir album (mêmes clés localStorage que le premier jeu), fin, pause. |
 
@@ -2258,6 +2258,8 @@ Pas de Supabase en V1, record local (`jaipRecord`).
 temps à 0,04 s, MP3 96 kbps (2,1 Mo). Boucle de mort = 16 temps = 11,294 s. ⚠️ Les traversants
 ne sont PAS calés sur le tempo (positions en fonction du temps continu) — seuls le décompte et
 le GO le sont.
+
+**Menu** réduit au strict (retour : « enlève étoile, pote, obstacle et tout ») : le titre, le champ, une phrase — « Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement. »
 
 **Pièges déjà vus** : un `MutationObserver` sur `disabled` du bouton JOUER qui se redéclenchait
 lui-même a gelé la page (supprimé) ; l'ordre du peintre trie sur le bord PROCHE de l'empreinte
