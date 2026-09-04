@@ -563,10 +563,12 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 
 ## Jeu n°2 : « J'ai un pote » (`jai-un-pote/`, depuis le 4 septembre 2026)
 
-Second jeu sur le même site, sous **/jai-un-pote/** : runner de campagne en vue 3/4 arrière
-(portrait), tap = saut / maintien = grand saut, les étoiles font venir des POTES (Soberland
-en premier) qui roulent devant le joueur, les obstacles absurdes (piano, avion, vache…) en
-enlèvent, seul on meurt, score en mètres × potes. **Sa propre racine Vite, ses propres copies des
+Second jeu sur le même site, sous **/jai-un-pote/** : runner de campagne en **vue 3/4 du
+dessus façon Crossy Road** (portrait, cubes, pas de point de fuite — la version en perspective
+fuyante a été rejetée le jour même : « injouable »), swipe = colonne / tap = saut, des poules,
+vaches, voitures et tracteurs TRAVERSENT la route, les étoiles font venir des POTES (Soberland
+en premier) qui suivent le joueur en serpent, les obstacles en enlèvent, seul on meurt, score
+en mètres × potes. **Sa propre racine Vite, ses propres copies des
 modules moteur** (rien de partagé avec `src/`, volontairement). Tout est documenté dans
 `ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run dev:pote` (port
 5174), `deploy.sh` construit et pousse les deux jeux.

@@ -2225,47 +2225,47 @@ Il est **en lecture seule** et lit `config.js` pour l'URL et la clé — aucune 
 Deuxième jeu, même site (**https://la-ville-est-belle-pmc.fr/jai-un-pote/**), sa propre racine
 Vite (`npm run dev:pote` → port 5174, `npm run build:pote` → `dist-pages/jai-un-pote/`, enchaîné
 par `deploy.sh`). Brief : « une variante en mode Zombie Tsunami [...] champêtre, route de
-campagne, champs à gauche à droite, soirée d'été [...] dès que j'ai assez d'étoiles, un pote se
-rajoute avec moi ; quand je me prends des obstacles je perds des potes ; aller le plus loin
-possible avec le plus de potes ». Vue 3/4 arrière façon Crossy Road pour rester en PORTRAIT
-(un navigateur ne peut pas forcer le paysage : `screen.orientation.lock()` n'existe pas sur
-Safari iOS et le navigateur intégré d'Instagram est verrouillé portrait).
+campagne, champs à gauche à droite [...] dès que j'ai assez d'étoiles, un pote se rajoute ;
+quand je me prends des obstacles je perds des potes ; aller le plus loin possible avec le plus
+de potes ». ⚠️ **Deux versions le même jour** : une première en perspective fuyante (fork du
+moteur du premier jeu) rejetée en dix minutes de test (« pas la fausse 3D [...] je vois pas
+comment faire juste sauter [...] injouable »), puis la version COURANTE, **vue 3/4 du dessus
+façon Crossy Road** avec des choses qui traversent la route. Le portrait reste natif (un
+navigateur ne peut pas forcer le paysage : pas de `screen.orientation.lock()` sur Safari iOS,
+navigateur Instagram verrouillé portrait).
 
 **Forké, pas partagé** : `jai-un-pote/src/` a ses COPIES de `audio.js`, `clock.js`, `voxel.js`,
-`debug.js` (identiques) — un changement sur l'un ne touche jamais l'autre jeu, qui est en
-concours. Le reste est propre au jeu :
+`debug.js` — un changement sur l'un ne touche jamais l'autre jeu, qui est en concours.
 
 | Module | Rôle |
 |---|---|
-| `road.js` | Même projection courbe que le premier jeu ; sol de campagne (herbe, terre, asphalte gris-brun, ligne centrale pointillée) ; ciel de LEVER de soleil + soleil ; brume claire et chaude (`HAZE_COLOR` #f1d9b3, force 0,62). `colX(c)` : les 3 colonnes de la chaussée (`COL_X` = 2,0). |
-| `fields.js` | Champs par cellules de 10 u : blé → tournesols → vignes (zones de 70 cellules), plantes en blocs voxel, ligne d'arbres, poteaux, bottes, **panneaux de village** (`config.villages`, tous les 45 cellules, côté alterné). |
-| `rider.js` | `player.js` paramétré par palette (`PALETTES.pmc`, `soberland`, 7 `potes`), casquette/barbe en option, cache de sprites par palette. |
-| `friends.js` | Le peloton : 8 places en formation DEVANT le joueur (3 colonnes), arrivée en chute du ciel, départ éjecté sur le côté. Premier pote = Soberland (étiquette `@soberland`). `occupiedCols()` = colonnes où une étoile est ramassable. |
-| `track.js` | Grille rythmique (1,5 temps à 85 BPM = 1,06 s/créneau), étoile OU obstacle par créneau, seedé par partie. Étoile : colonne 0/−1/+1 (50/25/25 %), 3 tailles, la grosse est aérienne. Jamais deux obstacles longs d'affilée. |
-| `obstacles.js` | 9 obstacles absurdes assumés (poule, botte, canapé, baignoire, vache, piano, tracteur, fossé, avion), chacun barre TOUTE la route, `saut: court/long`, `cout` = potes perdus. Sprites voxel pré-rendus. |
-| `input.js` | Un pouce : tap = saut, maintien = saut plus haut (gravité allégée tant que le doigt reste, ×3,2 dès qu'on lâche en montée). |
-| `hud.js` | Mètres en serif, multiplicateur, rangée de 8 potes + jauge vers le prochain, décompte 3-2-1-GO, bandeaux. |
-| `screens.js` / `index.html` | Menu à UN champ (« ton nom (pseudo Insta) »), carte de mort, tiroir album (mêmes clés localStorage que le premier jeu : un joueur converti là-bas est libre ici), fin, pause. |
+| `iso.js` | Projection OBLIQUE à échelle constante (pas de point de fuite) : `sx = centre + u·K + h·K·SHEAR`, `sy = base − v·K·TILT − h·K·VERT`. La route monte tout droit (pas en diagonale comme Crossy : un runner qui avance seul doit voir loin, et en portrait c'est la hauteur qui donne la distance). `drawBox()` = cube à 3 faces (dessus clair, avant, flanc droit sombre), partagé par décor et obstacles. Sol par RANGÉES de 1 unité (`renderRow`), plantes/arbres/poteaux/bottes hashés par rangée, zones blé → tournesols → vignes (90 rangées), ciel de lever de soleil au-dessus de la dernière rangée, brume sur les 7 dernières. `ROWS_BEHIND` = 8 rangées dessinées derrière le joueur (sans elles, le bas de l'écran était vide). |
+| `rows.js` | Une rangée `r` (couvre `[r−0,5 ; r+0,5[`, `floor(v+0,5)`) = fonction pure de l'index + graine : `safe` (étoile 1 fois sur 2), `traverse` (poule/vache/voiture/tracteur qui passent d'un bord à l'autre, position = fonction du TEMPS, période, sens opposé à la rangée voisine) ou `statique` (botte, canapé, baignoire, piano, avion sur 1-2 colonnes). Densité 36 % → 74 % sur 700 rangées, jamais plus de 2 (puis 3) rangées dangereuses d'affilée. `checkMember(id, u, v, airborne, t)` résout étoiles et chocs PAR MEMBRE (joueur et chaque pote), une fois par instance. |
+| `props.js` | Les obstacles en cubes : poule qui sautille, vache tachetée, voiture (5 couleurs), tracteur, botte, canapé, baignoire, piano, avion (aile en travers). |
+| `input.js` | Swipe gauche/droite = colonne (un cran par contact), tap = saut (déclenché au RELÂCHER pour le distinguer d'un début de swipe), swipe haut = saut aussi. Clavier : flèches/QD, espace. |
+| `friends.js` | Peloton en SERPENT derrière le joueur (1,15 rangée d'écart), qui suit sa TRACE (`recordPlayer` : échantillons (v, u) + marques de saut — un pote saute là où le joueur a sauté). Premier pote = Soberland (étiquette). Arrivée en chute du ciel, départ éjecté. `members()` = ceux à tester en collision. |
+| `rider.js` | `player.js` du premier jeu paramétré par palette (`pmc`, `soberland`, 7 potes), cache de sprites. |
+| `hud.js`, `screens.js`, `index.html` | Mètres en serif, multiplicateur, rangée de 8 potes + jauge, décompte 3-2-1-GO, bandeaux ; menu à UN champ, carte de mort, tiroir album (mêmes clés localStorage que le premier jeu), fin, pause. |
 
-**Règles (config.js)** : score = **mètres** (`metresParUnite` 0,5) × (1 + 0,25 × potes) ; les
-étoiles donnent des points (100/200/500) qui font venir les potes aux paliers CROISSANTS
-`potesPaliers` (3 000, 8 000, 15 000… 80 000 pour le 8e) ET quelques mètres bonus. Un obstacle
-touché enlève `cout` potes (derniers arrivés d'abord) ; **seul, un obstacle tue** — le joueur est
-le dernier à tomber. Seconde chance : la carte promet le retour de 2 potes (« tes potes
-t'attendent »), même échelle de conversion. Pas de Supabase en V1 (`apiScores` vide), record
-local (`jaipRecord`).
+**Règles (config.js)** : score = **mètres** (1 rangée = 1 m) × (1 + 0,25 × potes) ; vitesse
+4,4 rangées/s → 9,4 (doublement 70 s) ; chaque étoile = 150 points + 5 m × multiplicateur ;
+les potes arrivent aux paliers CROISSANTS `potesPaliers` (3 000 … 80 000). Poule/botte/canapé
+se sautent (coût 1), vache/baignoire/piano coûtent 2, tracteur/avion 3 ; un pote touché
+individuellement part seul. **Seul, un obstacle tue** ; seconde chance = 2 potes de retour.
+Pas de Supabase en V1, record local (`jaipRecord`).
 
-**Morceau** : « J'ai un pote », 85 BPM mesurés sur le master (librosa, 222 temps, résidu
-43 ms), premier temps à 0,04 s, MP3 réencodé à 96 kbps (2,1 Mo contre 6,9). Boucle de mort =
-16 temps = 11,294 s.
+**Morceau** : « J'ai un pote », 85 BPM mesurés sur le master (librosa, résidu 43 ms), premier
+temps à 0,04 s, MP3 96 kbps (2,1 Mo). Boucle de mort = 16 temps = 11,294 s. ⚠️ Les traversants
+ne sont PAS calés sur le tempo (positions en fonction du temps continu) — seuls le décompte et
+le GO le sont.
 
 **Pièges déjà vus** : un `MutationObserver` sur `disabled` du bouton JOUER qui se redéclenchait
-lui-même a gelé la page (supprimé) ; un obstacle passé sous la caméra (z < joueur) devient un
-mur plein écran → fondu de sortie entre z = 11 et 4 (main.js). Touches de debug avec `?debug` :
-**P** = +1 pote, **O** = −1 pote, **G** = mourir.
+lui-même a gelé la page (supprimé) ; l'ordre du peintre trie sur le bord PROCHE de l'empreinte
+(`r − larg/2`), sinon un piano se peignait par-dessus le joueur qui venait d'entrer dedans.
+Touches de debug avec `?debug` : **P** = +1 pote, **O** = −1 pote, **G** = mourir, **I** =
+invincible (pour filmer une longue course). Captures headless via Playwright + Google Chrome
+installé (`channel="chrome"`), voir la trente-et-unième passe.
 
-**Reste à faire (V1 locale livrée le 4 septembre 2026)** : réglage de la difficulté sur
-téléphone (vitesse, paliers, coût des obstacles), tunnel Supabase (nouvelles tables dans le
-projet existant, demandé « le moins d'actions possible »), le lien entre joueurs (bonus si un
-pote a joué / ajouté l'album), sons de saut et d'impact, tournesols/vignes à vérifier à l'écran,
-service worker pour la 2e visite.
+**Reste à faire** : réglage de la difficulté sur téléphone (vitesse, période des traversées,
+paliers), Supabase (tables dans le projet existant), lien entre joueurs, sons de saut/impact,
+service worker, et un soupçon d'animation sur le joueur au changement de colonne.

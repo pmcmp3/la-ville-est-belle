@@ -126,7 +126,7 @@ export function renderCountIn(ctx, width, height, t, beatPeriod, beats, linger) 
 // Rappel des commandes, en bas, pendant les premières secondes de course.
 export function renderHint(ctx, width, height, alpha) {
   if (alpha <= 0.01) return;
-  const txt = "TAP = SAUT   ·   MAINTIENS = GRAND SAUT";
+  const txt = "SWIPE = CHANGER DE VOIE   ·   TAP = SAUTER";
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.font = `700 12px ${POLICE}`;

@@ -4,7 +4,9 @@
 // (BPM/offset) colle bien au morceau du début à la fin.
 
 import { clock } from "./clock.js";
-import { project, getSpeed, getDistanceScrolled, ROAD_HALF_WIDTH, PLAYER_NEAR_Z } from "./road.js";
+// (refonte Crossy Road : plus de projection perspective — la grille rythmique
+// n'est plus dessinée, vitesse/distance sont dans la ligne `classement`.)
+const getSpeed = () => 0; const getDistanceScrolled = () => 0;
 import { isTypingTarget } from "./input.js";
 
 const VISIBLE_BEATS = 8; // nombre de temps affichés à l'avance sur la grille
@@ -59,6 +61,7 @@ window.addEventListener("unhandledrejection", (ev) => signaler("promesse", ev.re
 
 // Lignes de temps/mesure qui descendent vers le joueur au rythme du morceau.
 export function renderBeatGrid(ctx, width, height) {
+  return;
   if (!enabled) return;
 
   const now = clock.now();

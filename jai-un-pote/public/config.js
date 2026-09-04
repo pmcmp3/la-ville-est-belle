@@ -32,19 +32,20 @@ window.CONFIG = {
   // === VITESSE ===
   // Jeu d'endurance : montée plus douce que le premier (le but est d'aller
   // LOIN avec ses potes, pas de survivre 2 minutes). Plafond ×4,6 = 51 u/s.
+  // Vitesse d'avance en rangées/seconde : 4,4 au départ → plafond 9,4 (Crossy
+  // Road : 1 rangée = 1 unité). Doublement toutes les 70 s (main.js).
   vitesseBase: 1.7,
-  vitesseMax: 4.6,
+  vitesseMax: 3.6,
 
-  // === SAUT (tap court / tap long) ===
-  hauteurSaut: 2.0,      // apex du saut LONG (maintien), en multiple de la hauteur du personnage × 0,6
-  dureeSaut: 0.72,       // durée totale du saut long, en secondes
-  sautCourtRatio: 0.5,   // apex du tap COURT, en fraction du saut long
+  // === SAUT (tap) ===
+  sautHauteur: 1.25,     // apex du saut (unités-monde) — passe au-dessus des poules et des bottes
+  sautDuree: 0.55,       // durée du saut en secondes
 
   // === GRILLE ===
   cadenceSpawnBeats: 1.5, // un créneau tous les 1,5 temps = 1,06 s à 85 BPM
 
   // === SCORE = MÈTRES ===
-  metresParUnite: 0.5,    // 1 unité-monde = 0,5 m (20 u/s au départ = 36 km/h, un vélo qui envoie)
+  metresParUnite: 1,      // 1 rangée = 1 m (4,4 rangées/s au départ = 16 km/h, 34 km/h au plafond)
   // Chaque pote ajoute ce pourcentage aux mètres gagnés (×1 seul, ×3 avec 8 potes).
   potesBonusMetres: 0.25,
   // Mètres bonus par étoile ramassée (avant multiplicateur de potes).

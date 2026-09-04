@@ -1,19 +1,20 @@
-// main.js — « J'ai un pote » : boucle à pas fixe, état de partie, saut,
-// peloton, score en mètres, mort et seconde chance. Même squelette que le
-// premier jeu (horloge = audio, pas fixe 120 Hz, ancrage du départ sur la
-// grille du morceau, décompte 3-2-1-GO), gameplay réécrit.
+// main.js — « J'ai un pote », version Crossy Road (4 septembre 2026, refonte
+// après retour : « pas la fausse 3D [...] une perspective comme ça avec des
+// poules et des trucs qui traversent dans tous les sens »).
+// Boucle à pas fixe 120 Hz, horloge = audio (comme le premier jeu), vue 3/4
+// du dessus (iso.js), rangées et traversants (rows.js), peloton en serpent
+// derrière le joueur (friends.js). Gestes : swipe = colonne, tap = saut.
 
 import * as audio from "./audio.js";
 import { clock } from "./clock.js";
-import * as road from "./road.js";
-import * as fields from "./fields.js";
-import * as track from "./track.js";
-import * as obstacles from "./obstacles.js";
+import * as iso from "./iso.js";
+import * as rows from "./rows.js";
+import * as props from "./props.js";
 import * as friends from "./friends.js";
 import * as hud from "./hud.js";
 import * as screens from "./screens.js";
 import * as debugOverlay from "./debug.js";
-import { consumeJumpPress, isHolding } from "./input.js";
+import { consumeJumpPress, consumeLaneMove } from "./input.js";
 import { makeRider, PALETTES, HEIGHT_WORLD, DRAW_SCALE } from "./rider.js";
 import { drawStar3D } from "./star3d.js";
 
@@ -28,6 +29,7 @@ function resize() {
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  iso.setViewport(width, height);
 }
 window.addEventListener("resize", resize);
 resize();
@@ -62,10 +64,11 @@ function useFallbackClock(preserve) {
 
 const COUNT_IN_BEATS = 3;
 const COUNT_IN_GO_LINGER_S = 0.55;
+const LEAD_IN = 3.3; // secondes entre le départ et le GO (le décompte)
 function ancrerDepartSurLaGrille() {
   const pos = audioDrivesClock ? audio.now() : 0;
   const pas = clock.beatPeriod;
-  const go = Math.ceil((pos + track.LEAD_IN) / pas) * pas;
+  const go = Math.ceil((pos + LEAD_IN) / pas) * pas;
   clock.jumpBy(-(go - pos));
 }
 
@@ -93,41 +96,27 @@ document.addEventListener("visibilitychange", () => { hiddenPaused = document.hi
 
 // --- État de partie ------------------------------------------------------------
 const game = {
-  metres: 0,
-  points: 0,        // points d'étoiles cumulés (font venir les potes)
-  potesGagnes: 0,   // nombre de paliers franchis
-  etoiles: 0,
-  ended: false,
-  endReason: null,
-  reviveOffered: false,
-  sansFaute: true,
-  startedAt: 0,
+  metres: 0, points: 0, potesGagnes: 0, etoiles: 0,
+  ended: false, endReason: null, reviveOffered: false, sansFaute: true, startedAt: 0,
 };
 const playerRider = makeRider(PALETTES.pmc);
-const playerState = { pedalPhase: 0, prevPedalPhase: 0, lean: 0 };
-
-// Saut : parabole à gravité constante, gravité ALLÉGÉE tant que le doigt reste
-// posé (tap long = plus haut, plus loin), gravité renforcée dès qu'on lâche
-// en montée (tap court = petit saut). C'est la recette Mario.
-const jump = { mode: "ground", y: 0, prevY: 0, vy: 0, held: false };
+const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0 };
+const LANE_TWEEN = 11;
+// Vitesse d'avance en rangées/s : 2,6 × vitesseBase au départ, doublement
+// toutes les 70 s, plafond 2,6 × vitesseMax.
+const V_UNIT = 2.6, V_DOUBLING_S = 70;
+let speed = V_UNIT * window.CONFIG.vitesseBase;
+function targetSpeed(t) {
+  const { vitesseBase, vitesseMax } = window.CONFIG;
+  return V_UNIT * Math.min(vitesseMax, vitesseBase * Math.pow(2, Math.max(0, t) / V_DOUBLING_S));
+}
 function jumpPhysics() {
-  const T = window.CONFIG.dureeSaut;
-  const apex = window.CONFIG.hauteurSaut * HEIGHT_WORLD * 0.6;
+  const T = window.CONFIG.sautDuree, apex = window.CONFIG.sautHauteur;
   return { vJump: 4 * apex / T, g: 8 * apex / (T * T) };
 }
-const RELEASE_GRAVITY = 3.2; // multiplicateur de gravité en montée après relâchement
-
-function multiplicateur() {
-  return 1 + window.CONFIG.potesBonusMetres * friends.count();
-}
-function prochainPalier() {
-  const paliers = window.CONFIG.potesPaliers;
-  return paliers[Math.min(game.potesGagnes, paliers.length - 1)];
-}
-function palierPrecedent() {
-  const paliers = window.CONFIG.potesPaliers;
-  return game.potesGagnes === 0 ? 0 : paliers[game.potesGagnes - 1];
-}
+function multiplicateur() { return 1 + window.CONFIG.potesBonusMetres * friends.count(); }
+function palierPrecedent() { const p = window.CONFIG.potesPaliers; return game.potesGagnes === 0 ? 0 : p[game.potesGagnes - 1]; }
+function prochainPalier() { const p = window.CONFIG.potesPaliers; return p[Math.min(game.potesGagnes, p.length - 1)]; }
 
 // --- Effets ------------------------------------------------------------------
 const popups = [];
@@ -143,11 +132,11 @@ let damageFlash = 0;
 let hudAlpha = 0;
 const HUD_FADE = 0.6;
 let hintTimer = 0;
-const JAUNE = "#ffcf2e", ROUGE = "#e13e26", BLANC = "#ffffff";
+let reviveShieldUntil = -Infinity;
+const JAUNE = "#ffcf2e", ROUGE = "#e13e26";
 
-// --- Démarrage / rejeu -----------------------------------------------------------
+// --- Départ / rejeu -----------------------------------------------------------------
 function requestGameStart() {
-  road.markCourseStart();
   game.startedAt = perfClock();
   startRequested = true;
   startRequestedAt = perfClock();
@@ -159,14 +148,14 @@ function resetRun() {
   game.metres = 0; game.points = 0; game.potesGagnes = 0; game.etoiles = 0;
   game.ended = false; game.endReason = null; game.reviveOffered = false; game.sansFaute = true;
   game.startedAt = perfClock();
-  jump.mode = "ground"; jump.y = 0; jump.prevY = 0; jump.vy = 0;
+  player.col = 1; player.u = iso.colU(1); player.prevU = player.u; player.v = 0; player.prevV = 0;
+  player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0;
+  speed = V_UNIT * window.CONFIG.vitesseBase;
   friends.reset();
-  track.reseed();
-  track.reset();
-  road.reset();
+  rows.reseed();
+  rows.reset();
   popups.length = 0; banner = null; damageFlash = 0; shake.time = 0; hudAlpha = 0; hintTimer = 6;
-  canvas.classList.remove("game-over-bw");
-  canvas.classList.remove("danger");
+  canvas.classList.remove("game-over-bw", "danger");
 }
 
 function restartGame() {
@@ -204,10 +193,9 @@ function mourir() {
         applyPauseState();
         screens.showPauseButton();
         consumeJumpPress();
-        // Les potes retombent du ciel : deux au plus (le ressort de la carte).
         const retour = Math.min(2, friends.maxReached());
         for (let i = 0; i < retour; i++) friends.join();
-        afficherBanner(retour > 0 ? (retour > 1 ? "TES POTES SONT REVENUS" : "TON POTE EST REVENU") : "C'EST REPARTI", null, JAUNE);
+        afficherBanner(retour > 1 ? "TES POTES SONT REVENUS" : retour === 1 ? "TON POTE EST REVENU" : "C'EST REPARTI", null, JAUNE);
         reviveShieldUntil = clock.now() + 2.5;
       },
       onDecline: () => { revivePaused = false; applyPauseState(); endGame("mort"); },
@@ -217,7 +205,6 @@ function mourir() {
     endGame("mort");
   }
 }
-let reviveShieldUntil = -Infinity;
 
 function endGame(reason) {
   game.ended = true;
@@ -230,6 +217,39 @@ function endGame(reason) {
 }
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }
+
+function gagnerEtoile() {
+  const pts = 150;
+  const mult = multiplicateur();
+  const m = 5 * mult;
+  game.points += pts;
+  game.metres += m;
+  game.etoiles += 1;
+  if (game.etoiles <= 5) pousserPopup(`+${Math.round(m)} m`, JAUNE);
+  while (game.potesGagnes < window.CONFIG.potesPaliers.length && game.points >= window.CONFIG.potesPaliers[game.potesGagnes]) {
+    game.potesGagnes += 1;
+    const pote = friends.join();
+    if (pote) {
+      if (pote.name) afficherBanner(`@${pote.name.toUpperCase()} EST LÀ !`, "ton premier pote tombe du ciel", JAUNE, 2.8);
+      else afficherBanner("+1 POTE", `${friends.count()} dans le peloton · ×${String(multiplicateur()).replace(".", ",")} mètres`, JAUNE);
+      audio.playComboJingle(Math.min(6, friends.count()));
+    }
+  }
+}
+
+function toucherJoueur(ev) {
+  if (clock.now() < reviveShieldUntil || invincible) return;
+  const nom = rows.KINDS[ev.kind].nom;
+  if (friends.count() > 0) {
+    const perdus = friends.lose(ev.cout);
+    game.sansFaute = false;
+    triggerShake(6, 0.45);
+    damageFlash = 0.8;
+    afficherBanner(perdus.length > 1 ? `−${perdus.length} POTES` : "−1 POTE", `${nom}${ev.saut ? " — il fallait sauter" : ""}`, ROUGE, 2);
+  } else {
+    mourir();
+  }
+}
 
 // --- Simulation ------------------------------------------------------------------
 const STEP = 1 / 120;
@@ -254,8 +274,7 @@ function step(dt) {
     else if (perfClock() - audioWatch.lastReal > AUDIO_STALL_TIMEOUT) useFallbackClock(true);
   }
 
-  playerState.prevPedalPhase = playerState.pedalPhase;
-  jump.prevY = jump.y;
+  player.prevU = player.u; player.prevV = player.v; player.prevJumpY = player.jumpY; player.prevPedal = player.pedal;
 
   for (let i = popups.length - 1; i >= 0; i--) { popups[i].age += dt; if (popups[i].age >= 1.1) popups.splice(i, 1); }
   if (banner) { banner.timer -= dt; if (banner.timer <= 0) banner = null; }
@@ -270,138 +289,101 @@ function step(dt) {
   }
 
   if (!gameStarted) {
-    // Menu : la route défile déjà, le personnage pédale.
-    road.idle(dt);
-    playerState.pedalPhase += road.getSpeed() * dt * 0.55;
+    // Menu : le personnage pédale sur place, les traversants vivent.
+    player.pedal += 2.2 * dt;
     return;
   }
   if (game.ended || isPaused()) return;
 
   const now = clock.now();
-  const speed = road.getSpeed();
-  road.update(dt, now);
-  playerState.pedalPhase += speed * dt * 0.55;
-  friends.update(dt);
+  const phys = jumpPhysics();
+
+  // --- Colonne ---
+  const move = consumeLaneMove();
+  if (move) player.col = Math.max(0, Math.min(iso.COLS - 1, player.col + move));
+  player.u += (iso.colU(player.col) - player.u) * Math.min(1, LANE_TWEEN * dt);
 
   // --- Saut ---
-  const { vJump, g } = jumpPhysics();
-  const pressed = consumeJumpPress();
-  if (jump.mode === "ground" && pressed) {
-    jump.mode = "air"; jump.vy = vJump; jump.held = true;
-  }
-  if (jump.mode === "air") {
-    if (jump.held && !isHolding()) jump.held = false;
-    const gEff = jump.vy > 0 && !jump.held ? g * RELEASE_GRAVITY : g;
-    jump.vy -= gEff * dt;
-    jump.y += jump.vy * dt;
-    if (jump.y <= 0) { jump.y = 0; jump.vy = 0; jump.mode = "ground"; }
+  let jumped = false;
+  if (consumeJumpPress() && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; }
+  if (player.jumpY > 0) {
+    player.jumpVy -= phys.g * dt;
+    player.jumpY += player.jumpVy * dt;
+    if (player.jumpY <= 0) { player.jumpY = 0; player.jumpVy = 0; }
   }
 
-  // --- Mètres ---
-  const mult = multiplicateur();
-  if (now >= 0) game.metres += speed * dt * window.CONFIG.metresParUnite * mult;
+  // --- Avance ---
+  speed += (targetSpeed(now) - speed) * Math.min(1, 3 * dt);
+  if (now >= 0) {
+    const dv = speed * dt;
+    player.v += dv;
+    game.metres += dv * window.CONFIG.metresParUnite * multiplicateur();
+  }
+  player.pedal += speed * dt * 1.6;
+  friends.recordPlayer(player.u, player.v, jumped);
+  friends.update(dt, player.v, phys);
 
-  // --- Grille : étoiles et obstacles ---
-  const events = track.update(now, speed, jump.y, friends.occupiedCols());
-  for (const ev of events) {
-    if (ev.type === "etoile") {
-      const pts = window.CONFIG.etoiles[ev.tier];
-      const m = window.CONFIG.etoileMetres[ev.tier] * mult;
-      game.points += pts;
-      game.metres += m;
-      game.etoiles += 1;
-      if (game.etoiles <= 5) pousserPopup(`+${Math.round(m)} m`, JAUNE);
-      // Palier de pote franchi ?
-      while (game.potesGagnes < window.CONFIG.potesPaliers.length && game.points >= window.CONFIG.potesPaliers[game.potesGagnes]) {
-        game.potesGagnes += 1;
-        const pote = friends.join();
-        if (pote) {
-          if (pote.name) afficherBanner(`@${pote.name.toUpperCase()} EST LÀ !`, "ton premier pote tombe du ciel", JAUNE, 2.8);
-          else afficherBanner(`+1 POTE`, `${friends.count()} dans le peloton · ×${String(multiplicateur()).replace(".", ",")} mètres`, JAUNE);
-          audio.playComboJingle(Math.min(6, friends.count()));
+  // --- Collisions et étoiles : le joueur puis chaque pote ---
+  if (now >= 0) {
+    for (const ev of rows.checkMember("j", player.u, player.v, player.jumpY > 0.25, now)) {
+      if (ev.type === "etoile") gagnerEtoile();
+      else { toucherJoueur(ev); if (game.ended || revivePaused) break; }
+    }
+    for (const m of friends.members()) {
+      for (const ev of rows.checkMember(m.id, m.u, m.v, m.airborne, now)) {
+        if (ev.type === "etoile") gagnerEtoile();
+        else if (clock.now() >= reviveShieldUntil && !invincible) {
+          friends.loseOne(m.pote);
+          game.sansFaute = false;
+          damageFlash = Math.max(damageFlash, 0.5);
+          afficherBanner("−1 POTE", `${rows.KINDS[ev.kind].nom} dans le peloton`, ROUGE, 1.6);
         }
-      }
-    } else if (ev.type === "obstacle" && !ev.cleared) {
-      if (clock.now() < reviveShieldUntil) continue;
-      const nom = obstacles.OBSTACLES[ev.kind].nom;
-      if (friends.count() > 0) {
-        const perdus = friends.lose(ev.cout);
-        game.sansFaute = false;
-        triggerShake(6, 0.45);
-        damageFlash = 0.8;
-        afficherBanner(perdus.length > 1 ? `−${perdus.length} POTES` : "−1 POTE", `${nom} en plein milieu de la route`, ROUGE, 2);
-        if (friends.count() === 0) canvas.classList.add("danger");
-      } else {
-        mourir();
-        break;
       }
     }
   }
-  // Alerte N&B seulement quand on a EU des potes et qu'on les a tous perdus :
-  // être seul au départ est l'état normal, pas un danger.
+
   if (friends.count() > 0 || friends.maxReached() === 0) canvas.classList.remove("danger");
   else if (!game.ended) canvas.classList.add("danger");
 }
 
-// Touches de debug (avec ?debug) : P = +1 pote, O = −1 pote, G = mourir.
+// Touches de debug (avec ?debug) : P = +1 pote, O = −1 pote, G = mourir,
+// I = invincible (pour filmer une longue course sans jouer).
+let invincible = false;
 window.addEventListener("keydown", (e) => {
   if (!debugOverlay.isEnabled() || !gameStarted || game.ended) return;
+  if (e.code === "KeyI") { invincible = !invincible; afficherBanner(invincible ? "INVINCIBLE" : "VULNÉRABLE", "debug", JAUNE, 1.2); }
   if (e.code === "KeyP") { const p = friends.join(); if (p) afficherBanner(p.name ? `@${p.name.toUpperCase()} EST LÀ !` : "+1 POTE", "debug", JAUNE); }
   if (e.code === "KeyO") { friends.lose(1); afficherBanner("−1 POTE", "debug", ROUGE); }
   if (e.code === "KeyG") mourir();
 });
 
 // --- Rendu ---------------------------------------------------------------------
-const STAR_R = { petite: 0.5, moyenne: 0.62, grosse: 0.78 };
-const STAR_LIFT = { petite: 0.15, moyenne: 0.2, grosse: 1.8 };
-
-function renderStar(s, now) {
-  const p = road.project(road.colX(s.col), s.z, width, height);
-  const R = STAR_R[s.tier] * p.scale;
-  const bob = s.aerial ? Math.sin(now * 3 + s.index) * 0.15 : 0;
-  const cy = p.y - (STAR_LIFT[s.tier] + bob) * p.scale - R;
-  const alpha = Math.max(0, Math.min(1, (track.VISIBLE_Z_MAX - s.z) / track.FADE_BAND));
-  const spin = (now * Math.PI * 2) / (clock.beatPeriod * 4);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  if (s.aerial) {
-    ctx.fillStyle = "rgba(0,0,0,0.22)";
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, R * 0.7, R * 0.22, 0, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.translate(p.x, cy);
-  drawStar3D(ctx, R, spin + s.index * 0.7, false);
-  ctx.restore();
+function signAt(r) {
+  const villages = window.CONFIG.villages || [];
+  if (!villages.length || r % 45 !== 20) return null;
+  const idx = Math.floor(r / 45) % villages.length;
+  return { side: idx % 2 === 0 ? 1 : -1, village: villages[idx] };
 }
 
-function renderPlayer(alpha) {
-  const y = jump.prevY + (jump.y - jump.prevY) * alpha;
-  const pedal = playerState.prevPedalPhase + (playerState.pedalPhase - playerState.prevPedalPhase) * alpha;
-  const p = road.project(0, road.PLAYER_NEAR_Z, width, height);
-  if (y > 0.05) playerRider.shadow(ctx, p.x, p.y, p.scale);
-  playerRider.render(ctx, p.x, p.y - y * p.scale, p.scale, 0, pedal);
-}
-
-function renderPopups() {
-  if (!popups.length) return;
-  const p = road.project(0, road.PLAYER_NEAR_Z, width, height);
-  const base = p.y - jump.y * p.scale - HEIGHT_WORLD * DRAW_SCALE * p.scale * 1.35;
+function drawStar(r, c, now) {
+  const p = iso.project(iso.colU(c), r, 0.5);
+  const R = iso.scale() * 0.3;
+  const spin = (now * Math.PI * 2) / (clock.beatPeriod * 4) + r * 0.7;
+  iso.drawShadow(ctx, iso.colU(c), r, 0.25, 0.18, 0.2);
   ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-  for (const pop of popups) {
-    const t = pop.age / 1.1;
-    ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-    ctx.font = `900 18px "Stage Grotesk", system-ui, sans-serif`;
-    ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
-    ctx.fillStyle = pop.couleur;
-    ctx.fillText(pop.texte, p.x, base - t * 46 - pop.decalage);
-  }
+  ctx.translate(p.x, p.y);
+  drawStar3D(ctx, R, spin, false);
   ctx.restore();
 }
 
 function render(alpha) {
   const now = clock.now();
-  const distance = road.getRenderDistance(alpha);
+  const u = player.prevU + (player.u - player.prevU) * alpha;
+  const v = player.prevV + (player.v - player.prevV) * alpha;
+  const jy = player.prevJumpY + (player.jumpY - player.prevJumpY) * alpha;
+  const pedal = player.prevPedal + (player.pedal - player.prevPedal) * alpha;
+  iso.setCamera(v);
+
   const shakeActive = shake.time > 0;
   if (shakeActive) {
     const k = shake.time / shake.duration;
@@ -409,36 +391,61 @@ function render(alpha) {
     ctx.translate((Math.random() - 0.5) * shake.amp * k, (Math.random() - 0.5) * shake.amp * k);
   }
 
-  road.render(ctx, width, height, distance);
-  fields.render(ctx, width, height, distance);
+  iso.renderSky(ctx);
+  iso.renderGround(ctx);
 
-  // Séquence du peintre : étoiles, obstacles, potes, joueur, triés par z.
+  // Séquence du peintre : tout ce qui a une position v, du plus loin au plus
+  // proche — décor de rangée, statiques, étoiles, traversants, potes, joueur.
   const items = [];
-  if (gameStarted) {
-    for (const s of track.slotsFor(now, road.getSpeed())) {
-      if (s.z <= 0.5) continue;
-      if (s.isBonus) { if (!track.isConsumed(s.index)) items.push({ z: s.z, draw: () => renderStar(s, now) }); }
-      else {
-        // Fondu à l'entrée (brume) ET à la sortie : un obstacle passé sous la
-        // caméra (z < joueur) deviendrait un mur de pixels plein écran.
-        const aIn = Math.max(0, Math.min(1, (track.VISIBLE_Z_MAX - s.z) / track.FADE_BAND));
-        const aOut = Math.max(0, Math.min(1, (s.z - 4) / 7));
-        items.push({ z: s.z, draw: () => obstacles.renderObstacle(ctx, s.kind, s.z, width, height, aIn * aOut) });
+  const { from, to } = iso.rowRange();
+  for (let r = from; r <= to; r++) {
+    items.push({ v: r + 0.45, draw: () => iso.renderProps(ctx, r, signAt) });
+    if (r < 0) continue;
+    const row = rows.rowAt(r);
+    // Clé de tri = bord PROCHE de l'empreinte (un cube dont la face avant est
+    // plus près que le joueur se peint par-dessus lui, jamais l'inverse).
+    for (const c of row.stars) if (!rows.starTaken(r, c)) items.push({ v: r - 0.3, draw: () => drawStar(r, c, now) });
+    if (row.type === "statique") {
+      const uc = row.cols.length === 2 ? (iso.colU(row.cols[0]) + iso.colU(row.cols[1])) / 2 : iso.colU(row.cols[0]);
+      items.push({ v: r - rows.KINDS[row.kind].larg / 2, draw: () => props.drawStatic(ctx, row.kind, uc, r) });
+    } else if (row.type === "traverse") {
+      const t = gameStarted ? now : perfClock();
+      for (const inst of rows.crossersAt(r, row, t)) {
+        items.push({ v: r - inst.K.larg / 2, draw: () => props.drawCrosser(ctx, inst.kind, inst.u, r, inst.dir, t) });
       }
     }
-    const pedal = playerState.prevPedalPhase + (playerState.pedalPhase - playerState.prevPedalPhase) * alpha;
-    const y = jump.prevY + (jump.y - jump.prevY) * alpha;
-    for (const e of friends.extras(ctx, width, height, y, pedal, 0)) items.push(e);
   }
-  items.push({ z: road.PLAYER_NEAR_Z, draw: () => renderPlayer(alpha) });
-  items.sort((a, b) => b.z - a.z);
+  if (gameStarted) for (const d of friends.drawables(ctx, pedal)) items.push(d);
+  items.push({ v, draw: () => {
+    const g = iso.project(u, v, 0);
+    const K = iso.scale();
+    if (jy > 0.05) playerRider.shadow(ctx, g.x, g.y, K * 0.86);
+    playerRider.render(ctx, g.x, g.y - jy * K * 0.86, K * 0.86, 0, pedal);
+  } });
+  items.sort((a, b) => b.v - a.v);
   for (const it of items) it.draw();
+  iso.renderHaze(ctx);
 
   if (damageFlash > 0) {
     ctx.fillStyle = `rgba(225, 62, 38, ${0.35 * damageFlash})`;
     ctx.fillRect(0, 0, width, height);
   }
-  renderPopups();
+  // Popups au-dessus du joueur.
+  if (popups.length) {
+    const g = iso.project(u, v, 0);
+    const base = g.y - jy * iso.scale() * 0.86 - HEIGHT_WORLD * DRAW_SCALE * iso.scale() * 0.86 * 1.3;
+    ctx.save();
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    for (const pop of popups) {
+      const t = pop.age / 1.1;
+      ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      ctx.font = `900 18px "Stage Grotesk", system-ui, sans-serif`;
+      ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
+      ctx.fillStyle = pop.couleur;
+      ctx.fillText(pop.texte, g.x, base - t * 46 - pop.decalage);
+    }
+    ctx.restore();
+  }
   if (shakeActive) ctx.restore();
 
   if (gameStarted && hudAlpha > 0.001) {
@@ -455,11 +462,10 @@ function render(alpha) {
     if (now >= 0 && !banner) hud.renderHint(ctx, width, height, Math.min(1, hintTimer));
   }
 
-  debugOverlay.renderBeatGrid(ctx, width, height);
   debugOverlay.renderStats(ctx, {
-    fps: perf.fps, frameMs: perf.frameMs, playerX: 0,
+    fps: perf.fps, frameMs: perf.frameMs, playerX: player.u,
     audioStatus: audio.getStatus(), clockSource: audioDrivesClock ? "audio" : "secours",
-    conversion: screens.niveauConversionCourant(), classement: `potes ${friends.count()} · pts ${game.points}`,
+    conversion: screens.niveauConversionCourant(), classement: `potes ${friends.count()} · pts ${game.points} · v ${player.v.toFixed(1)} · ${speed.toFixed(1)} r/s`,
   });
 }
 
