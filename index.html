@@ -272,13 +272,8 @@
       white-space: nowrap;
     }
 
-    #menu-title .titre-pmc {
-      position: absolute;
-      right: 2px;
-      bottom: -14px;
-      font: 700 12px var(--police);
-      letter-spacing: 0.16em;
-    }
+    /* (Le « PMC » en grotesk à droite du titre a été retiré le jour même :
+       « ne fonctionne pas très bien ».) */
 
     /* --- Écran de fin (refonte v3) -----------------------------------------
        Playtest : « il faut revoir l'écran de game over entièrement pour qu'il
@@ -2201,7 +2196,7 @@
   <div id="vignette" aria-hidden="true"></div>
 
   <div id="overlay">
-    <h1 id="menu-title" class="fade"><span class="titre-mot">la ville est belle</span><span class="titre-pmc" aria-hidden="true">PMC</span></h1>
+    <h1 id="menu-title" class="fade"><span class="titre-mot">la ville est belle</span></h1>
 
     <!-- Accueil en 2 étapes : pseudo → volume/JOUER. Une seule action par
          écran (voir §"Ne jamais faire du tap n'importe où" dans
