@@ -513,6 +513,15 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   `performance.now()` : l'horloge musicale est GELÉE pendant la pause — il bouge parce que tout
   le reste est arrêté.
 
+- **Départ calé sur la grille du morceau + décompte « 3, 2, 1, GO »** (4 septembre 2026, audit
+  de la transition tuto → course) : `ancrerDepartSurLaGrille()` (main.js) pose le temps 0 de la
+  course sur un TEMPS du morceau (mesuré avant : décalage de 0 à 0,5 s selon l'instant du tap,
+  0,27 s même au rejeu — plus aucun objet n'arrivait sur le temps). Le HUD monte avec le
+  décompte (`hud.renderCountIn`), la consigne du tuto disparaît net, et la route ne se remet
+  PLUS à zéro au départ (`road.markCourseStart()` remplace `road.reset()` dans
+  `requestGameStart` ; `crosstraffic` compte sa rampe depuis `road.getCourseStartSlot()`).
+  ⚠️ Ne pas réintroduire `clock.jumpBy(-LEAD_IN)` brut ni `road.reset()` à cet endroit. Voir
+  `ARCHITECTURE.md` §11, trentième passe.
 - **Tutoriel interactif à la place du décompte** (`tutorial.js`, 19 août 2026 — « on peut
   remplacer les 20 secondes de début avec des exemples de swipe, comme un jeu Mario »). L'idée
   initiale (enregistrer des GIF) a été écartée : poids (centaines de Ko contre 65 Ko de bundle),

@@ -104,8 +104,13 @@ function hash(n) {
 }
 
 function probabiliteAu(n) {
-  if (n < RAMP_START_SLOT) return 0;
-  const t = Math.min(1, (n - RAMP_START_SLOT) / (RAMP_FULL_SLOT - RAMP_START_SLOT));
+  // Rampe comptée depuis le DÉPART DE LA COURSE, pas depuis la distance 0 :
+  // le décor défile déjà pendant le tutoriel et la distance n'est plus remise
+  // à zéro au départ (road.markCourseStart, 4 septembre 2026). Sans ça, ~20 s
+  // de tutoriel avanceraient d'autant les premiers véhicules.
+  const c = n - road.getCourseStartSlot();
+  if (c < RAMP_START_SLOT) return 0;
+  const t = Math.min(1, (c - RAMP_START_SLOT) / (RAMP_FULL_SLOT - RAMP_START_SLOT));
   return t * MAX_PROBABILITY;
 }
 

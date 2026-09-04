@@ -284,6 +284,7 @@ export function getSpeedRatio() {
 export function reset() {
   distanceScrolled = 0;
   prevDistanceScrolled = 0;
+  courseStartDistance = 0;
   cameraX = 0;
   currentSpeed = BASE_SPEED * window.CONFIG.vitesseBase;
 }
@@ -303,6 +304,23 @@ export function brake(dt) {
 
 export function getDistanceScrolled() {
   return distanceScrolled;
+}
+
+// Origine de la COURSE sur l'axe de distance (4 septembre 2026). Le décor
+// défile déjà pendant le tutoriel ; au lieu de remettre la distance à zéro au
+// départ (saut visible de tout le décor), main.js note d'où la course part.
+// crosstraffic.js y lit sa rampe de densité (« aucun véhicule avant ~50 s de
+// COURSE »), world.js et le rendu du sol continuent de lire la distance
+// absolue. Remise à 0 par reset() (rejeu), qui repart bien de la distance 0.
+let courseStartDistance = 0;
+
+export function markCourseStart() {
+  courseStartDistance = distanceScrolled;
+}
+
+// Index de carrefour (grille WORLD_GRID_SPACING) d'où la course est partie.
+export function getCourseStartSlot() {
+  return Math.floor(courseStartDistance / WORLD_GRID_SPACING);
 }
 
 // Distance interpolée entre le pas de simulation précédent et le courant

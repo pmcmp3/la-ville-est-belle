@@ -597,3 +597,23 @@ il est — j'ai l'impression qu'il n'existe pas dans ta chaîne ».
   panne invisible pendant des heures. Même intention que la ligne `conversion=`.
 - ⚠️ **Lignes de test à supprimer** (créées pendant ce diagnostic) : `zz_diag`, `zz_a`, `zz_b`,
   `zz_c`, `zz_head`, plus `zz_test` d'une session précédente.
+
+---
+
+## 4 septembre 2026 — audit du jeu (transition, écrans, police, couleurs)
+
+Demandé : « faire un audit du jeu vidéo pour voir tous les problèmes [...] revoir la transition
+entre la fin du tutoriel et le début de la partie ; revoir les écrans de menus, ils font très AI
+slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix idées de vidéos Insta.
+
+- ✅ **Transition tuto → course refaite** (voir `ARCHITECTURE.md` §11, trentième passe) : grille
+  des créneaux enfin calée sur les temps du morceau (mesuré 0,126 s de décalage avant, 0,000 après),
+  décompte « 3, 2, 1, GO » sur les temps, consigne du tuto masquée net, plus de saut du décor
+  (`road.markCourseStart()`).
+- 📋 **Écrans, police, couleurs** : audit livré (rapport du 4 septembre), rien d'implémenté — la
+  refonte dépend de deux décisions de l'artiste : les fichiers de la police Alphabetica (absente
+  du disque : seuls Flawsome et Stage Grotesk existent dans `public/fonts/`), et la direction
+  « la scène est l'écran » (panneaux sombres translucides, plus de carte crème/bord brun).
+- ⚠️ Vue « Règles & points » de la pause : texte OBSOLÈTE (parle encore d'« ajouter le morceau
+  pour reprendre », modèle du 22 août ; ignore le plafond ×5 du combo, la pluie d'étoiles, les
+  cadeaux) — à réécrire avec la refonte des écrans.

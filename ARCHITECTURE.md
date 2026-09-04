@@ -173,6 +173,12 @@ la position du joueur dès la première frame, au lieu d'avoir glissé depuis l'
 
 D'où `clock.jumpBy(-entities.LEAD_IN)` au départ **et au rejeu**.
 
+> ⚠️ **Depuis le 4 septembre 2026, le recul n'est plus exactement `LEAD_IN`** mais
+> `ancrerDepartSurLaGrille()` (main.js) : le temps 0 de la course est posé sur le premier TEMPS du
+> morceau situé à au moins `LEAD_IN` de la position courante (le morceau tourne déjà depuis le
+> menu). Sans ça, la grille des créneaux était décalée des temps du morceau de 0 à 0,5 s selon
+> l'instant du tap — voir la trentième passe en §11. `LEAD_IN` reste le minimum garanti.
+
 ⚠️ **Recalé le 12 août 2026.** La formule d'origine, `LOOKAHEAD_SLOTS × CADENCE × beatPeriod`
 = 10 × 1,5 × 0,5 = 7,5 s, visait le mauvais repère : un nombre de créneaux de délai MUSICAL, pas
 `VISIBLE_Z_MAX` (= 90, la vraie limite de visibilité utilisée par `visibleSlots()`). À la vitesse
@@ -2054,6 +2060,47 @@ semblent « ne rien faire », sans aucune erreur en console. Prendre l'URL réel
 en permanence : les décomptes y sont gelés par conception, et Chrome bride en plus `setInterval`
 à ~1 tick/s — il faut forcer `document.hidden` à `false` pour tester une phase, sinon un
 décompte de 5 s prend ~17 s réelles.
+
+### Trentième passe — départ calé sur la grille du morceau + décompte « 3, 2, 1, GO » (4 septembre 2026)
+
+Audit de la transition tutoriel → course, demandé (« il faut revoir la transition entre la fin du
+tutoriel et le début de la partie »). Trois défauts, tous mesurés en preview avant correction :
+
+1. **La grille des créneaux n'était PAS calée sur les temps du morceau.** `clock.setTimeSource
+   (audio.now)` repart de 0 à l'instant du tap (fin du tuto / « Passer l'intro »), donc le temps 0
+   de la grille de jeu tombait n'importe où entre deux temps du morceau, qui tourne déjà depuis le
+   menu. Mesuré : `((audio.now() − clock.now()) mod beatPeriod)` = **0,126 s** sur une course,
+   différent à chaque partie. Et `LEAD_IN` (3,273 s) n'est pas un multiple du temps (0,5 s) :
+   même le rejeu, qui relance le morceau à 0, était décalé de **0,273 s**. Autrement dit, depuis
+   que la musique démarre à l'étape 2 du menu (playtest d'août) et que `LEAD_IN` a été recalé le
+   12 août, plus aucun objet n'arrivait « sur le temps » — invisible en jouant, trouvé en comptant
+   (méthode §12, harnais navigateur). Correctif : `ancrerDepartSurLaGrille()` (main.js), appelée
+   aux deux départs (premier départ ET `restartGame`) — l'instant du GO (clock 0) est le premier
+   temps du morceau situé à ≥ `LEAD_IN` de la position courante, l'horloge est reculée d'autant.
+   Vérifié après correction : décalage **0,000 s** sur les deux chemins.
+2. **Deux écrans l'un sur l'autre.** La consigne du tuto et le « 1/4 » s'effaçaient avec le fondu
+   de 0,45 s de l'overlay pendant que score et cœurs montaient déjà. Ils sont maintenant masqués
+   net dans `beginRun()` (screens.js, classe `.hidden` sur `#countdown-num` aussi) et le HUD ne
+   monte plus qu'avec le décompte.
+3. **Saut du décor au départ.** `road.reset()` dans `requestGameStart()` remettait
+   `distanceScrolled` à 0 après ~20 s de tuto : tous les bâtiments et carrefours recalculés dans
+   la même frame (famille du piège §5.2). Remplacé par `road.markCourseStart()` : la distance
+   reste continue, et `crosstraffic.probabiliteAu()` compte sa rampe depuis
+   `road.getCourseStartSlot()` — l'équilibrage « aucun véhicule avant ~50 s de course » est
+   inchangé. `road.reset()` reste au rejeu (scène cachée par la carte de fin).
+
+**Le décompte** (`hud.renderCountIn`) : « 3, 2, 1 » un chiffre par temps, « GO ! » en jaune
+étoile sur le temps 0, sursaut d'échelle à chaque temps, centre-haut (là où était le « 1/4 »).
+Attente réelle avant le GO : 3,3 à 3,8 s (`LEAD_IN` + au plus un temps) — donc pas plus long
+qu'avant, où la route restait vide 3,3 s. `COUNT_IN_ALIGN_BEATS = 4` (main.js) alignerait le GO
+sur un début de MESURE, au prix de 2 s d'attente en plus au pire : pas retenu.
+
+⚠️ Piège de mesure rencontré : l'onglet de la preview est `document.hidden` dès que le panneau
+navigateur n'est pas affiché — `requestAnimationFrame` s'arrête, la route ne défile plus, JOUER
+reste désactivé (la barre de chargement est poussée dans la boucle rAF). Intercaler des
+screenshots dans une `browser_batch` garde le panneau visible pendant la mesure. Et après une
+édition de `road.js` en HMR, `import('/src/road.js')` renvoie une instance différente de celle de
+la page : prendre l'URL réelle (`?t=…`) dans `performance.getEntriesByType('resource')`.
 
 ---
 

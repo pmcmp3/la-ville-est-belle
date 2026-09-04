@@ -1280,6 +1280,10 @@
       text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
     }
 
+    /* Masqué net au départ de la course (screens.js, beginRun) : le décompte
+       « 3, 2, 1, GO » peint dans le canvas prend sa place. */
+    #countdown-num.hidden { opacity: 0; }
+
     /* Pop du « 1/4 » quand l'étape change : la classe est retirée puis reposée
        par screens.js (avec reflow entre les deux) pour rejouer l'animation. */
     #countdown-num.step-pop {

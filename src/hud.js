@@ -357,3 +357,42 @@ export function renderDefi(ctx, width, height, game) {
 
   ctx.restore(); // rend aussi textAlign/textBaseline à leur état d'entrée
 }
+
+// --- Décompte de départ « 3, 2, 1, GO » (4 septembre 2026) ------------------
+// `t` = clock.now(), négatif avant le départ ; chaque chiffre tombe sur un
+// temps du morceau (voir ancrerDepartSurLaGrille dans main.js), le GO sur le
+// temps 0. Un sursaut d'échelle à chaque temps, même vocabulaire que les
+// popups de points et le bandeau de palier. Peint au centre-haut, là où le
+// « 1/4 » du tutoriel vient de disparaître — le joueur regarde déjà là.
+export function renderCountIn(ctx, width, height, t, beatPeriod, beats, linger) {
+  let texte, age;
+  if (t < 0) {
+    const restant = -t / beatPeriod; // temps restants avant le GO (flottant)
+    const n = Math.ceil(restant);    // 3, 2, 1
+    if (n > beats) return;
+    texte = `${n}`;
+    age = (n - restant) * beatPeriod; // secondes depuis le temps où ce chiffre est tombé
+  } else {
+    if (t >= linger) return;
+    texte = "GO !";
+    age = t;
+  }
+  const tPop = Math.min(1, age / 0.22);
+  const scale = 1.45 - 0.45 * tPop;
+  const alpha = t < 0 ? 1 : Math.max(0, 1 - (t / linger) ** 2);
+  const cx = width / 2;
+  const cy = Math.max(height * 0.3, 190);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 18;
+  ctx.font = `900 ${t < 0 ? 72 : 60}px ${POLICE}`;
+  ctx.fillStyle = t < 0 ? BLANC : JAUNE_ETOILE;
+  ctx.fillText(texte, 0, 0);
+  ctx.restore();
+}

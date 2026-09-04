@@ -866,6 +866,7 @@ function runTutorial() {
   tutoDeadline = performance.now() + TUTO_PLAFOND_S * 1000;
   tutoDernierTexte = "";
   countdownCaption.classList.remove("hidden");
+  countdownNum.classList.remove("hidden"); // masqué net au départ de la course précédente (beginRun)
   clearTimeout(skipButtonTimer);
   if (partiesJouees() > 0) {
     skipCountdownBtn.classList.add("visible"); // revoyure : sortie immédiate
@@ -938,6 +939,13 @@ function beginRun() {
   deps.requestGameStart();
   try {
     clearTimeout(skipButtonTimer);
+    // Consigne et « 1/4 » disparaissent TOUT DE SUITE (4 septembre 2026) :
+    // avant, ils s'effaçaient avec le fondu de 0,45 s de l'overlay, par-dessus
+    // le score et les cœurs qui montaient déjà — deux écrans l'un sur l'autre.
+    // Le décompte « 3, 2, 1, GO » du canvas (hud.renderCountIn) prend la place.
+    clearTimeout(captionSwapTimer); // un remplacement de consigne en vol la réafficherait 200 ms plus tard
+    countdownCaption.classList.add("hidden");
+    countdownNum.classList.add("hidden");
     hideOverlay();
     showPauseButton();
     skipCountdownBtn.classList.remove("visible");

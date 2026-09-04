@@ -436,6 +436,44 @@ function renderSparkles(ctx) {
 const HUD_FADE_DURATION = 0.6;
 let hudAlpha = 0;
 
+// --- Départ calé sur la grille du morceau + décompte « 3, 2, 1, GO » ------
+// (4 septembre 2026, audit de la transition tutoriel → course.)
+//
+// ⚠️ Avant ce changement, la grille des créneaux était ancrée sur L'INSTANT
+// du tap (fin du tutoriel ou « Passer l'intro »), pas sur les temps du
+// morceau qui tourne déjà depuis le menu : mesuré en preview, un décalage de
+// 0 à 0,5 s entre la grille de jeu et les temps du morceau, différent à
+// chaque partie (0,126 s sur la mesure du 4 septembre). Et LEAD_IN (3,27 s)
+// n'étant pas un multiple du temps (0,5 s), même le rejeu — qui relance le
+// morceau à 0 — était décalé de 0,27 s. Les objets n'arrivaient donc jamais
+// vraiment « sur le temps », ce qui est pourtant toute la raison d'être de
+// l'horloge audio (ARCHITECTURE.md §5.1).
+//
+// Ici : clock.now() vient d'être remis à 0 (setTimeSource) et `pos` est la
+// position courante du morceau. L'instant du GO — clock.now() = 0, arrivée du
+// créneau 0 — est le premier temps du morceau situé à au moins LEAD_IN d'ici
+// (le créneau 0 part donc toujours de z ≈ 80, comme avant), et l'horloge est
+// reculée d'autant. Le GO tombe sur un temps ; la cadence étant de 1,5 temps,
+// chaque créneau suivant tombe sur un temps ou sur son contretemps, jamais
+// entre les deux. Attente réelle avant le GO : LEAD_IN à LEAD_IN + 1 temps,
+// soit 3,3 à 3,8 s — la fenêtre du décompte « 3, 2, 1, GO »
+// (hud.renderCountIn), un chiffre par temps.
+// COUNT_IN_ALIGN_BEATS = 4 alignerait le GO sur un DÉBUT DE MESURE (attente
+// jusqu'à 5,3 s) : possible, pas retenu — trop long à chaque REJOUER.
+const COUNT_IN_ALIGN_BEATS = 1;
+const COUNT_IN_BEATS = 3;          // « 3, 2, 1 » puis GO
+const COUNT_IN_GO_LINGER_S = 0.55; // le « GO ! » reste affiché après le temps 0
+
+function ancrerDepartSurLaGrille() {
+  const pos = audioDrivesClock ? audio.now() : 0;
+  const pas = clock.beatPeriod * COUNT_IN_ALIGN_BEATS;
+  // Temps du morceau (multiples de beatPeriod, le temps 0 tombant à
+  // premierTempsOffset — décalage que la grille de jeu porte déjà elle-même
+  // via clock.timeOfBeat, donc PAS à rajouter ici).
+  const go = Math.ceil((pos + entities.LEAD_IN) / pas) * pas;
+  clock.jumpBy(-(go - pos)); // clock.now() = -(go - pos) maintenant, 0 pile à `go`
+}
+
 // État de partie (étape 5) : vies, score. `ended` gèle route/entités et
 // affiche l'écran de fin. La jauge d'énergie (ralentissement à 0) a été
 // retirée (demandé explicitement : « elle ne fait pas trop sens ») — la
@@ -515,12 +553,14 @@ function formatMultiplicateur(m) {
 // main.js (dépendance circulaire, voir ARCHITECTURE.md §4), donc les quelques
 // actions qu'il doit pouvoir déclencher lui sont passées ici en callbacks.
 function requestGameStart() {
-  // La route a défilé pendant le tutoriel (road.update avec temps 0) : on la
-  // remet à zéro pour que la course parte de la distance 0 — la rampe des
-  // véhicules traversants (crosstraffic.js) est calée sur la DISTANCE
-  // parcourue, et ~20 s de tutoriel décaleraient leurs premiers passages
-  // d'autant vers le début de course, ce qui changerait l'équilibrage mesuré.
-  road.reset();
+  // La route a défilé pendant le tutoriel (road.update avec temps 0). Elle ne
+  // se remet PLUS à zéro ici (4 septembre 2026) : distanceScrolled → 0
+  // recalculait tous les bâtiments et carrefours dans la même frame — un
+  // « saut » de tout le décor pile à l'instant où la course démarre (même
+  // famille que le piège §5.2 d'ARCHITECTURE.md). La rampe des véhicules
+  // traversants (crosstraffic.js), calée sur la distance, repart de l'origine
+  // de course posée ici — l'équilibrage mesuré est inchangé.
+  road.markCourseStart();
   // La toute première course ne passe pas par restartGame() : le boost de
   // départ du défi (voir config.js, defiBoostPaliers) doit donc être armé
   // ici aussi — et c'est justement la course du receveur de défi.
@@ -753,7 +793,7 @@ function restartGame() {
   } else {
     useFallbackClock(false);
   }
-  clock.jumpBy(-entities.LEAD_IN); // voir entities.LEAD_IN — même correctif qu'au premier départ
+  ancrerDepartSurLaGrille(); // même ancrage qu'au premier départ (grille du morceau + LEAD_IN)
 
   playerState.lane = START_LANE;
   playerState.x = road.laneX(START_LANE);
@@ -854,11 +894,11 @@ function step(dt) {
       useFallbackClock(false);
       gameStarted = true;
     }
-    // Voir entities.LEAD_IN : sans ce recul, le premier lot de créneaux (la
-    // période de grâce) apparaîtrait déjà à la position du joueur dès la
-    // première frame au lieu de glisser depuis l'horizon.
+    // Ancrage du départ sur la grille du morceau + recul LEAD_IN (voir
+    // ancrerDepartSurLaGrille) : le créneau 0 glisse depuis l'horizon ET le
+    // « GO » tombe sur un temps du morceau.
     if (gameStarted) {
-      clock.jumpBy(-entities.LEAD_IN);
+      ancrerDepartSurLaGrille();
     }
   }
 
@@ -940,7 +980,10 @@ function step(dt) {
   // à l'appui, « y'a deux fois le score »). Le HUD s'efface donc dès la fin de
   // partie, pendant que la carte monte.
   if (gameStarted) {
-    const cible = game.ended ? 0 : 1;
+    // Le HUD monte avec le décompte (dès le « 3 »), pas dès la fin du
+    // tutoriel : score et cœurs apparaissent quand la course devient réelle.
+    const enDecompte = clock.now() < -COUNT_IN_BEATS * clock.beatPeriod;
+    const cible = game.ended || enDecompte ? 0 : 1;
     if (hudAlpha !== cible) {
       const pas = dt / HUD_FADE_DURATION;
       hudAlpha = cible > hudAlpha
@@ -1418,6 +1461,16 @@ function render(alpha) {
     hud.renderMilestone(ctx, width, height, game);
     if (audioFallback) hud.renderAudioWarning(ctx, width, height);
     ctx.restore();
+  }
+
+  // Décompte « 3, 2, 1, GO » calé sur les temps du morceau (voir
+  // ancrerDepartSurLaGrille). Hors du fondu du HUD : il porte sa propre
+  // animation d'échelle à chaque temps.
+  if (gameStarted && !game.ended) {
+    const t = clock.now();
+    if (t < COUNT_IN_GO_LINGER_S) {
+      hud.renderCountIn(ctx, width, height, t, clock.beatPeriod, COUNT_IN_BEATS, COUNT_IN_GO_LINGER_S);
+    }
   }
 
   debugOverlay.renderBeatGrid(ctx, width, height);
