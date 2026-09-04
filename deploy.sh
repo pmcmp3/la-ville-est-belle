@@ -23,6 +23,9 @@ push origin "$BRANCHE_DEV"
 # 1. Build GitHub Pages (base relative, dossier séparé de dist/)
 rm -rf dist-pages
 npx vite build --base=./ --outDir=dist-pages
+# Second jeu « J'ai un pote » (4 septembre 2026) : même site, sous-dossier
+# /jai-un-pote/ — sa propre racine Vite, son propre config.js, ses assets.
+npx vite build jai-un-pote --base=./ --outDir=../dist-pages/jai-un-pote --emptyOutDir
 find dist-pages -name '.DS_Store' -delete
 touch dist-pages/.nojekyll
 

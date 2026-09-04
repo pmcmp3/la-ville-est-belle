@@ -13,6 +13,7 @@ import * as cameo from "./cameo.js";
 import * as pmc from "./pmc.js";
 import * as crosstraffic from "./crosstraffic.js";
 import * as tutorial from "./tutorial.js";
+import * as graffiti from "./graffiti.js";
 import * as hud from "./hud.js";
 import * as net from "./net.js";
 import * as screens from "./screens.js";
@@ -1378,6 +1379,9 @@ function render(alpha) {
   const renderDistance = road.getRenderDistance(alpha);
   road.render(ctx, width, height, renderDistance);
   world.render(ctx, width, height, renderDistance);
+  // Tag « la ville est belle » au sol, ~30 s de course (graffiti.js) — après
+  // le sol et les façades, avant tout ce qui roule dessus.
+  if (gameStarted) graffiti.render(ctx, width, height, clock.now());
 
   const renderX = playerState.prevX + (playerState.x - playerState.prevX) * alpha;
   const renderLean = playerState.prevLean + (playerState.lean - playerState.prevLean) * alpha;

@@ -561,6 +561,16 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   la navigation privée redonne le tutoriel). ⚠️ La route défile pendant le tutoriel : `road.reset()` dans `requestGameStart()` pour
   que la course parte de distance 0 (la rampe des véhicules traversants est calée dessus).
 
+## Jeu n°2 : « J'ai un pote » (`jai-un-pote/`, depuis le 4 septembre 2026)
+
+Second jeu sur le même site, sous **/jai-un-pote/** : runner de campagne en vue 3/4 arrière
+(portrait), tap = saut / maintien = grand saut, les étoiles font venir des POTES (Soberland
+en premier) qui roulent devant le joueur, les obstacles absurdes (piano, avion, vache…) en
+enlèvent, seul on meurt, score en mètres × potes. **Sa propre racine Vite, ses propres copies des
+modules moteur** (rien de partagé avec `src/`, volontairement). Tout est documenté dans
+`ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run dev:pote` (port
+5174), `deploy.sh` construit et pousse les deux jeux.
+
 ## Assets
 
 - `assets/la-ville-est-belle.mp3` → servi en prod (3,9 Mo, 128 kbps). Câblé dans `config.js`.

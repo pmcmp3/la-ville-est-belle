@@ -617,3 +617,17 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
 - ⚠️ Vue « Règles & points » de la pause : texte OBSOLÈTE (parle encore d'« ajouter le morceau
   pour reprendre », modèle du 22 août ; ignore le plafond ×5 du combo, la pluie d'étoiles, les
   cadeaux) — à réécrire avec la refonte des écrans.
+
+## 4 septembre 2026 (suite) — UI e-card, graffiti au sol, jeu n°2 « J'ai un pote »
+
+- ✅ **UI des deux jeux calée sur l'e-card** (blanc, serif condensée Source Serif Black,
+  stickers rouges, boutons rectangulaires). « PMC » à côté du titre retiré le jour même.
+- ✅ **Graffiti « la ville est belle » sur la chaussée à 30 s** de course (`src/graffiti.js`,
+  WebP 52 Ko chargé 12 s avant, rendu en 28 bandes projetées).
+- ✅ **« J'ai un pote », V1 locale** (voir `ARCHITECTURE.md` §14) : décisions prises seul là où
+  l'artiste a dit « je te laisse faire » — paliers croissants, score en mètres, coût 1/2/3 potes,
+  pas de changement de voie (tap court / tap long seulement), potes qui tombent du ciel, Soberland
+  en premier, villages Moyencourt (80) / La Frette (38) / Cysoing (59) / Val-de-Virieu (38) /
+  Bizonnes (38). Déployé sous /jai-un-pote/ pour test sur téléphone, sans Supabase.
+- 📋 Idées de scripts vidéo notées (top 10 des pires scores commenté, « 80 % des gens n'y
+  arrivent pas », 50 villes) : à traiter après le test du jeu.
