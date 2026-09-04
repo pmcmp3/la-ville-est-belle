@@ -6,22 +6,25 @@
 // long de l'autre diagonale (bas-gauche → haut-droite). Chaque objet est un
 // cube à trois faces visibles : dessus, face gauche, face droite.
 //
-//   sx = ancre.x + (u − camU)·K − (v − camV)·K
-//   sy = ancre.y − (u − camU)·K·ISO − (v − camV)·K·ISO − h·K·VERT
+//   sx = ancre.x + (v − camV)·K + (u − camU)·K
+//   sy = ancre.y − (v − camV)·K·ISO + (u − camU)·K·ISO − h·K·VERT
 //
-// La caméra suit le joueur ; il reste ancré en bas à droite de l'écran, la
-// route devant lui occupe le haut-gauche. Ordre du peintre : profondeur
-// = u + v (le plus grand = le plus loin), dessiné en premier.
+// ⚠️ Sens inversé le jour même (« d'un point de vue de l'écran, il faut
+// qu'il aille de gauche à droite ») : la route file vers le HAUT-DROITE, la
+// colonne de droite (u > 0) est en bas à droite à l'écran — la droite du
+// joueur qui regarde devant lui. La caméra suit le joueur, ancré en bas à
+// gauche. Ordre du peintre : profondeur = v − u (le plus grand = le plus
+// loin), dessiné en premier.
 
 import { shade } from "./voxel.js";
 
 export const COLS = 3;
 export const COL_W = 1.25;
 export const ROAD_HALF = (COLS * COL_W) / 2;   // 1,875
-const UNITS_ACROSS = 12.5;                     // K = largeur d'écran / ceci (plus petit = on voit plus loin)
+const UNITS_ACROSS = 13;                       // K = largeur d'écran / ceci (plus petit = on voit plus loin)
 const ISO = 0.5;                               // 2:1 — « baisse un peu la caméra » : 0,5 au lieu de 0,58
 const VERT = 0.95;                             // hauteur des cubes (caméra basse = faces hautes)
-const ANCHOR = { x: 0.66, y: 0.66 };           // joueur en bas à droite : ~8 rangées de route visibles devant lui
+const ANCHOR = { x: 0.44, y: 0.68 };           // joueur en bas, un peu à gauche : la horde derrière lui reste dans l'écran, ~7 rangées devant
 export const ROWS_AHEAD = 13;
 export const ROWS_BEHIND = 9;
 const U_SPAN = 9;                              // demi-largeur de monde dessinée en u
@@ -38,13 +41,13 @@ export function colU(c) { return (c - (COLS - 1) / 2) * COL_W; }
 export function project(u, v, h = 0) {
   const du = u - camU, dv = v - camV;
   return {
-    x: W * ANCHOR.x + du * K - dv * K,
-    y: H * ANCHOR.y - du * K * ISO - dv * K * ISO - h * K * VERT,
+    x: W * ANCHOR.x + dv * K + du * K,
+    y: H * ANCHOR.y - dv * K * ISO + du * K * ISO - h * K * VERT,
   };
 }
 
 // Profondeur pour l'ordre du peintre (plus grand = plus loin de la caméra).
-export function depth(u, v) { return u + v; }
+export function depth(u, v) { return v - u; }
 
 function poly(ctx, pts, color) {
   ctx.fillStyle = color;
@@ -56,14 +59,15 @@ function poly(ctx, pts, color) {
 }
 
 // Cube posé au sol : empreinte (u, v) → (u+du, v+dv), hauteur h, surélevé de
-// `lift`. Faces visibles : gauche (u = u_min, éclairée), droite (v = v_min,
-// dans l'ombre), dessus (la plus claire). Même vocabulaire que Crossy.
+// `lift`. Faces visibles : celle qui regarde le bas-gauche (v = v_min,
+// éclairée), celle qui regarde le bas-droite (u = u_max, dans l'ombre), et
+// le dessus (le plus clair). Même vocabulaire que Crossy.
 export function drawBox(ctx, u, v, du, dv, h, color, lift = 0) {
-  const A = project(u, v, lift), B = project(u + du, v, lift), D = project(u, v + dv, lift);
+  const A = project(u, v, lift), B = project(u + du, v, lift), C = project(u + du, v + dv, lift);
   const A2 = project(u, v, lift + h), B2 = project(u + du, v, lift + h);
   const C2 = project(u + du, v + dv, lift + h), D2 = project(u, v + dv, lift + h);
-  poly(ctx, [A, D, D2, A2], shade(color, -14));     // face gauche (le long de v)
-  poly(ctx, [A, B, B2, A2], shade(color, -40));     // face droite (le long de u)
+  poly(ctx, [A, B, B2, A2], shade(color, -14));     // face avant-gauche (le long de u, en v_min)
+  poly(ctx, [B, C, C2, B2], shade(color, -40));     // face avant-droite (le long de v, en u_max)
   poly(ctx, [A2, B2, C2, D2], shade(color, 24));    // dessus
 }
 
@@ -83,7 +87,7 @@ export function drawShadow(ctx, u, v, ru, rv, alpha = 0.26) {
 // --- Sol et décor --------------------------------------------------------------
 const GRASS = ["#6f8f34", "#66852f"];
 const DIRT = "#9a7a4e";
-const ROAD = ["#4d4945", "#524e49"];
+const ROAD = ["#4b4743", "#565250"];
 const LINE = "#f2ead8";
 const HAZE = "#f1d9b3";
 
@@ -108,8 +112,16 @@ function renderRow(ctx, r) {
   drawFlat(ctx, ROAD_HALF, v, 0.9, 1, g);
   drawFlat(ctx, -ROAD_HALF - 0.22, v, 0.22, 1, DIRT);
   drawFlat(ctx, ROAD_HALF, v, 0.22, 1, DIRT);
-  drawFlat(ctx, -ROAD_HALF, v, ROAD_HALF * 2, 1, ROAD[((r % 2) + 2) % 2]);
-  if (r % 2 === 0) drawFlat(ctx, -0.06, v + 0.2, 0.12, 0.6, LINE);
+  // Trois voies lisibles (retour : « faut bien qu'on voie qu'il y a trois
+  // voies ») : chaque voie a son ton, et deux pointillés les séparent.
+  for (let c = 0; c < COLS; c++) {
+    const tone = ((r % 2) + 2) % 2 === 0 ? ROAD[c % 2] : ROAD[(c + 1) % 2];
+    drawFlat(ctx, -ROAD_HALF + c * COL_W, v, COL_W, 1, tone);
+  }
+  if (r % 2 === 0) {
+    drawFlat(ctx, -COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);
+    drawFlat(ctx, COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);
+  }
 }
 
 // Décor d'une rangée, renvoyé comme éléments à trier (ils ont une profondeur).
@@ -189,7 +201,7 @@ export function renderHaze(ctx) {
   g.addColorStop(1, "rgba(241,217,179,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H * 0.42);
-  const s = ctx.createRadialGradient(W * 0.12, H * 0.05, 0, W * 0.12, H * 0.05, W * 0.75);
+  const s = ctx.createRadialGradient(W * 0.88, H * 0.05, 0, W * 0.88, H * 0.05, W * 0.75);
   s.addColorStop(0, "rgba(255,214,150,0.85)");
   s.addColorStop(0.35, "rgba(240,160,130,0.35)");
   s.addColorStop(1, "rgba(120,110,190,0)");

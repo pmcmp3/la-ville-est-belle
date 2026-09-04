@@ -6,19 +6,20 @@
 // le côté, et repart éjecté quand il est touché. Il saute quand le joueur
 // saute, avec un petit décalage selon sa place.
 
-import { colU, project, scale, ROAD_HALF } from "./iso.js";
-import { makeRider, PALETTES, HEIGHT_WORLD, DRAW_SCALE } from "./rider.js";
+import { project, scale, ROAD_HALF } from "./iso.js";
+import { PALETTES } from "./rider.js";
+import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 
 // Places autour du joueur : (décalage latéral, décalage d'avance).
 const SLOTS = [
-  { u: -1.15, v: -0.9 }, { u: 1.15, v: -0.9 },
-  { u: 0, v: -1.7 },
-  { u: -1.15, v: -2.5 }, { u: 1.15, v: -2.5 },
-  { u: 0, v: -3.3 },
-  { u: -1.15, v: -4.1 }, { u: 1.15, v: -4.1 },
+  { u: -1.1, v: -0.7 }, { u: 1.1, v: -0.7 },
+  { u: 0, v: -1.4 },
+  { u: -1.1, v: -2.1 }, { u: 1.1, v: -2.1 },
+  { u: 0, v: -2.8 },
+  { u: -1.1, v: -3.5 }, { u: 1.1, v: -3.5 },
 ];
 const U_LIMIT = ROAD_HALF - 0.35;
-const FOLLOW = 5.5;      // vitesse de rattrapage latéral (1/s)
+const FOLLOW = 16;       // rattrapage latéral quasi instantané (« une armée de vélos qui se déplace »)
 const LEAVE_S = 0.7;
 
 let potes = [];
@@ -44,7 +45,7 @@ export function join(player) {
   // Arrive depuis le champ, du côté de sa place.
   const side = SLOTS[slot].u < 0 ? -1 : SLOTS[slot].u > 0 ? 1 : (slot % 2 ? 1 : -1);
   const pote = {
-    slot, rider: makeRider(palette), name,
+    slot, palette, name,
     u: side * (ROAD_HALF + 3.2), v: player.v + SLOTS[slot].v - 0.5,
     arrive: 0, leave: null, pedal: Math.random() * 6, phase: Math.random() * 6.28,
     jumpY: 0, jumpVy: 0, jumpDelay: -1,
@@ -80,7 +81,7 @@ export function update(dt, player, phys, t) {
     const wu = Math.sin(t * 1.4 + p.phase) * 0.22, wv = Math.sin(t * 1.1 + p.phase * 1.7) * 0.18;
     const targetU = Math.max(-U_LIMIT, Math.min(U_LIMIT, player.u + s.u)) + wu;
     const targetV = player.v + s.v + wv;
-    const k = Math.min(1, (p.arrive < 1 ? 2.2 : FOLLOW) * dt);
+    const k = Math.min(1, (p.arrive < 1 ? 2.6 : FOLLOW) * dt);
     p.u += (targetU - p.u) * k;
     p.v += (targetV - p.v) * Math.min(1, 9 * dt);
     if (p.arrive < 1) {
@@ -109,17 +110,15 @@ export function drawables(ctx, pedalPhase) {
     }
     out.push({
       u, v: p.v, draw: () => {
-        const g = project(u, p.v, 0);
-        const K = scale();
-        if (y > 0.05) p.rider.shadow(ctx, g.x, g.y, K * 0.95, alpha);
-        p.rider.render(ctx, g.x, g.y - y * K * 0.95, K * 0.95, 0, pedalPhase + p.pedal, alpha);
+        drawRider(ctx, u, p.v, y, p.palette, pedalPhase + p.pedal, alpha);
         if (p.name && p.arrive >= 1 && !p.leave) {
+          const g = project(u, p.v, y + RIDER_HEIGHT + 0.15);
           ctx.save();
           ctx.font = `700 11px "Stage Grotesk", system-ui, sans-serif`;
           ctx.textAlign = "center"; ctx.textBaseline = "bottom";
           ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
           ctx.fillStyle = "#fff";
-          ctx.fillText(`@${p.name}`, g.x, g.y - y * K * 0.95 - HEIGHT_WORLD * DRAW_SCALE * K * 0.95 * 1.12);
+          ctx.fillText(`@${p.name}`, g.x, g.y);
           ctx.restore();
         }
       },

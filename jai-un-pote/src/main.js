@@ -15,7 +15,8 @@ import * as hud from "./hud.js";
 import * as screens from "./screens.js";
 import * as debugOverlay from "./debug.js";
 import { consumeJumpPress, consumeLaneMove } from "./input.js";
-import { makeRider, PALETTES, HEIGHT_WORLD, DRAW_SCALE } from "./rider.js";
+import { PALETTES } from "./rider.js";
+import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 import { drawStar3D } from "./star3d.js";
 
 const canvas = document.getElementById("game-canvas");
@@ -99,7 +100,6 @@ const game = {
   metres: 0, points: 0, potesGagnes: 0, etoiles: 0,
   ended: false, endReason: null, reviveOffered: false, sansFaute: true, startedAt: 0,
 };
-const playerRider = makeRider(PALETTES.pmc);
 const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0 };
 const LANE_TWEEN = 11;
 let camU = 0; // suivi latéral lissé de la caméra
@@ -291,7 +291,7 @@ function step(dt) {
 
   if (!gameStarted) {
     // Menu : le personnage pédale sur place, les traversants vivent.
-    player.pedal += 2.2 * dt;
+    player.pedal += 4.5 * dt;
     return;
   }
   if (game.ended || isPaused()) return;
@@ -320,7 +320,7 @@ function step(dt) {
     player.v += dv;
     game.metres += dv * window.CONFIG.metresParUnite * multiplicateur();
   }
-  player.pedal += speed * dt * 1.6;
+  player.pedal += speed * dt * 3.2; // « il faut qu'on pédale un peu plus vite »
   friends.update(dt, player, phys, now);
 
   // --- Collisions et étoiles : le joueur puis chaque pote ---
@@ -329,16 +329,11 @@ function step(dt) {
       if (ev.type === "etoile") gagnerEtoile();
       else { toucherJoueur(ev); if (game.ended || revivePaused) break; }
     }
+    // Les potes ne prennent AUCUN dégât eux-mêmes (retour : « il faut que les
+    // dégâts que tu prennes, ce soit toi et pas tes potes ») : ils se faufilent.
+    // Ils ramassent quand même les étoiles qu'ils croisent.
     for (const m of friends.members()) {
-      for (const ev of rows.checkMember(m.id, m.u, m.v, m.airborne, now)) {
-        if (ev.type === "etoile") gagnerEtoile();
-        else if (clock.now() >= reviveShieldUntil && !invincible) {
-          friends.loseOne(m.pote);
-          game.sansFaute = false;
-          damageFlash = Math.max(damageFlash, 0.5);
-          afficherBanner("−1 POTE", `${rows.KINDS[ev.kind].nom} dans le peloton`, ROUGE, 1.6);
-        }
-      }
+      for (const ev of rows.checkMember(m.id, m.u, m.v, true, now)) if (ev.type === "etoile") gagnerEtoile();
     }
   }
 
@@ -382,7 +377,7 @@ function render(alpha) {
   const v = player.prevV + (player.v - player.prevV) * alpha;
   const jy = player.prevJumpY + (player.jumpY - player.prevJumpY) * alpha;
   const pedal = player.prevPedal + (player.pedal - player.prevPedal) * alpha;
-  camU += (u * 0.6 - camU) * 0.08; // la vue glisse un peu avec la colonne, sans coller au joueur
+  camU += (u * 0.35 - camU) * 0.08; // la vue glisse un peu avec la colonne, sans coller au joueur
   iso.setCamera(v, camU);
 
   const shakeActive = shake.time > 0;
@@ -416,12 +411,7 @@ function render(alpha) {
     }
   }
   if (gameStarted) for (const dr of friends.drawables(ctx, pedal)) items.push({ d: iso.depth(dr.u, dr.v), draw: dr.draw });
-  items.push({ d: iso.depth(u, v), draw: () => {
-    const g = iso.project(u, v, 0);
-    const K = iso.scale();
-    if (jy > 0.05) playerRider.shadow(ctx, g.x, g.y, K * 0.95);
-    playerRider.render(ctx, g.x, g.y - jy * K * 0.95, K * 0.95, 0, pedal);
-  } });
+  items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, PALETTES.pmc, pedal) });
   items.sort((a, b) => b.d - a.d);
   for (const it of items) it.draw();
   iso.renderHaze(ctx);
@@ -432,8 +422,8 @@ function render(alpha) {
   }
   // Popups au-dessus du joueur.
   if (popups.length) {
-    const g = iso.project(u, v, 0);
-    const base = g.y - jy * iso.scale() * 0.95 - HEIGHT_WORLD * DRAW_SCALE * iso.scale() * 0.95 * 1.3;
+    const g = iso.project(u, v, jy + RIDER_HEIGHT + 0.3);
+    const base = g.y;
     ctx.save();
     ctx.textAlign = "center"; ctx.textBaseline = "bottom";
     for (const pop of popups) {
