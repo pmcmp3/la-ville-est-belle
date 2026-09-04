@@ -19,6 +19,10 @@ const ROUGE = "#e13e26";
 const JAUNE_ETOILE = "#ffcf2e";
 const PANNEAU = "rgba(13,13,16,0.72)"; // fond des panneaux d'interface
 const POLICE = '"Stage Grotesk", system-ui, sans-serif';
+// Serif de l'e-card (4 septembre 2026, Source Serif Black — voir index.html
+// --titre) : le score en jeu et le décompte 3-2-1-GO la partagent avec le
+// titre du menu et le score de l'écran de fin.
+const POLICE_TITRE = '"Source Serif 2", Georgia, serif';
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath();
@@ -90,7 +94,7 @@ export function renderHud(ctx, width, height, game) {
   ctx.shadowBlur = HUD_SHADOW_BLUR;
 
   // Score : centré horizontalement, tout en haut.
-  ctx.font = `900 ${SCORE_SIZE}px ${POLICE}`;
+  ctx.font = `900 ${SCORE_SIZE}px ${POLICE_TITRE}`;
   ctx.fillStyle = BLANC;
   ctx.textAlign = "center";
   ctx.fillText(scoreText, width / 2, PAD);
@@ -391,7 +395,7 @@ export function renderCountIn(ctx, width, height, t, beatPeriod, beats, linger) 
   ctx.textBaseline = "middle";
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 18;
-  ctx.font = `900 ${t < 0 ? 72 : 60}px ${POLICE}`;
+  ctx.font = `900 ${t < 0 ? 78 : 64}px ${POLICE_TITRE}`;
   ctx.fillStyle = t < 0 ? BLANC : JAUNE_ETOILE;
   ctx.fillText(texte, 0, 0);
   ctx.restore();

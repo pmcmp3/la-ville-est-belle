@@ -1495,6 +1495,7 @@ if (document.fonts && document.fonts.load) {
   Promise.all([
     document.fonts.load('900 30px "Stage Grotesk"'),
     document.fonts.load('500 13px "Stage Grotesk"'),
+    document.fonts.load('900 40px "Source Serif 2"'), // score du HUD + décompte (hud.js)
   ]).catch(() => {});
 }
 

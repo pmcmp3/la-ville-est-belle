@@ -513,6 +513,20 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
   `performance.now()` : l'horloge musicale est GELÉE pendant la pause — il bouge parce que tout
   le reste est arrêté.
 
+- **DA des écrans = l'e-card de l'EP** (4 septembre 2026, demandé : « quelque chose en lien
+  avec ma e-card [...] plus cohérent »). Fini les cartes crème à bord brun et coins 22 px
+  (« très AI slop ») : carte BLANCHE, bord noir 1,5 px, rayon 4 px (`--rayon`), l'en-tête rouge
+  devient un STICKER posé de travers (`.panel-header`, −2°) à cheval sur le bord haut, boutons
+  rectangulaires en capitales espacées 13 px (rouge plein / blanc à bord noir, comme « ÉCOUTER
+  L'EP » / « JOUER AU JEU » de l'e-card). Titre « la ville est belle » en minuscules, **Source
+  Serif Black condensé** (`scaleX(0.66)`, comme sur l'e-card) — fichiers fournis par l'artiste,
+  sous-ensemble latin woff2 de 18 Ko (`public/fonts/SourceSerif2-Black.woff2`, famille CSS
+  `"Source Serif 2"`) ; Flawsome n'est plus déclarée. La même serif porte le score de l'écran
+  de fin, le score du HUD, le décompte 3-2-1-GO et les titres des tiroirs. ⚠️ L'artiste avait
+  d'abord dit « il faut de l'Alphabetica » : aucune police de ce nom n'existe sur le disque,
+  ce sont les fichiers Source Serif qu'il a fournis ensuite qui font foi. Zoom ×1,2 de la carte
+  pause supprimé, encadré rosé « Monte le son » supprimé, pastille du compteur de courses
+  supprimée (une ligne).
 - **Départ calé sur la grille du morceau + décompte « 3, 2, 1, GO »** (4 septembre 2026, audit
   de la transition tuto → course) : `ancrerDepartSurLaGrille()` (main.js) pose le temps 0 de la
   course sur un TEMPS du morceau (mesuré avant : décalage de 0 à 0,5 s selon l'instant du tap,

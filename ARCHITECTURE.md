@@ -2102,6 +2102,45 @@ screenshots dans une `browser_batch` garde le panneau visible pendant la mesure.
 édition de `road.js` en HMR, `import('/src/road.js')` renvoie une instance différente de celle de
 la page : prendre l'URL réelle (`?t=…`) dans `performance.getEntriesByType('resource')`.
 
+### Trente-et-unième passe — l'UI calée sur l'e-card de l'EP (4 septembre 2026)
+
+Demandé, e-card à l'appui (titre « la ville est belle » en serif noir très condensé sur photo,
+étiquette rouge posée de travers, boutons « ÉCOUTER L'EP » rouge plein / « JOUER AU JEU » blanc
+à bord noir, capitales espacées) : « ça, c'est la DA qu'on a actuellement sur le jeu [cartes
+crème]. Moi, ce que j'aimerais, c'est plutôt quelque chose en lien avec ma e-card ».
+
+**Tout passe par les tokens et les composants partagés d'`index.html`**, aucun écran n'a été
+réécrit à part : `--panneau-fond` blanc, `--panneau-bord` noir, `--rayon` 4 px, `--titre`
+Source Serif. `.panel` perd `overflow:hidden` (le sticker déborde) et devient `position:
+relative` ; `.panel-header` est absolu, centré sur le bord haut, `rotate(-2deg)`. `.btn` passe
+en `700 13px`, `letter-spacing .12em`, `uppercase`, bord 1,5 px ; `.btn-secondary` a un fond
+blanc. Les tiroirs (`#gate-card`, `#leaderboard-sheet-card`) passent à 8 px de rayon, la carte
+de mort à 4 px, `#cta-link` devient le bouton blanc de l'e-card, les boutons ronds son/pause
+deviennent des carrés à 6 px. `#score-num`, `#revive-title`, `#gate-title`, `#countdown-num`
+prennent la serif ; côté canvas, `hud.js` a `POLICE_TITRE` pour le score et le décompte, et
+`main.js` la précharge (`document.fonts.load('900 40px "Source Serif 2"')`, piège §10 n°8).
+
+**Le titre condensé** : Source Serif n'a pas de chasse étroite, l'e-card a donc simplement
+contracté le texte — même chose ici, `transform: scaleX(0.66)` sur `.titre-mot`. ⚠️ Le bloc en
+`width: max-content` est plus large que l'écran AVANT contraction : il est recentré par
+`margin-left: 50%` + `translateX(-50%)`, puis contracté autour de son centre — mesuré à 375 px
+de large : 270 px, centré. Ne pas remplacer par `text-align:center` seul (un bloc qui déborde se
+cale à gauche).
+
+**La police** : les six TTF fournis (« Source Serif Pro Black » dans la table de noms) font
+280 Ko chacun ; seule la Black est embarquée, sous-ensemble latin (238 glyphes) en woff2 =
+**18 Ko**, produit avec fontTools dans un venv du scratchpad (le `pip` système refuse, PEP 668 ;
+`fontTools.subset.Subsetter`, pas `subset_font`). Flawsome reste dans `public/fonts` mais n'est
+plus déclarée en `@font-face`, donc plus téléchargée.
+
+**Vérification** : le panneau navigateur de la session ne rendait plus d'image (onglet
+`document.hidden`, screenshots en timeout) — captures faites en **Chromium headless via
+Playwright** (`venv/bin/pip install playwright`, `p.chromium.launch(channel="chrome")` pour
+utiliser le Google Chrome installé sans télécharger de navigateur), 375×812 @2x, en pilotant
+les panneaux par `import()` de l'URL réelle de `screens.js` (`?t=…` après HMR, voir la
+vingt-neuvième passe). Onze écrans capturés, zéro erreur console. Script : `shots.py` dans le
+scratchpad de la session (à recréer au besoin, il tient en 60 lignes).
+
 ---
 
 ## 12. Comment tester

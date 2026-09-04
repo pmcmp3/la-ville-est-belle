@@ -386,7 +386,7 @@ export function dessinerRecompense(ctx, width, height) {
   // Cadre crème fin + ombre portée : la pochette se détache comme une carte.
   ctx.shadowColor = "rgba(0,0,0,0.45)";
   ctx.shadowBlur = 14;
-  ctx.fillStyle = CREME;
+  ctx.fillStyle = "#ffffff"; // cadre blanc (plus de crème depuis la refonte du 4 septembre 2026)
   ctx.fillRect(cx - size / 2 - 3, top - 3, size + 6, size + 6);
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
