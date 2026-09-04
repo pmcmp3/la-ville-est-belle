@@ -1,0 +1,599 @@
+# CLAUDE.md — La ville est belle (jeu de campagne PMC)
+
+## Avant toute chose
+
+**Lis `ARCHITECTURE.md` en entier.** C'est la doc technique : comment le jeu est construit, les
+cinq concepts à comprendre avant de toucher au code, les pièges déjà rencontrés, l'état des
+bugs ouverts. C'est le seul fichier obligatoire.
+
+**Ne lis `PLAN-ACTION.md` que si tu cherches *pourquoi* une décision a été prise.** C'est un
+journal de bord chronologique de 850+ lignes, utile en archéologie, coûteux à lire en entier —
+et sa section « État d'avancement » fait double emploi avec `ARCHITECTURE.md` §11.
+
+## Résumé
+
+Runner mobile **type Subway Surfers** (caméra derrière le cycliste), **coucher de soleil parisien
+22 h**, calé sur le morceau *La ville est belle* (dans `assets/`). Le jeu doit **donner envie
+d'aller écouter le morceau** — c'est l'objectif produit, et il tranche tous les arbitrages de
+design. Cible : **navigateur mobile, Safari iOS en priorité**, puis Chrome & Firefox iOS/Android.
+**Portrait natif.**
+
+En ligne (seul site, officiel) : **https://la-ville-est-belle-pmc.fr** (domaine OVH de l'artiste
+depuis le 21 août 2026, servi par GitHub Pages ; l'ancienne adresse
+`pmcmp3.github.io/la-ville-est-belle` redirige en 301 — voir `ARCHITECTURE.md` §11, dix-huitième
+passe, pour l'ordre de déploiement et le piège de la page d'attente OVH). **Netlify est
+abandonné** (décision du 12 août 2026, crédits épuisés) — ne plus le mentionner comme cible, ne
+plus lancer `netlify deploy`. Mise à jour du site **pas automatique** : après chaque build, il
+faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le CTA « aller
+écouter » dans le jeu est un lien différent (le morceau, pas le jeu) : voir `config.js`
+(`lienEP`), qui fait foi.
+
+## Règles techniques non négociables
+
+- **Vanilla JS + Canvas 2D + Vite.** Pas de framework, pas de moteur 3D, aucune dépendance runtime.
+- **Boucle à pas de temps fixe** (120 Hz) ; horloge maîtresse = **Web Audio API**.
+- **`config.js` à la racine = SEUL fichier de réglages**, jamais de logique de jeu dedans.
+- Serveur de dev **accessible sur le LAN** (déjà configuré, `npm run dev` suffit).
+- **iOS** : `AudioContext` se débloque **sur geste utilisateur** uniquement, dans la pile d'appel
+  du geste.
+
+## Décisions verrouillées
+
+- **Contrôle 100 % au geste**, aucun contrôle à l'écran : swipe gauche/droite = une voie,
+  swipe haut = saut, swipe bas = glissade rapide. **Le gyroscope a été retiré** après plusieurs
+  sessions à fiabiliser la permission iOS — ne pas le réintroduire.
+- ⚠️ **Parcours INFINI depuis le 24 août 2026** (troisième renversement, demandé explicitement :
+  trois ou quatre joueurs avaient atteint le score maximum théorique, le concours ne départageait
+  plus personne — « on peut supprimer le principe de la ligne d'arrivée, puisque le jeu va
+  devenir infini »). Plus de ligne d'arrivée (`finish.js` reste sur le disque, non importé),
+  plus de séquence de fin, plus d'écran « Parcours terminé » : **seule la mort termine une
+  partie**. Le morceau **tourne en boucle** (audio.js, raccord arrondi à la mesure pour rester
+  calé sur la grille rythmique). La vitesse **plafonne à `vitesseMax`** (atteinte vers ~102 s,
+  jamais dépassée — « garde la vitesse au moment de la ligne d'arrivée actuelle », qui était
+  déjà le plafond). `config.dureeCourse` (143,5 s) ne marque plus une fin : c'est la longueur
+  de la RAMPE de difficulté (`TOTAL_OBJECTS`/`timeRampT`, entities.js) — au-delà, régime de
+  croisière maximal constant. **120 BPM**, offset ~0,01 s.
+- ⚠️ **Chaque partie est DIFFÉRENTE depuis le 24 août 2026** (« il faut s'assurer que chaque
+  partie soit différente [...] pour les gens qui jouent plusieurs fois, c'est trop facile de
+  faire le score maximum ») : graine aléatoire par course (`runSeed`/`reseed()`, entities.js,
+  partagée avec crosstraffic.js). Le parcours reste une fonction pure de l'index de créneau
+  PENDANT une partie, mais types, voies, étoiles dorées, rangées, traversantes changent d'une
+  course à l'autre. ⚠️ Conséquence assumée : **le score maximum n'est plus un nombre connu** —
+  c'était le but (plus d'égalité au plafond possible).
+- **Vague de 3 vélos toutes les ~45 s** (24 août 2026, demandé) : 3 créneaux consécutifs forcés
+  « cycliste », un par voie (permutation seedée), ~0,75 s d'écart — désynchronisés, face au
+  joueur. Les créneaux ±1 autour d'une vague ne portent jamais voiture ni pont (convertis en
+  cône). `WAVE_PERIOD_SLOTS`/`waveMember()`, entities.js.
+- **Beaucoup plus de vélos après 1 min 30** (24 août 2026) : `applyCyclistLateBoost()`
+  (entities.js), ×2,2 sur le poids `cycliste` à partir de 90 s, cumulé aux autres boosts.
+- **Cadeau magique = +1 cœur** (24 août 2026, « des cadeaux magiques qui permettent de récupérer
+  un cœur ») : bonus rare (`GIFT_RATE` 7 % des créneaux étoile), n'apparaît QUE si un cœur
+  manque au moment où le créneau se calcule (`setLives`, entities.js). Aucun point, ne touche
+  pas au combo. Boîte violette + cœur + halo rose (entities-render.js), popup « +1 VIE ».
+  ⚠️ **PLAFONNÉ à `config.cadeauxMaxParPartie` (= 2) le jour même** (retour du premier
+  béta-testeur : « il y a beaucoup trop de cadeaux, t'es invincible ») — le compteur compte les
+  cadeaux APPARUS, pas les ramassés (un cadeau raté consomme le budget, assumé).
+- **Combo PLAFONNÉ à ×5** (`config.comboMultiplicateurMax`, 24 août 2026, demandé : « il faut
+  réduire le combo, c'est beaucoup trop hardcore [...] il faut que ce soit vraiment ultra
+  difficile d'arriver à 500 000 ») : sans plafond, le jeu infini envoyait les scores en
+  millions. ×5 atteint à 40 étoiles d'affilée ; jeu parfait en croisière ≈ 30 k/min →
+  500 000 ≈ 15 min sans faute. Le popup « COMBO ×N » ne sort plus une fois le plafond atteint
+  (garde `comboMultiplier() > comboAvant`, main.js).
+- **Pluie d'étoiles** (24 août 2026, idée de Pablo — premier béta-testeur — validée : « quand
+  t'atteins N étoiles de suite, un chunk combo sans obstacles pendant 10 s avec plein
+  d'étoiles ») : tous les `config.pluieEtoilesSeuil` (= 50) ramassages d'affilée (50, 100,
+  150… ; série cassée → on repart au premier palier), fenêtre de 13 créneaux (~10 s) TOUT EN
+  ÉTOILES, posée juste AU-DELÀ du champ de vision (rien ne se transforme sous les yeux du
+  joueur — elle sort de la brume ~2 s plus tard à pleine vitesse). Les TRAVERSANTES restent
+  actives pendant la fenêtre (des points, pas de l'invincibilité). Popup « PLUIE D'ÉTOILES ! »
+  + arpège long. `setStreak()`/`inChunk()`, entities.js — état de gameplay comme le score,
+  appliqué au-dessus du cache brut dans `slotContent()`. ⚠️ L'idée jumelle du même testeur
+  (« bonus de streak ajouté au score à la mort ») a été écartée : il l'a lui-même remplacée
+  par celle-ci, et le multiplicateur récompense déjà la série en continu.
+- **Easter egg 500 000** (24 août 2026, idée de Pablo : « à 500 k tu mets un vocal de toi ») :
+  au franchissement de `config.easterEggScore`, un vocal de PMC joue PAR-DESSUS le morceau,
+  qui s'écarte en sidechain le temps de la voix (audio.js, `playVoiceClip` — le morceau
+  descend à 25 % puis remonte). Une fois par partie. ⚠️ **LE FICHIER N'EXISTE PAS ENCORE**
+  (`config.fichierEasterEgg` = `assets/easter-500k.mp3`) : l'artiste doit enregistrer le vocal
+  et le déposer dans `public/assets/` sous ce nom, puis redéployer. Tant qu'il manque, RIEN ne
+  se passe (chargement tenté seulement à 80 % du seuil — jamais de 404 au chargement de la
+  page — et un échec désactive l'easter egg en silence).
+- **L'étoile dorée s'annonce** (24 août 2026, « il faudrait qu'il y ait marqué x2 sur l'étoile,
+  ou qu'elle brille beaucoup plus » — les deux sont faits) : badge « ×2 » au-dessus de l'étoile
+  + halo nettement renforcé et pulsant (entities-render.js).
+- **Une étoile n'est jamais dans la voie d'un pilier de pont ni d'une voiture voisine (±1
+  créneau)** (24 août 2026, « les étoiles ne doivent pas être positionnées au même endroit que
+  les ponts/les voitures ») : garde côté BONUS (`lanesBlockedByNeighbors`, entities.js) qui
+  déplace l'étoile vers une voie libre. ⚠️ L'ancien `bridgeGuard` (le pont qui fuyait les bonus)
+  est SUPPRIMÉ — deux gardes qui se déplacent l'une l'autre boucleraient ; l'autorité est :
+  voitures/ponts (tirage brut) > bonus (s'adapte) > piéton (s'adapte au bonus).
+- **Échap = pause sur ordinateur** (24 août 2026) : bascule ouvre/ferme le menu pause
+  (screens.js), inactif hors course.
+- **3 vies**, **5 obstacles**, **5 bonus**. ⚠️ **Depuis le 21 août 2026, TOUS les obstacles de
+  la grille sont FATALS** (« je veux que tous les obstacles fassent trois cœurs ») — les coûts
+  « −1 vie » listés plus bas sont l'HISTORIQUE, plus la règle courante. Seule la voiture
+  traversante (crosstraffic.js) reste à −1 vie (jamais fatale, invariant verrouillé). En
+  contrepartie : **seconde chance à la mort** — première mort d'une partie → panneau 10 s
+  (`#revive-sheet`), reprise sur place, score ET combo conservés, une fois par partie.
+  ⚠️ **Échelle de conversion à TROIS PALIERS** (posée le 21 août 2026 — « la première fois
+  sauvegarder le morceau, la deuxième s'abonner à PMC, après on laisse rejouer »). ⚠️ Depuis la
+  quatrième passe du 23 août 2026 elle ne vit PLUS sur la carte de mort elle-même mais dans le
+  tiroir `#gate-sheet`, et elle conditionne les DEUX actions (continuer ET rejouer) : voir le
+  bloc « MODÈLE DE CONVERSION — QUATRIÈME PASSE » plus bas, qui fait foi. La reprise est
+  TOUJOURS un tap séparé (jamais « dans le dos » du joueur revenu de Spotify).
+  - Bonus : `cd`, `piano`, `appareil`, `collierPerles`, `guitare` (les deux derniers sont aériens).
+  - Obstacles : `voiture` (choc fatal), `cycliste`, `pieton`, `cone`, `pont` (choc fatal).
+  - ⚠️ **3 → 4 obstacles** : le cycliste en sens inverse a été promu de décor à vrai obstacle
+    (« on fait en sorte que les cyclistes deviennent tous des obstacles »).
+  - ⚠️ **4 → 5 obstacles** : `pont` (viaduc du métro parisien) ajouté — bloque 2 ou 3 voies sur 3
+    (4 avant le 17 août 2026) à la même profondeur (2 voies ouvertes en début de course, 1 seule
+    en fin de course).
+  - ⚠️ **Beaucoup plus de ponts, surtout en fin de course** (demandé le 17 août 2026) : poids de
+    base 0,10 → 0,30 (`OBSTACLE_WEIGHTS`, `entities.js`), plus un boost supplémentaire ×4 à partir
+    de `PONT_TIME_BOOST_TIME_S` (95 s, ≈66 % du parcours) — ~43 % de chance qu'un obstacle soit un
+    pont une fois ce seuil franchi, contre ~10 % avant. Composé par-dessus les boosts voiture/
+    cycliste existants (`applyPontLateBoost()`), jamais une 5e table nommée séparée.
+  - Voiture, cône **et cycliste** se franchissent au saut ; seul le piéton se contourne
+    **latéralement uniquement** (`UNJUMPABLE_KINDS` dans `entities.js`). ⚠️ Le cycliste en est
+    sorti le 12 août 2026 (demandé explicitement, il y était depuis sa promotion en obstacle) —
+    ne pas le réintroduire dans `UNJUMPABLE_KINDS` sans redemander.
+  - ⚠️ **Intensification par palier de score, SANS PLAFOND** (12 août 2026, remplacée le 17 août
+    2026 — « ça manque d'obstacles dès que je suis à 80000... complexifie et intensifie ») :
+    l'ancien seuil unique (« ×2 cycliste à partir de 10 000 pts ») ne faisait plus rien une fois
+    franchi, alors que le combo (voir plus bas) permet de monter bien plus haut. Remplacé par
+    `SCORE_TIER_SIZE`/`SCORE_TIER_FACTOR` (`entities.js`, `applyScoreTierBoost()`) : tous les
+    **5 000 pts** (15 000 avant le 19 août 2026 — remis à l'échelle du nouveau plafond de score,
+    61 400 au lieu de ~195 000, sinon les paliers ne se déclenchaient quasiment plus), le poids de
+    voiture/cycliste/**pont** est multiplié d'avantage, cumulativement. En plus de ça, `scoreRampT()`
+    pousse les rangées de voitures et les ponts vers leur configuration la plus dure (le moins de
+    voies libres) EN AVANCE sur la rampe temporelle normale — mesuré : à 80 000 pts, 67 % des
+    ponts n'ont plus qu'une seule voie ouverte (10 % à score nul), 54 % des rangées de voitures
+    sont à 2 voitures (35 % à score nul). Seule donnée de ce fichier qui dépend du GAMEPLAY
+    (score) plutôt que d'un hash pur par index de créneau, voir `ARCHITECTURE.md` §5.2.
+  - ⚠️ **Le pont est un cas à part, revu le 12 août 2026** : sauter y est TOUJOURS dangereux,
+    même dans la voie ouverte (la poutre est basse) — le seul obstacle où `inAir` aggrave le
+    risque au lieu de le neutraliser. Passer sous un pont exige de rester au sol dans la bonne
+    voie. Choc fatal comme la voiture (`game.lives = 0` dans `main.js`), pas seulement −1 vie.
+  - ⚠️ **Intensification voitures/vélos à ~1/3 de course** (demandé le 13 août 2026, retour ami ;
+    facteurs intensifiés et seuil rescalé le 17 août 2026) : à partir de **63 s**
+    (`CAR_TIME_BOOST_TIME_S`, `entities.js` — 90 s à l'origine, rescalé ×0,7 avec `dureeCourse`
+    pour se déclencher au même moment RELATIF du parcours), le poids `voiture` est multiplié par
+    **2,5** (2 avant) et le poids `cycliste` par **1,6** (1,3 avant), puis la table est
+    renormalisée. Déclenché par le TEMPS écoulé, contrairement au boost par palier ci-dessus
+    (déclenché par le SCORE) — reste donc une fonction pure de `slotIndex`, pas une exception au
+    modèle décrit en `ARCHITECTURE.md` §5.2. Les deux se cumulent avec le palier de score.
+- ~~**Un nombre d'étoiles EXACT et identique à chaque partie**~~ — ⚠️ **INVARIANT SUPPRIMÉ le
+  24 août 2026** avec le passage au jeu infini + seedé : le quota exact (diffusion d'erreur,
+  `isBonusQuota`) est remplacé par un tirage au hash seedé suivant la MÊME courbe de difficulté
+  (`isBonusAt`/`obstacleRatioAt`, entities.js). Le « score max connu » était devenu LE problème
+  (plusieurs joueurs à égalité au plafond). `TOTAL_STARS`/`TOTAL_OBSTACLES` n'existent plus.
+- ⚠️ **Difficulté : la densité d'obstacles DOUBLE toutes les 25 s** (`OBSTACLE_DOUBLING_TIME_S`,
+  `entities.js`), de 38 % des créneaux au départ jusqu'à un plafond de **60 %**
+  (`OBSTACLE_RATIO_MAX`, atteint vers 16 s). Demandé le 19 août 2026 : « multiplie par deux le
+  nombre d'obstacles toutes les 25 secondes, c'est trop facile, il faut vraiment que ce soit
+  extrêmement difficile ». Remplace la rampe LINÉAIRE `BONUS_RATIO_START`/`BONUS_RATIO_END`
+  (supprimées), qui faisait *baisser* la densité d'obstacles de 38 % à 16 % au fil de la course —
+  la fin était devenue la portion la plus vide du jeu, exactement la plainte remontée deux fois.
+  ⚠️ **Arbitrage explicite de l'artiste** : un créneau porte soit une étoile soit un obstacle, et
+  il n'y en a que 191 — doubler les obstacles fait donc mécaniquement tomber le quota d'étoiles.
+  Trois scénarios chiffrés lui ont été soumis, il a choisi le plafond à 60 % (qui plus que double
+  les obstacles tout en gardant le combo atteignable) plutôt que 85 % (qui tuait le combo).
+  ⚠️ **Détente de FIN de course ajoutée le 21 août 2026** (« plus d'étoiles à la fin, ça va
+  super vite mais il n'y a pas beaucoup d'étoiles ») : de 100 s à la ligne, le ratio d'obstacles
+  redescend linéairement de 0,60 à **0,45** (`OBSTACLE_END_TAPER_START_S`/`OBSTACLE_RATIO_END`,
+  `entities.js`) — justifié par les véhicules traversants (HORS quota) à densité maximale après
+  100 s, qui cumulaient les deux sources de danger. Dernières 30 s : 16 → 19 étoiles.
+- ~~**Ligne d'arrivée en volume** (`finish.js`)~~ — ⚠️ **RETIRÉE le 24 août 2026** avec le
+  passage au jeu infini. `finish.js` reste sur le disque, non importé, non bundlé — même sort
+  que `clip.js`/`share.js`. Le second caméo Soberland (posé sur `finishTime()`, désormais
+  `Infinity`) n'apparaît plus non plus.
+- Backend **Supabase**. Identité = **pseudo public + Insta privé** (les deux obligatoires).
+  **Aucun anti-triche** : la vérité du concours se fait au screenshot.
+- Image de partage **carrée 1080×1080** (`share.js`). ⚠️ **Bouton « PARTAGER MON SCORE » retiré
+  le 23 août 2026** (« tout le monde s'en fout ») — `share.js` reste sur le disque, non importé,
+  non bundlé (voir plus bas). Le reste de cette entrée décrit un travail toujours sur le disque
+  mais actuellement inatteignable en jeu ; ne pas le rebrancher sans redemander. ⚠️ **Deux points
+  du brief d'origine révisés le 19 août 2026**, après avoir vu la première version tourner :
+  - **Format 9:16 → carré.** « Je pense pas que les gens vont mettre des stories, par contre sur
+    TikTok ils vont mettre en commentaire » — or une image en commentaire s'affiche en VIGNETTE
+    recadrée au carré : une 1080×1920 y perdait son haut et son bas, donc le titre et le lien,
+    c'est-à-dire tout ce qui permet de retrouver le jeu.
+  - **Borne d'arcade dessinée → affiche dépouillée.** « Pas trop mal mais beaucoup trop lourd,
+    faut le simplifier de fou ». Le premier jet dessinait la borne complète (marquee, écran CRT
+    avec le ciel/la route/le personnage, stats, joystick, fente à monnaie) : lisible à 1080 px,
+    illisible en vignette. Il ne reste que l'aplat rouge de charte, LE SCORE en énorme, le pseudo,
+    une ligne « x/80 étoiles » entre deux étoiles du jeu, et l'URL. Vérifié lisible jusqu'à 56 px.
+    96 Ko au lieu de 455.
+  ⚠️ **L'image est fabriquée à l'affichage de l'écran de fin, pas au clic** : `navigator.share()`
+  doit être appelé dans la pile d'appel du geste (même règle qu'`AudioContext` sur iOS), or
+  `canvas.toBlob()` est asynchrone et ferait perdre le geste. Repli en téléchargement quand le
+  partage de fichiers n'existe pas.
+- **Conversion vers le morceau** (demandé le 19 août 2026 : « quand quelqu'un arrive à 50 000, le
+  jeu se met en pause, il doit presser le lien »). Réalisé en DEUX temps, après arbitrage — le
+  mur en pleine course a été écarté (à 50 000 sur un maximum de 61 400 le seuil n'était quasiment
+  jamais atteint, et quitter la page en course sur mobile fait perdre le run : onglet rechargé, ou
+  morceau rembobiné au-delà de `pauseDeriveMax`) :
+  - **En course** : un bandeau NON BLOQUANT à 12 000 points (`MILESTONE_SCORE`, `main.js` +
+    `hud.renderMilestone`), 4 s, bas de l'écran. ⚠️ Reformulé le 21 août 2026 (« j'ai pas compris
+    pourquoi il est marqué 12 000 points [...] dis un truc genre premier palier activé ») :
+    titre « PREMIER PALIER ACTIVÉ ! », sous-titre « le morceau t'attend à l'arrivée » — le
+    palier est la récompense, le chiffre brut ne se lisait pas.
+- ⚠️ **MODÈLE DE CONVERSION — QUATRIÈME PASSE, 23 août 2026** (« quand une personne arrive pour
+  la première fois, fait une partie et échoue, il faut deux boutons : continuer la partie,
+  rejouer [...] tu dois d'abord pré-sauvegarder l'album de PMC sur Spotify [...] pareil pour le
+  rejouer, il faut que ce soit exactement les mêmes conditions. L'idée c'est de la
+  transformation »). C'est le modèle COURANT ; les trois passes précédentes du même jour sont
+  l'historique, résumé plus bas.
+  - **La carte de mort ne porte plus aucun lien Spotify.** Elle pose le choix, rien d'autre :
+    `CONTINUER LA PARTIE` (garde score et combo) / `REJOUER` (course neuve) / « Voir mon score ».
+    Son décompte de **10 s** est inchangé — expiré sans choix → écran de fin.
+  - **Les DEUX boutons passent par exactement la même porte** — c'est tout le point de la
+    demande — et cette porte est un **tiroir qui se soulève d'en bas** (`#gate-sheet`,
+    `ouvrirGate`/`exigerConversion` dans `screens.js`), avec l'échelle à trois paliers :
+    `"presave"` (album jamais ouvert → CTA `config.lienAlbum`) → `"suivre"`
+    (album ouvert, pas encore abonné → CTA `config.lienSuivre`) → `"libre"` (les deux faits :
+    **le tiroir ne s'ouvre plus jamais**, les deux actions partent au premier tap).
+  - **`REJOUER` de l'écran de fin passe par la même porte.** Sans ça elle se contournerait en un
+    tap (« Voir mon score » puis REJOUER) et ne demanderait plus rien à personne.
+  - ⚠️ **PALIER 1 : PRÉ-SAUVEGARDE → ÉCOUTE, LE 28 AOÛT 2026** (jour de la SORTIE de l'album —
+    Apple Music et Deezer le matin, Spotify une heure plus tard). Il n'y a plus rien à
+    pré-sauvegarder : le tiroir demande désormais « Ajoute l'album à ta bibliothèque », CTA
+    **ÉCOUTER L'ALBUM** vers `config.lienAlbum` (ex-`lienPresave`, renommé le même jour). La
+    clé de palier reste `"presave"` en interne et la clé `localStorage` reste `morceauOuvert` :
+    personne n'est remis à zéro, et l'overlay `?debug` continue d'afficher `conversion=presave`.
+    ⚠️ `lienAlbum` doit pointer vers la page de SORTIE : la campagne Feature.fm (`li.sten.to`)
+    bascule d'elle-même de « Pre-save » à « Écouter » à la date de sortie renseignée dans son
+    tableau de bord — si la page montre encore « Pre-save », c'est cette date qu'il faut
+    corriger côté Feature.fm, pas l'URL ici (vérifié le 28 août : la page servait encore trois
+    boutons « Pre-save » Spotify/Apple/Deezer dix minutes après la sortie).
+  - ⚠️ **NOUVEAU SMARTLINK LE 28 AOÛT 2026** : l'ancienne campagne
+    (`li.sten.to/la-ville-est-belle`) est restée bloquée en pré-sauvegarde après la sortie.
+    Refaite sous **`li.sten.to/la-ville-est-belle-pmc`**, en mode sortie, avec Spotify → Deezer
+    → Apple Music en tête. `lienEP` ET `lienAlbum` pointent tous les deux dessus. ⚠️ Chez
+    Feature.fm, **RÉORDONNER les services est payant, les DÉSACTIVER est gratuit** : c'est en
+    coupant TIDAL/YouTube Music/etc. qu'on garde les trois plateformes voulues en tête, jamais
+    en passant au plan Pro.
+  - ⚠️ **PANNEAU DE PLATEFORMES DANS LE JEU, 28 août 2026** (demandé : « au lieu de passer par
+    ce multi-lien, un panneau directement marqué Spotify, Deezer, Apple Music… ils cliquent
+    directement sur Spotify ») : au palier 1, le tiroir n'envoie PLUS sur le smartlink — il
+    affiche les 5 plateformes (`config.plateformesAlbum`) et un tap ouvre l'album dans l'APP
+    native. Une page intermédiaire de moins, ~1 s de moins, ni bannière cookies ni formulaire
+    e-mail tiers. Le choix est mémorisé (`plateformeAlbum`) : au passage suivant il remonte en
+    tête, en plein gabarit rouge, les autres restent dessous. Palier 2 (s'abonner à PMC) garde
+    le bouton unique, il n'a qu'une destination. Repli automatique sur le smartlink si
+    `plateformesAlbum` est vide.
+  - ⚠️ **CE QUE LE TIROIR ÉCHANGE, C'EST L'OUVERTURE DE L'ALBUM, PAS LA SAUVEGARDE** (arbitré le
+    28 août 2026 après vérification des règles des plateformes). La clause Spotify vise
+    « artificially increase play counts, follow counts […] by providing any compensation
+    (financial **or otherwise**) » — promettre une partie CONTRE un ajout en bibliothèque tombe
+    dedans ; l'équivalent existe chez YouTube et dans les règles App Store. Or le jeu n'a jamais
+    pu vérifier un ajout : **le palier se lève au CLIC**, depuis le premier jour. La demande
+    d'ajout est donc posée à CÔTÉ du troc — titre « Ouvre l'album de PMC », ligne de geste sous
+    les boutons, « Tu l'as ajouté ? Merci ! » au retour — et jamais comme son prix. Même
+    mécanique, même taux, hors de la zone grise. **Ne pas réécrire cette copie en « ajoute
+    l'album pour continuer »** sans mesurer le risque (amendes de streaming artificiel
+    répercutées par le distributeur, retrait de playlists).
+  - ⚠️ **Nom en TEXTE + pastille de couleur, jamais un badge recréé** : les règles de marque
+    d'Apple Music l'interdisent explicitement (« Never create your own Apple Music badge »).
+  - ⚠️ **URL nettoyées à la main** dans `plateformesAlbum` : pas de `?si=` (jeton de partage qui
+    piste l'expéditeur), pas de `/intl-fr/` sur Spotify (force la page web au lieu de l'app), et
+    jamais le scheme `spotify:album:` (déclenche une confirmation iOS). Universal links https.
+  - ⚠️ **Comptage des clics PAR PLATEFORME derrière un interrupteur** : `config.compteurPlateformes`
+    reste à `false` tant que `supabase-migration-clic-plateforme.sql` n'a pas été exécuté côté
+    Supabase. PostgREST rejette un insert portant une colonne inconnue — envoyer le champ trop
+    tôt ferait tomber en silence le compteur GLOBAL de clics, qui marche.
+  - ⚠️ **PLUS AUCUN SMARTLINK DANS LE JEU** (28 août 2026, « on enlève le lien du jeu puisque
+    c'est toi qui gères tous les liens ») : `config.lienEP` et `config.lienAlbum` sont
+    SUPPRIMÉS. Le CTA flottant du menu et le bouton secondaire de l'écran de fin n'ont plus de
+    `href` — ils ouvrent le MÊME panneau de plateformes (`ouvrirEcoute`, action `"ecouter"`),
+    sans rien conditionner. Le smartlink li.sten.to reste utile hors du jeu (bio Instagram,
+    posts) ; il n'a plus sa place dedans. ⚠️ Conséquence : le boost fan et le comptage des
+    clics ne sont plus posés sur ces boutons (ils ne mènent nulle part) mais sur le clic d'une
+    PLATEFORME — un seul endroit, quel que soit le panneau d'où il vient.
+  - ⚠️ **« L'album est sorti » vit sur le CTA flottant du MENU** (`#cta-link`, ex-« Écouter le
+    morceau ») : seule ligne vue par 100 % des joueurs, avant même d'appuyer sur JOUER. Le
+    bouton secondaire de l'écran de fin dit « ÉCOUTER L'ALBUM » (ex-« AJOUTER LE MORCEAU ») et
+    le bandeau de palier en course « l'album t'attend à l'arrivée ».
+  - ⚠️ **Le tiroir N'EXPIRE PAS** (mesuré au banc d'essai, sur un premier jet qui lui donnait sa
+    propre fenêtre de 10 s) : la fenêtre courait pendant que le joueur LISAIT la demande,
+    expirait, rendait la main à la carte de mort dont le décompte reprenait — et le jetait sur
+    l'écran de fin sans qu'il ait rien fait. Les 10 s appartiennent à la carte de mort (offre
+    limitée) ; le tiroir pose une demande, il attend, sa seule sortie est « Plus tard ». Le
+    décompte de la carte est **gelé** tant que le tiroir est ouvert, et **repris là où il en
+    était** si le joueur referme par « Plus tard ».
+  - Au retour de Spotify, le tiroir joue le **décompte 5-4-3-2-1** (`loopMortRetour`) qui
+    rouvre le filtre de la boucle, puis **arme** le bouton d'action. ⚠️ La reprise reste un
+    **tap explicite**, jamais un redémarrage automatique (invariant du 22 août 2026).
+  - ⚠️ **La première partie reste libre** : la porte n'existe qu'APRÈS un échec. Le bouton
+    JOUER du menu n'est pas touché.
+  - ⚠️ **Le palier 2 promet les parties ILLIMITÉES** (24 août 2026, demandé : « la dernière
+    étape c'est t'abonner à PMC sur Spotify [...] pour lui dire : fais autant de parties que tu
+    veux ») : le texte du tiroir « suivre » annonce désormais « Dernière étape : abonne-toi à
+    PMC sur Spotify et rejoue autant que tu veux ». C'est ce qui donne sa contrepartie au
+    dernier péage — après lui, le tiroir ne s'ouvre plus jamais.
+  - ⚠️ **`conversion=presave|suivre|libre` dans l'overlay `?debug`** : LA ligne qui tranche
+    « le tunnel est cassé » vs « ce téléphone a déjà tout franchi ». Sur mobile il n'y a ni
+    console ni localStorage inspectable — sans elle, les deux cas sont indiscernables (piège
+    vécu deux fois le 24 août).
+  - ⚠️ **`?neuf` dans l'URL remet les deux paliers à zéro** (24 août 2026) — outil de
+    VÉRIFICATION, pas de gameplay. Motif : l'artiste a cliqué ses propres liens des dizaines de
+    fois en testant, son navigateur le classe donc « libre » et le tiroir ne s'ouvre plus jamais
+    chez lui — d'où « la clause a sauté » alors que le tunnel tourne pour tout joueur neuf
+    (vérifié bout en bout le 24 août : palier 1 → `lienAlbum` + boost fan, palier 2 →
+    `lienSuivre`, sur CONTINUER comme sur REJOUER, carte de mort comme écran de fin). Ne touche
+    QUE les deux clés de conversion : pseudo, insta et `partiesJouees` sont conservés.
+  - ⚠️ **RENVERSEMENT ASSUMÉ** du « rejouer est toujours gratuit » posé plus tôt le même jour
+    (troisième passe), qui avait été décidé après avoir mesuré une IMPASSE sur un joueur neuf :
+    aucun chemin vers une deuxième course sans cliquer le lien, le joueur fermait l'onglet. Ce
+    qui change et évite de la reproduire : le palier se lève **au clic** sur le lien,
+    définitivement, et le tiroir **arme lui-même** l'action demandée au retour de Spotify — il y
+    a donc toujours un chemin vers la course suivante. Le joueur qui refuse le lien, lui, n'en a
+    plus : c'est la contrepartie voulue, arbitrée par l'artiste (« l'idée c'est de la
+    transformation »).
+  - ⚠️ **Le REJOUER de la carte de mort finalise quand même la course** (`finalizeRun()`,
+    extrait de `endGame()` le 23 août 2026) : son score part au classement et elle compte dans
+    le compteur global. Sans ça, chaque joueur qui préfère repartir de zéro plutôt que voir son
+    score aurait fait sous-compter « X courses depuis le lancement » en silence.
+  - **L'écran de fin garde ses demandes NON bloquantes** : bouton AJOUTER LE MORCEAU en
+    secondaire, promesse de boost fan (+10 %), bandeau « Tu écoutes La ville est belle ». Ces
+    clics-là lèvent aussi le palier 1 (même clé `localStorage`).
+  - ~~Verrou `#unlock-sheet` sur REJOUER~~ — supprimé le 23 août 2026 avec le panneau lui-même
+    (voir l'impasse ci-dessus). Le nouveau modèle n'y revient pas : il n'y a plus de panneau de
+    verrou, il y a un tiroir de demande qui débloque lui-même l'action.
+- **Défi à un ami** (`defi.js`, demandé le 21 août 2026) : le lien de partage embarque un score
+  à battre (`?defi=23102&de=pol`). Le jeu porte la cible d'un bout à l'autre — bandeau au-dessus
+  de JOUER, jauge de progression sous le score pendant la course, popup « DÉFI RELEVÉ ! » au
+  dépassement, verdict (ou l'écart manquant) sur l'écran de fin. ⚠️ **Aucune vérification,
+  assumé** — même règle que le reste du jeu, et rien de tout ça n'atteint Supabase. ⚠️ Le lien
+  se fabrique sur une base EN DUR, jamais sur `location.href` (sinon on relaie le score du
+  défiant précédent).
+  ⚠️ **Boost de départ depuis le 23 août 2026** (« on peut pas booster le défi à un ami pour
+  que les gens aient un boost de départ ? ») : arriver par un lien `?defi=` offre
+  `defiBoostPaliers` (config.js, = 1) palier(s) de combo dès le départ — ×1,5 dès la première
+  étoile, pastille visible dès la première frame, perdu au premier obstacle comme n'importe quel
+  combo. Armé dans `requestGameStart()` ET `restartGame()` (la première course ne passe pas par
+  restartGame). Annoncé au menu (bandeau défi), dans le texte de partage (defi.js), et sur
+  l'écran de fin. Sans condition côté receveur (c'est le levier de VOLUME) ; la vérification
+  « la personne a vraiment joué » côté envoyeur n'existe pas — assumé, comme le reste du défi.
+  ⚠️ Le bouton « DÉFIER UN AMI » est un vrai `.btn` secondaire depuis le même jour (« il faut
+  vraiment qu'on le mette en avant ») — renversement assumé du « pas un troisième bouton » du
+  21 août, rendu possible par la passe UX qui a réduit tous les boutons (50→46 px, 15→14 px,
+  score de fin 40→46 px : « que tout soit plus lisible et qu'on voie un peu plus de score »).
+  ⚠️ **PARTAGER MON SCORE retiré le 23 août 2026** (troisième passe le même jour, « tout le
+  monde s'en fout, tu laisses défier un ami prendre toute la place ») — après une étape
+  intermédiaire le même jour où les deux boutons étaient côte à côte, PARTAGER a fini par
+  disparaître complètement : DÉFIER UN AMI passe en pleine largeur, même gabarit que
+  REJOUER/AJOUTER LE MORCEAU. `share.js` reste sur le disque mais n'est plus importé, donc
+  plus bundlé (91 Ko → confirmé par le build, 26 modules au lieu de 27) — même sort que
+  `clip.js` le 20 août, ne pas le rebrancher sans redemander.
+  ⚠️ **Classement réduit au TOP 3 + rang du joueur** (même passe) : la carte ne montre plus une
+  liste de 5 lignes qui défile, mais 3 lignes fixes — et, si le joueur est classé au-delà, sa
+  propre ligne avec son VRAI rang juste en dessous (filet pointillé, `.self-gap`). Un lien
+  « Voir le classement complet → » ouvre `#leaderboard-sheet` (même patron de tiroir que
+  `#unlock-sheet`) avec les 50 lignes complètes, scrollable, centré sur le joueur — jamais un
+  second appel réseau, `screens.js` réutilise la réponse déjà reçue (`dernierClassement`).
+  ⚠️ **Icônes WhatsApp/Messages/Snap sous « DÉFIER UN AMI »** (23 août 2026, « pour que les gens
+  captent ») : purement décoratives — `partagerDefi()` ouvre le partage natif du téléphone
+  (`navigator.share`), qui liste déjà ces apps si elles sont installées ; les icônes ne
+  déclenchent rien de spécifique, elles annoncent juste ce qui va s'ouvrir. Posées SEULEMENT sur
+  DÉFIER, pas sur PARTAGER MON SCORE : ce dernier envoie un fichier image (repli story/Instagram
+  cohérent, l'URL est déjà bakée dans l'image), le défi envoie un texte+lien (repli messagerie,
+  jamais une story).
+- **Course parfaite** (demandé le 21 août 2026) : parcours terminé sans un seul choc (traversante
+  comprise) → bandeau « Course parfaite », pastille sur l'écran de fin, et badge
+  **« LA VILLE EST PARFAITE »** sur l'image de partage, où il REMPLACE le badge de disque.
+- **Instagram de l'artiste** (`lienInsta` dans `config.js`) sur l'écran de fin, accroché au rappel
+  du concours (fusionné en une ligne le 23 août 2026 : « Un vinyle à gagner — résultats sur
+  @pmc.mp3 », passe « ça respire pas ») — placé là pour DONNER une raison de
+  suivre plutôt que d'ajouter un troisième lien en concurrence avec les CTA de conversion.
+- CTA « aller écouter » : **c'est `config.js` (`lienEP`) qui fait foi**, pas ce fichier.
+- **3 voies** (`LANE_COUNT`, `road.js`) — 4 avant le 17 août 2026, demandé explicitement. Route
+  physique inchangée (`ROAD_HALF_WIDTH`), voies plus larges. Seul ajustement de logique exigé : les
+  rangées de 3 voitures (`entities.js`) auraient occupé les 3 voies à la fois, retirées.
+- **Combo** (demandé le 17 août 2026) : `comboSeuil`/`comboBonusParPalier` (`config.js`) — 5 étoiles
+  ramassées d'affilée (sans toucher d'obstacle entre-temps) → ×1,5 sur les points de bonus, 10 → ×2,
+  15 → ×2,5, etc. Remis à 0 au moindre obstacle touché. `main.js` (`comboMultiplier()`), affiché en
+  jeu sous le score (`hud.js`) quand actif, dans une **pastille crème** depuis le 19 août 2026
+  (« que le combo soit dans un tag un peu plus gros pour qu'on comprenne comment ça marche ») —
+  jamais rouge, le rouge de charte est réservé au négatif (la pénalité). Score maximum théorique
+  (run parfait, 85/85 étoiles, 0 obstacle touché, combo jamais cassé) : **86 825 points**
+  (**95 519** avec le boost fan ×1,1, voir plus bas) — re-recalculé le 21 août 2026 après le
+  passage de GRACE_BEATS à 7 (le tirage déterministe s'est redistribué), avec les **14 étoiles
+  DORÉES** (×2, `GOLD_STAR_RATE` dans
+  `entities.js`, tirées au hash donc identiques à chaque partie — l'invariant « score max =
+  nombre connu » tient toujours ; teinte blanc doré, rotation deux fois plus rapide). Toutes les étoiles **tournent sur elles-mêmes**
+  (1 tour / 2 s = une mesure à 120 BPM, `entities-render.js`), autour de l'axe VERTICAL façon
+  pièce de Mario (« le haut de l'étoile ne doit pas bouger »), jamais `ctx.rotate()` dans le
+  plan de l'écran. ⚠️ **Refonte 3D complète le 21 août 2026** (« on dirait des petits pâtés »,
+  références Mario fournies) : plus d'icônes pré-cuites ni d'astuce cosinus/capsule — les
+  étoiles sont un VRAI solide extrudé rendu par frame (`drawStar3D()`, entities-render.js) :
+  faces bombées à 10 facettes en cel-shading 3 tons, tranche qui suit le contour, yeux sur les
+  deux faces. Voir ARCHITECTURE.md §11 (dix-septième passe) pour les réglages sensibles
+  (`STAR_THICK`/`STAR_BUMP`/`STAR_SHADE_BUMP`) — ne pas regrossir l'épaisseur sans revérifier
+  le profil à 90°.
+  ⚠️ **Le classement Supabase est à remettre à zéro** avant le lancement public : les scores déjà
+  enregistrés l'ont été sous d'anciens barèmes (195 525, 61 400, 68 925…) et écraseraient
+  définitivement ceux du nouveau (86 825 / 95 519).
+- **Conversion, mécaniques ajoutées le 20 août 2026** (priorité produit assumée) :
+  - **Boost fan ×1,1 permanent** sur les points de bonus dès que le morceau a été ajouté
+    (`screens.estFan()`, même localStorage que le verrou) — annoncé sur l'écran de fin tant
+    qu'il n'est pas acquis. La conversion est récompensée, pas seulement exigée.
+  - ~~**Second verrou doux après 3 parties** sur REJOUER~~ — ⚠️ **SUPPRIMÉ le 23 août 2026**
+    avec le verrou principal (le seuil `SEUIL_SUIVRE` a disparu). Suivre PMC (`lienSuivre` dans
+    config.js — le vrai profil Spotify, vérifié le 21 août 2026 via son Instagram) reste le
+    DEUXIÈME palier de la carte de mort, où il achète la continuation de la course.
+  - **Bandeau « Tu écoutes La ville est belle »** sur l'écran de fin (le morceau y joue vraiment
+    ~114 s) — cliquable, même smartlink. ⚠️ **Equalizer branché sur le VRAI spectre depuis le
+    21 août 2026** (« même modèle que le Dynamic Island : basses à gauche, aigus à droite ») :
+    `AnalyserNode` DANS la chaîne de sortie (`focusGain → analyser → destination` — jamais en
+    dérivation : WebKit/navigateur Instagram n'alimente pas un analyseur hors du chemin vers
+    destination, bug vécu le jour même), `audio.getEqLevels`, 5 barres pilotées en rAF par
+    `screens.js` — l'ancienne animation CSS ne subsiste qu'en secours (classe `.idle`) quand le
+    contexte audio ne tourne pas.
+  - **CTA renommé « AJOUTER LE MORCEAU »** (lienEP est déjà un smartlink li.sten.to).
+  - **Balises OG/Twitter** avec la pochette (`public/assets/cover-ep-og.jpg`).
+  - **Compteur global de courses** (« X courses déjà jouées ») + **date de fin du concours**
+    sur l'écran de fin — table `courses` insert-only, migration
+    `supabase-migration-compteur-courses.sql` **à exécuter côté Supabase**. ⚠️ Compté en
+    `count=planned` (estimation du planificateur Postgres, pas un `count=exact`) pour ne pas
+    relancer un comptage complet toutes les 20 s par joueur sur l'écran de fin — le chiffre
+    affiché peut donc dériver de quelques lignes par rapport au total réel, exact ou non selon
+    que l'auto-analyze vient de tourner. Assumé, c'est de la preuve sociale, pas une mesure.
+  - **Compteur de clics sur « AJOUTER LE MORCEAU »** (23 août 2026, `net.postClicEP`/
+    `net.getClicsEPCount`) : même patron exact que le compteur de courses (table `clics_ep`
+    insert-only, migration `supabase-migration-compteur-clics-ep.sql` **à exécuter côté
+    Supabase**, comptage `planned`). Sert à mesurer le taux JEU → smartlink sans dépendre du
+    tableau de bord li.sten.to (qui voit ses visites mais jamais d'où elles viennent). Posé sur
+    les 4 emplacements qui peuvent pointer vers `lienEP` (carte de fin, CTA flottant du menu,
+    panneau de verrou, panneau de seconde chance) — mais seulement si le lien pointe VRAIMENT
+    vers `lienEP` au moment du clic : `unlockSheetCta`/`reviveCta` peuvent aussi pointer vers
+    `lienSuivre` (second verrou), un funnel volontairement exclu de ce compteur.
+  - **Image de partage** : pochette de l'EP + badge disque (bronze/argent/or/platine) ; le
+    partage embarque désormais texte + lien du jeu.
+  - ~~**Clip vidéo des 5-10 dernières secondes**~~ — **RETIRÉ le 21 août 2026** (« tu peux
+    enlever Partager le clip, tu mets juste Partager mon score ») : bouton supprimé de l'écran
+    de fin ET enregistrement coupé en course (les appels `clip.demarrer()`/`terminer()` de
+    main.js ont sauté — son coût d'encodage jamais mesuré n'a plus de raison d'être payé).
+    `clip.js` reste sur le disque mais n'est plus importé, donc plus bundlé. Ne pas le
+    rebrancher sans redemander.
+  - **Vibrations Android** (`navigator.vibrate`, sans effet sur iOS) : légère au choc, forte
+    quand le choc termine la partie.
+- **Voitures/camions qui traversent aux carrefours** (`crosstraffic.js`, demandé le 19 août 2026).
+  ⚠️ Les croisements ne sont donc PLUS purement décoratifs — invariant tombé sciemment. Vit sur la
+  grille de DISTANCE (celle des bâtiments/feux), pas sur la grille musicale d'`entities.js` :
+  collisions et résolution séparées, fusionné au rendu par `extras`. **Aucun véhicule avant ~50 s**
+  et densité maximale après ~100 s : c'est le levier qui durcit la FIN de course sans toucher à
+  l'ouverture (« la densité au tout début c'est très très bien, mais ça fait plus facile la fin
+  que le début »). 45 traversées par course, chacune ne bloquant **qu'une seule voie**. ⚠️ Le véhicule est **découpé sur la trouée de la rue** (`BORD_RUE`) : il émerge de derrière les façades comme d'une rue transversale, au lieu d'être peint par-dessus les trottoirs et les immeubles plusieurs secondes à l'avance — retour direct, capture à l'appui (« on les voit de trop loin »). Coût −1 vie,
+  **jamais fatal**. ⚠️ Depuis le 21 août 2026, `sousUnPont()` (crosstraffic.js, dépendance à
+  sens unique vers entities.js, assumée) SUPPRIME les traversées qui chevaucheraient un pont
+  (marge 0,15 s + plancher 6 unités, mesuré : 5 traversées sur 58) — le cas « voiture dans la
+  seule trouée du pont » n'existe plus, mais le −1 vie reste la règle par prudence. ⚠️ **Le CAMION a été
+  SUPPRIMÉ le 21 août 2026** (« il faut pas qu'il y ait des camions qui traversent, je veux que
+  ce soient des voitures, sinon c'est trop ») — d'abord rendu sautable le même jour, puis retiré
+  tout court : seules des voitures traversent désormais, toutes franchissables au saut (« il
+  faut qu'on ait la possibilité de les esquiver ou de sauter par-dessus »). Ne pas réintroduire
+  le camion sans redemander.
+- **Boucle du début pendant la seconde chance** (demandé le 22 août 2026) : quand le panneau de
+  mort s'ouvre, le morceau **s'arrête** et la boucle des premières secondes tourne à sa place
+  (4 mesures, `loopMort*` dans `config.js`), dans un passe-bas qui **s'ouvre au rythme du
+  décompte** — « la loop du début se défiltre ». Mode audio `revive` (`audio.js`), qui l'emporte
+  sur `silent` : partir ajouter le morceau sur Spotify ne coupe pas la boucle, elle reste au plus
+  filtré et au plus bas pendant l'absence. **Au retour dans l'appli, décompte 5-4-3-2-1** qui
+  rouvre le filtre et ARME `REPRENDRE` — ⚠️ la reprise reste un **tap explicite**, jamais un
+  redémarrage automatique. Effet de bord : la reprise relance le morceau PILE à la seconde de la
+  mort, donc ce chemin ne consomme plus le budget `pauseDeriveMax`. Voir `ARCHITECTURE.md` §8.2.
+- **Caméo Soberland** (demandé le 17 août 2026, photo fournie en référence) : DJ ami de l'artiste,
+  planté dans la voie centrale **au TOUT début de la course** (`cameo.js`, `CAMEO_TIME_S` = 3 s —
+  7 s avant le 21 août 2026, avancé sur insistance : « au tout début et rien autour de lui »).
+  Visible dès la première frame jusqu'à ~3,6 s ; la période de grâce a été allongée en vis-à-vis
+  (`GRACE_BEATS` 4 → 8 puis redescendu à 7 le même jour — « énormément d'étoiles au tout
+  début » ; premier obstacle à ≈3,75 s, 0,15 s après la sortie de Soberland : c'est le
+  PLANCHER sûr, ne pas descendre sans raccourcir le caméo) et les étoiles de grâce sont forcées sur les
+  voies LATÉRALES (`slotLanes`, entities.js) pour que rien ne partage jamais l'écran avec lui.
+  Purement décoratif — pas de collision, pas de créneau, pas de score. Silhouette REPRISE de
+  `pedestrians.js` (retour direct sur le premier jet : « ressemble à rien ») : casquette, barbe,
+  casque, chemise à carreaux habillent le même squelette que les piétons plutôt qu'un design
+  inventé. Étiquette **« @soberland »** flottant au-dessus de sa tête (« comme ça on sait qui
+  c'est »). Table de mixage en PROP SÉPARÉ, sa propre profondeur (`TABLE_OFFSET_Z`, toujours
+  devant lui), pas intégrée à son sprite comme au premier jet. Voxel (`blk()`, `voxel.js`), même
+  grammaire que joueur/cyclistes/piétons. ⚠️ Lui ET sa table passent par `getExtras()` +
+  `entities-render.render(..., extras)`, jamais un rendu séparé : sinon ils se peignent toujours
+  au même endroit de la séquence peintre, indépendamment de leur profondeur réelle — bug vécu
+  (apparaissait devant un pont pourtant plus proche).
+  ⚠️ **Il réapparaît SUR LA LIGNE D'ARRIVÉE depuis le 22 août 2026** (« je veux Soberland qui
+  apparaît à nouveau sur la ligne d'arrivée en train de mixer ») : même personnage, même table,
+  même étiquette, mais **sur le trottoir** et non au milieu de la route (la voie centrale est
+  celle du portique et du joueur lancé à pleine vitesse — l'y planter le ferait lire comme un
+  obstacle) et **plus grand** (2,6 unités-monde contre 2,2) parce qu'à cette vitesse tout objet
+  de bord de route n'est visible que ~2 s. `getExtras()` renvoie donc DEUX occurrences.
+- **PMC qui fait coucou pendant le menu pause** (`pmc.js`, demandé le 22 août 2026 : « pendant
+  l'écran Pause, mets PMC en train de faire coucou doucement »). Décoratif, grammaire voxel,
+  planté en bas à gauche sous la carte de pause. ⚠️ Seul sprite du jeu animé sur
+  `performance.now()` : l'horloge musicale est GELÉE pendant la pause — il bouge parce que tout
+  le reste est arrêté.
+
+- **DA des écrans = l'e-card de l'EP** (4 septembre 2026, demandé : « quelque chose en lien
+  avec ma e-card [...] plus cohérent »). Fini les cartes crème à bord brun et coins 22 px
+  (« très AI slop ») : carte BLANCHE, bord noir 1,5 px, rayon 4 px (`--rayon`), l'en-tête rouge
+  devient un STICKER posé de travers (`.panel-header`, −2°) à cheval sur le bord haut, boutons
+  rectangulaires en capitales espacées 13 px (rouge plein / blanc à bord noir, comme « ÉCOUTER
+  L'EP » / « JOUER AU JEU » de l'e-card). Titre « la ville est belle » en minuscules, **Source
+  Serif Black condensé** (`scaleX(0.66)`, comme sur l'e-card) — fichiers fournis par l'artiste,
+  sous-ensemble latin woff2 de 18 Ko (`public/fonts/SourceSerif2-Black.woff2`, famille CSS
+  `"Source Serif 2"`) ; Flawsome n'est plus déclarée. La même serif porte le score de l'écran
+  de fin, le score du HUD, le décompte 3-2-1-GO et les titres des tiroirs. ⚠️ L'artiste avait
+  d'abord dit « il faut de l'Alphabetica » : aucune police de ce nom n'existe sur le disque,
+  ce sont les fichiers Source Serif qu'il a fournis ensuite qui font foi. Zoom ×1,2 de la carte
+  pause supprimé, encadré rosé « Monte le son » supprimé, pastille du compteur de courses
+  supprimée (une ligne).
+- **Départ calé sur la grille du morceau + décompte « 3, 2, 1, GO »** (4 septembre 2026, audit
+  de la transition tuto → course) : `ancrerDepartSurLaGrille()` (main.js) pose le temps 0 de la
+  course sur un TEMPS du morceau (mesuré avant : décalage de 0 à 0,5 s selon l'instant du tap,
+  0,27 s même au rejeu — plus aucun objet n'arrivait sur le temps). Le HUD monte avec le
+  décompte (`hud.renderCountIn`), la consigne du tuto disparaît net, et la route ne se remet
+  PLUS à zéro au départ (`road.markCourseStart()` remplace `road.reset()` dans
+  `requestGameStart` ; `crosstraffic` compte sa rampe depuis `road.getCourseStartSlot()`).
+  ⚠️ Ne pas réintroduire `clock.jumpBy(-LEAD_IN)` brut ni `road.reset()` à cet endroit. Voir
+  `ARCHITECTURE.md` §11, trentième passe.
+- **Tutoriel interactif à la place du décompte** (`tutorial.js`, 19 août 2026 — « on peut
+  remplacer les 20 secondes de début avec des exemples de swipe, comme un jeu Mario »). L'idée
+  initiale (enregistrer des GIF) a été écartée : poids (centaines de Ko contre 65 Ko de bundle),
+  qualité (256 couleurs, le couchant en bandes), obsolescence (l'aspect du jeu bouge sans arrêt).
+  À la place, le jeu se montre lui-même : 4 étapes guidées (changer de voie ×2, sauter, passer
+  sous un pont AU SOL, le combo), le joueur fait vraiment les gestes — l'overlay du décompte
+  était déjà en `pointer-events:none`, donc les swipes atteignaient déjà le canvas. Objets de
+  démonstration rendus par le VRAI moteur (`peindreObjet`, export de `paintSlot`), main fantôme
+  animée, « Bien ! »/« Raté » en retour immédiat. ⚠️ **La main fantôme MONTRE le geste, elle ne le
+  joue jamais** (revu le jour même, retour direct : « je ne fais rien, il bouge tout seul » — la
+  première version pilotait le personnage après ~3 s d'inaction et les étapes se validaient
+  toutes seules). Une étape n'avance QUE sur un geste du joueur ; les objets (pont, étoiles) se
+  placent dans une voie ADJACENTE à la sienne pour qu'aucune étape ne se valide en restant
+  immobile, et les ratés font revenir l'objet, replacé, sans limite. Seules sorties sans geste :
+  « Passer l'intro » et le plafond de sécurité 30 s. ⚠️ L'étape pont est LA raison d'être du
+  tuto : seul obstacle où le réflexe (sauter) est précisément ce qui tue, enseigné nulle part
+  avant. ⚠️ **Rejoué sur les TROIS PREMIÈRES parties** (`TUTO_PARTIES`, screens.js — demandé le
+  21 août 2026 : « le tuto pour les 3 premiers atterrissages avec possibilité de skip »). Il
+  était sauté dès la 2e partie plus tôt le même jour, c'était trop radical : une seule
+  exposition ne suffit pas à faire rentrer la règle du pont. Le bouton « Passer l'intro » est
+  ce qui protège l'habitué — affiché après 4 s à la 1re partie, **immédiatement** ensuite. Pas
+  de nouvelle clé : `partiesJouees` fait foi (donc abandonner avant la fin ne consomme rien, et
+  la navigation privée redonne le tutoriel). ⚠️ La route défile pendant le tutoriel : `road.reset()` dans `requestGameStart()` pour
+  que la course parte de distance 0 (la rampe des véhicules traversants est calée dessus).
+
+## Jeu n°2 : « J'ai un pote » (`jai-un-pote/`, depuis le 4 septembre 2026)
+
+Second jeu sur le même site, sous **/jai-un-pote/** : runner de campagne en **vue 3/4 du
+dessus façon Crossy Road** (portrait, cubes, pas de point de fuite — la version en perspective
+fuyante a été rejetée le jour même : « injouable »), swipe = colonne / tap = saut, des poules,
+vaches, voitures et tracteurs TRAVERSENT la route, les étoiles font venir des POTES (Soberland
+en premier) qui suivent le joueur en serpent, les obstacles en enlèvent, seul on meurt, score
+en mètres × potes. **Sa propre racine Vite, ses propres copies des
+modules moteur** (rien de partagé avec `src/`, volontairement). Tout est documenté dans
+`ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run dev:pote` (port
+5174), `deploy.sh` construit et pousse les deux jeux.
+
+## Assets
+
+- `assets/la-ville-est-belle.mp3` → servi en prod (3,9 Mo, 128 kbps). Câblé dans `config.js`.
+- `assets/la-ville-est-belle-MASTER.wav` → master interne, **ne jamais servir tel quel** (65 Mo).
+
+## Outils
+
+- **`run`** : lancer et piloter le jeu, le voir tourner, le screenshotter à chaque itération.
+- **`web-perf`** : auditer la perf **runtime** (fps, coût de rendu). ⚠️ Inutile pour le poids :
+  le bundle fait 17 Ko gzippé contre 3,9 Mo de MP3, il n'y a rien à gagner côté code.
+- Preview navigateur + `resize_window` en preset **mobile** (375×812) et **dark**.
+- ⚠️ **La preview ne peut pas jouer le jeu** (créer l'`AudioContext` fige l'onglet). Voir
+  `ARCHITECTURE.md` §12 pour les deux méthodes de test qui marchent.
+
+## Méthode de travail
+
+- Sessions courtes. À la fin de chaque chantier : dire précisément **ce qui est fait** et **ce
+  qui reste**, sans enjoliver.
+- **Mesurer avant de conclure.** Plusieurs bugs sérieux de ce projet étaient invisibles en
+  jouant et n'ont été trouvés qu'en comptant (distribution d'obstacles, quota d'étoiles).
+- Quand un correctif touche à la vitesse, à l'horloge ou au spawn : relire `ARCHITECTURE.md` §5
+  d'abord. C'est là que sont les invariants qui cassent en silence.
+- Tenir `ARCHITECTURE.md` à jour quand un invariant, un piège ou un bug ouvert change.
+  Les décisions et l'historique vont dans `PLAN-ACTION.md`.
