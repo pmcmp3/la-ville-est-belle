@@ -186,9 +186,10 @@
     #revive-timer .piste, #gate-timer .piste { fill: none; stroke: rgba(225,62,38,0.18); stroke-width: 6; }
     #revive-arc, #gate-arc { fill: none; stroke: var(--rouge); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 207.3; stroke-dashoffset: 0; }
     #revive-timer-num, #gate-timer-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 900 30px var(--police); color: var(--noir); font-variant-numeric: tabular-nums; }
-    #revive-title, #gate-title { margin: 2px 0 0; font: 900 24px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #revive-title, #gate-title { margin: 2px 0 6px; font: 900 24px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
     #revive-text, #gate-text { margin: 0 0 4px; font: 500 13.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
-    #revive-cta, #revive-replay, #gate-cta, #gate-go { width: 100%; }
+    #revive-cta, #revive-replay, #gate-cta, #gate-go, #gate-later { width: 100%; }
+    #gate-later { margin-top: 4px; }
 
     /* --- Tiroir album --------------------------------------------------- */
     #gate-sheet { position: fixed; inset: 0; z-index: 50; visibility: hidden; transition: visibility 0s linear 0.3s; }
@@ -354,7 +355,7 @@
       <p id="gate-hint" class="hidden"></p>
       <a id="gate-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer"><span id="gate-cta-label">S'abonner à PMC</span></a>
       <button id="gate-go" type="button" class="btn btn-primary hidden">Continuer ma course</button>
-      <button id="gate-later" type="button" class="link-minimal">Plus tard</button>
+      <button id="gate-later" type="button" class="btn btn-secondary">Fermer</button>
     </div>
   </div>
 

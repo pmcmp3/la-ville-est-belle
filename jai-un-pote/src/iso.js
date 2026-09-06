@@ -21,13 +21,13 @@ import { shade } from "./voxel.js";
 export const COLS = 3;
 export const COL_W = 1.25;
 export const ROAD_HALF = (COLS * COL_W) / 2;   // 1,875
-const UNITS_ACROSS = 13;                       // K = largeur d'écran / ceci (plus petit = on voit plus loin)
+const UNITS_ACROSS = 15;                       // K = largeur d'écran / ceci — 13 → 15 le 6 septembre (« recule un peu la caméra »)
 const ISO = 0.5;                               // 2:1 — « baisse un peu la caméra » : 0,5 au lieu de 0,58
 const VERT = 0.95;                             // hauteur des cubes (caméra basse = faces hautes)
 const ANCHOR = { x: 0.44, y: 0.68 };           // joueur en bas, un peu à gauche : la horde derrière lui reste dans l'écran, ~7 rangées devant
-export const ROWS_AHEAD = 13;
-export const ROWS_BEHIND = 9;
-const U_SPAN = 9;                              // demi-largeur de monde dessinée en u
+export const ROWS_AHEAD = 15;
+export const ROWS_BEHIND = 10;
+const U_SPAN = 11;                              // demi-largeur de monde dessinée en u
 
 let W = 375, H = 812, K = 32.6;
 let camV = 0, camU = 0;

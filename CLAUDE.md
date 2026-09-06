@@ -315,6 +315,9 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
     « le tunnel est cassé » vs « ce téléphone a déjà tout franchi ». Sur mobile il n'y a ni
     console ni localStorage inspectable — sans elle, les deux cas sont indiscernables (piège
     vécu deux fois le 24 août).
+  - ⚠️ **`?zero` dans l'URL efface TOUT le localStorage** (6 septembre 2026 : pseudo, insta,
+    parties jouées, conversion, record du jeu n°2 — « comme si je n'avais jamais joué »), sur les
+    deux jeux (même origine). Outil de vérification, pas de gameplay.
   - ⚠️ **`?neuf` dans l'URL remet les deux paliers à zéro** (24 août 2026) — outil de
     VÉRIFICATION, pas de gameplay. Motif : l'artiste a cliqué ses propres liens des dizaines de
     fois en testant, son navigateur le classe donc « libre » et le tiroir ne s'ouvre plus jamais

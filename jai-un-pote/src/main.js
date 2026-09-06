@@ -17,7 +17,7 @@ import * as debugOverlay from "./debug.js";
 import { consumeJumpPress, consumeLaneMove } from "./input.js";
 import { PALETTES } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
-import { drawStar3D } from "./star3d.js";
+import { drawCoin } from "./coin.js";
 
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
@@ -219,7 +219,7 @@ function endGame(reason) {
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }
 
-function gagnerEtoile() {
+function gagnerPiece() {
   const pts = 150;
   const mult = multiplicateur();
   const m = 5 * mult;
@@ -306,7 +306,7 @@ function step(dt) {
 
   // --- Saut ---
   let jumped = false;
-  if (consumeJumpPress() && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; friends.onPlayerJump(); }
+  if (consumeJumpPress() && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; }
   if (player.jumpY > 0) {
     player.jumpVy -= phys.g * dt;
     player.jumpY += player.jumpVy * dt;
@@ -321,19 +321,20 @@ function step(dt) {
     game.metres += dv * window.CONFIG.metresParUnite * multiplicateur();
   }
   player.pedal += speed * dt * 3.2; // « il faut qu'on pédale un peu plus vite »
-  friends.update(dt, player, phys, now);
+  friends.recordPlayer(player.u, player.v, jumped);
+  friends.update(dt, player, phys);
 
   // --- Collisions et étoiles : le joueur puis chaque pote ---
   if (now >= 0) {
     for (const ev of rows.checkMember("j", player.u, player.v, player.jumpY > 0.25, now)) {
-      if (ev.type === "etoile") gagnerEtoile();
+      if (ev.type === "piece") gagnerPiece();
       else { toucherJoueur(ev); if (game.ended || revivePaused) break; }
     }
     // Les potes ne prennent AUCUN dégât eux-mêmes (retour : « il faut que les
     // dégâts que tu prennes, ce soit toi et pas tes potes ») : ils se faufilent.
     // Ils ramassent quand même les étoiles qu'ils croisent.
     for (const m of friends.members()) {
-      for (const ev of rows.checkMember(m.id, m.u, m.v, true, now)) if (ev.type === "etoile") gagnerEtoile();
+      for (const ev of rows.checkMember(m.id, m.u, m.v, true, now)) if (ev.type === "piece") gagnerPiece();
     }
   }
 
@@ -360,14 +361,15 @@ function signAt(r) {
   return { side: idx % 2 === 0 ? 1 : -1, village: villages[idx] };
 }
 
-function drawStar(r, c, now) {
-  const p = iso.project(iso.colU(c), r, 0.5);
-  const R = iso.scale() * 0.3;
-  const spin = (now * Math.PI * 2) / (clock.beatPeriod * 4) + r * 0.7;
-  iso.drawShadow(ctx, iso.colU(c), r, 0.25, 0.18, 0.2);
+function drawPiece(r, c, now) {
+  const bob = Math.sin(now * 3 + r) * 0.06;
+  const p = iso.project(iso.colU(c), r, 0.55 + bob);
+  const R = iso.scale() * 0.34;
+  const spin = (now * Math.PI * 2) / (clock.beatPeriod * 2) + r * 0.9; // un tour par mesure
+  iso.drawShadow(ctx, iso.colU(c), r, 0.22, 0.16, 0.2);
   ctx.save();
   ctx.translate(p.x, p.y);
-  drawStar3D(ctx, R, spin, false);
+  drawCoin(ctx, R, spin);
   ctx.restore();
 }
 
@@ -398,11 +400,11 @@ function render(alpha) {
     if (sg) { const su = sg.side * (iso.ROAD_HALF + 0.5); items.push({ d: iso.depth(su, r), draw: () => iso.drawSign(ctx, r, sg.side, sg.village) }); }
     if (r < 0) continue;
     const row = rows.rowAt(r);
-    for (const c of row.stars) if (!rows.starTaken(r, c)) items.push({ d: iso.depth(iso.colU(c), r), draw: () => drawStar(r, c, now) });
+    for (const c of row.coins) if (!rows.coinTaken(r, c)) items.push({ d: iso.depth(iso.colU(c), r), draw: () => drawPiece(r, c, now) });
     if (row.type === "statique") {
       const uc = row.cols.length === 2 ? (iso.colU(row.cols[0]) + iso.colU(row.cols[1])) / 2 : iso.colU(row.cols[0]);
       const K = rows.KINDS[row.kind];
-      items.push({ d: iso.depth(uc - K.long / 2, r - K.larg / 2), draw: () => props.drawStatic(ctx, row.kind, uc, r) });
+      items.push({ d: iso.depth(uc - K.long / 2, r - K.larg / 2), draw: () => props.drawStatic(ctx, row.kind, uc, r, gameStarted ? now : perfClock()) });
     } else if (row.type === "traverse") {
       const t = gameStarted ? now : perfClock();
       for (const inst of rows.crossersAt(r, row, t)) {

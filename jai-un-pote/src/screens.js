@@ -58,6 +58,14 @@ const CLE_PLATEFORME = "plateformeAlbum";
 const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
 
+// `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
+// jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
+try {
+  if (new URLSearchParams(location.search).has("zero")) {
+    localStorage.clear();
+    const url = new URL(location.href); url.searchParams.delete("zero"); history.replaceState(null, "", url.toString());
+  }
+} catch (e) { /* rien */ }
 try {
   if (new URLSearchParams(location.search).has("neuf")) {
     localStorage.removeItem(CLE_MORCEAU_OUVERT);
@@ -185,19 +193,13 @@ function construirePlateformes() {
   const liste = plateformes();
   gatePlatforms.textContent = "";
   if (!liste.length) return false;
-  const prefId = lsGet(CLE_PLATEFORME);
-  const pref = liste.find((p) => p.id === prefId);
-  const ordre = pref ? [pref, ...liste.filter((p) => p !== pref)] : liste.slice();
-  ordre.forEach((p, i) => {
-    if (pref && i === 1) {
-      const sep = document.createElement("p"); sep.className = "plat-sep"; sep.textContent = "ou sur une autre plateforme";
-      gatePlatforms.appendChild(sep);
-    }
+  // Cinq liens de la même taille, sans « préféré » (6 septembre 2026).
+  liste.forEach((p) => {
     const a = document.createElement("a");
-    a.className = pref && i === 0 ? "plat-btn prefere" : "plat-btn";
+    a.className = "plat-btn";
     a.href = p.url; a.target = "_blank"; a.rel = "noopener noreferrer";
     const dot = document.createElement("span"); dot.className = "plat-dot"; dot.style.background = p.couleur || "#0d0d10";
-    const nom = document.createElement("span"); nom.className = "plat-nom"; nom.textContent = pref && i === 0 ? `Ouvrir dans ${p.nom}` : p.nom;
+    const nom = document.createElement("span"); nom.className = "plat-nom"; nom.textContent = p.nom;
     const fl = document.createElement("span"); fl.className = "plat-fleche"; fl.textContent = "↗";
     a.append(dot, nom, fl);
     a.addEventListener("click", () => {
@@ -209,44 +211,45 @@ function construirePlateformes() {
     });
     gatePlatforms.appendChild(a);
   });
-  gateHint.textContent = texteGeste(liste);
   return true;
 }
 
+// Même tiroir, même wording pour les trois entrées (6 septembre 2026 :
+// « ça doit être la même condition pour rejouer [...] tu vires le titre, tu
+// mets "Ajoute l'album à ta bibliothèque pour continuer la partie" »).
 function gateTextes(action, niveau) {
-  if (action === "ecouter") {
-    return { eyebrow: "L'ALBUM EST SORTI", titre: "Ouvre l'album de PMC", texte: "Choisis ta plateforme. Ajoute l'album à ta bibliothèque, c'est ce qui compte pour lui.", ctaLabel: "", goLabel: "Fermer" };
-  }
   const continuer = action === "continuer";
   const presave = niveau === "presave";
   return {
-    eyebrow: continuer ? "POUR CONTINUER TA COURSE" : "POUR REJOUER",
-    titre: presave ? "Ouvre l'album de PMC" : "Abonne-toi à PMC",
-    texte: presave
-      ? "Choisis ta plateforme, ajoute l'album à ta bibliothèque. Tes potes reviennent."
-      : "Dernière étape : abonne-toi à PMC sur Spotify, et rejoue autant que tu veux.",
+    eyebrow: "",
+    titre: presave
+      ? (continuer ? "Ajoute l'album à ta bibliothèque pour continuer la partie" : "Ajoute l'album à ta bibliothèque pour rejouer")
+      : (continuer ? "Abonne-toi à PMC pour continuer la partie" : "Abonne-toi à PMC pour rejouer"),
+    texte: "",
     ctaLabel: presave ? "Écouter l'album" : "S'abonner à PMC",
     goLabel: continuer ? "Continuer ma course" : "Rejouer",
   };
 }
 
-function ouvrirGate({ action, onUnlocked, onCancel, niveauForce }) {
+function ouvrirGate({ action, onUnlocked, onCancel, niveauForce, goLabelForce = null }) {
   const niveau = niveauForce || niveauConversion();
   const t = gateTextes(action, niveau);
   gateEtat = { action, onUnlocked, onCancel, niveau, phase: "demande" };
   gateEyebrow.textContent = t.eyebrow;
+  gateEyebrow.classList.toggle("hidden", !t.eyebrow);
   gateTitle.textContent = t.titre;
   gateText.textContent = t.texte;
+  gateText.classList.toggle("hidden", !t.texte);
   gateCtaLabel.textContent = t.ctaLabel;
   gateCta.href = niveau === "presave" ? ((plateformes()[0] || {}).url || "#") : (window.CONFIG.lienSuivre || "#");
   const panneau = niveau === "presave" && construirePlateformes();
   gatePlatforms.classList.toggle("hidden", !panneau);
-  gateHint.classList.toggle("hidden", !panneau);
+  gateHint.classList.add("hidden");
   gateCta.classList.toggle("hidden", panneau);
-  gateGo.textContent = t.goLabel;
+  gateGo.textContent = goLabelForce || t.goLabel;
   gateGo.classList.add("hidden");
   gateGo.classList.add("locked");
-  gateLater.textContent = action === "ecouter" ? "Fermer" : "Plus tard";
+  gateLater.textContent = "Fermer";
   gateSheet.classList.add("visible");
   gateSheet.setAttribute("aria-hidden", "false");
 }
@@ -255,6 +258,7 @@ function gatePhaseAbsence() {
   gateEtat.phase = "absence";
   gateTitle.textContent = gateEtat.niveau === "presave" ? "Tu l'as ajouté ? Merci !" : "Abonnement enregistré, merci !";
   gateText.textContent = gateEtat.action === "ecouter" ? "Reviens dans le jeu quand tu veux." : "Reviens dans le jeu quand tu veux, c'est débloqué.";
+  gateText.classList.remove("hidden");
   gatePlatforms.classList.add("hidden");
   gateHint.classList.add("hidden");
   gateCta.classList.add("hidden");
@@ -270,7 +274,8 @@ function gatePhasePret() {
   gateEtat.phase = "pret";
   audio.setReviveIntensity(1);
   gateTitle.textContent = gateEtat.action === "ecouter" ? "Merci !" : "C'est reparti !";
-  gateText.textContent = gateEtat.action === "continuer" ? "Tes potes retombent du ciel. Reprends quand tu es prêt." : gateEtat.action === "ecouter" ? "Bonne écoute." : "Nouvelle course, quand tu veux.";
+  gateText.textContent = gateEtat.action === "continuer" ? "Tes potes reviennent. Reprends quand tu es prêt." : gateEtat.action === "ecouter" ? "Bonne écoute." : "Nouvelle course, quand tu veux.";
+  gateText.classList.remove("hidden");
   gateGo.classList.remove("hidden");
   gateGo.classList.remove("locked");
 }
@@ -288,7 +293,15 @@ function gateResoudre(issue) {
 }
 export function ouvrirEcoute() {
   if (!plateformes().length) return;
-  ouvrirGate({ action: "ecouter", niveauForce: "presave", onUnlocked: null, onCancel: null });
+  // Depuis l'écran de fin, le bouton armé au retour relance une course ;
+  // depuis le menu, il ferme simplement (JOUER est juste là).
+  const enFin = endScreenEl.classList.contains("active");
+  ouvrirGate({
+    action: "rejouer", niveauForce: "presave",
+    onUnlocked: enFin ? () => { hideOverlay(); showPauseButton(); deps.restartGame(); } : null,
+    onCancel: null,
+    goLabelForce: enFin ? null : "Fermer",
+  });
 }
 function exigerConversion({ action, onOk, onCancel }) {
   if (niveauConversion() === "libre") { onOk(); return; }
@@ -316,8 +329,8 @@ export function syncLoadingUi() {
 export function showEndScreen({ metres, potesMax, record }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
   endSub.textContent = potesMax === 0
-    ? "Tout seul du début à la fin. Les étoiles font venir les potes."
-    : `Jusqu'à ${potesMax} pote${potesMax > 1 ? "s" : ""} dans le peloton.`;
+    ? "Record : personne avec toi. Les pièces font venir les potes."
+    : `Record : ${potesMax} pote${potesMax > 1 ? "s" : ""} avec toi`;
   endBest.classList.toggle("hidden", !record);
   setTimeout(() => { setView("end"); showOverlay(); }, 600);
 }

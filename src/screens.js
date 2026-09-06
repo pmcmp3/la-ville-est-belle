@@ -135,6 +135,14 @@ const CLE_PLATEFORME = "plateformeAlbum";
 // pseudo, l'insta et le compteur de parties (donc le tutoriel) sont conservés.
 // À poser AVANT `fanCache` plus bas, qui lit l'état une fois pour toutes au
 // chargement du module.
+// `?zero` (6 septembre 2026) : TOUT effacer — pseudo, insta, parties, conversion,
+// record du jeu n°2 (même origine) — « comme si je n'avais jamais joué ».
+try {
+  if (new URLSearchParams(location.search).has("zero")) {
+    localStorage.clear();
+    const url = new URL(location.href); url.searchParams.delete("zero"); history.replaceState(null, "", url.toString());
+  }
+} catch (e) { /* rien */ }
 try {
   if (new URLSearchParams(location.search).has("neuf")) {
     localStorage.removeItem(CLE_MORCEAU_OUVERT);
