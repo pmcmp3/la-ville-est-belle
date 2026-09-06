@@ -6,6 +6,8 @@
 // reçoit les actions en callbacks via init().
 
 import * as audio from "./audio.js";
+import * as net from "./net.js";
+import * as friends from "./friends.js";
 
 let deps = null;
 const $ = (id) => document.getElementById(id);
@@ -58,6 +60,7 @@ const CLE_PLATEFORME = "plateformeAlbum";
 const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
 const CLE_PARTIES = "jaipParties";
+const CLE_LIGUE = "jaipLigue";
 
 // `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
 // jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
@@ -311,6 +314,105 @@ function exigerConversion({ action, onOk, onCancel }) {
   ouvrirGate({ action, onUnlocked: onOk, onCancel });
 }
 
+// --- Ligue entre potes (7 septembre 2026) -------------------------------------
+// Un code à 5 lettres, stocké en local. Les autres membres deviennent les
+// potes du peloton ; chaque course envoie un score ; l'écran de fin montre le
+// classement de la ligue. `?ligue=CODE` dans l'URL = invitation.
+const ligueBloc = $("ligue-bloc"), ligueSans = $("ligue-sans"), ligueAvec = $("ligue-avec");
+const ligueInput = $("ligue-input"), ligueRejoindre = $("ligue-rejoindre"), ligueCreer = $("ligue-creer");
+const ligueCodeEl = $("ligue-code"), ligueMembresEl = $("ligue-membres"), liguePartager = $("ligue-partager"), ligueQuitter = $("ligue-quitter"), ligueMsg = $("ligue-msg");
+const endLigue = $("end-ligue"), endLigueCode = $("end-ligue-code"), endLigueListe = $("end-ligue-liste"), endLiguePartager = $("end-ligue-partager");
+let ligue = null;           // { code, membres: [] }
+let ligueInvitation = null; // code reçu par l'URL, en attente d'un pseudo
+
+export function getLigue() { return ligue; }
+
+function ligueMessage(txt) { ligueMsg.textContent = txt || ""; ligueMsg.classList.toggle("hidden", !txt); }
+function afficherLigue() {
+  if (!net.estConfigure()) { ligueBloc.classList.add("hidden"); return; }
+  ligueBloc.classList.remove("hidden");
+  ligueSans.classList.toggle("hidden", !!ligue);
+  ligueAvec.classList.toggle("hidden", !ligue);
+  if (ligue) {
+    ligueCodeEl.textContent = ligue.code;
+    const autres = ligue.membres.filter((m) => m !== getPseudo());
+    ligueMembresEl.textContent = autres.length ? `Tes potes : ${autres.map((m) => "@" + m).join(", ")}` : "Tu es seul pour l'instant : invite des potes.";
+  }
+}
+function memoriserLigue() { if (ligue) lsSet(CLE_LIGUE, JSON.stringify(ligue)); else { try { localStorage.removeItem(CLE_LIGUE); } catch (e) { /* rien */ } } }
+function appliquerNomsLigue() {
+  const moi = getPseudo();
+  friends.setNomsLigue(ligue ? ligue.membres.filter((m) => m !== moi) : null);
+}
+async function rejoindre(code, creer = false) {
+  const pseudo = getPseudo();
+  if (!pseudo) { ligueMessage("Écris ton pseudo d'abord."); pseudoInput.focus(); return false; }
+  code = net.normaliserCode(code);
+  if (code.length < 4) { ligueMessage("Code de ligue : 5 lettres."); return false; }
+  ligueMessage("…");
+  const membres = creer ? await net.creerLigue(code, pseudo) : await net.rejoindreLigue(code, pseudo);
+  if (!membres) { ligueMessage(creer ? "Impossible de créer la ligue (réseau ?)." : "Cette ligue n'existe pas."); return false; }
+  ligue = { code, membres };
+  memoriserLigue(); appliquerNomsLigue(); afficherLigue(); ligueMessage("");
+  return true;
+}
+function lienLigue(code) { return `${window.CONFIG.lienJeu || location.origin + location.pathname}?ligue=${code}`; }
+async function partagerLigue(texte) {
+  const code = ligue ? ligue.code : "";
+  const data = { title: "J'ai un pote", text: texte, url: lienLigue(code) };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+    await navigator.clipboard.writeText(`${texte} ${data.url}`);
+    ligueMessage("Lien copié !");
+  } catch (e) { /* partage annulé */ }
+}
+// Rafraîchit les membres au démarrage d'une course (les potes qui ont
+// rejoint depuis apparaissent).
+export async function preparerLigue() {
+  if (ligueInvitation && !ligue) { await rejoindre(ligueInvitation); ligueInvitation = null; }
+  if (!ligue) { friends.setNomsLigue(null); return; }
+  const membres = await net.membres(ligue.code);
+  if (membres) { ligue.membres = membres; memoriserLigue(); }
+  appliquerNomsLigue(); afficherLigue();
+}
+// Fin de course : envoi du score, puis classement de la ligue sur la carte.
+export async function finLigue(metres, potes) {
+  endLigue.classList.add("hidden");
+  if (!ligue) return;
+  await net.envoyerScore(ligue.code, getPseudo(), metres, potes);
+  const rows = await net.classement(ligue.code);
+  if (!rows) return;
+  endLigueCode.textContent = ligue.code;
+  endLigueListe.textContent = "";
+  const moi = getPseudo();
+  rows.slice(0, 8).forEach((r, i) => {
+    const li = document.createElement("li");
+    if (r.pseudo === moi) li.className = "moi";
+    const rang = document.createElement("span"); rang.className = "rang"; rang.textContent = `${i + 1}`;
+    const nom = document.createElement("span"); nom.className = "nom"; nom.textContent = `@${r.pseudo}`;
+    const m = document.createElement("span"); m.className = "m"; m.textContent = `${Number(r.metres).toLocaleString("fr-FR")} m`;
+    li.append(rang, nom, m);
+    endLigueListe.appendChild(li);
+  });
+  endLigue.classList.remove("hidden");
+}
+function initLigue() {
+  try { const j = lsGet(CLE_LIGUE); if (j) ligue = JSON.parse(j); } catch (e) { ligue = null; }
+  try {
+    const code = new URLSearchParams(location.search).get("ligue");
+    if (code) { ligueInvitation = net.normaliserCode(code); ligueInput.value = ligueInvitation; if (ligue && ligue.code !== ligueInvitation) ligue = null; }
+  } catch (e) { /* rien */ }
+  afficherLigue(); appliquerNomsLigue();
+  if (ligueInvitation && !ligue) ligueMessage(`Invitation : ligue ${ligueInvitation}. Écris ton pseudo et appuie sur Rejoindre.`);
+  ligueRejoindre.addEventListener("click", () => rejoindre(ligueInput.value));
+  ligueCreer.addEventListener("click", () => rejoindre(net.genererCode(), true));
+  ligueQuitter.addEventListener("click", () => { ligue = null; memoriserLigue(); appliquerNomsLigue(); afficherLigue(); });
+  liguePartager.addEventListener("click", () => partagerLigue(`Rejoins ma ligue ${ligue ? ligue.code : ""} sur « J'ai un pote » et viens battre mon score :`));
+  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} m dans la ligue ${ligue ? ligue.code : ""} sur « J'ai un pote ». Viens me battre :`));
+  ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => ligueInput.addEventListener(t, (e) => e.stopPropagation()));
+  ligueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rejoindre(ligueInput.value); } });
+}
+
 // --- Chargement --------------------------------------------------------------
 // Au moins `config.chargementMinS` secondes de 0 à 100 % (6 septembre 2026 :
 // « une phase de chargement de 5-6 s, ça fait sérieux »), le temps de mettre
@@ -377,6 +479,7 @@ function startGame() {
   audio.unlock();
   audio.play();
   lsSet(CLE_PSEUDO, getPseudo());
+  preparerLigue();
   deps.requestGameStart();
   hideOverlay();
   showPauseButton();
@@ -439,10 +542,11 @@ export function init(d) {
   });
   window.addEventListener("keydown", (e) => {
     if (e.code === "Escape") { if (deps.isManuallyPaused()) closePauseMenu(); else openPauseMenu(); }
-    if ((e.code === "Enter") && overlay.classList.contains("visible")) {
+    if ((e.code === "Enter") && overlay.classList.contains("visible") && e.target !== ligueInput) {
       if (endScreenEl.classList.contains("active")) replayButton.click();
       else if (!playButton.disabled) startGame();
     }
   });
+  initLigue();
   setView("onboarding");
 }

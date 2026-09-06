@@ -64,9 +64,13 @@ export function drawBox(ctx, u, v, du, dv, h, color, lift = 0) {
   const A = project(u, v, lift), B = project(u + du, v, lift), C = project(u + du, v + dv, lift);
   const A2 = project(u, v, lift + h), B2 = project(u + du, v, lift + h);
   const C2 = project(u + du, v + dv, lift + h), D2 = project(u, v + dv, lift + h);
-  poly(ctx, [A, B, B2, A2], shade(col, -14));
-  poly(ctx, [B, C, C2, B2], shade(col, -40));
-  poly(ctx, [A2, B2, C2, D2], shade(col, 24));
+  // Lumière (7 septembre 2026, « revois bien la lumière ») : le soleil est en
+  // HAUT À DROITE de l'écran (renderHaze). La face u_max regarde vers la
+  // droite → éclairée ; la face v_min regarde vers le bas-gauche → à l'ombre ;
+  // le dessus reçoit le plus de lumière.
+  poly(ctx, [A, B, B2, A2], shade(col, -38));
+  poly(ctx, [B, C, C2, B2], shade(col, -10));
+  poly(ctx, [A2, B2, C2, D2], shade(col, 26));
 }
 
 export function drawFlat(ctx, u, v, du, dv, color, raw = false) {
@@ -76,7 +80,8 @@ export function drawFlat(ctx, u, v, du, dv, color, raw = false) {
 export function drawShadow(ctx, u, v, ru, rv, alpha = 0.26) {
   ctx.save();
   ctx.globalAlpha = alpha;
-  drawFlat(ctx, u - ru, v - rv, ru * 2, rv * 2, "#000", true);
+  // Ombre portée décalée à l'opposé du soleil (bas-gauche : −u, −v).
+  drawFlat(ctx, u - ru - 0.14, v - rv - 0.1, ru * 2, rv * 2, "#000", true);
   ctx.restore();
 }
 
@@ -120,9 +125,13 @@ function renderRow(ctx, r, boue) {
     drawFlat(ctx, -ROAD_HALF + c * COL_W, v, COL_W, 1, tone);
   }
   if (boue !== null && boue !== undefined) {
-    // Flaque de boue sur une voie : brune, bords irréguliers (deux flats).
-    drawFlat(ctx, -ROAD_HALF + boue * COL_W + 0.1, v + 0.05, COL_W - 0.2, 0.9, MUD);
-    drawFlat(ctx, -ROAD_HALF + boue * COL_W + 0.3, v + 0.25, COL_W - 0.6, 0.5, shade(MUD, 12));
+    // Boue : des LIGNES le long de la voie, pas des carrés (7 septembre 2026)
+    // — une bande claire sur toute la rangée et deux ornières sombres, qui se
+    // raccordent d'une rangée à l'autre en traits continus.
+    const bx = -ROAD_HALF + boue * COL_W;
+    drawFlat(ctx, bx + 0.12, v, COL_W - 0.24, 1, shade(MUD, 14));
+    drawFlat(ctx, bx + 0.3, v, 0.13, 1, MUD);
+    drawFlat(ctx, bx + COL_W - 0.43, v, 0.13, 1, MUD);
   }
   if (r % 2 === 0) {
     drawFlat(ctx, -COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);

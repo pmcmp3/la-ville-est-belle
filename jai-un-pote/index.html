@@ -146,6 +146,30 @@
     #loading-fill { width: 0%; height: 100%; background: var(--rouge); transition: width 0.25s linear; }
     #loading-label { font: 500 13px var(--police); color: rgba(0,0,0,0.55); font-variant-numeric: tabular-nums; }
 
+    /* --- Ligue ---------------------------------------------------------- */
+    #ligue-bloc { width: 240px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #ligue-bloc.hidden { display: none; }
+    #ligue-row { display: flex; gap: 8px; width: 100%; }
+    #ligue-input { flex: 1; min-width: 0; box-sizing: border-box; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 8px 10px; font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; color: var(--noir); background: transparent; -webkit-appearance: none; }
+    #ligue-input:focus { outline: none; border-color: var(--rouge); }
+    #ligue-row .btn { width: auto; min-height: 38px; padding: 8px 12px; font-size: 11px; }
+    #ligue-sans, #ligue-avec { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+    #ligue-titre { margin: 0; font: 700 11px var(--police); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(0,0,0,0.6); }
+    #ligue-titre b, #end-ligue-titre b { color: var(--rouge); font-weight: 900; font-size: 15px; letter-spacing: 0.18em; }
+    #ligue-membres { margin: 0; font: 500 12px/1.4 var(--police); color: var(--noir); text-align: center; }
+    #ligue-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+    #ligue-actions .btn { width: 100%; min-height: 40px; padding: 8px 12px; font-size: 12px; }
+    #ligue-msg { margin: 0; font: 500 12px var(--police); color: var(--rouge); text-align: center; }
+    #end-ligue { width: 100%; margin: 0 0 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #end-ligue-titre { margin: 0; font: 700 11px var(--police); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(0,0,0,0.6); }
+    #end-ligue-liste { width: 100%; margin: 0; padding: 0; list-style: none; font: 500 13px var(--police); color: var(--noir); }
+    #end-ligue-liste li { display: flex; gap: 8px; padding: 5px 4px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    #end-ligue-liste li.moi { background: rgba(255,207,46,0.35); border-radius: 3px; font-weight: 900; }
+    #end-ligue-liste .rang { width: 18px; color: rgba(0,0,0,0.45); font-weight: 900; }
+    #end-ligue-liste .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #end-ligue-liste .m { font-variant-numeric: tabular-nums; font-weight: 900; }
+    #end-ligue .btn { width: 100%; padding: 8px 10px; min-height: 40px; font-size: 12px; }
+
     #cta-link {
       position: absolute; left: 50%; bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
       transform: translateX(-50%);
@@ -286,6 +310,25 @@
             <span id="loading-label">0 %</span>
           </div>
           <button id="play-button" class="btn btn-primary" type="button" disabled>Jouer</button>
+          <!-- Ligue entre potes (7 septembre 2026) -->
+          <div id="ligue-bloc">
+            <div id="ligue-sans">
+              <div id="ligue-row">
+                <input type="text" id="ligue-input" placeholder="CODE DE LIGUE" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="6" />
+                <button id="ligue-rejoindre" class="btn btn-secondary" type="button">Rejoindre</button>
+              </div>
+              <button id="ligue-creer" type="button" class="link-minimal">Créer ma ligue avec mes potes</button>
+            </div>
+            <div id="ligue-avec" class="hidden">
+              <p id="ligue-titre">Ligue <b id="ligue-code">—</b></p>
+              <p id="ligue-membres">…</p>
+              <div id="ligue-actions">
+                <button id="ligue-partager" class="btn btn-secondary" type="button">Inviter des potes</button>
+                <button id="ligue-quitter" type="button" class="link-minimal">Quitter la ligue</button>
+              </div>
+            </div>
+            <p id="ligue-msg" class="hidden"></p>
+          </div>
         </div>
       </div>
     </div>
@@ -298,6 +341,11 @@
           <div id="end-hero">
             <div id="score-num"><span id="score-val">0</span><small>m</small></div>
             <p id="end-sub"></p>
+          </div>
+          <div id="end-ligue" class="hidden">
+            <p id="end-ligue-titre">Ligue <b id="end-ligue-code">—</b></p>
+            <ol id="end-ligue-liste"></ol>
+            <button id="end-ligue-partager" class="btn btn-secondary" type="button">Défier la ligue</button>
           </div>
           <div id="end-actions">
             <button id="replay-button" class="btn btn-primary" type="button">Rejouer</button>

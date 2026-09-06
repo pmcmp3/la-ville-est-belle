@@ -36,10 +36,19 @@ export function recordPlayer(u, v, jumped) {
   jumpMarks = jumpMarks.filter((m) => m > minV);
 }
 
+// Les potes portent les pseudos de la LIGUE quand il y en a une (les autres
+// membres, dans l'ordre d'arrivée), complétés par les prénoms par défaut.
+let nomsLigue = null;
+export function setNomsLigue(liste) { nomsLigue = liste && liste.length ? liste : null; }
+function listeNoms() {
+  const defaut = window.CONFIG.potesNoms || ["soberland"];
+  if (!nomsLigue) return defaut;
+  return [...nomsLigue, ...defaut.filter((n) => !nomsLigue.includes(n))];
+}
 // Prénom : le premier de la liste qui n'est pas déjà dans le peloton
 // (Soberland revient en premier s'il est parti — plus de doublons).
 function prochainNom() {
-  const noms = window.CONFIG.potesNoms || ["soberland"];
+  const noms = listeNoms();
   const pris = new Set(alive().map((p) => p.name));
   return noms.find((n) => !pris.has(n)) || noms[joins % noms.length];
 }
@@ -49,9 +58,8 @@ export function join(player) {
   if (vivants.length >= max()) return null;
   const slot = vivants.length;
   const name = prochainNom();
-  const noms = window.CONFIG.potesNoms || ["soberland"];
-  const idx = Math.max(0, noms.indexOf(name));
-  const palette = idx === 0 ? PALETTES.soberland : PALETTES.potes[(idx - 1) % PALETTES.potes.length];
+  const idx = Math.max(0, listeNoms().indexOf(name));
+  const palette = name === "soberland" ? PALETTES.soberland : PALETTES.potes[idx % PALETTES.potes.length];
   joins += 1;
   const side = slot % 2 ? 1 : -1;
   const pote = {

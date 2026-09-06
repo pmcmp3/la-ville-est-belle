@@ -653,3 +653,7 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
 - ✅ Potes qui naviguent entre les voies et évitent toujours les obstacles (mesuré : 0 contact).
 - ✅ Turbo lait sans obstacles ; 40 rangées de grâce au départ ; ombre du salto au sol ;
   panneaux de village dans la perspective de la route ; prénoms sans doublon.
+- ✅ **Ligues entre potes** (code à 5 lettres, membres = potes du peloton, score + classement de
+  ligue en fin, invitation par lien) — ⏳ migration `jai-un-pote/supabase-migration-ligues.sql`
+  à exécuter dans Supabase par l'artiste.
+- ✅ Pédalage dans le sens de la marche, boue en lignes continues, lumière soleil haut-droite.

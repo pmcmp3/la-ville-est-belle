@@ -2284,5 +2284,25 @@ le bord proche ; `window.CONFIG` est GELÉ (les touches de debug passent par des
 locales). Captures headless via Playwright + Google Chrome (`channel="chrome"`), scripts
 `pote-v6/v7/v8.py` dans le scratchpad de session.
 
-**Reste à faire** : défi entre amis (après tuto + chargement, demandé), Supabase (tables dans le
-projet existant), service worker, réglage fin de la difficulté sur téléphone.
+**Ligues entre potes** (7 septembre 2026 : « une compétition avec les gens qu'on connaît, un
+code de ligue [...] si E joue, toutes les autres lettres rejoignent sa partie ») : `net.js` +
+`supabase-migration-ligues.sql` (tables `ligues`, `ligue_membres`, `ligue_scores`, vue
+`ligue_classement` = meilleure course par pseudo ; même projet Supabase que le premier jeu,
+`config.apiBase`/`apiKey`). Menu : champ CODE + REJOINDRE, « Créer ma ligue » (code 5 lettres
+sans O/0/I/1), bloc « Ligue XXXXX · tes potes : @… », INVITER (partage natif du lien
+`?ligue=CODE`, `config.lienJeu`), QUITTER. Ligue mémorisée (`jaipLigue`). Au JOUER / REJOUER,
+`preparerLigue()` rafraîchit les membres et `friends.setNomsLigue()` fait des AUTRES membres les
+potes du peloton (complétés par les prénoms par défaut). À la fin, `finLigue()` envoie le score
+et affiche le classement de la ligue (8 lignes, la sienne surlignée) + « DÉFIER LA LIGUE ».
+⚠️ **La migration SQL doit être exécutée par l'artiste dans le dashboard Supabase** ; tant
+qu'elle ne l'est pas, les appels renvoient 404 en silence (« Cette ligue n'existe pas »,
+« Impossible de créer la ligue »), le jeu tourne avec les prénoms par défaut.
+
+**Lumière** (7 septembre 2026) : soleil en haut à droite → face u_max éclairée (−10), face v_min
+à l'ombre (−38), dessus +26 ; ombres portées décalées vers le bas-gauche. **Boue** = bande
+claire + deux ornières sombres sur toute la rangée (lignes continues, plus des carrés).
+**Pédalage** : hauteur du pied ~ cos, avance ~ sin (sens de la marche ; l'inverse « pédalait à
+l'envers »).
+
+**Reste à faire** : exécuter la migration ligues côté Supabase, service worker, réglage fin
+de la difficulté sur téléphone.

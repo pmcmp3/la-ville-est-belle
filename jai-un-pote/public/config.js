@@ -93,6 +93,12 @@ window.CONFIG = {
   lienInsta: "https://www.instagram.com/pmc.mp3/",
 
   // === BACKEND === (V1 locale : rien n'est envoyé)
+  // Ligues entre potes (7 septembre 2026) : même projet Supabase que le premier
+  // jeu, tables de jai-un-pote/supabase-migration-ligues.sql. Clé « anon
+  // public » : publique par nature, protégée par la RLS côté serveur.
+  apiBase: "https://lmlltogosjpxkgofpcdy.supabase.co/rest/v1",
+  apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtbGx0b2dvc2pweGtnb2ZwY2R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NTIxMDYsImV4cCI6MjEwMTUyODEwNn0.vC1XpJ9qG0FASbugtcsCBWFV1CIJUgTHKJO5E-HVxBs",
+  lienJeu: "https://la-ville-est-belle-pmc.fr/jai-un-pote/", // base des liens de ligue (?ligue=CODE)
   apiScores: "",
   apiScoresKey: "",
 

@@ -229,6 +229,7 @@ function resetRun() {
 }
 
 function restartGame() {
+  screens.preparerLigue();
   audio.restart();
   if (audio.isRunning()) {
     clock.setTimeSource(audio.now);
@@ -292,6 +293,7 @@ function terminer() {
   const record = game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
   screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true });
+  screens.finLigue(game.metres, friends.maxReached());
 }
 
 function endGame(reason) {
@@ -303,6 +305,7 @@ function endGame(reason) {
   const record = game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
   screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: false });
+  screens.finLigue(game.metres, friends.maxReached());
 }
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }

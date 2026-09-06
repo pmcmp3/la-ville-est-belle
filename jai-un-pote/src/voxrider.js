@@ -46,12 +46,16 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0, ombre 
   drawBox(ctx, x + W / 2 - 0.05, y + 0.85, 0.1, 0.1, 0.4, FRAME, lift + 0.45);
   drawBox(ctx, x - 0.08, y + 0.92, W + 0.16, 0.08, 0.08, "#33333b", lift + 0.85);
   drawBox(ctx, x + W / 2 - 0.12, y + 0.28, 0.24, 0.18, 0.08, P.pants, lift + 0.8);
-  // Jambes : en opposition, autour du pédalier.
-  const legL = 0.5 + 0.12 * s, legR = 0.5 - 0.12 * s;
-  drawBox(ctx, x - 0.02, y + 0.42 + 0.06 * c, 0.14, 0.2, legL, P.pants, lift + 0.08 + 0.1 * (1 + s) / 2);
-  drawBox(ctx, x + W - 0.12, y + 0.42 - 0.06 * c, 0.14, 0.2, legR, P.pants, lift + 0.08 + 0.1 * (1 - s) / 2);
-  drawBox(ctx, x - 0.04, y + 0.46 + 0.06 * c, 0.16, 0.18, 0.1, P.shoe, lift + 0.08 + 0.1 * (1 + s) / 2);
-  drawBox(ctx, x + W - 0.12, y + 0.46 - 0.06 * c, 0.16, 0.18, 0.1, P.shoe, lift + 0.08 + 0.1 * (1 - s) / 2);
+  // Jambes : en opposition, autour du pédalier. Le pied décrit un cercle
+  // dans le SENS DE LA MARCHE (7 septembre 2026, « j'ai l'impression de
+  // pédaler à l'envers ») : en haut il part vers l'AVANT (+v), puis descend —
+  // hauteur ~ cos, avance ~ sin.
+  const legL = 0.5 + 0.12 * c, legR = 0.5 - 0.12 * c;
+  const hL = lift + 0.08 + 0.1 * (1 + c) / 2, hR = lift + 0.08 + 0.1 * (1 - c) / 2;
+  drawBox(ctx, x - 0.02, y + 0.42 + 0.06 * s, 0.14, 0.2, legL, P.pants, hL);
+  drawBox(ctx, x + W - 0.12, y + 0.42 - 0.06 * s, 0.14, 0.2, legR, P.pants, hR);
+  drawBox(ctx, x - 0.04, y + 0.46 + 0.06 * s, 0.16, 0.18, 0.1, P.shoe, hL);
+  drawBox(ctx, x + W - 0.12, y + 0.46 - 0.06 * s, 0.16, 0.18, 0.1, P.shoe, hR);
   // Torse rayé, penché vers l'avant (guidon), tangue avec le pédalage.
   const sway = 0.03 * s;
   const tx = x - 0.06 + sway, ty = y + 0.36;
