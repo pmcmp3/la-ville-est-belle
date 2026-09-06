@@ -645,3 +645,11 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
   pièce rouge ; vibrations Android (impossible sur iPhone).
 - 📐 Score max théorique ≈ 31 600 m (simulation, run parfait).
 - ⏳ Défi entre amis : après validation du tuto et du chargement, comme demandé.
+
+## 7 septembre 2026 — retours téléphone sur « J'ai un pote »
+
+- ✅ HUD en trois étages (plus de chevauchement à 4 chiffres, encoche iPhone), textes ajustés à
+  la largeur ; moins d'infos (bandeaux titre seul, « −1 POTE » en popup, plus de « +4 m »).
+- ✅ Potes qui naviguent entre les voies et évitent toujours les obstacles (mesuré : 0 contact).
+- ✅ Turbo lait sans obstacles ; 40 rangées de grâce au départ ; ombre du salto au sol ;
+  panneaux de village dans la perspective de la route ; prénoms sans doublon.

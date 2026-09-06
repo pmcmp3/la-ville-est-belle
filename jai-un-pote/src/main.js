@@ -24,7 +24,8 @@ import { drawCoin } from "./coin.js";
 
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
-let width = 0, height = 0;
+let width = 0, height = 0, safeTop = 0;
+const safeProbe = document.getElementById("safe-probe");
 
 function resize() {
   // DPR plafonné à 1,5 sur mobile (2 sur ordinateur) : la scène est faite de
@@ -38,6 +39,8 @@ function resize() {
   canvas.height = Math.round(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   iso.setViewport(width, height);
+  // Encoche / barre d'état (iPhone en plein écran) : le HUD descend d'autant.
+  safeTop = safeProbe ? Math.max(0, Math.round(safeProbe.getBoundingClientRect().top)) : 0;
 }
 window.addEventListener("resize", resize);
 resize();
@@ -170,7 +173,7 @@ function tutoStep(dt, now) {
     tuto.timer += dt;
     if (tuto.timer > 6) { tuto.index += 1; tuto.timer = 0; }
   }
-  if (tuto.index >= TUTO_ETAPES.length) { tuto.actif = false; afficherBanner("À TOI DE JOUER", "va le plus loin possible avant la fin du morceau", JAUNE, 2.4); }
+  if (tuto.index >= TUTO_ETAPES.length) { tuto.actif = false; afficherBanner("À TOI DE JOUER !", null, JAUNE, 2); }
 }
 function tutoVue() {
   if (!tuto.actif) return null;
@@ -308,8 +311,8 @@ function arriveePote(pote, direct) {
   if (!pote) return;
   sfx.pote();
   vibrer(30);
-  if (pote.name && friends.count() === 1) afficherBanner(`@${pote.name.toUpperCase()} EST LÀ !`, direct ? "pièce rouge : un pote direct" : "ton premier pote débarque du champ", JAUNE, 2.8);
-  else afficherBanner(`@${(pote.name || "pote").toUpperCase()} EST LÀ !`, `${friends.count()} dans le peloton · ×${String(Math.round(multiplicateur() * 100) / 100).replace(".", ",")} mètres`, JAUNE);
+  // Une seule ligne, courte (7 septembre 2026 : « trop d'infos au mètre carré »).
+  afficherBanner(`@${(pote.name || "pote").toUpperCase()} EST LÀ !`, null, JAUNE, 1.6);
   audio.playComboJingle(Math.min(6, friends.count()));
 }
 
@@ -323,9 +326,6 @@ function gagnerPiece(u, v) {
   semerSparkles(u, v);
   sfx.piece();
   tutoEvenement("piece");
-  const restant = prochainPalier() - game.points;
-  if (game.etoiles <= 3) pousserPopup(`+${Math.round(m)} m`, JAUNE);
-  if (game.potesGagnes < window.CONFIG.potesPaliers.length && restant > 0 && restant <= 3) pousserPopup(`POTE DANS ${restant}`, JAUNE);
   while (game.potesGagnes < window.CONFIG.potesPaliers.length && game.points >= window.CONFIG.potesPaliers[game.potesGagnes]) {
     game.potesGagnes += 1;
     arriveePote(friends.join(player), false);
@@ -336,8 +336,12 @@ function gagnerLait(u, v) {
   sfx.lait();
   vibrer(40);
   semerSparkles(u, v, 16, "#ffffff");
-  afficherBanner("TURBO LAIT !", "×2 vitesse, ×2 mètres pendant 5 s", JAUNE, 1.8);
+  afficherBanner("TURBO LAIT !", null, JAUNE, 1.4);
   canvas.classList.add("turbo");
+  // Pas d'obstacles pendant le turbo : la route devient sûre au-delà de
+  // l'écran (les rangées déjà visibles sont couvertes par l'invulnérabilité).
+  const r0 = Math.floor(player.v + 0.5) + iso.ROWS_AHEAD + 1;
+  rows.ouvrirFenetreSure(r0, r0 + Math.ceil(speed * 2 * (window.CONFIG.laitDureeS || 5)) + 12);
 }
 function gagnerRouge(u, v) {
   sfx.rouge();
@@ -348,8 +352,7 @@ function gagnerRouge(u, v) {
 }
 
 function toucherJoueur(ev) {
-  if (clock.now() < reviveShieldUntil || invincible) return;
-  const nom = rows.KINDS[ev.kind].nom;
+  if (clock.now() < reviveShieldUntil || invincible || game.turbo > 0) return;
   if (friends.count() > 0) {
     const perdus = friends.lose(ev.cout);
     game.sansFaute = false;
@@ -357,7 +360,9 @@ function toucherJoueur(ev) {
     damageFlash = 0.8;
     vibrer(60);
     sfx.potePerdu();
-    afficherBanner(perdus.length > 1 ? `−${perdus.length} POTES` : "−1 POTE", `${nom}${ev.saut ? " — il fallait sauter" : ""}`, ROUGE, 2);
+    // Juste « −1 POTE » au-dessus du joueur (« tu enlèves le wording, tu dis
+    // juste −1 pote en pop-up par-dessus et voilà »).
+    pousserPopup(perdus.length > 1 ? `−${perdus.length} POTES` : "−1 POTE", ROUGE);
   } else {
     mourir();
   }
@@ -451,7 +456,6 @@ function step(dt) {
   if (tap && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; player.doubled = false; sfx.saut(); tutoEvenement("jump"); }
   else if (tap && player.jumpY > 0 && !player.doubled && player.elan >= 1) {
     player.jumpVy = phys.vJump * 1.0; player.doubled = true; player.elan = 0; player.flip = 0.001;
-    afficherBanner("SALTO !", null, JAUNE, 0.9);
     sfx.salto(); vibrer(25);
     semerSparkles(player.u, player.v, 12);
     tutoEvenement("salto");
@@ -476,7 +480,7 @@ function step(dt) {
   const rowIci = rows.rowAt(Math.max(0, Math.floor(player.v + 0.5)));
   const dansBoue = rowIci.boue !== null && rowIci.boue !== undefined && rowIci.boue === player.col && player.jumpY <= 0.1;
   slowMul += ((dansBoue ? 0.5 : 1) - slowMul) * Math.min(1, 8 * dt);
-  if (dansBoue && game.boue <= 0) { game.boue = 1; pousserPopup("BOUE !", "#c9a648"); }
+  if (dansBoue && game.boue <= 0) { game.boue = 1; }
   if (!dansBoue && game.boue > 0) game.boue = Math.max(0, game.boue - dt);
 
   // --- Avance ---
@@ -526,7 +530,7 @@ window.addEventListener("keydown", (e) => {
   if (!debugOverlay.isEnabled() || !gameStarted || game.ended) return;
   if (e.code === "KeyI") { invincible = !invincible; afficherBanner(invincible ? "INVINCIBLE" : "VULNÉRABLE", "debug", JAUNE, 1.2); }
   if (e.code === "KeyP") arriveePote(friends.join(player), false);
-  if (e.code === "KeyO") { friends.lose(1); afficherBanner("−1 POTE", "debug", ROUGE); }
+  if (e.code === "KeyO") { friends.lose(1); pousserPopup("−1 POTE", ROUGE); }
   if (e.code === "KeyG") mourir();
   if (e.code === "KeyL") gagnerLait(player.u, player.v);
   if (e.code === "KeyN") { nuitDebut = clock.now() - 30; }
@@ -611,7 +615,7 @@ function render(alpha) {
     }
   }
   if (gameStarted) for (const dr of friends.drawables(ctx, pedal)) items.push({ d: iso.depth(dr.u, dr.v), draw: dr.draw });
-  for (const g of ghosts) items.push({ d: iso.depth(g.u, g.v) + 0.01, draw: () => drawRider(ctx, g.u, g.v, g.h, PALETTES.pmc, pedal, 0.35 * (1 - g.age / 0.35), g.flip) });
+  for (const g of ghosts) items.push({ d: iso.depth(g.u, g.v) + 0.01, draw: () => drawRider(ctx, g.u, g.v, g.h, PALETTES.pmc, pedal, 0.22 * (1 - g.age / 0.35), g.flip, false) });
   items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, PALETTES.pmc, pedal, 1, flip) });
   items.sort((a, b) => b.d - a.d);
   for (const it of items) it.draw();
@@ -671,9 +675,9 @@ function render(alpha) {
     hud.renderHud(ctx, width, height, {
       metres: game.metres, potes: friends.count(), potesMax: friends.max(), gaugeT,
       mult: Math.round(multiplicateur() * 100) / 100, restant: Math.max(0, prochainPalier() - game.points),
-      elan: player.elan, restantS: game.ended ? 0 : tempsRestant(), turbo: game.turbo > 0,
+      elan: player.elan, restantS: game.ended ? 0 : tempsRestant(), turbo: game.turbo > 0, safeTop,
     });
-    hud.renderBanner(ctx, width, height, banner);
+    hud.renderBanner(ctx, width, height, banner, safeTop);
     ctx.restore();
   }
   if (gameStarted && !game.ended) {

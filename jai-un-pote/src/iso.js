@@ -194,25 +194,34 @@ export function lampsIn(from, to) {
   return out;
 }
 
-// Panneau de village, côté GAUCHE, ~30 % plus grand : poteau, plaque à
-// liseré rouge, nom en capitales, département dessous.
+// Panneau de village, côté GAUCHE : poteau + plaque en cube, et le TEXTE
+// est posé sur la face avant du cube (transformation affine de la face,
+// 7 septembre 2026 : « mets la bonne perspective par rapport à la route »).
 export function drawSign(ctx, r, village) {
   const [nom, dep] = village;
   const u = -ROAD_HALF - 0.6, v = r - 0.1;
-  drawBox(ctx, u - 0.07, v, 0.14, 0.14, 1.5, "#8a8d98");
-  const w = 2.3, hb = 0.85;
-  drawBox(ctx, u - w / 2, v, w, 0.1, hb, "#e13e26", 1.5);
-  const p = project(u, v + 0.06, 1.5 + hb / 2);
-  const wpx = (w - 0.16) * K, hpx = (hb - 0.16) * K * VERT;
-  ctx.fillStyle = "#f7f2e6";
-  ctx.fillRect(p.x - wpx / 2, p.y - hpx / 2, wpx, hpx);
+  const w = 2.3, hb = 0.85, base = 1.5;
+  drawBox(ctx, u - 0.07, v + 0.02, 0.14, 0.14, base, "#8a8d98");
+  drawBox(ctx, u - w / 2, v, w, 0.1, hb, "#e13e26", base);
+  // Face avant (v = v_min) : A = bas-gauche, B = bas-droite, A2 = haut-gauche.
+  const A = project(u - w / 2, v, base), B = project(u + w / 2, v, base), A2 = project(u - w / 2, v, base + hb);
+  const ex = { x: (B.x - A.x) / w, y: (B.y - A.y) / w };         // par unité u
+  const ey = { x: (A.x - A2.x) / hb, y: (A.y - A2.y) / hb };     // par unité h, vers le BAS
+  ctx.save();
+  // Repère local en « pixels-monde » : x = u·K, y = h·K (vers le bas), origine en A2.
+  ctx.transform(ex.x / K, ex.y / K, ey.x / K, ey.y / K, A2.x - 0.5, A2.y - 0.5);
+  const m = 0.08 * K;
+  ctx.fillStyle = nightShade("#f7f2e6");
+  ctx.fillRect(m, m, w * K - 2 * m, hb * K - 2 * m);
   ctx.fillStyle = "#0d0d10";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `900 ${Math.max(7, K * 0.3)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(nom, p.x, p.y - hpx * 0.16);
-  ctx.font = `500 ${Math.max(6, K * 0.18)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(`(${dep})`, p.x, p.y + hpx * 0.3);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  let taille = K * 0.3;
+  ctx.font = `900 ${taille}px "Stage Grotesk", system-ui, sans-serif`;
+  while (ctx.measureText(nom).width > w * K - 4 * m && taille > 5) { taille -= 1; ctx.font = `900 ${taille}px "Stage Grotesk", system-ui, sans-serif`; }
+  ctx.fillText(nom, w * K / 2, hb * K * 0.4);
+  ctx.font = `500 ${K * 0.17}px "Stage Grotesk", system-ui, sans-serif`;
+  ctx.fillText(`(${dep})`, w * K / 2, hb * K * 0.74);
+  ctx.restore();
 }
 
 export function rowRange() {

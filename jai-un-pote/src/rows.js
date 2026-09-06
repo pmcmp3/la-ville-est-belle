@@ -27,9 +27,9 @@ export const KINDS = {
   voiture:  { traverse: false, saut: false, cout: 2, long: 0.95, larg: 2.0,  h: 0.75, nom: "une voiture garée" },
 };
 
-const GRACE_ROWS = 10;
+const GRACE_ROWS = 40;    // 10 → 40 (« laisse vraiment du temps au début ») : ~9 s sans rien
 const RAMP_ROWS = 1000;
-const P_DANGER_START = 0.18, P_DANGER_MAX = 0.42;
+const P_DANGER_START = 0.12, P_DANGER_MAX = 0.42;
 const LAIT_EVERY = 48;    // brique de lait : une chance toutes les ~48 rangées
 const ROUGE_EVERY = 70;   // pièce rouge : toutes les ~70 rangées
 
@@ -42,7 +42,17 @@ function hash(n) {
 }
 
 const cache = new Map();
-export function reset() { cache.clear(); resolved.clear(); coins.clear(); }
+let fenetreSure = null; // [from, to] : rangées forcées sûres (turbo lait)
+export function reset() { cache.clear(); resolved.clear(); coins.clear(); fenetreSure = null; }
+
+// TURBO LAIT (7 septembre 2026 : « quand ça va plus vite, il faudrait qu'à ce
+// moment il n'y ait pas d'obstacles, sinon personne ne voudra aller plus
+// vite ») : les rangées [from, to] deviennent sûres, avec une pièce sur deux
+// — même celles déjà hachées, tant qu'elles ne sont pas encore à l'écran.
+export function ouvrirFenetreSure(from, to) {
+  fenetreSure = [from, to];
+  for (let r = from; r <= to; r++) cache.set(r, { type: "safe", coins: r % 2 ? [Math.floor(hash(r * 11 + 4) * COLS)] : [], boue: null });
+}
 
 function pick(list, h) {
   let total = 0;
@@ -56,8 +66,8 @@ export function rowAt(r) {
   if (cache.has(r)) return cache.get(r);
   let row;
   const t = Math.min(1, Math.max(0, r) / RAMP_ROWS);
-  if (r < GRACE_ROWS) {
-    row = { type: "safe", coins: r % 3 === 1 ? [1] : [], boue: null };
+  if (r < GRACE_ROWS || (fenetreSure && r >= fenetreSure[0] && r <= fenetreSure[1])) {
+    row = { type: "safe", coins: r % 3 === 1 ? [Math.floor(hash(r * 11 + 4) * COLS)] : [], boue: null };
   } else {
     const prev1 = rowAt(r - 1), prev2 = rowAt(r - 2), prev3 = rowAt(r - 3);
     const gapMin = t < 0.35 ? 3 : 2;

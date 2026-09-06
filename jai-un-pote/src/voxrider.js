@@ -14,8 +14,11 @@ const TIRE = "#151518", RIM = "#8a8d98", FRAME = "#1b1b21", SKIN_SHOE = "#565a66
 // Ancré au sol en (u, v) = centre du vélo. `lift` = hauteur de saut.
 // `flip` (0..2π) = angle du salto (double saut) : tout le vélo tourne
 // autour de son axe latéral — le corps décrit un cercle vers l'avant.
-export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0) {
+export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0, ombre = true) {
   if (alpha < 1) { ctx.save(); ctx.globalAlpha = alpha; }
+  // L'ombre reste au sol, dessinée AVANT la rotation du salto (retour :
+  // « tu as des ombres horribles » — elle tournait avec le vélo).
+  if (ombre) drawShadow(ctx, u, v, 0.3, 0.575, 0.24);
   let spinning = false;
   if (flip > 0.01) {
     // Salto = le vélo ENTIER tourne à l'écran autour de son centre (6
@@ -30,7 +33,6 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0) {
   }
   const W = 0.36;              // largeur du vélo (u)
   const L = 1.15;              // longueur (v)
-  drawShadow(ctx, u, v, 0.3, L / 2, 0.24);
   const x = u - W / 2, y = v - L / 2;
   const s = Math.sin(pedal), c = Math.cos(pedal);
   // Roues : deux boîtes fines le long de v.
