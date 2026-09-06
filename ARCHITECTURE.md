@@ -2248,12 +2248,17 @@ navigateur Instagram verrouillé portrait).
 | `voxrider.js` | Le cycliste en VRAIS cubes iso (`drawBox`) : roues, cadre, jambes en opposition, torse rayé, tête, cheveux, casquette/barbe — orienté comme la route quelle que soit la projection (retour : « mon joueur, il faut le redessiner, il va pas dans le bon sens »). `rider.js` ne sert plus qu'aux palettes (`PALETTES`). |
 | `hud.js`, `screens.js`, `index.html` | Mètres en serif, multiplicateur, rangée de 8 potes + jauge, décompte 3-2-1-GO, bandeaux ; menu à UN champ, carte de mort, tiroir album (mêmes clés localStorage que le premier jeu), fin, pause. |
 
-**Règles (config.js)** : score = **mètres** (1 rangée = 1 m) × (1 + 0,25 × potes) ; vitesse
-4,4 rangées/s → 9,4 (doublement 70 s) ; chaque étoile = 150 points + 5 m × multiplicateur ;
-les potes arrivent aux paliers CROISSANTS `potesPaliers` (3 000 … 80 000). Poule/botte/canapé
-se sautent (coût 1), vache/baignoire/piano coûtent 2, tracteur/avion 3 ; un pote touché
-individuellement part seul. **Seul, un obstacle tue** ; seconde chance = 2 potes de retour.
-Pas de Supabase en V1, record local (`jaipRecord`).
+**Règles (config.js, 6 septembre 2026)** : score = **mètres** (1 rangée = 1 m) × (1 + 0,25 × potes) ;
+vitesse 4,4 rangées/s → 9,4 (doublement 70 s) ; chaque PIÈCE = +4 m × multiplicateur ET un pas
+vers le prochain pote : les potes arrivent aux paliers CROISSANTS `potesPaliers` **en pièces**
+(8, 20, 34, 50, 68, 88, 110, 134 — le premier en ~5 s pour que le principe se lise tout de
+suite ; la jauge du HUD dit « PROCHAIN POTE : N PIÈCES »). Poule/chat/chien/mouton/botte se
+sautent (coût 1), cochon/vache/fermier/voiture garée coûtent 2, tracteur 3. **Seul, un obstacle
+tue** ; seconde chance = 2 potes de retour. **Double saut** : un second tap en l'air = salto
+(`voxrider` tourne autour de l'axe latéral), consomme la barre d'ÉLAN (HUD, à droite de pause)
+qui se recharge en `elanRechargeS` = 5 s. Étincelles au ramassage. Bandeaux en HAUT de l'écran
+(0,15 H). Biomes tranchés tous les 55 rangées (blé, prairie à fleurs, tournesols, forêt de
+sapins, vignes), décor qui oscille (`setDecorTime`). Pas de Supabase en V1, record local.
 
 **Morceau** : « J'ai un pote », 85 BPM mesurés sur le master (librosa, résidu 43 ms), premier
 temps à 0,04 s, MP3 96 kbps (2,1 Mo). Boucle de mort = 16 temps = 11,294 s. ⚠️ Les traversants

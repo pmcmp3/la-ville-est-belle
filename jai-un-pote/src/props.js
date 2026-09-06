@@ -81,20 +81,21 @@ export function drawStatic(ctx, kind, uCenter, r, t) {
     drawBox(ctx, x, y, K.long, K.larg, 0.42, col, 0.18);
     drawBox(ctx, x + 0.08, y + 0.55, K.long - 0.16, 0.9, 0.36, "#a8d8f0", 0.6);
     drawBox(ctx, x + 0.1, y + 0.6, K.long - 0.2, 0.8, 0.06, col, 0.96);
-  } else if (kind === "avion") {
-    // Petit avion de tourisme posé en travers de deux voies : fuselage le
-    // long de la route, ailes en travers, dérive, hélice, roues.
-    const cx = uCenter, cy = r;
-    drawBox(ctx, cx - 0.16, cy - 1.2, 0.32, 0.4, 0.3, BLACK);                 // roue avant
-    drawBox(ctx, cx - 0.7, cy + 0.1, 0.2, 0.3, 0.3, BLACK);                   // roues arrière
-    drawBox(ctx, cx + 0.5, cy + 0.1, 0.2, 0.3, 0.3, BLACK);
-    drawBox(ctx, cx - 0.32, cy - 1.3, 0.64, 2.6, 0.62, WHITE, 0.3);           // fuselage
-    drawBox(ctx, cx - 0.25, cy - 1.45, 0.5, 0.2, 0.5, "#e13e26", 0.36);       // nez
-    drawBox(ctx, cx - 0.04, cy - 1.55, 0.08, 0.06, 0.9, "#3a3a40", 0.2);      // hélice
-    drawBox(ctx, cx - 0.28, cy - 0.7, 0.56, 0.7, 0.4, "#8fc7e6", 0.92);       // verrière
-    drawBox(ctx, cx - 1.9, cy - 0.2, 3.8, 0.55, 0.12, WHITE, 0.75);           // ailes
-    drawBox(ctx, cx - 1.9, cy - 0.2, 3.8, 0.55, 0.04, "#e13e26", 0.87);       // liseré
-    drawBox(ctx, cx - 0.06, cy + 0.85, 0.12, 0.4, 0.7, "#e13e26", 0.9);       // dérive
-    drawBox(ctx, cx - 0.7, cy + 1.0, 1.4, 0.3, 0.08, WHITE, 0.9);             // empennage
+  } else if (kind === "chat") {
+    const col = ["#8a8d98", "#e08a2a", "#1a1a1e"][Math.abs(r) % 3];
+    drawBox(ctx, x + 0.05, y + wob * 0.5, 0.42, 0.28, 0.24, col, 0.1);
+    drawBox(ctx, x + 0.4, y + 0.02 + wob * 0.5, 0.22, 0.24, 0.24, col, 0.2);
+    drawBox(ctx, x + 0.42, y + 0.0, 0.06, 0.06, 0.1, col, 0.44);
+    drawBox(ctx, x + 0.54, y + 0.2, 0.06, 0.06, 0.1, col, 0.44);
+    drawBox(ctx, x - 0.1, y + 0.12, 0.16, 0.06, 0.06, col, 0.28 + Math.abs(wob) * 2);
+    drawBox(ctx, x + 0.08, y + 0.02, 0.06, 0.06, 0.1, col); drawBox(ctx, x + 0.3, y + 0.2, 0.06, 0.06, 0.1, col);
+  } else if (kind === "chien") {
+    const col = "#b8864a";
+    for (const [lx, ly] of [[0.08, 0.04], [0.08, 0.28], [0.5, 0.04], [0.5, 0.28]]) drawBox(ctx, x + lx, y + ly, 0.1, 0.1, 0.22, col);
+    drawBox(ctx, x + 0.02, y + wob * 0.5, 0.62, 0.38, 0.3, col, 0.22);
+    drawBox(ctx, x + 0.58, y + 0.04 + wob * 0.5, 0.28, 0.3, 0.3, col, 0.34);
+    drawBox(ctx, x + 0.8, y + 0.12 + wob * 0.5, 0.1, 0.14, 0.12, "#1a1a1e", 0.4);
+    drawBox(ctx, x + 0.6, y + 0.0, 0.08, 0.1, 0.12, "#8a6a3a", 0.6); drawBox(ctx, x + 0.6, y + 0.28, 0.08, 0.1, 0.12, "#8a6a3a", 0.6);
+    drawBox(ctx, x - 0.12, y + 0.15, 0.16, 0.06, 0.06, col, 0.4 + Math.abs(wob) * 3);
   }
 }

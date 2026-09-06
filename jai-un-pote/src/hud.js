@@ -79,7 +79,8 @@ export function renderHud(ctx, width, height, hud) {
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
   ctx.fillText(hud.potes === 0 ? "TOUT SEUL" : hud.potes === 1 ? "1 POTE" : `${hud.potes} POTES`, width - PAD, ry + cell + 5);
-  // Jauge vers le prochain pote (masquée quand le peloton est plein).
+  // Jauge vers le prochain pote + le compte en clair : c'est LA phrase qui dit
+  // à quoi servent les pièces (« on ne comprend pas à quoi servent les pièces »).
   if (hud.potes < total) {
     const gy = ry + cell + 22;
     ctx.fillStyle = "rgba(255,255,255,0.22)";
@@ -88,7 +89,22 @@ export function renderHud(ctx, width, height, hud) {
     ctx.fillStyle = JAUNE;
     roundRect(ctx, rx, gy, Math.max(4, rowW * Math.min(1, hud.gaugeT)), 4, 2);
     ctx.fill();
+    ctx.font = `700 10px ${POLICE}`;
+    ctx.fillStyle = JAUNE;
+    ctx.fillText(`PROCHAIN POTE : ${hud.restant} PIÈCE${hud.restant > 1 ? "S" : ""}`, width - PAD, gy + 9);
   }
+  // Barre d'élan du double saut, à droite du bouton pause.
+  const ex = 70, ey = PAD + 12, ew = 96;
+  ctx.font = `700 9px ${POLICE}`;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillText("DOUBLE SAUT", ex, ey - 12);
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  roundRect(ctx, ex, ey, ew, 5, 2);
+  ctx.fill();
+  ctx.fillStyle = hud.elan >= 1 ? JAUNE : "rgba(255,255,255,0.6)";
+  roundRect(ctx, ex, ey, Math.max(3, ew * Math.min(1, hud.elan)), 5, 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -126,7 +142,7 @@ export function renderCountIn(ctx, width, height, t, beatPeriod, beats, linger) 
 // Rappel des commandes, en bas, pendant les premières secondes de course.
 export function renderHint(ctx, width, height, alpha) {
   if (alpha <= 0.01) return;
-  const txt = "SWIPE = CHANGER DE VOIE   ·   TAP = SAUTER";
+  const txt = "SWIPE = VOIE  ·  TAP = SAUT  ·  RE-TAP EN L'AIR = SALTO";
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.font = `700 12px ${POLICE}`;
@@ -153,7 +169,7 @@ export function renderBanner(ctx, width, height, banner) {
   ctx.font = `900 19px ${POLICE}`;
   const w = Math.max(190, ctx.measureText(banner.titre).width + 44);
   const h = banner.sous ? 62 : 44;
-  const y = height * 0.72;
+  const y = height * 0.15; // en HAUT (6 septembre 2026 : « trop bas, pas logique d'un point de vue UX »)
   const tPop = Math.min(1, age / 0.3);
   const scale = 0.8 + 0.2 * tPop + 0.06 * Math.sin(tPop * Math.PI);
   ctx.translate(width / 2, y + h / 2);

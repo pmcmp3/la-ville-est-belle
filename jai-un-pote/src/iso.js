@@ -96,16 +96,24 @@ function hash(n) {
   return x - Math.floor(x);
 }
 
-const ZONE_ROWS = 90;
-function zoneAt(r) { return ["ble", "tournesol", "vigne"][Math.floor(Math.max(0, r) / ZONE_ROWS) % 3]; }
-const SOIL = { ble: "#c9a648", tournesol: "#6f8c2f", vigne: "#8a6a45" };
+// Biomes TRANCHÉS (6 septembre 2026 : « d'un seul coup on passe dans un
+// champ, après c'est vraiment la prairie, comme Minecraft ») : blé, prairie,
+// tournesols, forêt, vignes — 55 rangées chacun, changement net.
+const ZONE_ROWS = 55;
+const ZONES = ["ble", "prairie", "tournesol", "foret", "vigne"];
+function zoneAt(r) { return ZONES[Math.floor(Math.max(0, r) / ZONE_ROWS) % ZONES.length]; }
+const SOIL = { ble: "#c9a648", prairie: "#7aa63c", tournesol: "#6f8c2f", foret: "#3f5a2a", vigne: "#8a6a45" };
+const GRASS_BY_ZONE = { ble: null, prairie: "#7aa63c", tournesol: null, foret: "#4a6a30", vigne: null };
+let decorT = 0; // temps pour le balancement du décor
+export function setDecorTime(t) { decorT = t; }
 
 // Une rangée r couvre v ∈ [r − 0,5 ; r + 0,5[ sur toute la largeur.
 function renderRow(ctx, r) {
   const v = r - 0.5;
-  const g = GRASS[((r % 2) + 2) % 2];
-  const soil = SOIL[zoneAt(r)];
-  const sc = r % 6 < 3 ? soil : shade(soil, -10);
+  const zone = zoneAt(r);
+  const g = GRASS_BY_ZONE[zone] ? shade(GRASS_BY_ZONE[zone], r % 2 ? -4 : 0) : GRASS[((r % 2) + 2) % 2];
+  const soil = SOIL[zone];
+  const sc = zone === "prairie" || zone === "foret" ? (r % 2 ? shade(soil, -5) : soil) : (r % 6 < 3 ? soil : shade(soil, -10));
   drawFlat(ctx, -U_SPAN, v, U_SPAN - ROAD_HALF - 0.9, 1, sc);
   drawFlat(ctx, ROAD_HALF + 0.9, v, U_SPAN - ROAD_HALF - 0.9, 1, sc);
   drawFlat(ctx, -ROAD_HALF - 0.9, v, 0.9, 1, g);
@@ -129,30 +137,41 @@ export function rowDecor(ctx, r) {
   const out = [];
   const zone = zoneAt(r);
   const push = (u, v, draw) => out.push({ d: depth(u, v), draw });
+  const sway = (k) => Math.sin(decorT * 1.6 + k) * 0.05; // brise : le haut des plantes oscille
   for (const side of [-1, 1]) {
-    for (let i = 0; i < 5; i++) {
+    const n = zone === "foret" ? 2 : zone === "prairie" ? 3 : 5;
+    for (let i = 0; i < n; i++) {
       const a = hash(r * 31 + i * 7 + side * 101);
       const b = hash(r * 17 + i * 5 + side * 53);
       const u = side * (ROAD_HALF + 1.1 + a * 4.5);
       const v = r - 0.5 + b * 0.8;
+      const k = r * 3.1 + i * 1.7 + side;
       if (zone === "ble") {
-        push(u, v, () => { drawBox(ctx, u, v, 0.28, 0.28, 0.55 + a * 0.35, "#c9a23b"); drawBox(ctx, u, v, 0.28, 0.28, 0.16, "#e8c65a", 0.55 + a * 0.35); });
+        push(u, v, () => { const sw = sway(k); drawBox(ctx, u, v, 0.28, 0.28, 0.55 + a * 0.35, "#c9a23b"); drawBox(ctx, u + sw, v + sw * 0.5, 0.28, 0.28, 0.16, "#e8c65a", 0.55 + a * 0.35); });
       } else if (zone === "tournesol") {
-        push(u, v, () => { drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a"); drawBox(ctx, u - 0.05, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85); drawBox(ctx, u + 0.08, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95); });
+        push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a"); drawBox(ctx, u - 0.05 + sw, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85); drawBox(ctx, u + 0.08 + sw, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95); });
+      } else if (zone === "vigne") {
+        push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15 + sw, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
+      } else if (zone === "prairie") {
+        // Fleurs des champs, pâquerettes et boutons d'or, tout petits.
+        const fl = a < 0.5 ? "#ffffff" : "#ffcf2e";
+        push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.05, v + 0.05, 0.06, 0.06, 0.3, "#4f7a2a"); drawBox(ctx, u + sw, v, 0.16, 0.16, 0.1, fl, 0.3); });
       } else {
-        push(u, v, () => { drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
+        // Forêt : sapins près de la route.
+        const h = 1.4 + a * 1.2;
+        push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.15, v + 0.15, 0.2, 0.2, 0.5, "#5c4a3a"); drawBox(ctx, u - 0.2 + sw * 0.5, v - 0.2, 0.9, 0.9, h * 0.5, "#2f6a2a", 0.5); drawBox(ctx, u + sw, v, 0.5, 0.5, h * 0.45, "#3a7a33", 0.5 + h * 0.5); });
       }
     }
     if ((r + (side > 0 ? 1 : 0)) % 2 === 0) {
       const a = hash(r * 13 + side * 7);
-      const u = side * (ROAD_HALF + 6.2 + a * 0.8), v = r - 0.4;
-      push(u, v, () => { drawBox(ctx, u, v, 0.3, 0.3, 0.7, "#5c4a3a"); drawBox(ctx, u - 0.35, v - 0.3, 1.0, 0.9, 1.1 + a * 0.6, "#2f6a2a", 0.7); });
+      const u = side * (ROAD_HALF + 6.2 + a * 0.8), v = r - 0.4, k = r * 2.3 + side * 5;
+      push(u, v, () => { const sw = sway(k) * 1.4; drawBox(ctx, u, v, 0.3, 0.3, 0.7, "#5c4a3a"); drawBox(ctx, u - 0.35 + sw, v - 0.3 + sw * 0.4, 1.0, 0.9, 1.1 + a * 0.6, "#2f6a2a", 0.7); });
     }
-    if (side > 0 && r % 5 === 0) {
+    if (side > 0 && r % 5 === 0 && zone !== "foret") {
       const u = ROAD_HALF + 0.45, v = r - 0.1;
       push(u, v, () => { drawBox(ctx, u, v, 0.14, 0.14, 2.6, "#5c4a3a"); drawBox(ctx, u - 0.4, v + 0.02, 0.95, 0.1, 0.1, "#3a2e24", 2.35); });
     }
-    if (hash(r * 41 + side) < 0.12) {
+    if (hash(r * 41 + side) < 0.12 && zone !== "foret") {
       const u = side * (ROAD_HALF + 0.35) - (side < 0 ? 0.5 : 0), v = r - 0.25;
       push(u, v, () => drawBox(ctx, u, v, 0.55, 0.55, 0.5, "#d0a84a"));
     }

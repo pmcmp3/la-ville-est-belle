@@ -48,15 +48,20 @@ window.CONFIG = {
   metresParUnite: 1,      // 1 rangée = 1 m (4,4 rangées/s au départ = 16 km/h, 34 km/h au plafond)
   // Chaque pote ajoute ce pourcentage aux mètres gagnés (×1 seul, ×3 avec 8 potes).
   potesBonusMetres: 0.25,
-  // Mètres bonus par étoile ramassée (avant multiplicateur de potes).
-  etoileMetres: { petite: 3, moyenne: 6, grosse: 15 },
+  // Mètres bonus par pièce ramassée (avant multiplicateur de potes).
+  pieceMetres: 4,
 
   // === POTES ===
-  // Points d'étoiles cumulés qui font arriver le pote n°1, n°2… (croissant :
-  // chaque pote est plus long à gagner que le précédent, donc plus précieux).
-  etoiles: { petite: 100, moyenne: 200, grosse: 500 },
+  // PIÈCES cumulées qui font venir le pote n°1, n°2… (croissant : chaque pote
+  // est plus long à gagner que le précédent). Le premier arrive vite (8
+  // pièces) pour que le principe se comprenne dans les dix premières secondes.
   potesMax: 8,
-  potesPaliers: [3000, 8000, 15000, 24000, 35000, 48000, 63000, 80000],
+  potesPaliers: [8, 20, 34, 50, 68, 88, 110, 134],
+
+  // === DOUBLE SAUT (6 septembre 2026) ===
+  // Un second tap en l'air = salto. Il consomme la barre d'élan, qui se
+  // recharge en `elanRechargeS` secondes — pas de double saut en continu.
+  elanRechargeS: 5,
 
   // === PANNEAUX DE VILLAGE (nom, département) ===
   villages: [

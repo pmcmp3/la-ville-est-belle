@@ -12,8 +12,16 @@ import { drawBox, drawShadow, depth } from "./iso.js";
 const TIRE = "#151518", RIM = "#8a8d98", FRAME = "#1b1b21", SKIN_SHOE = "#565a66";
 
 // Ancré au sol en (u, v) = centre du vélo. `lift` = hauteur de saut.
-export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1) {
+// `flip` (0..2π) = angle du salto (double saut) : tout le vélo tourne
+// autour de son axe latéral — le corps décrit un cercle vers l'avant.
+export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0) {
   if (alpha < 1) { ctx.save(); ctx.globalAlpha = alpha; }
+  if (flip > 0.01) {
+    // Approximation en cubes : chaque pièce est déplacée sur un cercle de
+    // rayon 0,55 autour du centre du vélo (avance = sin, hauteur = 1 − cos).
+    const fv = Math.sin(flip) * 0.55, fh = (1 - Math.cos(flip)) * 0.55;
+    v += fv; lift += fh;
+  }
   const W = 0.36;              // largeur du vélo (u)
   const L = 1.15;              // longueur (v)
   drawShadow(ctx, u, v, 0.3, L / 2, 0.24);

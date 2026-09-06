@@ -100,7 +100,7 @@ const game = {
   metres: 0, points: 0, potesGagnes: 0, etoiles: 0,
   ended: false, endReason: null, reviveOffered: false, sansFaute: true, startedAt: 0,
 };
-const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0 };
+const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0, doubled: false, flip: 0, prevFlip: 0, elan: 1 };
 const LANE_TWEEN = 11;
 let camU = 0; // suivi latéral lissé de la caméra
 // Vitesse d'avance en rangées/s : 2,6 × vitesseBase au départ, doublement
@@ -118,6 +118,11 @@ function jumpPhysics() {
 function multiplicateur() { return 1 + window.CONFIG.potesBonusMetres * friends.count(); }
 function palierPrecedent() { const p = window.CONFIG.potesPaliers; return game.potesGagnes === 0 ? 0 : p[game.potesGagnes - 1]; }
 function prochainPalier() { const p = window.CONFIG.potesPaliers; return p[Math.min(game.potesGagnes, p.length - 1)]; }
+// Étincelles dorées au ramassage d'une pièce.
+const sparkles = [];
+function semerSparkles(u, v) {
+  for (let i = 0; i < 9; i++) sparkles.push({ u, v, h: 0.6, vu: (Math.random() - 0.5) * 3, vv: (Math.random() - 0.5) * 3, vh: 1.5 + Math.random() * 2.5, age: 0 });
+}
 
 // --- Effets ------------------------------------------------------------------
 const popups = [];
@@ -150,7 +155,8 @@ function resetRun() {
   game.ended = false; game.endReason = null; game.reviveOffered = false; game.sansFaute = true;
   game.startedAt = perfClock();
   player.col = 1; player.u = iso.colU(1); player.prevU = player.u; player.v = 0; player.prevV = 0;
-  player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0;
+  player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0; player.doubled = false; player.flip = 0; player.prevFlip = 0; player.elan = 1;
+  sparkles.length = 0;
   speed = V_UNIT * window.CONFIG.vitesseBase;
   friends.reset();
   rows.reseed();
@@ -219,14 +225,16 @@ function endGame(reason) {
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }
 
-function gagnerPiece() {
-  const pts = 150;
+function gagnerPiece(u, v) {
   const mult = multiplicateur();
-  const m = 5 * mult;
-  game.points += pts;
+  const m = window.CONFIG.pieceMetres * mult;
+  game.points += 1; // les paliers de potes se comptent en PIÈCES
   game.metres += m;
   game.etoiles += 1;
-  if (game.etoiles <= 5) pousserPopup(`+${Math.round(m)} m`, JAUNE);
+  semerSparkles(u, v);
+  const restant = prochainPalier() - game.points;
+  if (game.etoiles <= 3) pousserPopup(`+${Math.round(m)} m`, JAUNE);
+  if (game.potesGagnes < window.CONFIG.potesPaliers.length && restant > 0 && restant <= 3) pousserPopup(`POTE DANS ${restant}`, JAUNE);
   while (game.potesGagnes < window.CONFIG.potesPaliers.length && game.points >= window.CONFIG.potesPaliers[game.potesGagnes]) {
     game.potesGagnes += 1;
     const pote = friends.join(player);
@@ -275,7 +283,12 @@ function step(dt) {
     else if (perfClock() - audioWatch.lastReal > AUDIO_STALL_TIMEOUT) useFallbackClock(true);
   }
 
-  player.prevU = player.u; player.prevV = player.v; player.prevJumpY = player.jumpY; player.prevPedal = player.pedal;
+  player.prevU = player.u; player.prevV = player.v; player.prevJumpY = player.jumpY; player.prevPedal = player.pedal; player.prevFlip = player.flip;
+  for (let i = sparkles.length - 1; i >= 0; i--) {
+    const sp = sparkles[i];
+    sp.age += dt; sp.u += sp.vu * dt; sp.v += sp.vv * dt; sp.h += sp.vh * dt; sp.vh -= 9 * dt;
+    if (sp.age > 0.6) sparkles.splice(i, 1);
+  }
 
   for (let i = popups.length - 1; i >= 0; i--) { popups[i].age += dt; if (popups[i].age >= 1.1) popups.splice(i, 1); }
   if (banner) { banner.timer -= dt; if (banner.timer <= 0) banner = null; }
@@ -306,12 +319,20 @@ function step(dt) {
 
   // --- Saut ---
   let jumped = false;
-  if (consumeJumpPress() && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; }
+  const tap = consumeJumpPress();
+  if (tap && player.jumpY <= 0) { player.jumpVy = phys.vJump; player.jumpY = 0.001; jumped = true; player.doubled = false; }
+  else if (tap && player.jumpY > 0 && !player.doubled && player.elan >= 1) {
+    // Double saut = SALTO : relance vers le haut, vide la barre d'élan.
+    player.jumpVy = phys.vJump * 0.95; player.doubled = true; player.elan = 0; player.flip = 0.001;
+    afficherBanner("SALTO !", null, JAUNE, 0.9);
+  }
   if (player.jumpY > 0) {
     player.jumpVy -= phys.g * dt;
     player.jumpY += player.jumpVy * dt;
-    if (player.jumpY <= 0) { player.jumpY = 0; player.jumpVy = 0; }
+    if (player.jumpY <= 0) { player.jumpY = 0; player.jumpVy = 0; player.doubled = false; player.flip = 0; }
   }
+  if (player.flip > 0) player.flip = Math.min(Math.PI * 2, player.flip + dt * (Math.PI * 2 / 0.55));
+  if (player.elan < 1) player.elan = Math.min(1, player.elan + dt / window.CONFIG.elanRechargeS);
 
   // --- Avance ---
   speed += (targetSpeed(now) - speed) * Math.min(1, 3 * dt);
@@ -327,14 +348,14 @@ function step(dt) {
   // --- Collisions et étoiles : le joueur puis chaque pote ---
   if (now >= 0) {
     for (const ev of rows.checkMember("j", player.u, player.v, player.jumpY > 0.25, now)) {
-      if (ev.type === "piece") gagnerPiece();
+      if (ev.type === "piece") gagnerPiece(player.u, player.v);
       else { toucherJoueur(ev); if (game.ended || revivePaused) break; }
     }
     // Les potes ne prennent AUCUN dégât eux-mêmes (retour : « il faut que les
     // dégâts que tu prennes, ce soit toi et pas tes potes ») : ils se faufilent.
     // Ils ramassent quand même les étoiles qu'ils croisent.
     for (const m of friends.members()) {
-      for (const ev of rows.checkMember(m.id, m.u, m.v, true, now)) if (ev.type === "piece") gagnerPiece();
+      for (const ev of rows.checkMember(m.id, m.u, m.v, true, now)) if (ev.type === "piece") gagnerPiece(m.u, m.v);
     }
   }
 
@@ -379,6 +400,8 @@ function render(alpha) {
   const v = player.prevV + (player.v - player.prevV) * alpha;
   const jy = player.prevJumpY + (player.jumpY - player.prevJumpY) * alpha;
   const pedal = player.prevPedal + (player.pedal - player.prevPedal) * alpha;
+  const flip = player.prevFlip + (player.flip - player.prevFlip) * alpha;
+  iso.setDecorTime(gameStarted ? Math.max(0, now) + 30 : perfClock());
   camU += (u * 0.35 - camU) * 0.08; // la vue glisse un peu avec la colonne, sans coller au joueur
   iso.setCamera(v, camU);
 
@@ -413,9 +436,18 @@ function render(alpha) {
     }
   }
   if (gameStarted) for (const dr of friends.drawables(ctx, pedal)) items.push({ d: iso.depth(dr.u, dr.v), draw: dr.draw });
-  items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, PALETTES.pmc, pedal) });
+  items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, PALETTES.pmc, pedal, 1, flip) });
   items.sort((a, b) => b.d - a.d);
   for (const it of items) it.draw();
+  // Étincelles des pièces (par-dessus tout, elles volent).
+  for (const sp of sparkles) {
+    const g = iso.project(sp.u, sp.v, sp.h);
+    ctx.globalAlpha = Math.max(0, 1 - sp.age / 0.6);
+    ctx.fillStyle = sp.age < 0.2 ? "#fff6c0" : "#ffcf2e";
+    const r = 2 + (1 - sp.age / 0.6) * 2;
+    ctx.fillRect(g.x - r / 2, g.y - r / 2, r, r);
+  }
+  ctx.globalAlpha = 1;
   iso.renderHaze(ctx);
 
   if (damageFlash > 0) {
@@ -445,7 +477,7 @@ function render(alpha) {
     ctx.globalAlpha = hudAlpha;
     const paliers = window.CONFIG.potesPaliers;
     const gaugeT = game.potesGagnes >= paliers.length ? 1 : (game.points - palierPrecedent()) / (prochainPalier() - palierPrecedent());
-    hud.renderHud(ctx, width, height, { metres: game.metres, potes: friends.count(), potesMax: friends.max(), gaugeT, mult: Math.round(multiplicateur() * 100) / 100 });
+    hud.renderHud(ctx, width, height, { metres: game.metres, potes: friends.count(), potesMax: friends.max(), gaugeT, mult: Math.round(multiplicateur() * 100) / 100, restant: Math.max(0, prochainPalier() - game.points), elan: player.elan });
     hud.renderBanner(ctx, width, height, banner);
     ctx.restore();
   }

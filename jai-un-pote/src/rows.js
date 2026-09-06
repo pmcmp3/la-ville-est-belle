@@ -22,12 +22,14 @@ export const KINDS = {
   vache:    { traverse: false, saut: false, cout: 2, long: 1.5,  larg: 0.8, h: 1.1,  nom: "une vache" },
   fermier:  { traverse: false, saut: false, cout: 2, long: 0.5,  larg: 0.5, h: 1.8,  nom: "un fermier" },
   voiture:  { traverse: false, saut: false, cout: 2, long: 0.95, larg: 2.0, h: 0.75, nom: "une voiture garée" },
-  avion:    { traverse: false, saut: false, cout: 3, long: 2.3,  larg: 2.6, h: 1.3,  nom: "un avion" },
+  chat:     { traverse: false, saut: true,  cout: 1, long: 0.6,  larg: 0.35, h: 0.4, nom: "un chat" },
+  chien:    { traverse: false, saut: true,  cout: 1, long: 0.8,  larg: 0.4,  h: 0.6, nom: "un chien" },
 };
+// (L'avion a été retiré le 6 septembre 2026 : « beaucoup trop difficile ».)
 
 const GRACE_ROWS = 10;
 const RAMP_ROWS = 1200;         // ~3-4 minutes de course avant la pleine difficulté
-const P_DANGER_START = 0.2, P_DANGER_MAX = 0.5;
+const P_DANGER_START = 0.18, P_DANGER_MAX = 0.42;
 
 let runSeed = 0;
 export function reseed() { runSeed = Math.floor(Math.random() * 100000); }
@@ -57,21 +59,24 @@ export function rowAt(r) {
   if (r < GRACE_ROWS) {
     row = { type: "safe", coins: r % 3 === 1 ? [1] : [] };
   } else {
-    const prev1 = rowAt(r - 1), prev2 = rowAt(r - 2);
-    const gapMin = t < 0.35 ? 2 : 1;
-    const recentDanger = prev1.type !== "safe" || (gapMin === 2 && prev2.type !== "safe");
+    const prev1 = rowAt(r - 1), prev2 = rowAt(r - 2), prev3 = rowAt(r - 3);
+    // Toujours au moins 2 rangées libres entre deux obstacles (3 au début) :
+    // « il faut que tu espaces les objets entre eux ».
+    const gapMin = t < 0.35 ? 3 : 2;
+    const recentDanger = prev1.type !== "safe" || prev2.type !== "safe" || (gapMin === 3 && prev3.type !== "safe");
     const pDanger = P_DANGER_START + (P_DANGER_MAX - P_DANGER_START) * t;
     const danger = !recentDanger && hash(r * 7 + 1) < pDanger;
     if (!danger) {
       const h = hash(r * 5 + 2);
       const c0 = Math.floor(hash(r * 11 + 4) * COLS);
-      const coins = h < 0.5 ? [] : h < 0.92 ? [c0] : [c0, (c0 + 1 + Math.floor(hash(r * 13 + 6) * (COLS - 1))) % COLS];
+      // Une pièce sur ~un tiers des rangées libres (« beaucoup trop de pièces »).
+      const coins = h < 0.68 ? [] : [c0];
       row = { type: "safe", coins };
     } else {
       const late = 1 + t * 2;
       const kind = pick([
-        ["poule", 3], ["mouton", 2], ["botte", 1.8], ["cochon", 1.2 * late], ["vache", 1.1 * late],
-        ["fermier", 0.9 * late], ["voiture", 0.7 * late], ["tracteur", 0.5 * late], ["avion", 0.25 * late],
+        ["poule", 3], ["chat", 1.6], ["chien", 1.2], ["mouton", 2], ["botte", 1.8], ["cochon", 1.2 * late],
+        ["vache", 1.1 * late], ["fermier", 0.9 * late], ["voiture", 0.7 * late], ["tracteur", 0.5 * late],
       ], hash(r * 17 + 3));
       const K = KINDS[kind];
       if (K.traverse) {
@@ -80,9 +85,9 @@ export function rowAt(r) {
         row = { type: "traverse", kind, dir, vitesse: K.vitesse * (0.9 + hash(r * 23 + 9) * 0.3), period, phase: hash(r * 29 + 5) * period, coins: [] };
       } else {
         const c = Math.floor(hash(r * 19 + 8) * COLS);
-        const cols = kind === "avion" ? [c, (c + 1) % COLS] : [c];
-        const libres = [0, 1, 2].filter((x) => !cols.includes(x));
-        row = { type: "statique", kind, cols, coins: hash(r * 31 + 7) < 0.35 ? [libres[Math.floor(hash(r * 37 + 2) * libres.length)]] : [] };
+        const cols = [c];
+        const libres = [0, 1, 2].filter((x) => x !== c);
+        row = { type: "statique", kind, cols, coins: hash(r * 31 + 7) < 0.3 ? [libres[Math.floor(hash(r * 37 + 2) * libres.length)]] : [] };
       }
     }
   }
