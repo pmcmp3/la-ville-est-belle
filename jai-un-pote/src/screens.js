@@ -54,9 +54,12 @@ const resumeButton = $("resume-button");
 const pauseReplayButton = $("pause-replay-button");
 
 // --- Conversion (mêmes clés que le premier jeu) -----------------------------
-const CLE_MORCEAU_OUVERT = "morceauOuvert";
-const CLE_PMC_SUIVI = "pmcSuivi";
-const CLE_PLATEFORME = "plateformeAlbum";
+// Clés PROPRES à « J'ai un pote » depuis le 7 septembre 2026 : quelqu'un qui a
+// déjà franchi le tiroir sur « La ville est belle » repasse par l'album ici
+// (« la personne avait déjà joué, elle a pu rejouer sans passer par Spotify »).
+const CLE_MORCEAU_OUVERT = "jaipMorceauOuvert";
+const CLE_PMC_SUIVI = "jaipPmcSuivi";
+const CLE_PLATEFORME = "jaipPlateformeAlbum";
 const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
 const CLE_PARTIES = "jaipParties";
@@ -458,9 +461,13 @@ export function syncLoadingUi() {
 // --- Fin de partie -----------------------------------------------------------
 export function showEndScreen({ metres, potesMax, record, fin }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
-  endSub.textContent = potesMax === 0
-    ? "Tu n'as pas eu de potes sur cette partie ? Tu prends des pièces pour les appeler."
-    : `Record : ${potesMax} pote${potesMax > 1 ? "s" : ""} avec toi`;
+  // Le but : arriver au bout du morceau avec un max de potes.
+  const potesTxt = potesMax === 0 ? "sans un seul pote" : `avec ${potesMax} pote${potesMax > 1 ? "s" : ""}`;
+  endSub.textContent = fin
+    ? `Au bout du morceau ${potesTxt} !`
+    : potesMax === 0
+      ? "Tu n'es pas arrivé au bout du morceau. Tu n'as pas eu de potes ? Tu prends des pièces pour les appeler."
+      : `Tombé avant la fin du morceau, ${potesTxt} au mieux.`;
   endBest.classList.toggle("hidden", !record);
   $("end-eyebrow").textContent = fin ? "Course terminée" : "Ta course";
   setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);

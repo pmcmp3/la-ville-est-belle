@@ -660,3 +660,5 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
 - ✅ Ligue, deuxième passe : le lien d'invitation inscrit d'office (plus qu'un pseudo à écrire),
   partage avec icônes WhatsApp/Insta/Messages/Snap, potes = uniquement les membres de la ligue
   (leur nombre = le plafond de potes), 6 personnes max (client + trigger SQL).
+- ✅ Troisième passe : voies +20 %, route remontée, peloton espacé, moitié moins de pièces et de
+  dangers, vitesse max 2,6 et turbo +20 %, tiroir album propre au jeu 2, SQL idempotent.

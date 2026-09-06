@@ -13,16 +13,16 @@
 import { shade } from "./voxel.js";
 
 export const COLS = 3;
-export const COL_W = 1.25;
-export const ROAD_HALF = (COLS * COL_W) / 2;   // 1,875
+export const COL_W = 1.5;    // 1,25 → 1,5 le 7 septembre 2026 (« élargis chaque voie de 20 % »)
+export const ROAD_HALF = (COLS * COL_W) / 2;   // 2,25
 const ANGLE = (30 * Math.PI) / 180;
 const SA = Math.sin(ANGLE), CA = Math.cos(ANGLE);
 const UNITS_ACROSS = 14;
 const TILT = 0.62;                             // caméra basse
 const VERT = 0.92;
-const ANCHOR = { x: 0.42, y: 0.72 };
+const ANCHOR = { x: 0.48, y: 0.65 };           // 0,72 → 0,65 (« monte la route au niveau des yeux, ~50 px »)
 export const ROWS_AHEAD = 24;
-export const ROWS_BEHIND = 9;
+export const ROWS_BEHIND = 13;
 const U_SPAN = 12;
 
 let W = 375, H = 812, K = 26.8;
@@ -149,7 +149,7 @@ export function rowDecor(ctx, r, clear) {
   const push = (u, v, draw) => out.push({ d: depth(u, v), draw });
   const sway = (k) => Math.sin(decorT * 1.6 + k) * 0.05;
   for (const side of [-1, 1]) {
-    const n = zone === "foret" ? 2 : zone === "prairie" ? 3 : 4;
+    const n = zone === "foret" ? 2 : zone === "prairie" ? 2 : 3; // allégé (« trop de trucs sur le côté »)
     for (let i = 0; i < n; i++) {
       const a = hash(r * 31 + i * 7 + side * 101);
       const b = hash(r * 17 + i * 5 + side * 53);

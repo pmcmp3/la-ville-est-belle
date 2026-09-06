@@ -339,12 +339,12 @@ function gagnerLait(u, v) {
   sfx.lait();
   vibrer(40);
   semerSparkles(u, v, 16, "#ffffff");
-  afficherBanner("TURBO LAIT !", null, JAUNE, 1.4);
+  afficherBanner("TURBO LAIT ! ×2 MÈTRES", null, JAUNE, 1.4);
   canvas.classList.add("turbo");
   // Pas d'obstacles pendant le turbo : la route devient sûre au-delà de
   // l'écran (les rangées déjà visibles sont couvertes par l'invulnérabilité).
   const r0 = Math.floor(player.v + 0.5) + iso.ROWS_AHEAD + 1;
-  rows.ouvrirFenetreSure(r0, r0 + Math.ceil(speed * 2 * (window.CONFIG.laitDureeS || 5)) + 12);
+  rows.ouvrirFenetreSure(r0, r0 + Math.ceil(speed * (window.CONFIG.laitVitesse || 1.2) * (window.CONFIG.laitDureeS || 5)) + 12);
 }
 function gagnerRouge(u, v) {
   sfx.rouge();
@@ -488,7 +488,7 @@ function step(dt) {
 
   // --- Avance ---
   speed += (targetSpeed(now) - speed) * Math.min(1, 3 * dt);
-  const vitesse = speed * (game.turbo > 0 ? 2 : 1) * slowMul;
+  const vitesse = speed * (game.turbo > 0 ? (window.CONFIG.laitVitesse || 1.2) : 1) * slowMul;
   if (now >= 0) {
     const dv = vitesse * dt;
     player.v += dv;

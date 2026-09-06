@@ -2310,5 +2310,18 @@ claire + deux ornières sombres sur toute la rangée (lignes continues, plus des
 **Pédalage** : hauteur du pied ~ cos, avance ~ sin (sens de la marche ; l'inverse « pédalait à
 l'envers »).
 
-**Reste à faire** : exécuter la migration ligues côté Supabase, service worker, réglage fin
-de la difficulté sur téléphone.
+**Troisième passe du 7 septembre 2026 (test WhatsApp)** : voies **+20 %** (`COL_W` 1,5,
+`ROAD_HALF` 2,25) ; route **plus haute** (`ANCHOR` 0,48 ; 0,65, `ROWS_BEHIND` 13 — « le bas de la
+route dans l'angle, monte-la au niveau des yeux ») ; peloton **espacé** (`SPACING` 1,5) ; **moins
+d'informations** : pièces sur 25 % des rangées sûres et jamais juste après un danger, plus de
+pièce sur une rangée d'obstacle, danger 10 % → 30 % (mesuré : 157 pièces et 130 dangers sur
+1 000 rangées, contre ~330 / ~250), toujours 3 rangées sûres entre deux dangers, décor 3 éléments
+par côté ; **vitesse** : `vitesseMax` 2,6 (au lieu de 3,6) et turbo lait **+20 %** de vitesse
+(`laitVitesse`, les mètres restent ×2) ; **clés de conversion propres au jeu 2**
+(`jaipMorceauOuvert`, `jaipPmcSuivi`, `jaipPlateformeAlbum`) : un joueur « libre » sur le premier
+jeu repasse par l'album ici ; écran de fin : « Au bout du morceau avec N potes ! » / « Tombé avant
+la fin du morceau ». Score max théorique recalculé : **≈ 12 600 m**. Migration SQL rendue
+idempotente (`drop policy if exists`) après une première exécution interrompue à mi-chemin.
+
+**Reste à faire** : relancer la migration ligues côté Supabase (idempotente), service worker,
+réglage fin de la difficulté sur téléphone.

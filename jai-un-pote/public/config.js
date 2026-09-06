@@ -37,7 +37,7 @@ window.CONFIG = {
   // Vitesse d'avance en rangées/seconde : 4,4 au départ → plafond 9,4 (Crossy
   // Road : 1 rangée = 1 unité). Doublement toutes les 70 s (main.js).
   vitesseBase: 1.7,
-  vitesseMax: 3.6,
+  vitesseMax: 2.6,          // 3,6 → 2,6 le 7 septembre 2026 (« quand ça va vite, ça va vraiment trop vite »)
 
   // === SAUT (tap) ===
   sautHauteur: 1.25,     // apex du saut (unités-monde) — passe au-dessus des poules et des bottes
@@ -68,7 +68,8 @@ window.CONFIG = {
   elanRechargeS: 2.5,       // 5 → 2,5 (« la barre doit se recharger beaucoup plus vite »)
   elanParPiece: 0.25,       // et chaque pièce recharge un quart
   piecesLogo: false,        // « mets juste des pièces jaunes pour l'instant, enlève les dessins »
-  laitDureeS: 5,            // brique de lait : ×2 sur la vitesse et les mètres pendant 5 s
+  laitDureeS: 5,            // brique de lait : ×2 sur les mètres pendant 5 s
+  laitVitesse: 1.2,         // et seulement +20 % de vitesse (« pas ×2, c'est n'importe quoi »)
   nuitDebutS: 95,           // la nuit tombe à partir de cet instant du morceau (30 s de transition)
   tutoParties: 2,           // tutoriel sur les deux premières parties
 

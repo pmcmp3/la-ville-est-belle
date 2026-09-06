@@ -1,4 +1,6 @@
 -- « J'ai un pote » — LIGUES entre potes (7 septembre 2026).
+-- Idempotent : peut être relancé sans erreur (drop policy if exists avant
+-- chaque create policy — la première exécution s'était arrêtée à mi-chemin).
 -- À exécuter une fois dans l'éditeur SQL du projet Supabase existant (le même
 -- que « La ville est belle »). Même philosophie que supabase-schema.sql :
 -- aucun anti-triche, RLS permissive (lecture + insertion publiques, jamais de
@@ -15,7 +17,9 @@ create table if not exists public.ligues (
   created_at timestamptz not null default now()
 );
 alter table public.ligues enable row level security;
+drop policy if exists "Lecture publique des ligues" on public.ligues;
 create policy "Lecture publique des ligues" on public.ligues for select to anon using (true);
+drop policy if exists "Creation publique d'une ligue" on public.ligues;
 create policy "Creation publique d'une ligue" on public.ligues for insert to anon with check (true);
 
 create table if not exists public.ligue_membres (
@@ -26,7 +30,9 @@ create table if not exists public.ligue_membres (
   unique (code, pseudo)
 );
 alter table public.ligue_membres enable row level security;
+drop policy if exists "Lecture publique des membres" on public.ligue_membres;
 create policy "Lecture publique des membres" on public.ligue_membres for select to anon using (true);
+drop policy if exists "Adhesion publique" on public.ligue_membres;
 create policy "Adhesion publique" on public.ligue_membres for insert to anon with check (true);
 create index if not exists ligue_membres_code_idx on public.ligue_membres (code, created_at);
 
@@ -51,7 +57,9 @@ create table if not exists public.ligue_scores (
   created_at timestamptz not null default now()
 );
 alter table public.ligue_scores enable row level security;
+drop policy if exists "Lecture publique des scores de ligue" on public.ligue_scores;
 create policy "Lecture publique des scores de ligue" on public.ligue_scores for select to anon using (true);
+drop policy if exists "Envoi public d'un score de ligue" on public.ligue_scores;
 create policy "Envoi public d'un score de ligue" on public.ligue_scores for insert to anon with check (true);
 create index if not exists ligue_scores_code_idx on public.ligue_scores (code, metres desc);
 

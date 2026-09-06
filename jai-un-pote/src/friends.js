@@ -13,7 +13,7 @@ import * as rows from "./rows.js";
 import { PALETTES } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 
-export const SPACING = 0.95;
+export const SPACING = 1.5;   // 0,95 → 1,5 (« beaucoup trop serré derrière moi, ça gêne la vue »)
 const LEAVE_S = 0.7;
 const ARRIVAL_S = 1.1;
 const LANE_TWEEN = 7;
