@@ -53,9 +53,9 @@ export function join(player) {
   const vivants = alive();
   if (vivants.length >= max()) return null;
   const slot = vivants.length;
-  let name = null, palette;
-  if (maxCount === 0 && nextPalette === 0) { name = "soberland"; palette = PALETTES.soberland; }
-  else palette = PALETTES.potes[nextPalette % PALETTES.potes.length];
+  const noms = window.CONFIG.potesNoms || ["soberland"];
+  const name = noms[nextPalette % noms.length];
+  const palette = nextPalette === 0 ? PALETTES.soberland : PALETTES.potes[(nextPalette - 1) % PALETTES.potes.length];
   nextPalette += 1;
   const side = slot % 2 ? 1 : -1;
   const pote = {

@@ -12,6 +12,8 @@ window.CONFIG = {
   premierTempsOffset: 0.04,
   dureeMorceau: 173.65,
   fichierAudio: "assets/jai-un-pote.mp3", // 96 kbps, 2,1 Mo (le 320 de l'EPK fait 6,9 Mo)
+  boucleMorceau: false,     // contre-la-montre : la fin du morceau = la fin de la partie (6 septembre 2026)
+  chargementMinS: 5,        // la barre de chargement dure au moins 5 s : tout est en cache avant JOUER (demandé)
   fonduEntree: 1.2,
   fonduSortie: 2.0,
   pauseFiltreHz: 800,
@@ -56,18 +58,25 @@ window.CONFIG = {
   // est plus long à gagner que le précédent). Le premier arrive vite (8
   // pièces) pour que le principe se comprenne dans les dix premières secondes.
   potesMax: 8,
-  potesPaliers: [8, 20, 34, 50, 68, 88, 110, 134],
+  potesPaliers: [5, 12, 20, 30, 42, 56, 72, 90],
+  // Prénoms des potes, dans l'ordre d'arrivée (Soberland en premier, verrouillé).
+  potesNoms: ["soberland", "jules", "oscar", "elliot", "nita", "pablo", "hermance", "kilian"],
 
   // === DOUBLE SAUT (6 septembre 2026) ===
   // Un second tap en l'air = salto. Il consomme la barre d'élan, qui se
   // recharge en `elanRechargeS` secondes — pas de double saut en continu.
-  elanRechargeS: 5,
+  elanRechargeS: 2.5,       // 5 → 2,5 (« la barre doit se recharger beaucoup plus vite »)
+  elanParPiece: 0.25,       // et chaque pièce recharge un quart
+  piecesLogo: false,        // « mets juste des pièces jaunes pour l'instant, enlève les dessins »
+  laitDureeS: 5,            // brique de lait : ×2 sur la vitesse et les mètres pendant 5 s
+  nuitDebutS: 95,           // la nuit tombe à partir de cet instant du morceau (30 s de transition)
+  tutoParties: 2,           // tutoriel sur les deux premières parties
 
   // === PANNEAUX DE VILLAGE (nom, département) ===
   villages: [
+    ["CYSOING", "59"],
     ["MOYENCOURT", "80"],
     ["LA FRETTE", "38"],
-    ["CYSOING", "59"],
     ["VAL-DE-VIRIEU", "38"],
     ["BIZONNES", "38"],
   ],

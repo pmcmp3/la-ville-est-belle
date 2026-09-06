@@ -2239,41 +2239,49 @@ navigateur Instagram verrouillé portrait).
 
 | Module | Rôle |
 |---|---|
-| `iso.js` | **Vue isométrique dimétrique 2:1** (troisième perspective du même jour, retour : « on n'a pas la perspective de Crossy Road, on a un entre-deux [...] baisse un peu la caméra ») : le monde est tourné de 45°, la route file vers le HAUT-DROITE de l'écran (« d'un point de vue de l'écran, il faut qu'il aille de gauche à droite » — d'abord posée vers la gauche, inversée le jour même), les traversants la coupent le long de l'autre diagonale ; la colonne de droite (u > 0) est en bas à droite à l'écran. `sx = ancre + (v−camV)·K + (u−camU)·K`, `sy = ancre − (v−u)·K·0,5 − h·K·0,95`. Le joueur est ancré en bas, un peu à gauche (0,44 ; 0,68), la caméra le suit en v et glisse un peu en u ; ~7 rangées de route visibles devant lui (`UNITS_ACROSS` 13 → K ≈ 29 px). Trois voies marquées par deux pointillés et un ton par voie. `drawBox()` = cube à 3 faces (dessus, gauche éclairée, droite sombre), `drawFlat()` = parallélogramme au sol. Ordre du peintre : profondeur **v − u** (plus grand = plus loin), décor de rangée compris (`rowDecor` renvoie des éléments triables). Pas de ciel : brume claire sur le haut de l'écran + lueur rose dans le coin haut-gauche. |
-| `rows.js` | Une rangée `r` (couvre `[r−0,5 ; r+0,5[`, `floor(v+0,5)`) = fonction pure de l'index + graine : `safe` (pièce 1 fois sur 2), `statique` (poule, mouton, botte, cochon, vache, fermier, voiture GARÉE, avion sur 2 colonnes — les animaux se balancent sur place) ou `traverse` (**seuls les TRACTEURS traversent**, 6 septembre 2026 : « les voitures qui traversent n'ont pas de sens, il n'y a pas de route [...] juste des tracteurs pour l'instant »). Densité **20 % → 50 % sur 1 200 rangées** (revue à la baisse : « beaucoup trop d'objets au mètre carré, trop difficile »), au moins 2 rangées sûres entre deux obstacles avant le tiers de la rampe, 1 ensuite. `checkMember(id, u, v, airborne, t)` résout pièces et chocs, une fois par instance. |
-| `props.js` | Les obstacles en cubes : tracteur (traversant), poule, mouton, cochon, vache, fermier (salopette, chapeau de paille, fourche), botte, voiture garée le long de la route, **avion redessiné** (fuselage le long de la route, ailes en travers de deux voies, dérive, hélice). |
-| `coin.js` | **La pièce à l'effigie de PMC** (« remplace les étoiles par des pièces avec le logo de moi en train de faire du vélo ») : disque doré qui tourne autour de son axe vertical, tranche visible de profil, pictogramme 15×11 du cycliste sur la face. Remplace `star3d.js` (supprimé). |
-| `input.js` | Swipe gauche/droite = colonne (un cran par contact), tap = saut (déclenché au RELÂCHER pour le distinguer d'un début de swipe), swipe haut = saut aussi. Clavier : flèches/QD, espace. |
-| `friends.js` | Peloton en **FILE INDIENNE** (6 septembre 2026, après une version « horde autour du joueur » le 4 : « il faudrait que les potes soient derrière moi comme un peloton [...] qu'ils passent exactement dans la même voie que moi ») : `SPACING` 0,95 rangée entre chaque, et chacun suit la TRACE du joueur (`recordPlayer` : échantillons (v, u) + marques de saut — il change de voie et saute là où le joueur l'a fait). Arrivée depuis le champ, sur le côté, en glissant vers la trace ; départ éjecté (les derniers de la file en premier). ⚠️ **Les potes ne prennent AUCUN dégât** (« les dégâts que tu prennes, ce soit toi et pas tes potes ») : seul le joueur touché perd `cout` potes ; `members()` ne sert qu'à leur faire ramasser les pièces. Premier pote = Soberland (étiquette). |
-| `voxrider.js` | Le cycliste en VRAIS cubes iso (`drawBox`) : roues, cadre, jambes en opposition, torse rayé, tête, cheveux, casquette/barbe — orienté comme la route quelle que soit la projection (retour : « mon joueur, il faut le redessiner, il va pas dans le bon sens »). `rider.js` ne sert plus qu'aux palettes (`PALETTES`). |
-| `hud.js`, `screens.js`, `index.html` | Mètres en serif, multiplicateur, rangée de 8 potes + jauge, décompte 3-2-1-GO, bandeaux ; menu à UN champ, carte de mort, tiroir album (mêmes clés localStorage que le premier jeu), fin, pause. |
+| `iso.js` | **Vue 3/4 tournée de 30°** (6 septembre 2026, quatrième perspective : « 0° ce serait Subway Surfers, 90° Zombie Tsunami, j'aimerais 30°, un peu plus vers la verticale pour qu'on voie plus loin » — remplace le 45° dimétrique de Crossy Road du 4 septembre). `x' = u·cos30 + v·sin30`, `y' = −u·sin30 + v·cos30`, `sx = ancre + x'·K`, `sy = ancre − y'·K·0,62 − h·K·0,92`. La route file vers le haut-droite, plus dressée ; ~20 rangées visibles devant (`ROWS_AHEAD` 24, `UNITS_ACROSS` 14). Ordre du peintre : profondeur = `y'`. `drawBox()` = cube 3 faces, `drawFlat()`, `drawShadow()`. **Nuit** (`setNight`, 0..1) : sol et cubes assombris (`nightShade`), brume qui vire au bleu nuit, étoiles, lampadaires à GAUCHE de la route (tous les 6 rangées) qui s'allument, halos peints par main.js (`lampsIn`). **Boue** : `renderRow(ctx, r, boue)` peint une flaque brune sur la voie boueuse. `rowDecor(ctx, r, clear)` : `clear` vide le décor des rangées traversées (« pas d'arbres sur le trajet du tracteur »). Panneaux de village `drawSign(ctx, r, village)` **à GAUCHE**, 30 % plus grands, Cysoing en premier (ordre de `config.villages`). |
+| `rows.js` | Une rangée `r` = fonction pure de l'index + graine, SAUF l'armement des traversées : `safe` (pièce 40 %, ou brique de LAIT tous les 48 rangées, ou pièce ROUGE tous les 70, ou flaque de BOUE de 3 rangées sur une voie), `statique` (poule, chat, chien, mouton, botte, cochon, vache, fermier, voiture garée) ou `traverse` (**tracteur** ou **poule lancée** par un fermier au bord). ⚠️ **Traversée ARMÉE sur le passage du joueur** (6 septembre : « il faut vraiment qu'il traverse quand on est là ») : `armer(row, now, tArrivee)` est appelé par main.js 2,6 s avant l'arrivée prévue du joueur (`armerTraversees`, à la vitesse EFFECTIVE, turbo compris) ; le traversant part hors champ (±(ROAD_HALF+6)) et vise une colonne `cible` à l'instant où le joueur franchit la rangée (vitesse bornée 1,8..9). Mesuré headless : écart ≤ 1,8 unité sur la voie visée. La boue (vitesse ×0,5) désynchronise volontairement. Densité 18 % → 42 % sur 1 000 rangées. `checkMember` émet `piece` / `lait` / `rouge` / `obstacle`. |
+| `props.js` | Obstacles en cubes. Tracteur avec **poussière** derrière et **phares** la nuit ; `drawLanceur()` = fermier au bord qui tient une poule puis la lance (`poulelancee`, vol en arc, se saute) ; chats gris/blanc/noir et chiens brun foncé/noir (« trop proches des pièces » en orange/fauve). |
+| `coin.js` | Pièce **jaune unie** (`config.piecesLogo` false : « enlève les dessins pour l'instant » — le pictogramme reste dans le code) ; `drawCoin(ctx, R, spin, rouge)` : la pièce ROUGE a un halo « soleil » et vaut un pote direct. |
+| `sfx.js` | **Bruitages synthétisés** (aucun fichier) sur le contexte du morceau via `audio.sfxOutput()` (derrière le curseur de volume) : pièce, pote qui arrive (bruit d'herbe filtré + montée), pote perdu, saut, salto, klaxon du tracteur (à l'armement), lait, pièce rouge, fin. Gains 0,04–0,12 : sous l'instrumental. |
+| `input.js` | Swipe gauche/droite = colonne, tap = saut au RELÂCHER, swipe haut = saut. ⚠️ **En l'air, le tap part au TOUCHER** (`setAirborne`, « le double saut n'a pas marché ») : zéro latence pour le salto. |
+| `friends.js` | File indienne derrière le joueur (trace + marques de saut, `SPACING` 0,95), aucun dégât pour les potes. Prénoms `config.potesNoms` dans l'ordre : soberland, jules, oscar, elliot, nita, pablo, hermance, kilian. |
+| `voxrider.js` | Cycliste en cubes. **Salto = vraie rotation à l'écran** (`ctx.rotate` autour du centre du vélo, un tour en 0,5 s) + traînée fantôme (`ghosts`, main.js) — l'ancienne version déplaçait les cubes sur un cercle, illisible. |
+| `hud.js` | **Bandeau sombre** derrière le HUD (illisible sur le fond clair sinon), mètres, **chrono** du contre-la-montre (rouge sous 10 s), pastille ×N (+ « TURBO »), potes + jauge « PROCHAIN POTE : N PIÈCES », barre « SALTO PRÊT », `renderTuto`, `renderTurbo` (flou de vitesse : bandes + traits sur les côtés ; couleurs saturées par CSS `canvas.turbo`), `renderFin` (« TERMINÉ ! »). Plus de `shadowBlur` (cher sur mobile) : contours par `strokeText`. |
+| `screens.js`, `index.html` | Chargement ≥ `config.chargementMinS` (5 s) de 0 à 100 % avec étapes nommées, jamais au-delà du réel (morceau 70 % + préchauffage 30 %, `setPrechauffage`) ; compteur `jaipParties` (tuto) ; écran de fin : sticker « Nouveau record » en haut à droite de la carte, en-tête « Course terminée » / « Ta course », « Tu n'as pas eu de potes sur cette partie ? Tu prends des pièces pour les appeler. », crédit « J'ai un pote, composé par PMC MP3 » (lien Instagram). |
 
-**Règles (config.js, 6 septembre 2026)** : score = **mètres** (1 rangée = 1 m) × (1 + 0,25 × potes) ;
-vitesse 4,4 rangées/s → 9,4 (doublement 70 s) ; chaque PIÈCE = +4 m × multiplicateur ET un pas
-vers le prochain pote : les potes arrivent aux paliers CROISSANTS `potesPaliers` **en pièces**
-(8, 20, 34, 50, 68, 88, 110, 134 — le premier en ~5 s pour que le principe se lise tout de
-suite ; la jauge du HUD dit « PROCHAIN POTE : N PIÈCES »). Poule/chat/chien/mouton/botte se
-sautent (coût 1), cochon/vache/fermier/voiture garée coûtent 2, tracteur 3. **Seul, un obstacle
-tue** ; seconde chance = 2 potes de retour. **Double saut** : un second tap en l'air = salto
-(`voxrider` tourne autour de l'axe latéral), consomme la barre d'ÉLAN (HUD, à droite de pause)
-qui se recharge en `elanRechargeS` = 5 s. Étincelles au ramassage. Bandeaux en HAUT de l'écran
-(0,15 H). Biomes tranchés tous les 55 rangées (blé, prairie à fleurs, tournesols, forêt de
-sapins, vignes), décor qui oscille (`setDecorTime`). Pas de Supabase en V1, record local.
+**Règles (config.js, 6 septembre 2026)** : ⚠️ **CONTRE-LA-MONTRE** : la course dure le morceau
+(`dureeMorceau` 173,65 s, `boucleMorceau: false` — audio.js ne boucle plus), sa fin = « TERMINÉ ! »
+(roue libre 1,5 s, accord, écran de fin « Course terminée »), sauf mort avant. Score = mètres ×
+(1 + 0,25 × potes) × (2 sous turbo) ; vitesse 4,4 → 9,4 rangées/s (doublement 70 s) ; pièce =
++4 m × mult ET un pas vers le prochain pote, paliers `potesPaliers` **5, 12, 20, 30, 42, 56, 72,
+90** pièces (« mets les potes plus faciles ») ; **pièce rouge** = un pote direct (+40 m × mult si
+le peloton est plein) ; **brique de lait** = 5 s à ×2 vitesse et ×2 mètres, flou latéral,
+couleurs saturées ; **boue** = voie à ×0,5 au sol (on la saute) ; **élan** du salto : recharge
+en 2,5 s + 0,25 par pièce (`elanParPiece`). **Nuit** à partir de `nuitDebutS` = 95 s (30 s de
+transition). **Tutoriel** sur les `tutoParties` = 2 premières parties : 4 consignes au tout
+début (swipe, tap, re-tap, pièces), validées par le geste ou passées après 6 s. Vibrations
+Android (`navigator.vibrate` : pote, perte, mort, salto, lait) — **rien sur iPhone**, Safari
+n'expose pas l'API. **Score max théorique** (simulation Node sur 40 graines, run parfait :
+toutes les pièces, tous les laits, jamais un pote perdu) ≈ **31 600 m** ; un joueur réel qui
+garde ses 8 potes fait ~10 000–15 000 m.
 
-**Morceau** : « J'ai un pote », 85 BPM mesurés sur le master (librosa, résidu 43 ms), premier
-temps à 0,04 s, MP3 96 kbps (2,1 Mo). Boucle de mort = 16 temps = 11,294 s. ⚠️ Les traversants
-ne sont PAS calés sur le tempo (positions en fonction du temps continu) — seuls le décompte et
-le GO le sont.
+**Morceau** : « J'ai un pote », 85 BPM, premier temps à 0,04 s, MP3 96 kbps (2,1 Mo). Boucle de
+mort = 16 temps = 11,294 s. Les traversants sont calés sur le JOUEUR, pas sur le tempo.
 
-**Menu** réduit au strict (retour : « enlève étoile, pote, obstacle et tout ») : le titre, le champ, une phrase — « Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement. » **Écran de fin** : « Record : N potes avec toi ». **Tiroir album** unifié (6 septembre 2026) pour les trois entrées (mort, REJOUER, ÉCOUTER L'ALBUM) : titre « Ajoute l'album à ta bibliothèque pour continuer la partie / pour rejouer », cinq liens de la même taille sans « préféré », un bouton FERMER pleine largeur, plus de ligne de geste. ⚠️ Ce wording est celui que CLAUDE.md déconseille (clause Spotify sur la contrepartie) — demandé explicitement par l'artiste, risque signalé. **`?zero`** dans l'URL (les deux jeux, même origine) efface TOUT le localStorage : pseudo, insta, parties, conversion, record — « comme si je n'avais jamais joué ».
+**Menu** : titre, champ, une phrase. **Tiroir album** unifié (mort, REJOUER, ÉCOUTER L'ALBUM).
+**`?zero`** efface tout le localStorage (les deux jeux). Touches de debug avec `?debug` : **P**
++1 pote, **O** −1, **G** mourir, **I** invincible, **L** turbo lait, **N** nuit, **F** fin du
+morceau ; `window.__pote` expose player/game/rows/friends/clock aux scripts headless.
 
-**Pièges déjà vus** : un `MutationObserver` sur `disabled` du bouton JOUER qui se redéclenchait
-lui-même a gelé la page (supprimé) ; l'ordre du peintre trie sur le bord PROCHE de l'empreinte
-(`r − larg/2`), sinon un piano se peignait par-dessus le joueur qui venait d'entrer dedans.
-Touches de debug avec `?debug` : **P** = +1 pote, **O** = −1 pote, **G** = mourir, **I** =
-invincible (pour filmer une longue course). Caméra reculée le 6 septembre (`UNITS_ACROSS` 15). Captures headless via Playwright + Google Chrome
-installé (`channel="chrome"`), voir la trente-et-unième passe.
+**Mobile** : DPR plafonné à 1,5 sous 600 px, pas de `shadowBlur`, décor 4 éléments par côté et
+par rangée, préchauffage pendant le chargement (`prechauffer()` : 400 rangées hachées, chaque
+prop et chaque cycliste dessinés une fois hors écran).
 
-**Reste à faire** : réglage de la difficulté sur téléphone (vitesse, période des traversées,
-paliers), Supabase (tables dans le projet existant), lien entre joueurs, sons de saut/impact,
-service worker, et un soupçon d'animation sur le joueur au changement de colonne.
+**Pièges déjà vus** : `MutationObserver` sur `disabled` (gelait la page) ; ordre du peintre sur
+le bord proche ; `window.CONFIG` est GELÉ (les touches de debug passent par des variables
+locales). Captures headless via Playwright + Google Chrome (`channel="chrome"`), scripts
+`pote-v6/v7/v8.py` dans le scratchpad de session.
+
+**Reste à faire** : défi entre amis (après tuto + chargement, demandé), Supabase (tables dans le
+projet existant), service worker, réglage fin de la difficulté sur téléphone.

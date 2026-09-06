@@ -326,7 +326,9 @@ function playNow(offset = 0) {
   const mesure = beatPeriod * 4;
   const longueurBoucle = Math.max(mesure,
     Math.floor((buffer.duration - debutBoucle) / mesure) * mesure);
-  sourceNode.loop = true;
+  // « J'ai un pote » est un contre-la-montre : le morceau ne boucle PAS, sa fin
+  // termine la partie (config.boucleMorceau, 6 septembre 2026).
+  sourceNode.loop = window.CONFIG.boucleMorceau !== false;
   sourceNode.loopStart = debutBoucle;
   sourceNode.loopEnd = debutBoucle + longueurBoucle;
   // L'offset de LECTURE est replié dans la boucle si la course a dépassé la
@@ -882,4 +884,14 @@ export function setPlaybackMode(next) {
 
   rampFocus(1);
   rampFilter(FILTRE_OUVERT_HZ);
+}
+
+
+// --- Sortie pour les bruitages (sfx.js, 6 septembre 2026) --------------------
+// Le contexte et le nœud de volume, uniquement quand le son tourne vraiment :
+// les bruitages passent par volumeGain (donc le curseur du joueur), jamais par
+// les fondus de pause du morceau.
+export function sfxOutput() {
+  if (!audioCtx || audioCtx.state !== "running") return null;
+  return { ctx: audioCtx, dest: volumeGain || audioCtx.destination };
 }

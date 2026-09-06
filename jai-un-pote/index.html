@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" href="../favicon.png" />
   <title>J'ai un pote — PMC</title>
   <meta property="og:title" content="J'ai un pote — le jeu" />
-  <meta property="og:description" content="Pédale sur la route de campagne, ramasse des étoiles, gagne des potes. Va le plus loin possible avec le plus de potes." />
+  <meta property="og:description" content="Pédale sur la route de campagne le temps du morceau, ramasse des pièces, appelle tes potes. Le plus loin possible, avec le plus de potes." />
   <meta property="og:image" content="https://la-ville-est-belle-pmc.fr/assets/cover-ep-og.jpg" />
   <style>
     /* Même DA que « La ville est belle » depuis le 4 septembre 2026 : l'e-card
@@ -45,6 +45,7 @@
     #game-canvas { display: block; width: 100%; height: 100%; transition: filter 0.6s ease; }
     #game-canvas.game-over-bw { filter: grayscale(1); }
     #game-canvas.danger { animation: canvas-danger 4s ease-in-out infinite; }
+    #game-canvas.turbo { filter: saturate(1.7) contrast(1.06); }
     @keyframes canvas-danger { 0%, 15%, 100% { filter: grayscale(0); } 7.5% { filter: grayscale(0.8); } }
 
     #vignette {
@@ -164,7 +165,15 @@
     #score-num { font: 900 58px/0.9 var(--titre); color: var(--noir); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block; }
     #score-num small { font: 700 16px var(--police); letter-spacing: 0.06em; margin-left: 4px; }
     #end-sub { margin: 10px 0 0; font: 500 13px/1.45 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
-    #end-best { margin: 6px 0 0; font: 700 11px var(--police); letter-spacing: 0.1em; text-transform: uppercase; color: var(--rouge); text-align: center; }
+    /* « Nouveau record » : sticker en haut à droite de la carte (6 septembre 2026). */
+    #end-best {
+      position: absolute; top: 22px; right: -16px; margin: 0; padding: 6px 10px;
+      transform: rotate(8deg); background: var(--rouge); color: var(--blanc); border-radius: 2px;
+      font: 900 10.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+    }
+    #end-credit { margin: 12px 0 0; font: 500 11px/1.4 var(--police); color: rgba(0,0,0,0.6); text-align: center; text-wrap: balance; }
+    #end-credit a { color: var(--rouge); font-weight: 900; text-decoration: none; }
     #end-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
     #end-note { margin: 10px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
     #end-note a { color: var(--rouge); font-weight: 900; text-decoration: none; }
@@ -284,10 +293,10 @@
       <div class="panel">
         <div class="panel-header"><p class="step-eyebrow" id="end-eyebrow">Ta course</p></div>
         <div class="panel-body">
+          <p id="end-best" class="hidden">Nouveau record</p>
           <div id="end-hero">
             <div id="score-num"><span id="score-val">0</span><small>m</small></div>
             <p id="end-sub"></p>
-            <p id="end-best" class="hidden">Nouveau record</p>
           </div>
           <div id="end-actions">
             <button id="replay-button" class="btn btn-primary" type="button">Rejouer</button>
@@ -296,7 +305,8 @@
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
           </div>
-          <p id="end-note">Le morceau, c'est <a id="insta-link" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
+          <p id="end-credit">J'ai un pote, composé par <a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">PMC MP3</a></p>
+          <a id="insta-link" href="#" class="hidden" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
         </div>
       </div>
     </div>

@@ -1,53 +1,51 @@
-// iso.js — Vue ISOMÉTRIQUE façon Crossy Road (troisième perspective du
-// 4 septembre 2026, retour : « on n'a pas la perspective de Crossy Road, on a
-// un entre-deux [...] j'aimerais vraiment une carte comme Crossy Road, tout
-// en semi-3D »). Projection dimétrique 2:1, le monde tourné de 45° : la
-// route file vers le HAUT-GAUCHE de l'écran, les traversants la coupent le
-// long de l'autre diagonale (bas-gauche → haut-droite). Chaque objet est un
-// cube à trois faces visibles : dessus, face gauche, face droite.
+// iso.js — Vue 3/4 du dessus en cubes, monde tourné de ANGLE degrés
+// (6 septembre 2026 : « 0° ce serait Subway Surfers, 90° Zombie Tsunami,
+// j'aimerais 30°, un peu plus vers la verticale pour qu'on voie plus loin »).
+// Le 45° de Crossy Road du 4 septembre est remplacé par 30° : la route file
+// vers le haut-droite, plus dressée, ~20 rangées visibles devant le joueur.
 //
-//   sx = ancre.x + (v − camV)·K + (u − camU)·K
-//   sy = ancre.y − (v − camV)·K·ISO + (u − camU)·K·ISO − h·K·VERT
+//   x' = u·cos + v·sin        y' = −u·sin + v·cos        (plan du sol tourné)
+//   sx = ancre.x + x'·K       sy = ancre.y − y'·K·TILT − h·K·VERT
 //
-// ⚠️ Sens inversé le jour même (« d'un point de vue de l'écran, il faut
-// qu'il aille de gauche à droite ») : la route file vers le HAUT-DROITE, la
-// colonne de droite (u > 0) est en bas à droite à l'écran — la droite du
-// joueur qui regarde devant lui. La caméra suit le joueur, ancré en bas à
-// gauche. Ordre du peintre : profondeur = v − u (le plus grand = le plus
-// loin), dessiné en premier.
+// Ordre du peintre : profondeur = y' (plus grand = plus loin). Cubes à trois
+// faces visibles : dessus, face v_min (éclairée), face u_max (dans l'ombre).
 
 import { shade } from "./voxel.js";
 
 export const COLS = 3;
 export const COL_W = 1.25;
 export const ROAD_HALF = (COLS * COL_W) / 2;   // 1,875
-const UNITS_ACROSS = 15;                       // K = largeur d'écran / ceci — 13 → 15 le 6 septembre (« recule un peu la caméra »)
-const ISO = 0.5;                               // 2:1 — « baisse un peu la caméra » : 0,5 au lieu de 0,58
-const VERT = 0.95;                             // hauteur des cubes (caméra basse = faces hautes)
-const ANCHOR = { x: 0.44, y: 0.68 };           // joueur en bas, un peu à gauche : la horde derrière lui reste dans l'écran, ~7 rangées devant
-export const ROWS_AHEAD = 15;
-export const ROWS_BEHIND = 10;
-const U_SPAN = 11;                              // demi-largeur de monde dessinée en u
+const ANGLE = (30 * Math.PI) / 180;
+const SA = Math.sin(ANGLE), CA = Math.cos(ANGLE);
+const UNITS_ACROSS = 14;
+const TILT = 0.62;                             // caméra basse
+const VERT = 0.92;
+const ANCHOR = { x: 0.42, y: 0.72 };
+export const ROWS_AHEAD = 24;
+export const ROWS_BEHIND = 9;
+const U_SPAN = 12;
 
-let W = 375, H = 812, K = 32.6;
+let W = 375, H = 812, K = 26.8;
 let camV = 0, camU = 0;
+let night = 0;    // 0 = jour, 1 = nuit
+let decorT = 0;
 
 export function setViewport(width, height) { W = width; H = height; K = width / UNITS_ACROSS; }
 export function setCamera(v, u = 0) { camV = v; camU = u; }
+export function setNight(n) { night = Math.max(0, Math.min(1, n)); }
+export function getNight() { return night; }
+export function setDecorTime(t) { decorT = t; }
 export function getCamV() { return camV; }
 export function scale() { return K; }
 export function colU(c) { return (c - (COLS - 1) / 2) * COL_W; }
 
 export function project(u, v, h = 0) {
   const du = u - camU, dv = v - camV;
-  return {
-    x: W * ANCHOR.x + dv * K + du * K,
-    y: H * ANCHOR.y - dv * K * ISO + du * K * ISO - h * K * VERT,
-  };
+  const xp = du * CA + dv * SA;
+  const yp = -du * SA + dv * CA;
+  return { x: W * ANCHOR.x + xp * K, y: H * ANCHOR.y - yp * K * TILT - h * K * VERT };
 }
-
-// Profondeur pour l'ordre du peintre (plus grand = plus loin de la caméra).
-export function depth(u, v) { return v - u; }
+export function depth(u, v) { return -u * SA + v * CA; }
 
 function poly(ctx, pts, color) {
   ctx.fillStyle = color;
@@ -58,29 +56,27 @@ function poly(ctx, pts, color) {
   ctx.fill();
 }
 
-// Cube posé au sol : empreinte (u, v) → (u+du, v+dv), hauteur h, surélevé de
-// `lift`. Faces visibles : celle qui regarde le bas-gauche (v = v_min,
-// éclairée), celle qui regarde le bas-droite (u = u_max, dans l'ombre), et
-// le dessus (le plus clair). Même vocabulaire que Crossy.
+// Assombrissement de nuit appliqué aux couleurs des cubes et du sol.
+function nightShade(color) { return night > 0.02 ? shade(color, -Math.round(48 * night)) : color; }
+
 export function drawBox(ctx, u, v, du, dv, h, color, lift = 0) {
+  const col = nightShade(color);
   const A = project(u, v, lift), B = project(u + du, v, lift), C = project(u + du, v + dv, lift);
   const A2 = project(u, v, lift + h), B2 = project(u + du, v, lift + h);
   const C2 = project(u + du, v + dv, lift + h), D2 = project(u, v + dv, lift + h);
-  poly(ctx, [A, B, B2, A2], shade(color, -14));     // face avant-gauche (le long de u, en v_min)
-  poly(ctx, [B, C, C2, B2], shade(color, -40));     // face avant-droite (le long de v, en u_max)
-  poly(ctx, [A2, B2, C2, D2], shade(color, 24));    // dessus
+  poly(ctx, [A, B, B2, A2], shade(col, -14));
+  poly(ctx, [B, C, C2, B2], shade(col, -40));
+  poly(ctx, [A2, B2, C2, D2], shade(col, 24));
 }
 
-// Aplat au sol : parallélogramme.
-export function drawFlat(ctx, u, v, du, dv, color) {
-  poly(ctx, [project(u, v), project(u + du, v), project(u + du, v + dv), project(u, v + dv)], color);
+export function drawFlat(ctx, u, v, du, dv, color, raw = false) {
+  poly(ctx, [project(u, v), project(u + du, v), project(u + du, v + dv), project(u, v + dv)], raw ? color : nightShade(color));
 }
 
-// Ombre au sol : losange translucide de demi-côtés ru, rv, centré en (u, v).
 export function drawShadow(ctx, u, v, ru, rv, alpha = 0.26) {
   ctx.save();
   ctx.globalAlpha = alpha;
-  drawFlat(ctx, u - ru, v - rv, ru * 2, rv * 2, "#000");
+  drawFlat(ctx, u - ru, v - rv, ru * 2, rv * 2, "#000", true);
   ctx.restore();
 }
 
@@ -89,26 +85,25 @@ const GRASS = ["#6f8f34", "#66852f"];
 const DIRT = "#9a7a4e";
 const ROAD = ["#4b4743", "#565250"];
 const LINE = "#f2ead8";
+const MUD = "#5a3f22";
 const HAZE = "#f1d9b3";
+const HAZE_NIGHT = "#1a2244";
 
 function hash(n) {
   const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
 }
 
-// Biomes TRANCHÉS (6 septembre 2026 : « d'un seul coup on passe dans un
-// champ, après c'est vraiment la prairie, comme Minecraft ») : blé, prairie,
-// tournesols, forêt, vignes — 55 rangées chacun, changement net.
+// Biomes TRANCHÉS (« d'un seul coup on passe dans un champ, après la prairie,
+// comme Minecraft ») : 55 rangées chacun, changement net.
 const ZONE_ROWS = 55;
 const ZONES = ["ble", "prairie", "tournesol", "foret", "vigne"];
-function zoneAt(r) { return ZONES[Math.floor(Math.max(0, r) / ZONE_ROWS) % ZONES.length]; }
+export function zoneAt(r) { return ZONES[Math.floor(Math.max(0, r) / ZONE_ROWS) % ZONES.length]; }
 const SOIL = { ble: "#c9a648", prairie: "#7aa63c", tournesol: "#6f8c2f", foret: "#3f5a2a", vigne: "#8a6a45" };
 const GRASS_BY_ZONE = { ble: null, prairie: "#7aa63c", tournesol: null, foret: "#4a6a30", vigne: null };
-let decorT = 0; // temps pour le balancement du décor
-export function setDecorTime(t) { decorT = t; }
 
-// Une rangée r couvre v ∈ [r − 0,5 ; r + 0,5[ sur toute la largeur.
-function renderRow(ctx, r) {
+// Une rangée r couvre v ∈ [r − 0,5 ; r + 0,5[. `boue` = colonne boueuse.
+function renderRow(ctx, r, boue) {
   const v = r - 0.5;
   const zone = zoneAt(r);
   const g = GRASS_BY_ZONE[zone] ? shade(GRASS_BY_ZONE[zone], r % 2 ? -4 : 0) : GRASS[((r % 2) + 2) % 2];
@@ -120,11 +115,14 @@ function renderRow(ctx, r) {
   drawFlat(ctx, ROAD_HALF, v, 0.9, 1, g);
   drawFlat(ctx, -ROAD_HALF - 0.22, v, 0.22, 1, DIRT);
   drawFlat(ctx, ROAD_HALF, v, 0.22, 1, DIRT);
-  // Trois voies lisibles (retour : « faut bien qu'on voie qu'il y a trois
-  // voies ») : chaque voie a son ton, et deux pointillés les séparent.
   for (let c = 0; c < COLS; c++) {
     const tone = ((r % 2) + 2) % 2 === 0 ? ROAD[c % 2] : ROAD[(c + 1) % 2];
     drawFlat(ctx, -ROAD_HALF + c * COL_W, v, COL_W, 1, tone);
+  }
+  if (boue !== null && boue !== undefined) {
+    // Flaque de boue sur une voie : brune, bords irréguliers (deux flats).
+    drawFlat(ctx, -ROAD_HALF + boue * COL_W + 0.1, v + 0.05, COL_W - 0.2, 0.9, MUD);
+    drawFlat(ctx, -ROAD_HALF + boue * COL_W + 0.3, v + 0.25, COL_W - 0.6, 0.5, shade(MUD, 12));
   }
   if (r % 2 === 0) {
     drawFlat(ctx, -COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);
@@ -132,14 +130,17 @@ function renderRow(ctx, r) {
   }
 }
 
-// Décor d'une rangée, renvoyé comme éléments à trier (ils ont une profondeur).
-export function rowDecor(ctx, r) {
+// Décor d'une rangée : éléments triables. `clear` = rangée traversée par un
+// tracteur ou une poule lancée : rien sur la trajectoire (« il faut qu'il n'y
+// ait pas d'arbres sur son trajet »).
+export function rowDecor(ctx, r, clear) {
   const out = [];
+  if (clear) return out;
   const zone = zoneAt(r);
   const push = (u, v, draw) => out.push({ d: depth(u, v), draw });
-  const sway = (k) => Math.sin(decorT * 1.6 + k) * 0.05; // brise : le haut des plantes oscille
+  const sway = (k) => Math.sin(decorT * 1.6 + k) * 0.05;
   for (const side of [-1, 1]) {
-    const n = zone === "foret" ? 2 : zone === "prairie" ? 3 : 5;
+    const n = zone === "foret" ? 2 : zone === "prairie" ? 3 : 4;
     for (let i = 0; i < n; i++) {
       const a = hash(r * 31 + i * 7 + side * 101);
       const b = hash(r * 17 + i * 5 + side * 53);
@@ -153,23 +154,30 @@ export function rowDecor(ctx, r) {
       } else if (zone === "vigne") {
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15 + sw, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
       } else if (zone === "prairie") {
-        // Fleurs des champs, pâquerettes et boutons d'or, tout petits.
         const fl = a < 0.5 ? "#ffffff" : "#ffcf2e";
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.05, v + 0.05, 0.06, 0.06, 0.3, "#4f7a2a"); drawBox(ctx, u + sw, v, 0.16, 0.16, 0.1, fl, 0.3); });
       } else {
-        // Forêt : sapins près de la route.
         const h = 1.4 + a * 1.2;
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.15, v + 0.15, 0.2, 0.2, 0.5, "#5c4a3a"); drawBox(ctx, u - 0.2 + sw * 0.5, v - 0.2, 0.9, 0.9, h * 0.5, "#2f6a2a", 0.5); drawBox(ctx, u + sw, v, 0.5, 0.5, h * 0.45, "#3a7a33", 0.5 + h * 0.5); });
       }
     }
     if ((r + (side > 0 ? 1 : 0)) % 2 === 0) {
       const a = hash(r * 13 + side * 7);
-      const u = side * (ROAD_HALF + 6.2 + a * 0.8), v = r - 0.4, k = r * 2.3 + side * 5;
+      const u = side * (ROAD_HALF + 6.6 + a * 0.8), v = r - 0.4, k = r * 2.3 + side * 5;
       push(u, v, () => { const sw = sway(k) * 1.4; drawBox(ctx, u, v, 0.3, 0.3, 0.7, "#5c4a3a"); drawBox(ctx, u - 0.35 + sw, v - 0.3 + sw * 0.4, 1.0, 0.9, 1.1 + a * 0.6, "#2f6a2a", 0.7); });
     }
+    // Poteaux électriques à droite, lampadaires à gauche (allumés la nuit).
     if (side > 0 && r % 5 === 0 && zone !== "foret") {
       const u = ROAD_HALF + 0.45, v = r - 0.1;
       push(u, v, () => { drawBox(ctx, u, v, 0.14, 0.14, 2.6, "#5c4a3a"); drawBox(ctx, u - 0.4, v + 0.02, 0.95, 0.1, 0.1, "#3a2e24", 2.35); });
+    }
+    if (side < 0 && r % 6 === 3) {
+      const u = -ROAD_HALF - 0.45, v = r - 0.1;
+      push(u, v, () => {
+        drawBox(ctx, u, v, 0.12, 0.12, 2.2, "#3a3a40");
+        drawBox(ctx, u - 0.05, v - 0.05, 0.4, 0.22, 0.14, "#3a3a40", 2.2);
+        drawBox(ctx, u + 0.02, v + 0.02, 0.3, 0.16, 0.06, night > 0.2 ? "#fff1b0" : "#c8c4b8", 2.14);
+      });
     }
     if (hash(r * 41 + side) < 0.12 && zone !== "foret") {
       const u = side * (ROAD_HALF + 0.35) - (side < 0 ? 0.5 : 0), v = r - 0.25;
@@ -179,23 +187,32 @@ export function rowDecor(ctx, r) {
   return out;
 }
 
-// Panneau de village : poteau + plaque, texte en étiquette écran au-dessus.
-export function drawSign(ctx, r, side, village) {
+// Lampadaires visibles (halos peints par-dessus la nuit, main.js).
+export function lampsIn(from, to) {
+  const out = [];
+  for (let r = from; r <= to; r++) if (r % 6 === 3) out.push({ u: -ROAD_HALF - 0.45 + 0.17, v: r - 0.1 + 0.05, h: 2.2 });
+  return out;
+}
+
+// Panneau de village, côté GAUCHE, ~30 % plus grand : poteau, plaque à
+// liseré rouge, nom en capitales, département dessous.
+export function drawSign(ctx, r, village) {
   const [nom, dep] = village;
-  const u = side * (ROAD_HALF + 0.5), v = r - 0.1;
-  drawBox(ctx, u - 0.06, v, 0.12, 0.12, 1.3, "#8a8d98");
-  drawBox(ctx, u - 0.8, v, 1.6, 0.1, 0.55, "#e13e26", 1.3);
-  const p = project(u, v + 0.05, 1.58);
-  const wpx = 1.5 * K, hpx = 0.42 * K;
+  const u = -ROAD_HALF - 0.6, v = r - 0.1;
+  drawBox(ctx, u - 0.07, v, 0.14, 0.14, 1.5, "#8a8d98");
+  const w = 2.3, hb = 0.85;
+  drawBox(ctx, u - w / 2, v, w, 0.1, hb, "#e13e26", 1.5);
+  const p = project(u, v + 0.06, 1.5 + hb / 2);
+  const wpx = (w - 0.16) * K, hpx = (hb - 0.16) * K * VERT;
   ctx.fillStyle = "#f7f2e6";
   ctx.fillRect(p.x - wpx / 2, p.y - hpx / 2, wpx, hpx);
   ctx.fillStyle = "#0d0d10";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `900 ${Math.max(6, K * 0.2)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(nom, p.x, p.y - hpx * 0.18);
-  ctx.font = `500 ${Math.max(5, K * 0.13)}px "Stage Grotesk", system-ui, sans-serif`;
-  ctx.fillText(`(${dep})`, p.x, p.y + hpx * 0.26);
+  ctx.font = `900 ${Math.max(7, K * 0.3)}px "Stage Grotesk", system-ui, sans-serif`;
+  ctx.fillText(nom, p.x, p.y - hpx * 0.16);
+  ctx.font = `500 ${Math.max(6, K * 0.18)}px "Stage Grotesk", system-ui, sans-serif`;
+  ctx.fillText(`(${dep})`, p.x, p.y + hpx * 0.3);
 }
 
 export function rowRange() {
@@ -203,27 +220,43 @@ export function rowRange() {
   return { from: r0, to: r0 + ROWS_BEHIND + ROWS_AHEAD };
 }
 
-// Fond + sol de toutes les rangées visibles.
-export function renderGround(ctx) {
-  ctx.fillStyle = HAZE;
+function mix(a, b, t) {
+  const A = [parseInt(a.slice(1, 3), 16), parseInt(a.slice(3, 5), 16), parseInt(a.slice(5, 7), 16)];
+  const B = [parseInt(b.slice(1, 3), 16), parseInt(b.slice(3, 5), 16), parseInt(b.slice(5, 7), 16)];
+  return [Math.round(A[0] + (B[0] - A[0]) * t), Math.round(A[1] + (B[1] - A[1]) * t), Math.round(A[2] + (B[2] - A[2]) * t)];
+}
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+export function renderGround(ctx, boueAt) {
+  ctx.fillStyle = rgba(mix(HAZE, HAZE_NIGHT, night), 1);
   ctx.fillRect(0, 0, W, H);
   const { from, to } = rowRange();
-  for (let r = to; r >= from; r--) renderRow(ctx, r);
+  for (let r = to; r >= from; r--) renderRow(ctx, r, boueAt ? boueAt(r) : null);
 }
 
-// Brume du matin sur le haut de l'écran (le lointain se dissout), et une
-// pointe de ciel rose dans le coin haut-gauche, là où la route s'en va.
+// Brume en haut de l'écran (le lointain se dissout), lueur du soleil à droite
+// le jour, étoiles la nuit.
 export function renderHaze(ctx) {
-  const g = ctx.createLinearGradient(0, 0, 0, H * 0.42);
-  g.addColorStop(0, "rgba(241,217,179,0.95)");
-  g.addColorStop(0.45, "rgba(241,217,179,0.45)");
-  g.addColorStop(1, "rgba(241,217,179,0)");
+  const hz = mix(HAZE, HAZE_NIGHT, night);
+  const g = ctx.createLinearGradient(0, 0, 0, H * 0.4);
+  g.addColorStop(0, rgba(hz, 0.96));
+  g.addColorStop(0.5, rgba(hz, 0.4));
+  g.addColorStop(1, rgba(hz, 0));
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H * 0.42);
-  const s = ctx.createRadialGradient(W * 0.88, H * 0.05, 0, W * 0.88, H * 0.05, W * 0.75);
-  s.addColorStop(0, "rgba(255,214,150,0.85)");
-  s.addColorStop(0.35, "rgba(240,160,130,0.35)");
-  s.addColorStop(1, "rgba(120,110,190,0)");
-  ctx.fillStyle = s;
-  ctx.fillRect(0, 0, W, H * 0.5);
+  ctx.fillRect(0, 0, W, H * 0.4);
+  if (night < 0.98) {
+    const s = ctx.createRadialGradient(W * 0.86, H * 0.06, 0, W * 0.86, H * 0.06, W * 0.7);
+    s.addColorStop(0, `rgba(255,214,150,${0.8 * (1 - night)})`);
+    s.addColorStop(0.35, `rgba(240,160,130,${0.35 * (1 - night)})`);
+    s.addColorStop(1, "rgba(120,110,190,0)");
+    ctx.fillStyle = s;
+    ctx.fillRect(0, 0, W, H * 0.45);
+  }
+  if (night > 0.3) {
+    ctx.fillStyle = `rgba(255,255,255,${0.7 * (night - 0.3)})`;
+    for (let i = 0; i < 26; i++) {
+      const x = hash(i * 7.1) * W, y = hash(i * 3.3) * H * 0.22;
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
 }

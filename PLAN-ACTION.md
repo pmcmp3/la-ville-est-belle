@@ -631,3 +631,17 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
   Bizonnes (38). Déployé sous /jai-un-pote/ pour test sur téléphone, sans Supabase.
 - 📋 Idées de scripts vidéo notées (top 10 des pires scores commenté, « 80 % des gens n'y
   arrivent pas », 50 villes) : à traiter après le test du jeu.
+
+## 6 septembre 2026 — « J'ai un pote » : contre-la-montre, 30°, tuto, lait, nuit, tracteurs armés
+
+- ✅ Toute la liste « Mets tout en place » : HUD sur bandeau sombre ; écran de fin (wording sans
+  potes, sticker « Nouveau record » en haut à droite, crédit « J'ai un pote, composé par PMC MP3 ») ;
+  pièces jaunes unies ; chats/chiens recolorés ; tracteur armé sur le passage du joueur, rangée
+  dégagée, klaxon + poussière + phares la nuit ; chargement ≥ 5 s avec préchauffage ; vue à 30°
+  plus verticale, panneaux à gauche +30 %, Cysoing en premier ; salto = vraie rotation + tap au
+  toucher en l'air, élan 2,5 s + pièces ; bruitages synthétisés ; brique de lait (×2, flou,
+  saturation) ; boue ; prénoms ; paliers 5→90 ; contre-la-montre = durée du morceau, fin
+  « TERMINÉ ! » ; nuit + lampadaires ; fermiers lanceurs de poules ; tuto au tout début ;
+  pièce rouge ; vibrations Android (impossible sur iPhone).
+- 📐 Score max théorique ≈ 31 600 m (simulation, run parfait).
+- ⏳ Défi entre amis : après validation du tuto et du chargement, comme demandé.

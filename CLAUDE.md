@@ -567,14 +567,17 @@ faut repousser la branche `gh-pages` à la main, voir `ARCHITECTURE.md` §9. Le 
 ## Jeu n°2 : « J'ai un pote » (`jai-un-pote/`, depuis le 4 septembre 2026)
 
 Second jeu sur le même site, sous **/jai-un-pote/** : runner de campagne en **vue 3/4 du
-dessus façon Crossy Road** (portrait, cubes, pas de point de fuite — la version en perspective
-fuyante a été rejetée le jour même : « injouable »), swipe = colonne / tap = saut, des poules,
-vaches, voitures et tracteurs TRAVERSENT la route, les étoiles font venir des POTES (Soberland
-en premier) qui suivent le joueur en serpent, les obstacles en enlèvent, seul on meurt, score
-en mètres × potes. **Sa propre racine Vite, ses propres copies des
-modules moteur** (rien de partagé avec `src/`, volontairement). Tout est documenté dans
-`ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run dev:pote` (port
-5174), `deploy.sh` construit et pousse les deux jeux.
+dessus tournée de 30°** (portrait, cubes ; le 45° Crossy Road et la perspective fuyante ont
+été rejetés), **contre-la-montre = la durée du morceau** (173,65 s, le morceau ne boucle pas,
+sa fin termine la course), swipe = voie / tap = saut / re-tap en l'air = salto, seuls les
+tracteurs (et les poules lancées par les fermiers) traversent — ARMÉS sur le passage du joueur —,
+les pièces jaunes font venir des POTES (Soberland, Jules, Oscar, Elliot, Nita, Pablo, Hermance,
+Kilian) en file indienne, la pièce rouge en donne un direct, la brique de lait = turbo 5 s, la
+boue freine, la nuit tombe à 95 s, tuto sur les 2 premières parties, chargement ≥ 5 s. Seul le
+joueur prend des dégâts, seul on meurt, score en mètres × potes. **Sa propre racine Vite, ses
+propres copies des modules moteur** (rien de partagé avec `src/`, volontairement). Tout est
+documenté dans `ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run
+dev:pote` (port 5174), `deploy.sh` construit et pousse les deux jeux.
 
 ## Assets
 

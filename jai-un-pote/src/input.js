@@ -8,6 +8,11 @@
 const SWIPE_THRESHOLD = 28;
 const laneQueue = [];
 let jumpPressed = false;
+// 6 septembre 2026 (« le double saut n'a pas marché ») : en l'air, le second
+// tap part AU TOUCHER, pas au relâcher — zéro latence, le salto sort à coup
+// sûr. main.js tient ce drapeau à jour à chaque pas.
+let airborne = false;
+export function setAirborne(a) { airborne = a; }
 
 export function consumeLaneMove() { return laneQueue.length ? laneQueue.shift() : 0; }
 export function consumeJumpPress() { if (jumpPressed) { jumpPressed = false; return true; } return false; }
@@ -16,11 +21,12 @@ export function isHolding() { return false; }
 const overlayEl = document.getElementById("overlay");
 function onOverlay(target) { return overlayEl && target instanceof Node && overlayEl.contains(target); }
 
-let activeId = null, originX = 0, originY = 0, consumed = false;
+let activeId = null, originX = 0, originY = 0, consumed = false, tapFired = false;
 
 function begin(x, y, id, target) {
   if (onOverlay(target)) return;
-  activeId = id; originX = x; originY = y; consumed = false;
+  activeId = id; originX = x; originY = y; consumed = false; tapFired = false;
+  if (airborne) { jumpPressed = true; tapFired = true; }
 }
 function move(x, y) {
   if (activeId === null || consumed) return;
@@ -35,7 +41,7 @@ function move(x, y) {
 }
 function end() {
   if (activeId === null) return;
-  if (!consumed) jumpPressed = true; // tap
+  if (!consumed && !tapFired) jumpPressed = true; // tap
   activeId = null;
 }
 

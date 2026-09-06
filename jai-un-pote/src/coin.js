@@ -24,30 +24,41 @@ const LOGO = [
 ];
 const LOGO_W = 15, LOGO_H = 11;
 
-export function drawCoin(ctx, R, spin) {
+export function drawCoin(ctx, R, spin, rouge = false) {
   const c = Math.cos(spin);
+  if (rouge) {
+    // Pièce ROUGE rare = un pote direct : « il faut qu'elle brille énormément,
+    // comme un soleil au milieu de la route ».
+    const halo = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 3.2);
+    halo.addColorStop(0, "rgba(255,90,60,0.75)");
+    halo.addColorStop(0.5, "rgba(255,120,60,0.25)");
+    halo.addColorStop(1, "rgba(255,140,60,0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(-R * 3.2, -R * 3.2, R * 6.4, R * 6.4);
+  }
+  const FACE_C = rouge ? "#ff4a2e" : FACE, FACE_HI_C = rouge ? "#ff8a72" : FACE_HI, RIM_C = rouge ? "#a12c1c" : RIM, EDGE_C = rouge ? "#7a1f12" : EDGE;
   const rx = Math.max(R * 0.08, R * Math.abs(c));
   const thick = R * 0.16;
   // Tranche : décalée du côté qui s'éloigne, visible surtout de profil.
-  ctx.fillStyle = EDGE;
+  ctx.fillStyle = EDGE_C;
   ctx.beginPath();
   ctx.ellipse(-Math.sign(c) * thick * (1 - Math.abs(c)), 0, rx, R, 0, 0, Math.PI * 2);
   ctx.fill();
   // Face : disque doré, anneau, reflet.
-  ctx.fillStyle = RIM;
+  ctx.fillStyle = RIM_C;
   ctx.beginPath();
   ctx.ellipse(0, 0, rx, R, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = FACE;
+  ctx.fillStyle = FACE_C;
   ctx.beginPath();
   ctx.ellipse(0, 0, rx * 0.82, R * 0.82, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = FACE_HI;
+  ctx.fillStyle = FACE_HI_C;
   ctx.beginPath();
   ctx.ellipse(-rx * 0.25, -R * 0.3, rx * 0.35, R * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
   // Logo, écrasé horizontalement avec l'angle, masqué de profil.
-  if (Math.abs(c) > 0.22) {
+  if (window.CONFIG.piecesLogo && Math.abs(c) > 0.22) {
     const px = (R * 1.25) / LOGO_H;
     const sx = px * Math.abs(c), sy = px;
     ctx.fillStyle = INK;

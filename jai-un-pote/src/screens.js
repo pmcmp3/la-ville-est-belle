@@ -57,6 +57,7 @@ const CLE_PMC_SUIVI = "pmcSuivi";
 const CLE_PLATEFORME = "plateformeAlbum";
 const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
+const CLE_PARTIES = "jaipParties";
 
 // `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
 // jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
@@ -91,6 +92,8 @@ export function niveauConversionCourant() { return niveauConversion(); }
 
 export function getPseudo() { return pseudoInput.value.trim().replace(/^@+/, ""); }
 export function getRecord() { return Number(lsGet(CLE_RECORD)) || 0; }
+export function getParties() { return Number(lsGet(CLE_PARTIES)) || 0; }
+export function compterPartie() { lsSet(CLE_PARTIES, String(getParties() + 1)); }
 export function setRecord(m) { lsSet(CLE_RECORD, String(Math.floor(m))); }
 
 export function showOverlay() { overlay.classList.add("visible"); }
@@ -309,7 +312,15 @@ function exigerConversion({ action, onOk, onCancel }) {
 }
 
 // --- Chargement --------------------------------------------------------------
+// Au moins `config.chargementMinS` secondes de 0 à 100 % (6 septembre 2026 :
+// « une phase de chargement de 5-6 s, ça fait sérieux »), le temps de mettre
+// en cache le morceau, les polices et de préchauffer le moteur (main.js,
+// prechauffer()). La barre ne dépasse jamais ce qui est VRAIMENT chargé.
 let loadingDone = false;
+const loadingT0 = performance.now();
+const ETAPES = ["Le morceau arrive", "Les potes s'échauffent", "La route se construit", "Les poules se placent", "C'est prêt"];
+let prechauffe = 0; // 0..1, rempli par main.js
+export function setPrechauffage(p) { prechauffe = Math.max(prechauffe, Math.min(1, p)); }
 export function syncLoadingUi() {
   if (loadingDone) return;
   if (audio.getLoadError()) {
@@ -319,20 +330,25 @@ export function syncLoadingUi() {
     playButton.disabled = false;
     return;
   }
-  const p = audio.isReadyToStart() ? 1 : audio.getProgress();
-  loadingFill.style.width = `${Math.round(p * 100)}%`;
-  loadingLabel.textContent = `${Math.round(p * 100)} %`;
+  const minS = window.CONFIG.chargementMinS || 0;
+  const tempsT = minS > 0 ? Math.min(1, (performance.now() - loadingT0) / 1000 / minS) : 1;
+  const reel = (audio.isReadyToStart() ? 1 : audio.getProgress()) * 0.7 + prechauffe * 0.3;
+  const p = Math.min(reel, tempsT);
+  const pct = Math.round(p * 100);
+  loadingFill.style.width = `${pct}%`;
+  loadingLabel.textContent = `${ETAPES[Math.min(ETAPES.length - 1, Math.floor(p * ETAPES.length))]} · ${pct} %`;
   if (p >= 1) { loadingDone = true; loadingBlock.classList.add("done"); playButton.disabled = getPseudo().length === 0; }
 }
 
 // --- Fin de partie -----------------------------------------------------------
-export function showEndScreen({ metres, potesMax, record }) {
+export function showEndScreen({ metres, potesMax, record, fin }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
   endSub.textContent = potesMax === 0
-    ? "Record : personne avec toi. Les pièces font venir les potes."
+    ? "Tu n'as pas eu de potes sur cette partie ? Tu prends des pièces pour les appeler."
     : `Record : ${potesMax} pote${potesMax > 1 ? "s" : ""} avec toi`;
   endBest.classList.toggle("hidden", !record);
-  setTimeout(() => { setView("end"); showOverlay(); }, 600);
+  $("end-eyebrow").textContent = fin ? "Course terminée" : "Ta course";
+  setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);
 }
 
 // --- Pause / son -------------------------------------------------------------
@@ -373,6 +389,7 @@ export function init(d) {
     lien.addEventListener("click", (e) => { e.preventDefault(); ouvrirEcoute(); });
   });
   instaLink.href = window.CONFIG.lienInsta;
+  const credit = $("credit-insta"); if (credit) credit.href = window.CONFIG.lienInsta;
   pseudoInput.value = lsGet(CLE_PSEUDO) || "";
   const syncPlay = () => { if (loadingDone) playButton.disabled = getPseudo().length === 0; };
   pseudoInput.addEventListener("input", syncPlay);

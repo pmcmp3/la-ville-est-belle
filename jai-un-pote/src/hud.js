@@ -30,9 +30,16 @@ export function formatMetres(m) {
 //           mult (multiplicateur des mètres), nextIn (points manquants) }
 export function renderHud(ctx, width, height, hud) {
   ctx.save();
+  // Bandeau sombre derrière tout le HUD (6 septembre 2026 : « le HUD en haut
+  // n'est pas lisible sur le fond clair »). Dégradé, pas d'ombre portée
+  // floue (shadowBlur coûte cher sur mobile).
+  const band = ctx.createLinearGradient(0, 0, 0, 132);
+  band.addColorStop(0, "rgba(13,13,16,0.78)");
+  band.addColorStop(0.7, "rgba(13,13,16,0.55)");
+  band.addColorStop(1, "rgba(13,13,16,0)");
+  ctx.fillStyle = band;
+  ctx.fillRect(0, 0, width, 132);
   ctx.textBaseline = "top";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 8;
 
   // Mètres, centrés en haut. Chiffre en serif, unité en grotesk.
   const num = formatMetres(hud.metres);
@@ -48,19 +55,27 @@ export function renderHud(ctx, width, height, hud) {
   ctx.font = `700 15px ${POLICE}`;
   ctx.fillText(" m", x0 + wNum, PAD + 20);
 
-  // Multiplicateur (mètres × potes) : pastille crème sous les mètres.
+  // Chrono du contre-la-montre, sous les mètres : rouge dans les 10 dernières s.
+  if (hud.restantS !== undefined) {
+    const s = Math.max(0, hud.restantS);
+    const mm = Math.floor(s / 60), ss = Math.floor(s % 60);
+    ctx.font = `700 12px ${POLICE}`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = s <= 10 ? ROUGE : "rgba(255,255,255,0.75)";
+    ctx.fillText(`${mm}:${String(ss).padStart(2, "0")}`, width / 2, PAD + 44);
+  }
+
+  // Multiplicateur (mètres × potes, ×2 sous turbo) : pastille jaune.
   if (hud.mult > 1.001) {
-    ctx.shadowBlur = 0;
-    const txt = `×${String(hud.mult).replace(".", ",")}`;
+    const txt = `×${String(hud.mult).replace(".", ",")}${hud.turbo ? " TURBO" : ""}`;
     ctx.font = `900 13px ${POLICE}`;
     const w = ctx.measureText(txt).width + 18;
     ctx.fillStyle = JAUNE;
-    roundRect(ctx, width / 2 - w / 2, PAD + 44, w, 22, 3);
+    roundRect(ctx, width / 2 - w / 2, PAD + 60, w, 22, 3);
     ctx.fill();
     ctx.fillStyle = "#4a3305";
     ctx.textAlign = "center";
-    ctx.fillText(txt, width / 2, PAD + 48);
-    ctx.shadowBlur = 8;
+    ctx.fillText(txt, width / 2, PAD + 64);
   }
 
   // Potes : rangée de 8 cases en haut à droite, pleines = présents.
@@ -74,7 +89,6 @@ export function renderHud(ctx, width, height, hud) {
     roundRect(ctx, x, ry, cell, cell, 2);
     ctx.fill();
   }
-  ctx.shadowBlur = 0;
   ctx.font = `700 11px ${POLICE}`;
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -98,7 +112,7 @@ export function renderHud(ctx, width, height, hud) {
   ctx.font = `700 9px ${POLICE}`;
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(255,255,255,0.8)";
-  ctx.fillText("DOUBLE SAUT", ex, ey - 12);
+  ctx.fillText(hud.elan >= 1 ? "SALTO PRÊT" : "SALTO", ex, ey - 12);
   ctx.fillStyle = "rgba(255,255,255,0.22)";
   roundRect(ctx, ex, ey, ew, 5, 2);
   ctx.fill();
@@ -194,5 +208,80 @@ export function renderBanner(ctx, width, height, banner) {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.fillText(banner.sous, width / 2, y + 37);
   }
+  ctx.restore();
+}
+
+// Effets du TURBO LAIT : flou de vitesse sur les côtés (bandes translucides
+// qui filent), bordure chaude. Les couleurs saturées viennent du CSS (canvas
+// .turbo) — un filter canvas coûterait trop cher sur mobile.
+export function renderTurbo(ctx, width, height, t, force) {
+  if (force <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = force;
+  for (const side of [0, 1]) {
+    const g = ctx.createLinearGradient(side ? width : 0, 0, side ? width - width * 0.28 : width * 0.28, 0);
+    g.addColorStop(0, "rgba(255,255,255,0.55)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(side ? width * 0.72 : 0, 0, width * 0.28, height);
+  }
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  for (let i = 0; i < 14; i++) {
+    const side = i % 2;
+    const x = side ? width - 6 - (i * 13) % 90 : 6 + (i * 13) % 90;
+    const len = 60 + (i * 37) % 120;
+    const y = ((t * (900 + i * 90) + i * 173) % (height + len)) - len;
+    ctx.fillRect(x, y, 2, len);
+  }
+  ctx.restore();
+}
+
+// Tutoriel du tout début (6 septembre 2026 : « il faut que ça soit écrit au
+// tout début ») : une consigne à la fois, en gros, au milieu, jusqu'au geste.
+export function renderTuto(ctx, width, height, tuto) {
+  if (!tuto) return;
+  ctx.save();
+  const w = Math.min(width - 40, 320), h = tuto.sous ? 96 : 74;
+  const x = width / 2 - w / 2, y = height * 0.36;
+  ctx.globalAlpha = tuto.alpha;
+  ctx.fillStyle = PANNEAU;
+  roundRect(ctx, x, y, w, h, 4);
+  ctx.fill();
+  ctx.fillStyle = tuto.ok ? JAUNE : BLANC;
+  roundRect(ctx, x, y, w, 3, 1);
+  ctx.fill();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.font = `700 10px ${POLICE}`;
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillText(tuto.ok ? "BIEN !" : `TUTO ${tuto.index}/${tuto.total}`, width / 2, y + 12);
+  ctx.font = `900 21px ${POLICE}`;
+  ctx.fillStyle = tuto.ok ? JAUNE : BLANC;
+  ctx.fillText(tuto.titre, width / 2, y + 28);
+  if (tuto.sous) {
+    ctx.font = `500 13px ${POLICE}`;
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(tuto.sous, width / 2, y + 60);
+  }
+  ctx.restore();
+}
+
+// Fin du morceau = fin de la course : « TERMINÉ ! » en énorme, en serif.
+export function renderFin(ctx, width, height, age) {
+  const tPop = Math.min(1, age / 0.25);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, age * 4);
+  ctx.fillStyle = `rgba(255,255,255,${Math.max(0, 0.8 - age * 1.2)})`;
+  ctx.fillRect(0, 0, width, height);
+  ctx.translate(width / 2, height * 0.34);
+  ctx.scale(1.4 - 0.4 * tPop, 1.4 - 0.4 * tPop);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = `900 58px ${POLICE_TITRE}`;
+  ctx.fillStyle = NOIR;
+  ctx.fillText("TERMINÉ !", 3, 3);
+  ctx.fillStyle = JAUNE;
+  ctx.fillText("TERMINÉ !", 0, 0);
+  ctx.font = `700 13px ${POLICE}`;
+  ctx.fillStyle = BLANC;
+  ctx.fillText("LE MORCEAU EST FINI", 0, 44);
   ctx.restore();
 }

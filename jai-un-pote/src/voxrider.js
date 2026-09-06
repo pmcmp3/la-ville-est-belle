@@ -7,7 +7,7 @@
 // (rider.js, PALETTES). Pédalage : les deux jambes montent et descendent en
 // opposition, le buste tangue avec.
 
-import { drawBox, drawShadow, depth } from "./iso.js";
+import { drawBox, drawShadow, depth, project } from "./iso.js";
 
 const TIRE = "#151518", RIM = "#8a8d98", FRAME = "#1b1b21", SKIN_SHOE = "#565a66";
 
@@ -16,11 +16,17 @@ const TIRE = "#151518", RIM = "#8a8d98", FRAME = "#1b1b21", SKIN_SHOE = "#565a66
 // autour de son axe latéral — le corps décrit un cercle vers l'avant.
 export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0) {
   if (alpha < 1) { ctx.save(); ctx.globalAlpha = alpha; }
+  let spinning = false;
   if (flip > 0.01) {
-    // Approximation en cubes : chaque pièce est déplacée sur un cercle de
-    // rayon 0,55 autour du centre du vélo (avance = sin, hauteur = 1 − cos).
-    const fv = Math.sin(flip) * 0.55, fh = (1 - Math.cos(flip)) * 0.55;
-    v += fv; lift += fh;
+    // Salto = le vélo ENTIER tourne à l'écran autour de son centre (6
+    // septembre 2026 : « il faut que ce soit vraiment visible » — l'ancienne
+    // version déplaçait les cubes sur un cercle, ça ne se lisait pas).
+    const c = project(u, v, lift + 0.9);
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(flip);
+    ctx.translate(-c.x, -c.y);
+    spinning = true;
   }
   const W = 0.36;              // largeur du vélo (u)
   const L = 1.15;              // longueur (v)
@@ -62,6 +68,7 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0) {
     drawBox(ctx, hx - 0.03, hy - 0.03, 0.36, 0.36, 0.1, P.cap, lift + 1.78);
     drawBox(ctx, hx, hy + 0.3, 0.3, 0.16, 0.05, P.cap, lift + 1.78);
   }
+  if (spinning) ctx.restore();
   if (alpha < 1) ctx.restore();
 }
 
