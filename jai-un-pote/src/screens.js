@@ -321,6 +321,7 @@ function exigerConversion({ action, onOk, onCancel }) {
 const ligueBloc = $("ligue-bloc"), ligueSans = $("ligue-sans"), ligueAvec = $("ligue-avec");
 const ligueInput = $("ligue-input"), ligueRejoindre = $("ligue-rejoindre"), ligueCreer = $("ligue-creer");
 const ligueCodeEl = $("ligue-code"), ligueMembresEl = $("ligue-membres"), liguePartager = $("ligue-partager"), ligueQuitter = $("ligue-quitter"), ligueMsg = $("ligue-msg");
+const liguePlaces = $("ligue-places");
 const endLigue = $("end-ligue"), endLigueCode = $("end-ligue-code"), endLigueListe = $("end-ligue-liste"), endLiguePartager = $("end-ligue-partager");
 let ligue = null;           // { code, membres: [] }
 let ligueInvitation = null; // code reçu par l'URL, en attente d'un pseudo
@@ -336,13 +337,16 @@ function afficherLigue() {
   if (ligue) {
     ligueCodeEl.textContent = ligue.code;
     const autres = ligue.membres.filter((m) => m !== getPseudo());
-    ligueMembresEl.textContent = autres.length ? `Tes potes : ${autres.map((m) => "@" + m).join(", ")}` : "Tu es seul pour l'instant : invite des potes.";
+    if (ligue.enAttente) ligueMembresEl.textContent = "Tu en fais partie ! Écris ton pseudo et appuie sur JOUER.";
+    else ligueMembresEl.textContent = autres.length ? `Tes potes dans le peloton : ${autres.map((m) => "@" + m).join(", ")}` : "Tu es seul pour l'instant : invite des potes, ce sont eux qui pédaleront derrière toi.";
+    const n = ligue.membres.length;
+    liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}`;
   }
 }
 function memoriserLigue() { if (ligue) lsSet(CLE_LIGUE, JSON.stringify(ligue)); else { try { localStorage.removeItem(CLE_LIGUE); } catch (e) { /* rien */ } } }
 function appliquerNomsLigue() {
   const moi = getPseudo();
-  friends.setNomsLigue(ligue ? ligue.membres.filter((m) => m !== moi) : null);
+  friends.setNomsLigue(ligue && !ligue.enAttente ? ligue.membres.filter((m) => m !== moi) : null);
 }
 async function rejoindre(code, creer = false) {
   const pseudo = getPseudo();
@@ -350,9 +354,13 @@ async function rejoindre(code, creer = false) {
   code = net.normaliserCode(code);
   if (code.length < 4) { ligueMessage("Code de ligue : 5 lettres."); return false; }
   ligueMessage("…");
-  const membres = creer ? await net.creerLigue(code, pseudo) : await net.rejoindreLigue(code, pseudo);
-  if (!membres) { ligueMessage(creer ? "Impossible de créer la ligue (réseau ?)." : "Cette ligue n'existe pas."); return false; }
-  ligue = { code, membres };
+  const r = creer ? await net.creerLigue(code, pseudo) : await net.rejoindreLigue(code, pseudo);
+  if (r.erreur) {
+    ligueMessage(r.erreur === "complete" ? `Cette ligue est complète (${net.LIGUE_MAX} max).` : r.erreur === "inexistante" ? "Cette ligue n'existe pas." : "Pas de réseau, réessaie.");
+    if (ligue && ligue.enAttente) { ligue = null; memoriserLigue(); afficherLigue(); }
+    return false;
+  }
+  ligue = { code, membres: r.membres };
   memoriserLigue(); appliquerNomsLigue(); afficherLigue(); ligueMessage("");
   return true;
 }
@@ -369,7 +377,7 @@ async function partagerLigue(texte) {
 // Rafraîchit les membres au démarrage d'une course (les potes qui ont
 // rejoint depuis apparaissent).
 export async function preparerLigue() {
-  if (ligueInvitation && !ligue) { await rejoindre(ligueInvitation); ligueInvitation = null; }
+  if (ligue && ligue.enAttente) { await rejoindre(ligue.code); ligueInvitation = null; }
   if (!ligue) { friends.setNomsLigue(null); return; }
   const membres = await net.membres(ligue.code);
   if (membres) { ligue.membres = membres; memoriserLigue(); }
@@ -400,15 +408,20 @@ function initLigue() {
   try { const j = lsGet(CLE_LIGUE); if (j) ligue = JSON.parse(j); } catch (e) { ligue = null; }
   try {
     const code = new URLSearchParams(location.search).get("ligue");
-    if (code) { ligueInvitation = net.normaliserCode(code); ligueInput.value = ligueInvitation; if (ligue && ligue.code !== ligueInvitation) ligue = null; }
+    // Le lien d'invitation suffit : la personne fait déjà partie de la ligue,
+    // elle n'a plus qu'à écrire son pseudo (l'adhésion part au JOUER).
+    if (code) {
+      ligueInvitation = net.normaliserCode(code);
+      if (!ligue || ligue.code !== ligueInvitation) ligue = { code: ligueInvitation, membres: [], enAttente: true };
+      const url = new URL(location.href); url.searchParams.delete("ligue"); history.replaceState(null, "", url.toString());
+    }
   } catch (e) { /* rien */ }
   afficherLigue(); appliquerNomsLigue();
-  if (ligueInvitation && !ligue) ligueMessage(`Invitation : ligue ${ligueInvitation}. Écris ton pseudo et appuie sur Rejoindre.`);
   ligueRejoindre.addEventListener("click", () => rejoindre(ligueInput.value));
   ligueCreer.addEventListener("click", () => rejoindre(net.genererCode(), true));
   ligueQuitter.addEventListener("click", () => { ligue = null; memoriserLigue(); appliquerNomsLigue(); afficherLigue(); });
-  liguePartager.addEventListener("click", () => partagerLigue(`Rejoins ma ligue ${ligue ? ligue.code : ""} sur « J'ai un pote » et viens battre mon score :`));
-  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} m dans la ligue ${ligue ? ligue.code : ""} sur « J'ai un pote ». Viens me battre :`));
+  liguePartager.addEventListener("click", () => partagerLigue(`Tu es dans ma ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}) : tu pédales derrière moi, viens battre mon score`));
+  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} m dans notre ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}). Viens me battre`));
   ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => ligueInput.addEventListener(t, (e) => e.stopPropagation()));
   ligueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rejoindre(ligueInput.value); } });
 }

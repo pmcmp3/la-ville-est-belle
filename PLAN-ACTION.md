@@ -657,3 +657,6 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
   ligue en fin, invitation par lien) — ⏳ migration `jai-un-pote/supabase-migration-ligues.sql`
   à exécuter dans Supabase par l'artiste.
 - ✅ Pédalage dans le sens de la marche, boue en lignes continues, lumière soleil haut-droite.
+- ✅ Ligue, deuxième passe : le lien d'invitation inscrit d'office (plus qu'un pseudo à écrire),
+  partage avec icônes WhatsApp/Insta/Messages/Snap, potes = uniquement les membres de la ligue
+  (leur nombre = le plafond de potes), 6 personnes max (client + trigger SQL).

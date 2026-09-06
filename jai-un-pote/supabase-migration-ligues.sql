@@ -30,6 +30,18 @@ create policy "Lecture publique des membres" on public.ligue_membres for select 
 create policy "Adhesion publique" on public.ligue_membres for insert to anon with check (true);
 create index if not exists ligue_membres_code_idx on public.ligue_membres (code, created_at);
 
+-- Plafond : 6 personnes par ligue (7 septembre 2026), vérifié côté serveur.
+create or replace function public.ligue_plafond() returns trigger language plpgsql as $$
+begin
+  if (select count(*) from public.ligue_membres where code = new.code) >= 6 then
+    raise exception 'ligue complete (6 max)';
+  end if;
+  return new;
+end $$;
+drop trigger if exists ligue_plafond_trg on public.ligue_membres;
+create trigger ligue_plafond_trg before insert on public.ligue_membres
+  for each row execute function public.ligue_plafond();
+
 create table if not exists public.ligue_scores (
   id bigint generated always as identity primary key,
   code text not null references public.ligues(code),

@@ -28,7 +28,10 @@ export function reset() { potes = []; maxCount = 0; joins = 0; jumpMarks = []; }
 export function alive() { return potes.filter((p) => !p.leave); }
 export function count() { return alive().length; }
 export function maxReached() { return maxCount; }
-export function max() { return window.CONFIG.potesMax; }
+// En ligue, le peloton c'est LES MEMBRES de la ligue, rien d'autre (7 septembre
+// 2026 : « c'est plus Soberland etc., juste les gens qui font partie de la
+// ligue, donc le nombre de potes = le nombre de personnes dans la ligue »).
+export function max() { return nomsLigue ? nomsLigue.length : window.CONFIG.potesMax; }
 
 export function recordPlayer(u, v, jumped) {
   if (jumped) jumpMarks.push(v);
@@ -39,18 +42,15 @@ export function recordPlayer(u, v, jumped) {
 // Les potes portent les pseudos de la LIGUE quand il y en a une (les autres
 // membres, dans l'ordre d'arrivée), complétés par les prénoms par défaut.
 let nomsLigue = null;
-export function setNomsLigue(liste) { nomsLigue = liste && liste.length ? liste : null; }
-function listeNoms() {
-  const defaut = window.CONFIG.potesNoms || ["soberland"];
-  if (!nomsLigue) return defaut;
-  return [...nomsLigue, ...defaut.filter((n) => !nomsLigue.includes(n))];
-}
+export function setNomsLigue(liste) { nomsLigue = Array.isArray(liste) ? liste : null; }
+export function enLigue() { return nomsLigue !== null; }
+function listeNoms() { return nomsLigue || window.CONFIG.potesNoms || ["soberland"]; }
 // Prénom : le premier de la liste qui n'est pas déjà dans le peloton
 // (Soberland revient en premier s'il est parti — plus de doublons).
 function prochainNom() {
   const noms = listeNoms();
   const pris = new Set(alive().map((p) => p.name));
-  return noms.find((n) => !pris.has(n)) || noms[joins % noms.length];
+  return noms.find((n) => !pris.has(n)) || null;
 }
 
 export function join(player) {
@@ -58,6 +58,7 @@ export function join(player) {
   if (vivants.length >= max()) return null;
   const slot = vivants.length;
   const name = prochainNom();
+  if (!name) return null;
   const idx = Math.max(0, listeNoms().indexOf(name));
   const palette = name === "soberland" ? PALETTES.soberland : PALETTES.potes[idx % PALETTES.potes.length];
   joins += 1;

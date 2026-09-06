@@ -57,7 +57,7 @@ export function renderHud(ctx, width, height, hud) {
 
   // Colonnes : gauche = 14..(14+96), droite = 8 cases de 10 px.
   const cell = 10, gap = 3, total = hud.potesMax;
-  const rowW = total * cell + (total - 1) * gap;
+  const rowW = Math.max(60, total * cell + (total - 1) * gap);
   const rx = width - PAD - rowW;
   const leftEnd = 14 + 96 + 10, rightStart = rx - 10;
   const centerW = rightStart - leftEnd;
@@ -110,8 +110,8 @@ export function renderHud(ctx, width, height, hud) {
   ctx.font = `700 11px ${POLICE}`;
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText(hud.potes === 0 ? "TOUT SEUL" : hud.potes === 1 ? "1 POTE" : `${hud.potes} POTES`, width - PAD, ry + cell + 5);
-  if (hud.potes < total) {
+  ctx.fillText(total === 0 ? "INVITE TES POTES" : hud.potes === 0 ? "TOUT SEUL" : hud.potes === 1 ? "1 POTE" : `${hud.potes} POTES`, width - PAD, ry + cell + 5);
+  if (total > 0 && hud.potes < total) {
     const gy = ry + cell + 22;
     ctx.fillStyle = "rgba(255,255,255,0.22)";
     roundRect(ctx, rx, gy, rowW, 4, 2);

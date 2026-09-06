@@ -2290,9 +2290,15 @@ code de ligue [...] si E joue, toutes les autres lettres rejoignent sa partie »
 `ligue_classement` = meilleure course par pseudo ; même projet Supabase que le premier jeu,
 `config.apiBase`/`apiKey`). Menu : champ CODE + REJOINDRE, « Créer ma ligue » (code 5 lettres
 sans O/0/I/1), bloc « Ligue XXXXX · tes potes : @… », INVITER (partage natif du lien
-`?ligue=CODE`, `config.lienJeu`), QUITTER. Ligue mémorisée (`jaipLigue`). Au JOUER / REJOUER,
-`preparerLigue()` rafraîchit les membres et `friends.setNomsLigue()` fait des AUTRES membres les
-potes du peloton (complétés par les prénoms par défaut). À la fin, `finLigue()` envoie le score
+`?ligue=CODE`, `config.lienJeu`), QUITTER. Ligue mémorisée (`jaipLigue`). ⚠️ **Le lien d'invitation SUFFIT** (7 septembre 2026, deuxième passe) : `?ligue=CODE` inscrit la
+personne d'office (bloc « Tu en fais partie ! Écris ton pseudo et appuie sur JOUER »), l'adhésion
+part au JOUER avec le pseudo. **6 personnes max** (`net.LIGUE_MAX`, vérifié côté client ET par
+un trigger SQL). Au JOUER / REJOUER, `preparerLigue()` rafraîchit les membres et
+`friends.setNomsLigue()` fait des AUTRES membres LES SEULS potes du peloton : en ligue, plus de
+Soberland/Jules…, et `friends.max()` = nombre d'autres membres (0 → HUD « INVITE TES POTES »).
+Sans ligue, prénoms par défaut et 8 potes. Boutons INVITER DES POTES (menu et fin) avec les
+icônes WhatsApp/Instagram/Messages/Snap comme sur le premier jeu — le partage natif
+(`navigator.share`) liste ces apps ; repli presse-papiers. À la fin, `finLigue()` envoie le score
 et affiche le classement de la ligue (8 lignes, la sienne surlignée) + « DÉFIER LA LIGUE ».
 ⚠️ **La migration SQL doit être exécutée par l'artiste dans le dashboard Supabase** ; tant
 qu'elle ne l'est pas, les appels renvoient 404 en silence (« Cette ligue n'existe pas »,

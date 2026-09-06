@@ -39,17 +39,23 @@ export function genererCode() {
 
 export async function creerLigue(code, pseudo) {
   const ok = await post("ligues", { code, nom: `Ligue de ${pseudo}`, createur: pseudo });
-  if (!ok) return false;
+  if (!ok) return { erreur: "reseau" };
   return rejoindreLigue(code, pseudo);
 }
 
-// Adhésion idempotente (doublon ignoré). Renvoie la liste des membres, ou
-// null si la ligue n'existe pas / pas de réseau.
+export const LIGUE_MAX = 6; // « limiter une ligue à 6 personnes pour l'instant »
+
+// Adhésion idempotente (doublon ignoré). Renvoie { membres } ou { erreur }
+// ("inexistante", "complete", "reseau").
 export async function rejoindreLigue(code, pseudo) {
   const existe = await get("ligues", `?code=eq.${encodeURIComponent(code)}&select=code`);
-  if (!existe || !existe.length) return null;
+  if (!existe) return { erreur: "reseau" };
+  if (!existe.length) return { erreur: "inexistante" };
+  const avant = (await membres(code)) || [];
+  if (!avant.includes(pseudo) && avant.length >= LIGUE_MAX) return { erreur: "complete" };
   await post("ligue_membres", { code, pseudo }, { Prefer: "return=minimal,resolution=ignore-duplicates" }, "?on_conflict=code,pseudo");
-  return membres(code);
+  const liste = await membres(code);
+  return liste ? { membres: liste } : { erreur: "reseau" };
 }
 
 export async function membres(code) {
