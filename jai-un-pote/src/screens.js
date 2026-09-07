@@ -463,11 +463,11 @@ export async function finLigue(metres, potes, mode = "course") {
   const relais = await net.relais(ligue.code);
   const objectif = window.CONFIG.relaisDistance || 30000;
   endRelais.classList.remove("hidden");
-  endRelais.textContent = `Relais de la semaine : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} m à toute la ligue`;
+  endRelais.textContent = `Relais : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} m`;
   endLigueCode.textContent = ligue.code;
   endLigueListe.textContent = "";
   const moi = getPseudo();
-  rows.slice(0, 8).forEach((r, i) => {
+  rows.slice(0, 6).forEach((r, i) => {
     const li = document.createElement("li");
     if (r.pseudo === moi) li.className = "moi";
     const rang = document.createElement("span"); rang.className = "rang"; rang.textContent = `${i + 1}`;
@@ -515,7 +515,7 @@ const concertSheet = $("concert-sheet"), concertOui = $("concert-oui"), concertN
 export function estPreinscrit() { return lsGet(CLE_PREINSCRIT) === "1"; }
 export async function proposerConcert() {
   if (!net.estConfigure() || estPreinscrit()) return;
-  $("concert-title").textContent = `${window.CONFIG.concertPlaces || 50} places à gagner avec ta ligue`;
+  $("concert-title").textContent = "Une place de concert ?";
   const n = await net.nbPreinscrits();
   concertCount.classList.toggle("hidden", !n);
   if (n) concertCount.textContent = `${n.toLocaleString("fr-FR")} préinscrit${n > 1 ? "s" : ""} déjà`;
@@ -527,8 +527,8 @@ async function majConcertFin() {
   const n = await net.nbPreinscrits();
   endConcert.classList.remove("hidden");
   endConcert.innerHTML = estPreinscrit()
-    ? `Concert : <b>tu es préinscrit</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`
-    : `Concert : <b>${window.CONFIG.concertPlaces || 50} places à gagner</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`;
+    ? `Concert : <b>préinscrit</b>${n ? ` · ${n.toLocaleString("fr-FR")}` : ""}`
+    : `Concert : <b>${window.CONFIG.concertPlaces || 50} places</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`;
 }
 
 // --- Chargement --------------------------------------------------------------
@@ -564,15 +564,11 @@ export function syncLoadingUi() {
 export function showEndScreen({ metres, potesMax, record, fin, sprint }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
   // Le but : arriver au bout du morceau avec un max de potes.
-  const potesTxt = potesMax === 0 ? "sans un seul pote" : `avec ${potesMax} pote${potesMax > 1 ? "s" : ""}`;
-  endSub.textContent = fin
-    ? `Au bout du morceau ${potesTxt} !`
-    : potesMax === 0
-      ? "Tu n'es pas arrivé au bout du morceau. Tu n'as pas eu de potes ? Tu prends des pièces pour les appeler."
-      : `Tombé avant la fin du morceau, ${potesTxt} au mieux.`;
+  const potesTxt = potesMax === 0 ? "0 pote" : `${potesMax} pote${potesMax > 1 ? "s" : ""}`;
+  endSub.textContent = fin ? `Au bout du morceau · ${potesTxt}` : `Tombé avant la fin · ${potesTxt}`;
   endBest.classList.toggle("hidden", !record);
   $("end-eyebrow").textContent = sprint ? "Sprint du dimanche" : fin ? "Course terminée" : "Ta course";
-  if (sprint) endSub.textContent = fin ? `60 secondes ${potesTxt}. Une seule tentative, c'est celle-là.` : `Tombé pendant le sprint, ${potesTxt} au mieux.`;
+  if (sprint) endSub.textContent = `Sprint · ${potesTxt}`;
   setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);
 }
 

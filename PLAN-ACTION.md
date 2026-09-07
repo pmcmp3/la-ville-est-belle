@@ -667,3 +667,6 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
   ligue de démo Paul/Léa/Marius/Inès/Hugo par défaut, biome village avec la ville du joueur, service
   worker, sprint du dimanche, relais de ligue, vagues de 5 ligues, préinscription concert, événements de
   funnel. Migration SQL complétée, à exécuter par l'artiste.
+- ✅ 8 septembre 2026 : Helvetica + Source Serif mises en avant, tuto étape par étape, concert annoncé
+  au début de la course, écran de fin allégé, village refait (église, école, balcons), menu qui défile
+  sur iPhone. Migration Supabase passée : ligues réelles en base.

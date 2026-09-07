@@ -153,7 +153,8 @@ export function rowDecor(ctx, r, clear) {
   const push = (u, v, draw) => out.push({ d: depth(u, v), draw });
   const sway = (k) => Math.sin(decorT * 1.6 + k) * 0.05;
   for (const side of [-1, 1]) {
-    const n = zone === "foret" ? 2 : zone === "prairie" ? 2 : 3; // allégé (« trop de trucs sur le côté »)
+    const n = zone === "foret" ? 2 : zone === "prairie" ? 2 : zone === "village" ? 0 : 3; // allégé (« trop de trucs sur le côté »)
+    if (zone === "village") decorVillage(ctx, push, r, side, sway);
     for (let i = 0; i < n; i++) {
       const a = hash(r * 31 + i * 7 + side * 101);
       const b = hash(r * 17 + i * 5 + side * 53);
@@ -166,20 +167,6 @@ export function rowDecor(ctx, r, clear) {
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a"); drawBox(ctx, u - 0.05 + sw, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85); drawBox(ctx, u + 0.08 + sw, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95); });
       } else if (zone === "vigne") {
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15 + sw, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
-      } else if (zone === "village") {
-        // Petites maisons (murs + toit), une voiture garée, un skateur.
-        // Une maison toutes les 3 rangées, une voiture toutes les 5, un skateur toutes les 9 : le village respire.
-        if (i === 0 && r % 3 === (side > 0 ? 0 : 1)) {
-          const mur = ["#f2ede2", "#e8d8b8", "#d9c3a0"][r % 3], toit = ["#b8402c", "#5c4a3a", "#3a3a40"][(r + 1) % 3];
-          const hu = side * (ROAD_HALF + 1.6 + a * 2), hv = r - 0.4;
-          push(hu, hv, () => { drawBox(ctx, hu, hv, 1.4, 1.2, 1.0, mur); drawBox(ctx, hu - 0.1, hv - 0.1, 1.6, 1.4, 0.35, toit, 1.0); drawBox(ctx, hu + 0.3, hv + 0.3, 0.8, 0.6, 0.3, toit, 1.35); drawBox(ctx, hu + 0.55, hv - 0.02, 0.3, 0.04, 0.5, "#3a3a40"); });
-        } else if (i === 1 && r % 5 === (side > 0 ? 2 : 4)) {
-          const cu = side * (ROAD_HALF + 0.35) - (side < 0 ? 0.9 : 0), cv = r - 0.5, col = ["#2f5fb0", "#e13e26", "#e9e4d8"][r % 3];
-          push(cu, cv, () => { drawBox(ctx, cu, cv, 0.9, 1.9, 0.4, col, 0.15); drawBox(ctx, cu + 0.08, cv + 0.5, 0.74, 0.8, 0.32, "#a8d8f0", 0.55); for (const [lx, ly] of [[-0.03, 0.2], [-0.03, 1.4], [0.75, 0.2], [0.75, 1.4]]) drawBox(ctx, cu + lx, cv + ly, 0.18, 0.3, 0.28, "#1a1a1e"); });
-        } else if (i === 2 && r % 9 === (side > 0 ? 4 : 7)) {
-          const su = side * (ROAD_HALF + 0.55), sv = r - 0.3, k2 = r * 1.3;
-          push(su, sv, () => { const roll = Math.sin(decorT * 2 + k2) * 0.3; drawBox(ctx, su, sv + roll, 0.25, 0.7, 0.06, "#e13e26", 0.12); drawBox(ctx, su + 0.03, sv + 0.1 + roll, 0.2, 0.2, 0.55, "#3a3e4e", 0.18); drawBox(ctx, su, sv + 0.05 + roll, 0.26, 0.3, 0.4, "#ffcf2e", 0.73); drawBox(ctx, su + 0.02, sv + 0.1 + roll, 0.22, 0.22, 0.24, "#d69a68", 1.13); });
-        }
       } else if (zone === "prairie") {
         const fl = a < 0.5 ? "#ffffff" : "#ffcf2e";
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.05, v + 0.05, 0.06, 0.06, 0.3, "#4f7a2a"); drawBox(ctx, u + sw, v, 0.16, 0.16, 0.1, fl, 0.3); });
@@ -214,6 +201,84 @@ export function rowDecor(ctx, r, clear) {
   return out;
 }
 
+// --- Le village (8 septembre 2026 : « des variations, plus grandes au fond
+// avec étage, porte, balcon, des gens aux balcons, une église en plein milieu,
+// une école, un peu de vie »). Emplacements FIXES par rangée dans le biome
+// (rz = rangée dans la tranche de 55) : rien ne se marche dessus.
+function personnage(ctx, u, v, lift, haut, bas) {
+  drawBox(ctx, u, v, 0.14, 0.14, 0.32, bas, lift);
+  drawBox(ctx, u - 0.03, v - 0.03, 0.2, 0.2, 0.3, haut, lift + 0.32);
+  drawBox(ctx, u, v, 0.14, 0.14, 0.16, "#d69a68", lift + 0.62);
+}
+function maison(ctx, u, v, w, d, etages, mur, toit, balcon) {
+  const h = 1.0 * etages;
+  drawBox(ctx, u, v, w, d, h, mur);
+  drawBox(ctx, u + w * 0.35, v - 0.02, 0.3, 0.06, 0.55, "#3a3a40");            // porte
+  for (let e = 0; e < etages; e++) drawBox(ctx, u + w * 0.72, v - 0.02, 0.22, 0.06, 0.25, "#a8d8f0", 0.5 + e);  // fenêtres
+  if (balcon) {
+    drawBox(ctx, u + 0.15, v - 0.35, w - 0.3, 0.35, 0.08, "#6b4b2e", 1.0);      // balcon
+    drawBox(ctx, u + 0.15, v - 0.35, w - 0.3, 0.05, 0.3, "#6b4b2e", 1.08);       // garde-corps
+    personnage(ctx, u + w * 0.45, v - 0.28, 1.08, balcon, "#3a3e4e");            // quelqu'un au balcon
+  }
+  drawBox(ctx, u - 0.12, v - 0.12, w + 0.24, d + 0.24, 0.3, toit, h);
+  drawBox(ctx, u + 0.2, v + 0.2, w - 0.4, d - 0.4, 0.28, toit, h + 0.3);
+}
+function decorVillage(ctx, push, r, side, sway) {
+  const rz = ((r % ZONE_ROWS) + ZONE_ROWS) % ZONE_ROWS;
+  const gauche = side < 0;
+  const murs = ["#f2ede2", "#e8d8b8", "#d9c3a0", "#f0e0d0"], toits = ["#b8402c", "#5c4a3a", "#3a3a40", "#8a6a45"];
+  const k = r * 7 + (gauche ? 3 : 0);
+  // Petites maisons près de la route, une tous les 4 rangées (décalées par côté).
+  if (rz % 4 === (gauche ? 1 : 3) && rz !== 27 && rz !== 12) {
+    const u = gauche ? -(ROAD_HALF + 2.5) : ROAD_HALF + 1.2, v = r - 0.5;
+    push(u, v, () => maison(ctx, u, v, 1.3, 1.1, 1, murs[k % 4], toits[(k + 1) % 4], null));
+  }
+  // Grandes maisons au fond, deux étages, balcon avec quelqu'un dessus.
+  if (rz % 5 === (gauche ? 2 : 0)) {
+    const u = gauche ? -(ROAD_HALF + 5.2) : ROAD_HALF + 3.8, v = r - 0.6;
+    const hab = ["#e13e26", "#ffcf2e", "#3f63b4", "#2f7a46"][k % 4];
+    push(u, v, () => maison(ctx, u, v, 1.9, 1.6, 2, murs[(k + 2) % 4], toits[k % 4], hab));
+  }
+  // L'église, en plein milieu du village, côté gauche : nef + clocher + croix.
+  if (gauche && rz === 27) {
+    const u = -(ROAD_HALF + 3.6), v = r - 1.2;
+    push(u, v, () => {
+      drawBox(ctx, u, v, 1.8, 2.6, 1.4, "#e8e0cc");
+      drawBox(ctx, u - 0.1, v - 0.1, 2.0, 2.8, 0.5, "#5c4a3a", 1.4);
+      drawBox(ctx, u + 0.5, v + 2.6, 0.8, 0.8, 3.2, "#e8e0cc");
+      drawBox(ctx, u + 0.4, v + 2.5, 1.0, 1.0, 0.6, "#3a3a40", 3.2);
+      drawBox(ctx, u + 0.85, v + 2.95, 0.1, 0.1, 0.6, "#3a3a40", 3.8);
+      drawBox(ctx, u + 0.7, v + 2.95, 0.4, 0.1, 0.1, "#3a3a40", 4.2);
+      drawBox(ctx, u + 0.75, v - 0.02, 0.3, 0.06, 0.9, "#6b4b2e");
+    });
+  }
+  // L'école, côté droit : long bâtiment bas, une cour, des enfants dedans.
+  if (!gauche && rz === 12) {
+    const u = ROAD_HALF + 1.6, v = r - 1.5;
+    push(u, v, () => {
+      drawBox(ctx, u, v, 2.2, 3.2, 1.1, "#f0e0d0");
+      drawBox(ctx, u - 0.1, v - 0.1, 2.4, 3.4, 0.25, "#8a6a45", 1.1);
+      for (let i = 0; i < 4; i++) drawBox(ctx, u - 0.02, v + 0.3 + i * 0.7, 0.06, 0.4, 0.4, "#a8d8f0", 0.45);
+      drawBox(ctx, u - 0.05, v + 1.3, 0.05, 0.9, 0.35, "#f7f2e6", 0.05);
+      for (let i = 0; i < 3; i++) personnage(ctx, u - 0.6 - i * 0.35, v + 0.6 + i * 0.5, 0, ["#e13e26", "#ffcf2e", "#3f63b4"][i], "#3a3e4e");
+    });
+  }
+  // Voitures garées le long de la route, une tous les 6 rangées.
+  if (rz % 6 === (gauche ? 4 : 1)) {
+    const cu = gauche ? -(ROAD_HALF + 1.15) : ROAD_HALF + 0.35, cv = r - 0.5, col = ["#2f5fb0", "#e13e26", "#e9e4d8"][k % 3];
+    push(cu, cv, () => { drawBox(ctx, cu, cv, 0.8, 1.7, 0.4, col, 0.15); drawBox(ctx, cu + 0.08, cv + 0.45, 0.64, 0.7, 0.3, "#a8d8f0", 0.55); for (const [lx, ly] of [[-0.03, 0.2], [-0.03, 1.25], [0.65, 0.2], [0.65, 1.25]]) drawBox(ctx, cu + lx, cv + ly, 0.18, 0.28, 0.28, "#1a1a1e"); });
+  }
+  // Un skateur, un passant qui marche, de temps en temps.
+  if (!gauche && rz % 11 === 5) {
+    const su = ROAD_HALF + 0.55, sv = r - 0.3, k2 = r * 1.3;
+    push(su, sv, () => { const roll = Math.sin(decorT * 2 + k2) * 0.3; drawBox(ctx, su, sv + roll, 0.25, 0.7, 0.06, "#e13e26", 0.12); personnage(ctx, su + 0.05, sv + 0.2 + roll, 0.18, "#ffcf2e", "#3a3e4e"); });
+  }
+  if (gauche && rz % 9 === 6) {
+    const pu = -(ROAD_HALF + 0.7), pv = r - 0.4;
+    push(pu, pv, () => personnage(ctx, pu, pv + sway(r) * 4, 0, ["#e13e26", "#3f63b4", "#2f7a46"][k % 3], "#3a3e4e"));
+  }
+}
+
 // Lampadaires visibles (halos peints par-dessus la nuit, main.js).
 export function lampsIn(from, to) {
   const out = [];
@@ -243,10 +308,10 @@ export function drawSign(ctx, r, village) {
   ctx.fillStyle = "#0d0d10";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   let taille = K * 0.3;
-  ctx.font = `900 ${taille}px "Stage Grotesk", system-ui, sans-serif`;
-  while (ctx.measureText(nom).width > w * K - 4 * m && taille > 5) { taille -= 1; ctx.font = `900 ${taille}px "Stage Grotesk", system-ui, sans-serif`; }
+  ctx.font = `900 ${taille}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  while (ctx.measureText(nom).width > w * K - 4 * m && taille > 5) { taille -= 1; ctx.font = `900 ${taille}px "Helvetica Neue", Helvetica, Arial, sans-serif`; }
   ctx.fillText(nom, w * K / 2, hb * K * 0.4);
-  ctx.font = `500 ${K * 0.17}px "Stage Grotesk", system-ui, sans-serif`;
+  ctx.font = `500 ${K * 0.17}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
   ctx.fillText(`(${dep})`, w * K / 2, hb * K * 0.74);
   ctx.restore();
 }

@@ -172,10 +172,20 @@ function tutoStep(dt, now) {
     tuto.ok -= dt;
     if (tuto.ok <= 0) { tuto.ok = 0; tuto.index += 1; tuto.timer = 0; }
   } else {
+    // Une étape n'avance QUE sur le geste (8 septembre 2026 : « étape par
+    // étape, pour que les gens puissent bien jouer »). Garde-fou : 25 s.
     tuto.timer += dt;
-    if (tuto.timer > 6) { tuto.index += 1; tuto.timer = 0; }
+    if (tuto.timer > 25) { tuto.index += 1; tuto.timer = 0; }
   }
-  if (tuto.index >= TUTO_ETAPES.length) { tuto.actif = false; afficherBanner("À TOI DE JOUER !", null, JAUNE, 2); }
+  if (tuto.index >= TUTO_ETAPES.length) { tuto.actif = false; annoncerConcert(); }
+}
+// Le concert se dit au DÉBUT de la course (« faut en parler au début, on peut
+// gagner une place de concert »), une seule fois par partie, en serif.
+let concertAnnonce = false;
+function annoncerConcert() {
+  if (concertAnnonce) return;
+  concertAnnonce = true;
+  afficherBanner(`${window.CONFIG.concertPlaces || 50} places de concert à gagner`, screens.getLigue() ? "avec ta ligue, jusqu'au bout du morceau" : "crée ta ligue, va au bout du morceau", JAUNE, 3);
 }
 function tutoVue() {
   if (!tuto.actif) return null;
@@ -230,7 +240,7 @@ function resetRun() {
   game.startedAt = perfClock();
   player.col = 1; player.u = iso.colU(1); player.prevU = player.u; player.v = 0; player.prevV = 0;
   player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0; player.doubled = false; player.flip = 0; player.prevFlip = 0; player.elan = 1;
-  sparkles.length = 0; ghosts.length = 0;
+  sparkles.length = 0; ghosts.length = 0; concertAnnonce = false;
   speed = V_UNIT * window.CONFIG.vitesseBase; slowMul = 1; nuitDebut = null;
   friends.reset();
   rows.reseed();
@@ -460,6 +470,7 @@ function step(dt) {
   const now = clock.now();
   const phys = jumpPhysics();
   tutoStep(dt, now);
+  if (!tuto.actif && now >= 1.5 && !concertAnnonce && !game.sprint) annoncerConcert();
 
   // --- Nuit : tombe à partir de nuitDebutS, 30 s de transition ---
   const nd = nuitDebut !== null ? nuitDebut : window.CONFIG.nuitDebutS;
@@ -505,7 +516,7 @@ function step(dt) {
 
   // --- Avance ---
   speed += (targetSpeed(now) - speed) * Math.min(1, 3 * dt);
-  const vitesse = speed * (game.turbo > 0 ? (window.CONFIG.laitVitesse || 1.2) : 1) * slowMul;
+  const vitesse = speed * (game.turbo > 0 ? (window.CONFIG.laitVitesse || 1.2) : 1) * slowMul * (tuto.actif ? 0.55 : 1);
   if (now >= 0) {
     const dv = vitesse * dt;
     player.v += dv;
@@ -516,6 +527,7 @@ function step(dt) {
   friends.update(dt, player, phys);
 
   // --- Traversées : armées pour croiser le joueur ---
+  if (tuto.actif) rows.ouvrirFenetreSure(Math.floor(player.v + 0.5) + 1, Math.floor(player.v + 0.5) + iso.ROWS_AHEAD + 2);
   if (now >= 0) armerTraversees(now, vitesse);
 
   // --- Collisions et pièces ---
@@ -679,7 +691,7 @@ function render(alpha) {
     for (const pop of popups) {
       const t = pop.age / 1.1;
       ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-      ctx.font = `900 18px "Stage Grotesk", system-ui, sans-serif`;
+      ctx.font = `900 18px "Helvetica Neue", Helvetica, Arial, sans-serif`;
       ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineJoin = "round";
       ctx.strokeText(pop.texte, g.x, base - t * 46 - pop.decalage);
       ctx.fillStyle = pop.couleur;
@@ -781,8 +793,6 @@ let accumulator = 0;
 
 if (document.fonts && document.fonts.load) {
   Promise.all([
-    document.fonts.load('900 30px "Stage Grotesk"'),
-    document.fonts.load('500 13px "Stage Grotesk"'),
     document.fonts.load('900 40px "Source Serif 2"'),
   ]).catch(() => {});
 }

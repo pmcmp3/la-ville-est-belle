@@ -8,7 +8,7 @@ const NOIR = "#0d0d10";
 const JAUNE = "#ffcf2e";
 const ROUGE = "#e13e26";
 const PANNEAU = "rgba(13,13,16,0.72)";
-const POLICE = '"Stage Grotesk", system-ui, sans-serif';
+const POLICE = '"Helvetica Neue", Helvetica, Arial, system-ui, sans-serif';
 const POLICE_TITRE = '"Source Serif 2", Georgia, serif';
 const PAD = 16;
 
@@ -198,7 +198,8 @@ export function renderBanner(ctx, width, height, banner, safeTop = 0) {
   ctx.save();
   ctx.globalAlpha = Math.min(1, banner.timer * 2, age * 6);
   const maxW = Math.min(width - 48, 340);
-  fitFont(ctx, "900", 18, banner.titre, maxW - 40, 12);
+  let ft = 22; ctx.font = `900 ${ft}px ${POLICE_TITRE}`;
+  while (ctx.measureText(banner.titre).width > maxW - 40 && ft > 13) { ft -= 1; ctx.font = `900 ${ft}px ${POLICE_TITRE}`; }
   const w = Math.max(180, Math.min(maxW, ctx.measureText(banner.titre).width + 44));
   const h = banner.sous ? 58 : 42;
   const y = safeTop + 150; // sous les trois étages du HUD
@@ -217,7 +218,7 @@ export function renderBanner(ctx, width, height, banner, safeTop = 0) {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillStyle = banner.couleur;
-  ctx.fillText(banner.titre, width / 2, y + 11);
+  ctx.fillText(banner.titre, width / 2, y + 9);
   if (banner.sous) {
     fitFont(ctx, "500", 12, banner.sous, w - 20, 9);
     ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -267,9 +268,10 @@ export function renderTuto(ctx, width, height, tuto) {
   ctx.font = `700 10px ${POLICE}`;
   ctx.fillStyle = "rgba(255,255,255,0.6)";
   ctx.fillText(tuto.ok ? "BIEN !" : `TUTO ${tuto.index}/${tuto.total}`, width / 2, y + 12);
-  fitFont(ctx, "900", 21, tuto.titre, w - 24, 12);
+  let t = 26; ctx.font = `900 ${t}px ${POLICE_TITRE}`;
+  while (ctx.measureText(tuto.titre).width > w - 24 && t > 14) { t -= 1; ctx.font = `900 ${t}px ${POLICE_TITRE}`; }
   ctx.fillStyle = tuto.ok ? JAUNE : BLANC;
-  ctx.fillText(tuto.titre, width / 2, y + 28);
+  ctx.fillText(tuto.titre, width / 2, y + 26);
   if (tuto.sous) {
     fitFont(ctx, "500", 13, tuto.sous, w - 24, 9);
     ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -286,15 +288,13 @@ export function renderFin(ctx, width, height, age) {
   ctx.fillStyle = `rgba(255,255,255,${Math.max(0, 0.8 - age * 1.2)})`;
   ctx.fillRect(0, 0, width, height);
   ctx.translate(width / 2, height * 0.34);
-  ctx.scale(1.4 - 0.4 * tPop, 1.4 - 0.4 * tPop);
+  const sc = 1.4 - 0.4 * tPop;
+  ctx.scale(sc * 0.66, sc); // condensé comme le titre « j'ai un pote » (scaleX 0,66)
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.font = `900 58px ${POLICE_TITRE}`;
+  ctx.font = `900 ${Math.min(120, width * 0.3)}px ${POLICE_TITRE}`;
   ctx.fillStyle = NOIR;
-  ctx.fillText("TERMINÉ !", 3, 3);
-  ctx.fillStyle = JAUNE;
-  ctx.fillText("TERMINÉ !", 0, 0);
-  ctx.font = `700 13px ${POLICE}`;
+  ctx.fillText("terminé !", 4, 4);
   ctx.fillStyle = BLANC;
-  ctx.fillText("LE MORCEAU EST FINI", 0, 44);
+  ctx.fillText("terminé !", 0, 0);
   ctx.restore();
 }

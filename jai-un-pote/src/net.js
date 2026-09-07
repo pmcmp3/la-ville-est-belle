@@ -106,7 +106,7 @@ export function preinscrire(infos) { return post("preinscriptions_concert", info
 export async function nbPreinscrits() {
   if (!configured()) return null;
   try {
-    const res = await fetch(url("preinscriptions_concert", "?select=id"), { headers: headers({ Prefer: "count=planned", Range: "0-0" }) });
+    const res = await fetch(url("preinscriptions_concert", "?select=id"), { headers: headers({ Prefer: "count=exact", Range: "0-0" }) // exact : petite table, appelée une fois par fin de course (planned renvoyait 400 sur une table vide) });
     const cr = res.headers.get("content-range") || "";
     const total = Number(cr.split("/")[1]);
     return Number.isFinite(total) ? total : null;

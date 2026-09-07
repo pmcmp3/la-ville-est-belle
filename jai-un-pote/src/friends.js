@@ -154,7 +154,7 @@ export function drawables(ctx, pedalPhase) {
         if (p.name && p.arrive >= 1 && !p.leave) {
           const g = project(u, p.v, y + RIDER_HEIGHT + 0.15);
           ctx.save();
-          ctx.font = `700 11px "Stage Grotesk", system-ui, sans-serif`;
+          ctx.font = `700 11px "Helvetica Neue", Helvetica, Arial, sans-serif`;
           ctx.textAlign = "center"; ctx.textBaseline = "bottom";
           ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineJoin = "round";
           ctx.strokeText(`@${p.name}`, g.x, g.y);

@@ -17,8 +17,6 @@
        de l'EP. Blanc, rouge de charte, serif noire condensée, stickers rouges
        posés de travers, boutons rectangulaires à capitales espacées. */
     @font-face { font-family: "Source Serif 2"; src: url("fonts/SourceSerif2-Black.woff2") format("woff2"); font-weight: 900; font-style: normal; font-display: block; }
-    @font-face { font-family: "Stage Grotesk"; src: url("fonts/StageGrotesk-Medium.otf") format("opentype"); font-weight: 500; font-style: normal; font-display: block; }
-    @font-face { font-family: "Stage Grotesk"; src: url("fonts/StageGrotesk-Black.otf") format("opentype"); font-weight: 900; font-style: normal; font-display: block; }
 
     :root {
       --rouge: #e13e26;
@@ -27,7 +25,7 @@
       --panneau-fond: #ffffff;
       --panneau-bord: #0d0d10;
       --rayon: 4px;
-      --police: "Stage Grotesk", system-ui, sans-serif;
+      --police: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; /* 8 septembre 2026 : « après, Helvetica, simple, efficace » */
       --titre: "Source Serif 2", Georgia, "Times New Roman", serif;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -58,9 +56,9 @@
     /* --- Overlay des écrans hors-jeu ------------------------------------- */
     #overlay {
       position: fixed; inset: 0; z-index: 20;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: calc(24px + var(--safe-top)) 24px calc(84px + var(--safe-bottom));
-      box-sizing: border-box;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: calc(16px + var(--safe-top)) 20px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
       background: linear-gradient(180deg, rgba(13,13,16,0.1) 0%, rgba(13,13,16,0.3) 55%, rgba(13,13,16,0.5) 100%);
       opacity: 0; visibility: hidden;
       transition: opacity 0.45s ease, visibility 0s linear 0.45s;
@@ -70,11 +68,11 @@
     #overlay.visible .fade { opacity: 1; transform: translateY(0); }
     #overlay.visible .fade:nth-child(2) { transition-delay: 0.12s; }
 
-    #menu-title { position: relative; width: 100%; margin: 0 0 30px; color: var(--blanc); text-align: center; }
+    #menu-title { position: relative; width: 100%; margin: 10px 0 24px; color: var(--blanc); text-align: center; }
     #menu-title .titre-mot {
       display: block; width: max-content; margin-left: 50%;
       transform: translateX(-50%) scaleX(0.66); transform-origin: center bottom;
-      font: 900 66px/0.85 var(--titre); letter-spacing: -0.035em; white-space: nowrap;
+      font: 900 clamp(52px, 17vw, 72px)/0.85 var(--titre); letter-spacing: -0.035em; white-space: nowrap;
     }
     #menu-title .titre-sous {
       display: block; margin-top: 14px;
@@ -87,7 +85,8 @@
     .view { display: none; flex-direction: column; align-items: center; }
     .view.active { display: flex; animation: view-in 0.4s ease both; }
     @keyframes view-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    #onboarding.active { width: 100%; }
+    #onboarding.active { width: 100%; flex: none; }
+    #onboarding .panel { margin: 0 auto; }
 
     /* --- Carte + sticker ------------------------------------------------ */
     .panel {
@@ -134,7 +133,7 @@
     }
     #pseudo-input::placeholder { color: rgba(0,0,0,0.32); }
     #pseudo-input:focus { outline: none; border-bottom-color: var(--rouge); }
-    .field-note { width: 240px; margin: 14px 0 22px; font: 500 13px/1.45 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
+    .field-note { width: 240px; margin: 12px 0 18px; font: 500 13px/1.4 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
     .regle { width: 240px; margin: 0 0 18px; padding: 0; list-style: none; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); }
     .regle li { display: flex; gap: 8px; }
     .regle b { font-weight: 900; color: var(--noir); min-width: 62px; }
@@ -155,13 +154,13 @@
     .champ-row input:focus { outline: none; border-bottom-color: var(--rouge); }
     #step2-back, #step3-links { margin-top: 10px; }
     #step3-links { display: flex; gap: 18px; }
-    #skin-canvas { display: block; width: 220px; height: 200px; margin: -8px 0 4px; }
-    #skin-options { display: flex; flex-direction: column; gap: 7px; width: 250px; margin-bottom: 14px; }
+    #skin-canvas { display: block; width: 220px; height: 150px; margin: -6px 0 2px; }
+    #skin-options { display: flex; flex-direction: column; gap: 5px; width: 250px; margin-bottom: 12px; }
     .skin-row { display: flex; align-items: center; gap: 8px; }
     .skin-label { width: 68px; flex: none; font: 700 10px var(--police); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
     .chips { display: flex; flex-wrap: wrap; gap: 5px; }
-    .chip { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 3px; border: 1.5px solid rgba(0,0,0,0.25); background: #fff; font: 700 10px var(--police); letter-spacing: 0.06em; text-transform: uppercase; color: var(--noir); -webkit-tap-highlight-color: transparent; }
-    .chip.couleur { padding: 0; width: 22px; }
+    .chip { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 3px; border: 1.5px solid rgba(0,0,0,0.25); background: #fff; font: 700 10px var(--police); letter-spacing: 0.06em; text-transform: uppercase; color: var(--noir); -webkit-tap-highlight-color: transparent; }
+    .chip.couleur { padding: 0; width: 20px; }
     .chip.actif { border-color: var(--noir); box-shadow: 0 0 0 2px var(--jaune); }
     #sprint-button { margin-top: 8px; }
     #sprint-note { margin: 6px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
@@ -175,7 +174,7 @@
     #concert-sheet.visible #concert-veil { opacity: 1; }
     #concert-card { position: relative; box-sizing: border-box; width: min(300px, 100%); padding: 30px 20px 18px; border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
     #concert-sheet.visible #concert-card { transform: scale(1); opacity: 1; }
-    #concert-title { margin: 2px 0 0; font: 900 24px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #concert-title { margin: 2px 0 0; font: 900 28px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
     #concert-text, #concert-count { margin: 0; font: 500 13px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
     #concert-count { color: var(--rouge); font-weight: 700; }
     #concert-oui { width: 100%; }
@@ -209,24 +208,23 @@
     #end-ligue .btn { width: 100%; padding: 8px 10px; min-height: 40px; font-size: 12px; }
 
     #cta-link {
-      position: absolute; left: 50%; bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
-      transform: translateX(-50%);
+      position: relative; margin: 18px auto 0; flex: none;
       display: flex; align-items: center; justify-content: center; gap: 8px; width: 240px; box-sizing: border-box; padding: 13px 22px;
       border: 1.5px solid var(--noir); border-radius: var(--rayon); background: var(--blanc); color: var(--noir);
       font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none; white-space: nowrap;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #cta-link svg { flex: none; opacity: 0.75; }
-    #cta-link:active { transform: translateX(-50%) scale(0.96); }
+    #cta-link:active { transform: scale(0.96); }
 
     /* --- Écran de fin --------------------------------------------------- */
     #end-screen .panel { max-width: 280px; }
     #end-screen .panel-body { padding: 28px 16px 18px; }
     #end-screen .btn { width: 100%; padding: 9px 10px; min-height: 44px; white-space: nowrap; }
     #end-hero { text-align: center; margin: 2px 0 14px; }
-    #score-num { font: 900 58px/0.9 var(--titre); color: var(--noir); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block; }
+    #score-num { font: 900 clamp(52px, 16vw, 64px)/0.9 var(--titre); color: var(--noir); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block; }
     #score-num small { font: 700 16px var(--police); letter-spacing: 0.06em; margin-left: 4px; }
-    #end-sub { margin: 10px 0 0; font: 500 13px/1.45 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
+    #end-sub { margin: 8px 0 0; font: 500 13px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; text-wrap: balance; }
     /* « Nouveau record » : sticker en haut à droite de la carte (6 septembre 2026). */
     #end-best {
       position: absolute; top: 22px; right: -16px; margin: 0; padding: 6px 10px;
@@ -234,7 +232,8 @@
       font: 900 10.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
       box-shadow: 0 2px 0 rgba(0,0,0,0.25);
     }
-    #end-credit { margin: 12px 0 0; font: 500 11px/1.4 var(--police); color: rgba(0,0,0,0.6); text-align: center; text-wrap: balance; }
+    #end-credit { margin: 10px 0 0; font: 500 10px/1.4 var(--police); color: rgba(0,0,0,0.45); text-align: center; text-wrap: balance; }
+    #end-ecouter { margin-top: 2px; }
     #end-credit a { color: var(--rouge); font-weight: 900; text-decoration: none; }
     #end-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
     #end-note { margin: 10px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
@@ -257,7 +256,7 @@
     #revive-timer .piste, #gate-timer .piste { fill: none; stroke: rgba(225,62,38,0.18); stroke-width: 6; }
     #revive-arc, #gate-arc { fill: none; stroke: var(--rouge); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 207.3; stroke-dashoffset: 0; }
     #revive-timer-num, #gate-timer-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 900 30px var(--police); color: var(--noir); font-variant-numeric: tabular-nums; }
-    #revive-title, #gate-title { margin: 2px 0 6px; font: 900 24px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #revive-title, #gate-title { margin: 2px 0 6px; font: 900 clamp(22px, 6.5vw, 28px)/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
     #revive-text, #gate-text { margin: 0 0 4px; font: 500 13.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
     #revive-cta, #revive-replay, #gate-cta, #gate-go, #gate-later { width: 100%; }
     #gate-later { margin-top: 4px; }
@@ -425,22 +424,19 @@
             <p id="end-ligue-titre">Ligue <b id="end-ligue-code">—</b></p>
             <ol id="end-ligue-liste"></ol>
             <p id="end-relais" class="hidden"></p>
+          </div>
+          <div id="end-actions">
+            <button id="replay-button" class="btn btn-primary" type="button">Rejouer</button>
             <button id="end-ligue-partager" class="btn btn-secondary share-btn" type="button"><span class="share-inner"><span>Inviter des potes</span><span class="share-apps" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
               </span></span></button>
-          </div>
-          <div id="end-actions">
-            <button id="replay-button" class="btn btn-primary" type="button">Rejouer</button>
-            <a id="end-cta" class="btn btn-secondary" href="#">
-              <span>Écouter l'album</span>
-              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </a>
+            <a id="end-cta" class="link-minimal" href="#" role="button">Écouter l'album</a>
           </div>
           <p id="end-concert" class="hidden"></p>
-          <p id="end-credit">J'ai un pote, composé par <a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">PMC MP3</a></p>
+          <p id="end-credit"><a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
           <a id="insta-link" href="#" class="hidden" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
         </div>
       </div>
@@ -491,9 +487,9 @@
   <div id="concert-sheet" aria-hidden="true">
     <div id="concert-veil"></div>
     <div id="concert-card">
-      <div class="panel-header"><p class="step-eyebrow">Il y a un concert</p></div>
-      <p id="concert-title">50 places à gagner avec ta ligue</p>
-      <p id="concert-text">Premiers de ligue, sprint du dimanche, relais : les places vont aux préinscrits. Ça prend un tap, on a déjà ton pseudo.</p>
+      <div class="panel-header"><p class="step-eyebrow">Concert</p></div>
+      <p id="concert-title">Une place de concert ?</p>
+      <p id="concert-text">Un tap, tu es préinscrit. Les places vont aux premiers de ligue.</p>
       <p id="concert-count" class="hidden"></p>
       <button id="concert-oui" type="button" class="btn btn-primary">Je veux une place</button>
       <button id="concert-non" type="button" class="link-minimal">Plus tard</button>

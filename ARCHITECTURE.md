@@ -2357,5 +2357,22 @@ idempotente (`drop policy if exists`) après une première exécution interrompu
 - Migration `supabase-migration-ligues.sql` complétée (deuxième partie idempotente : colonnes skin/mode,
   ligue de démo, vues classement/relais, tables evenements/preinscriptions_concert).
 
-**Reste à faire** : exécuter la migration complète côté Supabase (l'artiste), puis vérifier ligue + skins
-entre deux téléphones ; distribution effective des places (hors jeu).
+**Cinquième passe du 8 septembre 2026 (retours téléphone)** : **Helvetica** pour tout le texte courant
+(`--police`, `POLICE` du HUD ; Stage Grotesk n'est plus déclarée ni chargée) et la **Source Serif** partout
+où ça compte (titres du tuto et des bandeaux, « terminé ! » en minuscules condensées ×0,66 comme le titre,
+score, chrono) ; tailles en `clamp()` ; **overlay du menu qui défile** et CTA « L'album est sorti » dans le
+flux (la carte « Mon cycliste » débordait sur iPhone) ; **tuto strict** : une étape n'avance QUE sur le
+geste (garde-fou 25 s), vitesse ×0,55 et route sûre tant qu'il tourne ; **le concert s'annonce au DÉBUT**
+de la course (bandeau « 50 places de concert à gagner », après le tuto ou à 1,5 s), la feuille de fin ne
+dit plus que « Une place de concert ? Un tap, tu es préinscrit » ; **écran de fin allégé** : score,
+« Au bout du morceau · 3 potes », classement de ligue (6 lignes), « Relais : x / 30 000 m », REJOUER,
+INVITER DES POTES, « Écouter l'album » en lien, « Concert : préinscrit · N », « @pmc.mp3 » ; **village
+refait** (`decorVillage`, iso.js) : emplacements fixes par rangée de la tranche (rien ne se marche
+dessus) — petites maisons près de la route (1 sur 4), grandes maisons à deux étages au fond avec
+balcon et quelqu'un dessus (1 sur 5), **église** avec clocher et croix au milieu (rz 27, à gauche),
+**école** avec cour et enfants (rz 12, à droite), voitures garées (1 sur 6), skateur, passants.
+Comptage des préinscrits en `count=exact` (planned renvoyait 400 sur une table vide). ⚠️ **La migration
+est passée** : ligues réelles en base (UKMVV pol/pims, scores, skins) — ne plus créer de ligue de test,
+chaque création compte dans le plafond hebdomadaire de 5.
+
+**Reste à faire** : distribution effective des places (hors jeu), vérification du sprint un dimanche.
