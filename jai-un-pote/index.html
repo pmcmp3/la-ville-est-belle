@@ -146,8 +146,42 @@
     #loading-fill { width: 0%; height: 100%; background: var(--rouge); transition: width 0.25s linear; }
     #loading-label { font: 500 13px var(--police); color: rgba(0,0,0,0.55); font-variant-numeric: tabular-nums; }
 
+    /* --- Menu en trois étapes ------------------------------------------- */
+    #onboarding .step { display: none; }
+    #onboarding[data-step="1"] .step[data-step="1"], #onboarding[data-step="2"] .step[data-step="2"], #onboarding[data-step="3"] .step[data-step="3"] { display: block; }
+    .champ-row { display: flex; align-items: center; gap: 10px; width: 240px; margin-top: 10px; }
+    .champ-row .icon { font: 700 11px var(--police); color: rgba(0,0,0,0.45); min-width: 16px; text-align: center; }
+    .champ-row input { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1.5px solid rgba(0,0,0,0.25); color: var(--noir); font: 500 14px var(--police); padding: 5px 2px; -webkit-appearance: none; }
+    .champ-row input:focus { outline: none; border-bottom-color: var(--rouge); }
+    #step2-back, #step3-links { margin-top: 10px; }
+    #step3-links { display: flex; gap: 18px; }
+    #skin-canvas { display: block; width: 220px; height: 200px; margin: -8px 0 4px; }
+    #skin-options { display: flex; flex-direction: column; gap: 7px; width: 250px; margin-bottom: 14px; }
+    .skin-row { display: flex; align-items: center; gap: 8px; }
+    .skin-label { width: 68px; flex: none; font: 700 10px var(--police); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .chip { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 3px; border: 1.5px solid rgba(0,0,0,0.25); background: #fff; font: 700 10px var(--police); letter-spacing: 0.06em; text-transform: uppercase; color: var(--noir); -webkit-tap-highlight-color: transparent; }
+    .chip.couleur { padding: 0; width: 22px; }
+    .chip.actif { border-color: var(--noir); box-shadow: 0 0 0 2px var(--jaune); }
+    #sprint-button { margin-top: 8px; }
+    #sprint-note { margin: 6px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
+    #end-relais, #end-concert { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
+    #end-concert b { color: var(--rouge); }
+
+    /* --- Concert --------------------------------------------------------- */
+    #concert-sheet { position: fixed; inset: 0; z-index: 48; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
+    #concert-sheet.visible { visibility: visible; transition: visibility 0s; }
+    #concert-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.25s ease; }
+    #concert-sheet.visible #concert-veil { opacity: 1; }
+    #concert-card { position: relative; box-sizing: border-box; width: min(300px, 100%); padding: 30px 20px 18px; border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
+    #concert-sheet.visible #concert-card { transform: scale(1); opacity: 1; }
+    #concert-title { margin: 2px 0 0; font: 900 24px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #concert-text, #concert-count { margin: 0; font: 500 13px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
+    #concert-count { color: var(--rouge); font-weight: 700; }
+    #concert-oui { width: 100%; }
+
     /* --- Ligue ---------------------------------------------------------- */
-    #ligue-bloc { width: 240px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #ligue-bloc { width: 240px; margin: 0 0 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
     #ligue-bloc.hidden { display: none; }
     #ligue-row { display: flex; gap: 8px; width: 100%; }
     #ligue-input { flex: 1; min-width: 0; box-sizing: border-box; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 8px 10px; font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; color: var(--noir); background: transparent; -webkit-appearance: none; }
@@ -300,20 +334,27 @@
   <div id="overlay">
     <h1 id="menu-title" class="fade"><span class="titre-mot">j'ai un pote</span></h1>
 
-    <div id="onboarding" class="view active">
-      <div class="panel">
-        <div class="panel-header"><p class="step-eyebrow">Ton nom (pseudo Insta)</p></div>
+    <div id="onboarding" class="view active" data-step="1">
+      <!-- Menu en TROIS ÉTAPES (7 septembre 2026, ordre demandé : inscription →
+           ma ligue → mon cycliste). Un habitué arrive directement à l'étape 3. -->
+      <div class="panel step" data-step="1">
+        <div class="panel-header"><p class="step-eyebrow">Qui es-tu ?</p></div>
         <div class="panel-body">
           <div id="pseudo-row">
             <span class="icon">@</span>
-            <input type="text" id="pseudo-input" placeholder="ton_insta ou ton nom" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
+            <input type="text" id="pseudo-input" placeholder="ton pseudo" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
           </div>
+          <div class="champ-row"><span class="icon">IG</span><input type="text" id="insta-input" placeholder="ton Instagram (facultatif)" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" /></div>
+          <div class="champ-row"><span class="icon">⌂</span><input type="text" id="ville-input" placeholder="ton village, ta ville (facultatif)" autocomplete="off" spellcheck="false" maxlength="24" /></div>
           <p class="field-note">Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement.</p>
-          <div id="loading">
-            <div id="loading-track"><div id="loading-fill"></div></div>
-            <span id="loading-label">0 %</span>
-          </div>
-          <button id="play-button" class="btn btn-primary" type="button" disabled>Jouer</button>
+          <button id="step1-next" class="btn btn-primary" type="button" disabled>Continuer</button>
+        </div>
+      </div>
+
+      <div class="panel step" data-step="2">
+        <div class="panel-header"><p class="step-eyebrow">Ma ligue</p></div>
+        <div class="panel-body">
+          <p class="field-note">Tes potes de ligue pédalent derrière toi. Le but : un max de potes, jusqu'au bout du morceau.</p>
           <!-- Ligue entre potes (7 septembre 2026) -->
           <div id="ligue-bloc">
             <div id="ligue-sans">
@@ -342,6 +383,31 @@
             </div>
             <p id="ligue-msg" class="hidden"></p>
           </div>
+          <button id="step2-next" class="btn btn-primary" type="button">Continuer</button>
+          <button id="step2-back" type="button" class="link-minimal">Changer mon pseudo</button>
+        </div>
+      </div>
+
+      <div class="panel step" data-step="3">
+        <div class="panel-header"><p class="step-eyebrow">Mon cycliste</p></div>
+        <div class="panel-body">
+          <canvas id="skin-canvas" width="220" height="200" aria-label="Aperçu de ton cycliste"></canvas>
+          <div id="skin-options">
+            <div class="skin-row"><span class="skin-label">T-shirt</span><div class="chips" data-cle="c1"></div></div>
+            <div class="skin-row"><span class="skin-label">Motif</span><div class="chips" data-cle="motif"></div></div>
+            <div class="skin-row"><span class="skin-label">Short</span><div class="chips" data-cle="short"></div></div>
+            <div class="skin-row"><span class="skin-label">Chapeau</span><div class="chips" data-cle="chapeau"></div></div>
+            <div class="skin-row"><span class="skin-label">Chaussures</span><div class="chips" data-cle="chaussures"></div></div>
+            <div class="skin-row"><span class="skin-label">Vélo</span><div class="chips" data-cle="velo"></div></div>
+          </div>
+          <div id="loading">
+            <div id="loading-track"><div id="loading-fill"></div></div>
+            <span id="loading-label">0 %</span>
+          </div>
+          <button id="play-button" class="btn btn-primary" type="button" disabled>Jouer</button>
+          <button id="sprint-button" class="btn btn-secondary hidden" type="button">Sprint du dimanche · 60 s</button>
+          <p id="sprint-note" class="hidden"></p>
+          <div id="step3-links"><button id="step3-ligue" type="button" class="link-minimal">Ma ligue</button><button id="step3-profil" type="button" class="link-minimal">Mon profil</button></div>
         </div>
       </div>
     </div>
@@ -358,6 +424,7 @@
           <div id="end-ligue" class="hidden">
             <p id="end-ligue-titre">Ligue <b id="end-ligue-code">—</b></p>
             <ol id="end-ligue-liste"></ol>
+            <p id="end-relais" class="hidden"></p>
             <button id="end-ligue-partager" class="btn btn-secondary share-btn" type="button"><span class="share-inner"><span>Inviter des potes</span><span class="share-apps" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
@@ -372,6 +439,7 @@
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
           </div>
+          <p id="end-concert" class="hidden"></p>
           <p id="end-credit">J'ai un pote, composé par <a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">PMC MP3</a></p>
           <a id="insta-link" href="#" class="hidden" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
         </div>
@@ -415,6 +483,20 @@
       <button id="revive-cta" class="btn btn-primary" type="button">Continuer la course</button>
       <button id="revive-replay" type="button" class="btn btn-secondary">Rejouer</button>
       <button id="revive-decline" type="button" class="link-minimal">Voir ma course</button>
+    </div>
+  </div>
+
+  <!-- Préinscription au concert (7 septembre 2026) : une fois, après la
+       première course arrivée au bout du morceau. -->
+  <div id="concert-sheet" aria-hidden="true">
+    <div id="concert-veil"></div>
+    <div id="concert-card">
+      <div class="panel-header"><p class="step-eyebrow">Il y a un concert</p></div>
+      <p id="concert-title">50 places à gagner avec ta ligue</p>
+      <p id="concert-text">Premiers de ligue, sprint du dimanche, relais : les places vont aux préinscrits. Ça prend un tap, on a déjà ton pseudo.</p>
+      <p id="concert-count" class="hidden"></p>
+      <button id="concert-oui" type="button" class="btn btn-primary">Je veux une place</button>
+      <button id="concert-non" type="button" class="link-minimal">Plus tard</button>
     </div>
   </div>
 

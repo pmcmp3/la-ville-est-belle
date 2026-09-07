@@ -69,3 +69,67 @@ create or replace view public.ligue_classement as
   from public.ligue_scores
   group by code, pseudo;
 grant select on public.ligue_classement to anon;
+
+
+-- ============================================================================
+-- Deuxième partie (7 septembre 2026, soir) : skins, sprint, relais, funnel,
+-- préinscriptions concert, ligue de démo. Idempotent.
+-- ============================================================================
+alter table public.ligue_membres add column if not exists skin text;
+alter table public.ligue_scores add column if not exists mode text not null default 'course';
+
+-- La ligue de démo : Paul et ses quatre potes. Jamais ouverte au public.
+insert into public.ligues (code, nom, createur) values ('PMCMP', 'Ligue de démo', 'paul') on conflict (code) do nothing;
+insert into public.ligue_membres (code, pseudo, skin) values
+  ('PMCMP', 'paul',   '{"motif":"raye","c1":"#2f7a46","c2":"#f2ede2","short":"#3a3e4e","chapeau":"casquette","chaussures":"#565a66","velo":"vtt"}'),
+  ('PMCMP', 'lea',    '{"motif":"uni","c1":"#ffcf2e","c2":"#f2ede2","short":"#3f63b4","chapeau":"paille","chaussures":"#f2ede2","velo":"grandbi"}'),
+  ('PMCMP', 'marius', '{"motif":"uni","c1":"#f2ede2","c2":"#f2ede2","short":"#b8402c","chapeau":"aucun","chaussures":"#f2ede2","velo":"vtt"}'),
+  ('PMCMP', 'ines',   '{"motif":"uni","c1":"#2f7a46","c2":"#f2ede2","short":"#3a3e4e","chapeau":"bob","chaussures":"#e0742e","velo":"vtt"}'),
+  ('PMCMP', 'hugo',   '{"motif":"carreaux","c1":"#e13e26","c2":"#0d0d10","short":"#c8963a","chapeau":"casquette","chaussures":"#33353d","velo":"grandbi"}')
+on conflict (code, pseudo) do nothing;
+
+-- Le classement de ligue ne compte que les courses (pas le sprint).
+create or replace view public.ligue_classement as
+  select code, pseudo, max(metres) as metres, max(potes) as potes, count(*) as parties
+  from public.ligue_scores where mode = 'course'
+  group by code, pseudo;
+grant select on public.ligue_classement to anon;
+
+-- Relais : mètres cumulés d'une ligue depuis le lundi de la semaine en cours.
+create or replace view public.ligue_relais as
+  select code, sum(metres) as metres, count(*) as parties
+  from public.ligue_scores
+  where mode = 'course' and created_at >= date_trunc('week', now())
+  group by code;
+grant select on public.ligue_relais to anon;
+
+-- Événements du funnel (insert-only) : arrivee, inscription, premiere_course,
+-- course_finie, invitation_envoyee, invitation_acceptee, clic_album, preinscription.
+create table if not exists public.evenements (
+  id bigint generated always as identity primary key,
+  type text not null,
+  pseudo text,
+  source text,
+  ligue text,
+  created_at timestamptz not null default now()
+);
+alter table public.evenements enable row level security;
+drop policy if exists "Envoi public d'un evenement" on public.evenements;
+create policy "Envoi public d'un evenement" on public.evenements for insert to anon with check (true);
+create index if not exists evenements_type_idx on public.evenements (type, created_at);
+
+-- Préinscriptions au concert (insert-only, comptées en count=planned).
+create table if not exists public.preinscriptions_concert (
+  id bigint generated always as identity primary key,
+  pseudo text not null,
+  insta text,
+  ville text,
+  ligue text,
+  source text,
+  created_at timestamptz not null default now()
+);
+alter table public.preinscriptions_concert enable row level security;
+drop policy if exists "Preinscription publique" on public.preinscriptions_concert;
+create policy "Preinscription publique" on public.preinscriptions_concert for insert to anon with check (true);
+drop policy if exists "Comptage public des preinscriptions" on public.preinscriptions_concert;
+create policy "Comptage public des preinscriptions" on public.preinscriptions_concert for select to anon using (true);

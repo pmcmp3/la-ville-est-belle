@@ -16,9 +16,10 @@ import * as props from "./props.js";
 import * as friends from "./friends.js";
 import * as hud from "./hud.js";
 import * as screens from "./screens.js";
+import * as net from "./net.js";
 import * as debugOverlay from "./debug.js";
 import { consumeJumpPress, consumeLaneMove, setAirborne } from "./input.js";
-import { PALETTES } from "./rider.js";
+import { PALETTES, paletteDepuisSkin } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 import { drawCoin } from "./coin.js";
 
@@ -90,6 +91,7 @@ function ancrerDepartSurLaGrille() {
 }
 // Temps restant avant la fin du morceau (= de la course).
 function tempsRestant() {
+  if (game.sprint) return (window.CONFIG.sprintDureeS || 60) - Math.max(0, clock.now());
   const duree = window.CONFIG.dureeMorceau;
   const pos = audioDrivesClock ? audio.now() : departMorceau + clock.now();
   return duree - pos;
@@ -121,7 +123,7 @@ document.addEventListener("visibilitychange", () => { hiddenPaused = document.hi
 const game = {
   metres: 0, points: 0, potesGagnes: 0, etoiles: 0,
   ended: false, endReason: null, reviveOffered: false, sansFaute: true, startedAt: 0,
-  turbo: 0, finAge: -1, boue: 0,
+  turbo: 0, finAge: -1, boue: 0, sprint: false,
 };
 const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0, doubled: false, flip: 0, prevFlip: 0, elan: 1 };
 const LANE_TWEEN = 11;
@@ -200,12 +202,23 @@ const JAUNE = "#ffcf2e", ROUGE = "#e13e26";
 let klaxonne = new Set();
 
 // --- Départ / rejeu -----------------------------------------------------------------
-function requestGameStart() {
+let paletteJoueur = PALETTES.pmc;
+function preparerJoueur() {
+  paletteJoueur = paletteDepuisSkin(screens.getSkin());
+  iso.setVille(screens.getVille());
+}
+// Graine du sprint du dimanche : la même route pour tout le monde ce jour-là.
+function graineSprint() { let h = 0; for (const ch of net.jourSprint()) h = (h * 31 + ch.charCodeAt(0)) % 100000; return h; }
+function requestGameStart(opts = {}) {
   game.startedAt = perfClock();
   startRequested = true;
   startRequestedAt = perfClock();
   hintTimer = 9;
-  if (screens.getParties() < (window.CONFIG.tutoParties || 0)) tutoDemarrer();
+  game.sprint = !!opts.sprint;
+  if (game.sprint) { rows.reseed(graineSprint()); rows.reset(); }
+  preparerJoueur();
+  if (screens.getParties() === 0) net.evenement("premiere_course", { pseudo: screens.getPseudo(), source: screens.getSource(), ligue: screens.getLigue() ? screens.getLigue().code : null });
+  if (screens.getParties() < (window.CONFIG.tutoParties || 0) && !game.sprint) tutoDemarrer();
   screens.compterPartie();
 }
 function isGameStartRequested() { return startRequested; }
@@ -230,6 +243,8 @@ function resetRun() {
 
 function restartGame() {
   screens.preparerLigue();
+  preparerJoueur();
+  game.sprint = false; // REJOUER après un sprint = une vraie course
   audio.restart();
   if (audio.isRunning()) {
     clock.setTimeSource(audio.now);
@@ -290,10 +305,12 @@ function terminer() {
   sfx.fin();
   vibrer([60, 40, 60, 40, 120]);
   screens.hidePauseButton();
-  const record = game.metres > screens.getRecord();
+  const record = !game.sprint && game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
-  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true });
-  screens.finLigue(game.metres, friends.maxReached());
+  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true, sprint: game.sprint });
+  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course");
+  net.evenement("course_finie", { pseudo: screens.getPseudo(), source: screens.getSource(), ligue: screens.getLigue() ? screens.getLigue().code : null });
+  if (!game.sprint) setTimeout(() => screens.proposerConcert(), 2600);
 }
 
 function endGame(reason) {
@@ -304,8 +321,8 @@ function endGame(reason) {
   screens.hidePauseButton();
   const record = game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
-  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: false });
-  screens.finLigue(game.metres, friends.maxReached());
+  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: false, sprint: game.sprint });
+  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course");
 }
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }
@@ -598,6 +615,8 @@ function render(alpha) {
     for (const it of iso.rowDecor(ctx, r, clear)) items.push(it);
     const sg = signAt(r);
     if (sg) items.push({ d: iso.depth(-iso.ROAD_HALF - 0.6, r), draw: () => iso.drawSign(ctx, r, sg) });
+    // Entrée du biome village : le panneau porte la ville du joueur.
+    if (iso.villeDuJoueur() && iso.debutVillage(r)) items.push({ d: iso.depth(-iso.ROAD_HALF - 0.6, r + 1), draw: () => iso.drawSign(ctx, r + 1, [iso.villeDuJoueur(), "chez toi"]) });
     if (!row) continue;
     for (const c of row.coins) if (!rows.coinTaken(r, c)) items.push({ d: iso.depth(iso.colU(c), r), draw: () => drawPiece(r, c, now, "piece") });
     if (row.lait !== undefined && !rows.bonusTaken(r, "lait")) items.push({ d: iso.depth(iso.colU(row.lait), r), draw: () => drawPiece(r, row.lait, now, "lait") });
@@ -618,8 +637,8 @@ function render(alpha) {
     }
   }
   if (gameStarted) for (const dr of friends.drawables(ctx, pedal)) items.push({ d: iso.depth(dr.u, dr.v), draw: dr.draw });
-  for (const g of ghosts) items.push({ d: iso.depth(g.u, g.v) + 0.01, draw: () => drawRider(ctx, g.u, g.v, g.h, PALETTES.pmc, pedal, 0.22 * (1 - g.age / 0.35), g.flip, false) });
-  items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, PALETTES.pmc, pedal, 1, flip) });
+  for (const g of ghosts) items.push({ d: iso.depth(g.u, g.v) + 0.01, draw: () => drawRider(ctx, g.u, g.v, g.h, paletteJoueur, pedal, 0.22 * (1 - g.age / 0.35), g.flip, false) });
+  items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, paletteJoueur, pedal, 1, flip) });
   items.sort((a, b) => b.d - a.d);
   for (const it of items) it.draw();
 
@@ -690,11 +709,43 @@ function render(alpha) {
   }
   if (game.finAge >= 0) hud.renderFin(ctx, width, height, game.finAge);
 
+  renderApercu(pedal);
   debugOverlay.renderStats(ctx, {
     fps: perf.fps, frameMs: perf.frameMs, playerX: player.u,
     audioStatus: audio.getStatus(), clockSource: audioDrivesClock ? "audio" : "secours",
     conversion: screens.niveauConversionCourant(), classement: `potes ${friends.count()} · pts ${game.points} · v ${player.v.toFixed(1)} · ${speed.toFixed(1)} r/s · reste ${gameStarted ? tempsRestant().toFixed(0) : "-"} s · nuit ${night.toFixed(2)}`,
   });
+}
+
+// --- Aperçu du cycliste (étape « Mon cycliste ») ------------------------------------
+// Dessiné avec le VRAI moteur sur un petit canvas : on emprunte la projection
+// avec un viewport élargi (K ≈ 50 px/unité) puis on la rend au jeu.
+const skinCanvas = document.getElementById("skin-canvas");
+const skinCtx = skinCanvas ? skinCanvas.getContext("2d") : null;
+let apercuPedal = 0;
+function renderApercu(pedal) {
+  if (!skinCtx || gameStarted || !document.getElementById("overlay").classList.contains("visible") || screens.stepCourante() !== 3) return;
+  apercuPedal += 0.12;
+  const P = paletteDepuisSkin(screens.getSkin());
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cw = 220, ch = 200;
+  if (skinCanvas.width !== cw * dpr) { skinCanvas.width = cw * dpr; skinCanvas.height = ch * dpr; }
+  skinCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  skinCtx.clearRect(0, 0, cw, ch);
+  const VW = 700;
+  iso.setViewport(VW, VW);
+  iso.setCamera(0, 0);
+  const a = iso.project(0, 0, 0);
+  skinCtx.save();
+  skinCtx.translate(cw / 2 - a.x, ch * 0.72 - a.y);
+  iso.drawFlat(skinCtx, -1.2, -1.2, 2.4, 2.4, "#565250");
+  drawRider(skinCtx, 0, 0, 0, P, apercuPedal, 1, 0);
+  skinCtx.restore();
+  iso.setViewport(width, height);
+}
+
+if ("serviceWorker" in navigator && location.hostname !== "localhost") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 
 // --- Préchauffage (pendant la barre de chargement) --------------------------------

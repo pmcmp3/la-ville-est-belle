@@ -57,10 +57,24 @@ window.CONFIG = {
   // PIÈCES cumulées qui font venir le pote n°1, n°2… (croissant : chaque pote
   // est plus long à gagner que le précédent). Le premier arrive vite (8
   // pièces) pour que le principe se comprenne dans les dix premières secondes.
-  potesMax: 8,
-  potesPaliers: [5, 12, 20, 30, 42, 56, 72, 90],
+  potesMax: 5,              // sans ligue : la ligue de démo (5 membres)
+  potesPaliers: [5, 12, 20, 30, 42],
   // Prénoms des potes, dans l'ordre d'arrivée (Soberland en premier, verrouillé).
-  potesNoms: ["soberland", "jules", "oscar", "elliot", "nita", "pablo", "hermance", "kilian"],
+  // Sans ligue, le peloton c'est la LIGUE DE DÉMO (7 septembre 2026) : Paul et
+  // ses quatre potes, avec leurs skins. Dans une ligue, ce sont les membres.
+  potesDefaut: [
+    { nom: "paul", skin: { motif: "raye", c1: "#2f7a46", c2: "#f2ede2", short: "#3a3e4e", chapeau: "casquette", chaussures: "#565a66", velo: "vtt" } },
+    { nom: "lea", skin: { motif: "uni", c1: "#ffcf2e", c2: "#f2ede2", short: "#3f63b4", chapeau: "paille", chaussures: "#f2ede2", velo: "grandbi" } },
+    { nom: "marius", skin: { motif: "uni", c1: "#f2ede2", c2: "#f2ede2", short: "#b8402c", chapeau: "aucun", chaussures: "#f2ede2", velo: "vtt" } },
+    { nom: "ines", skin: { motif: "uni", c1: "#2f7a46", c2: "#f2ede2", short: "#3a3e4e", chapeau: "bob", chaussures: "#e0742e", velo: "vtt" } },
+    { nom: "hugo", skin: { motif: "carreaux", c1: "#e13e26", c2: "#0d0d10", short: "#c8963a", chapeau: "casquette", chaussures: "#33353d", velo: "grandbi" } },
+  ],
+  potesNoms: ["paul", "lea", "marius", "ines", "hugo"],
+  ligueDemo: "PMCMP",       // code de la ligue de démo (jamais ouverte au public)
+  liguesParVague: 5,        // 5 ligues jouables en même temps, au-delà : lundi prochain
+  concertPlaces: 50,        // places de concert à gagner
+  relaisDistance: 30000,    // mètres cumulés d'une ligue pour gagner le relais
+  sprintDureeS: 60,         // le sprint du dimanche : 60 s, même route pour tous
 
   // === DOUBLE SAUT (6 septembre 2026) ===
   // Un second tap en l'air = salto. Il consomme la barre d'élan, qui se

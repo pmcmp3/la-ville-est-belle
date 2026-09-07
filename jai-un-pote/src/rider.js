@@ -157,3 +157,31 @@ export function makeRider(palette) {
   cache.set(palette, rider);
   return rider;
 }
+
+// --- Skins (7 septembre 2026 : « personnalisation du cycliste ») ---------------
+// Un skin = { motif, c1, c2, short, chapeau, chaussures, velo }. Les couleurs
+// sont choisies dans COULEURS ; le motif habille le torse (uni / rayé /
+// carreaux) ; chapeau : casquette, bob, paille ou aucun ; vélo : vtt ou grandbi.
+export const COULEURS = [
+  ["blanc", "#f2ede2"], ["rouge", "#e13e26"], ["jaune", "#ffcf2e"],
+  ["vert", "#2f7a46"], ["bleu", "#3f63b4"], ["noir", "#0d0d10"],
+];
+export const SHORTS = [["gris", "#3a3e4e"], ["bleu", "#3f63b4"], ["rouge", "#b8402c"], ["sable", "#c8963a"]];
+export const CHAUSSURES = [["blanc", "#f2ede2"], ["noir", "#33353d"], ["orange", "#e0742e"], ["jaune", "#ffcf2e"]];
+export const CHAPEAUX = ["casquette", "bob", "paille", "aucun"];
+export const VELOS = ["vtt", "grandbi"];
+export const SKIN_DEFAUT = { motif: "raye", c1: "#2f7a46", c2: "#f2ede2", short: "#3a3e4e", chapeau: "casquette", chaussures: "#565a66", velo: "vtt" };
+
+export function paletteDepuisSkin(skin, base = PALETTES.pmc) {
+  const s = { ...SKIN_DEFAUT, ...(skin || {}) };
+  const uni = s.motif === "uni";
+  return {
+    ...base,
+    top1: s.c1, top2: uni ? s.c1 : s.c2, motif: s.motif,
+    pants: s.short, pantsLo: s.short, shoe: s.chaussures,
+    cap: s.chapeau === "casquette" ? s.c1 : null,
+    hat: s.chapeau === "aucun" ? null : s.chapeau,
+    hatColor: s.chapeau === "paille" ? "#e8c66a" : s.chapeau === "bob" ? s.c2 : s.c1,
+    velo: s.velo,
+  };
+}

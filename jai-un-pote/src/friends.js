@@ -10,7 +10,7 @@
 
 import { project, ROAD_HALF, COLS, colU } from "./iso.js";
 import * as rows from "./rows.js";
-import { PALETTES } from "./rider.js";
+import { PALETTES, paletteDepuisSkin } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 
 export const SPACING = 1.5;   // 0,95 → 1,5 (« beaucoup trop serré derrière moi, ça gêne la vue »)
@@ -41,10 +41,12 @@ export function recordPlayer(u, v, jumped) {
 
 // Les potes portent les pseudos de la LIGUE quand il y en a une (les autres
 // membres, dans l'ordre d'arrivée), complétés par les prénoms par défaut.
+// Liste de membres { nom, skin } : ceux de la ligue, sinon la ligue de démo.
 let nomsLigue = null;
-export function setNomsLigue(liste) { nomsLigue = Array.isArray(liste) ? liste : null; }
+export function setNomsLigue(liste) { nomsLigue = Array.isArray(liste) ? liste.map((m) => (typeof m === "string" ? { nom: m, skin: null } : m)) : null; }
 export function enLigue() { return nomsLigue !== null; }
-function listeNoms() { return nomsLigue || window.CONFIG.potesNoms || ["soberland"]; }
+function listeMembres() { return nomsLigue || window.CONFIG.potesDefaut || (window.CONFIG.potesNoms || ["paul"]).map((n) => ({ nom: n, skin: null })); }
+function listeNoms() { return listeMembres().map((m) => m.nom); }
 // Prénom : le premier de la liste qui n'est pas déjà dans le peloton
 // (Soberland revient en premier s'il est parti — plus de doublons).
 function prochainNom() {
@@ -60,7 +62,9 @@ export function join(player) {
   const name = prochainNom();
   if (!name) return null;
   const idx = Math.max(0, listeNoms().indexOf(name));
-  const palette = name === "soberland" ? PALETTES.soberland : PALETTES.potes[idx % PALETTES.potes.length];
+  const membre = listeMembres()[idx];
+  const base = PALETTES.potes[idx % PALETTES.potes.length];
+  const palette = membre && membre.skin ? paletteDepuisSkin(membre.skin, base) : base;
   joins += 1;
   const side = slot % 2 ? 1 : -1;
   const pote = {

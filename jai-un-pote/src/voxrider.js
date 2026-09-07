@@ -35,11 +35,21 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0, ombre 
   const L = 1.15;              // longueur (v)
   const x = u - W / 2, y = v - L / 2;
   const s = Math.sin(pedal), c = Math.cos(pedal);
-  // Roues : deux boîtes fines le long de v.
-  drawBox(ctx, x + W / 2 - 0.05, y + L - 0.5, 0.1, 0.5, 0.5, TIRE, lift);
-  drawBox(ctx, x + W / 2 - 0.05, y, 0.1, 0.5, 0.5, TIRE, lift);
-  drawBox(ctx, x + W / 2 - 0.03, y + L - 0.4, 0.06, 0.3, 0.3, RIM, lift + 0.1);
-  drawBox(ctx, x + W / 2 - 0.03, y + 0.1, 0.06, 0.3, 0.3, RIM, lift + 0.1);
+  const grandBi = P.velo === "grandbi";
+  if (grandBi) {
+    // GRAND BI : grande roue avant (0,9), petite roue arrière (0,3), le
+    // cycliste perché 0,4 plus haut — il se voit de loin.
+    drawBox(ctx, x + W / 2 - 0.05, y + L - 0.95, 0.1, 0.95, 0.95, TIRE, lift);
+    drawBox(ctx, x + W / 2 - 0.05, y, 0.1, 0.32, 0.32, TIRE, lift);
+    drawBox(ctx, x + W / 2 - 0.03, y + L - 0.8, 0.06, 0.65, 0.65, RIM, lift + 0.15);
+    lift += 0.4;
+  } else {
+    // Roues : deux boîtes fines le long de v.
+    drawBox(ctx, x + W / 2 - 0.05, y + L - 0.5, 0.1, 0.5, 0.5, TIRE, lift);
+    drawBox(ctx, x + W / 2 - 0.05, y, 0.1, 0.5, 0.5, TIRE, lift);
+    drawBox(ctx, x + W / 2 - 0.03, y + L - 0.4, 0.06, 0.3, 0.3, RIM, lift + 0.1);
+    drawBox(ctx, x + W / 2 - 0.03, y + 0.1, 0.06, 0.3, 0.3, RIM, lift + 0.1);
+  }
   // Cadre + selle + guidon.
   drawBox(ctx, x + W / 2 - 0.04, y + 0.3, 0.08, 0.6, 0.1, FRAME, lift + 0.4);
   drawBox(ctx, x + W / 2 - 0.05, y + 0.35, 0.1, 0.1, 0.35, FRAME, lift + 0.45);
@@ -59,9 +69,17 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0, ombre 
   // Torse rayé, penché vers l'avant (guidon), tangue avec le pédalage.
   const sway = 0.03 * s;
   const tx = x - 0.06 + sway, ty = y + 0.36;
-  drawBox(ctx, tx, ty, W + 0.12, 0.34, 0.17, P.top1, lift + 0.86);
-  drawBox(ctx, tx, ty + 0.06, W + 0.12, 0.34, 0.17, P.top2, lift + 1.03);
-  drawBox(ctx, tx, ty + 0.12, W + 0.12, 0.34, 0.17, P.top1, lift + 1.2);
+  if (P.motif === "carreaux") {
+    // Carreaux : chaque tranche coupée en deux, couleurs alternées.
+    const hw = (W + 0.12) / 2;
+    drawBox(ctx, tx, ty, hw, 0.34, 0.17, P.top1, lift + 0.86); drawBox(ctx, tx + hw, ty, hw, 0.34, 0.17, P.top2, lift + 0.86);
+    drawBox(ctx, tx, ty + 0.06, hw, 0.34, 0.17, P.top2, lift + 1.03); drawBox(ctx, tx + hw, ty + 0.06, hw, 0.34, 0.17, P.top1, lift + 1.03);
+    drawBox(ctx, tx, ty + 0.12, hw, 0.34, 0.17, P.top1, lift + 1.2); drawBox(ctx, tx + hw, ty + 0.12, hw, 0.34, 0.17, P.top2, lift + 1.2);
+  } else {
+    drawBox(ctx, tx, ty, W + 0.12, 0.34, 0.17, P.top1, lift + 0.86);
+    drawBox(ctx, tx, ty + 0.06, W + 0.12, 0.34, 0.17, P.top2, lift + 1.03);
+    drawBox(ctx, tx, ty + 0.12, W + 0.12, 0.34, 0.17, P.top1, lift + 1.2);
+  }
   // Bras vers le guidon.
   drawBox(ctx, tx - 0.1, ty + 0.3, 0.12, 0.42, 0.1, P.top2, lift + 1.05);
   drawBox(ctx, tx + W + 0.1, ty + 0.3, 0.12, 0.42, 0.1, P.top2, lift + 1.05);
@@ -70,9 +88,18 @@ export function drawRider(ctx, u, v, lift, P, pedal, alpha = 1, flip = 0, ombre 
   drawBox(ctx, hx, hy, 0.3, 0.3, 0.3, P.skin, lift + 1.37);
   drawBox(ctx, hx - 0.02, hy - 0.02, 0.34, 0.34, 0.14, P.hair, lift + 1.66);
   if (P.beard) drawBox(ctx, hx, hy + 0.22, 0.3, 0.1, 0.12, P.hair, lift + 1.37);
-  if (P.cap) {
-    drawBox(ctx, hx - 0.03, hy - 0.03, 0.36, 0.36, 0.1, P.cap, lift + 1.78);
-    drawBox(ctx, hx, hy + 0.3, 0.3, 0.16, 0.05, P.cap, lift + 1.78);
+  const hat = P.hat !== undefined ? P.hat : (P.cap ? "casquette" : null);
+  const hatColor = P.hatColor || P.cap;
+  if (hat === "casquette") {
+    drawBox(ctx, hx - 0.03, hy - 0.03, 0.36, 0.36, 0.1, hatColor, lift + 1.78);
+    drawBox(ctx, hx, hy + 0.3, 0.3, 0.16, 0.05, hatColor, lift + 1.78);
+  } else if (hat === "bob") {
+    drawBox(ctx, hx - 0.02, hy - 0.02, 0.34, 0.34, 0.16, hatColor, lift + 1.74);
+    drawBox(ctx, hx - 0.1, hy - 0.1, 0.5, 0.5, 0.05, hatColor, lift + 1.74);
+  } else if (hat === "paille") {
+    drawBox(ctx, hx - 0.01, hy - 0.01, 0.32, 0.32, 0.14, hatColor, lift + 1.76);
+    drawBox(ctx, hx - 0.16, hy - 0.16, 0.62, 0.62, 0.04, hatColor, lift + 1.76);
+    drawBox(ctx, hx - 0.01, hy - 0.01, 0.32, 0.32, 0.04, "#8a3a1a", lift + 1.84);
   }
   if (spinning) ctx.restore();
   if (alpha < 1) ctx.restore();

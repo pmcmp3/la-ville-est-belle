@@ -2323,5 +2323,39 @@ jeu repasse par l'album ici ; écran de fin : « Au bout du morceau avec N potes
 la fin du morceau ». Score max théorique recalculé : **≈ 12 600 m**. Migration SQL rendue
 idempotente (`drop policy if exists`) après une première exécution interrompue à mi-chemin.
 
-**Reste à faire** : relancer la migration ligues côté Supabase (idempotente), service worker,
-réglage fin de la difficulté sur téléphone.
+**Quatrième passe du 7 septembre 2026 (« mettons tout ça en place »)** — tout le plan de campagne
+(artefact « Plan J'ai un pote ») est dans le code :
+- **Menu en trois étapes** (ordre demandé : inscription → ma ligue → mon cycliste) : `#onboarding[data-step]`,
+  `setStep()` (screens.js). Étape 1 : pseudo, Instagram, ville (facultatifs, clés `jaipInsta`/`jaipVille`).
+  Étape 2 : le bloc ligue, « Continuer sans ligue ». Étape 3 : aperçu du cycliste dessiné par le vrai
+  moteur (`renderApercu`, main.js — viewport emprunté à 700 px pour K ≈ 50), chips de personnalisation,
+  barre de chargement, JOUER, SPRINT DU DIMANCHE. Un habitué arrive à l'étape 3, une invitation à l'étape 2.
+- **Skins** (`rider.js` : `COULEURS`, `SHORTS`, `CHAUSSURES`, `CHAPEAUX`, `VELOS`, `SKIN_DEFAUT`,
+  `paletteDepuisSkin`) : t-shirt (6 couleurs), motif uni/rayé/carreaux, short, chapeau (casquette, bob,
+  paille, aucun), chaussures, vélo **VTT ou Grand Bi** (grande roue avant, cycliste 0,4 plus haut —
+  voxrider.js). Clé `jaipSkin`, envoyé dans `ligue_membres.skin` (JSON) : les potes te voient avec ton vélo.
+- **Ligue de démo** `PMCMP` : Paul, Léa, Marius, Inès, Hugo avec leurs skins (`config.potesDefaut`,
+  insérée par la migration). Sans ligue, c'est ELLE qui pédale derrière le joueur (`potesMax` 5).
+- **Biome village** (`iso.js`, zone `village` entre tournesols et forêt) : maisons (1 sur 3 rangées par
+  côté), voitures garées (1 sur 5), skateur qui roule sur place (1 sur 9). À l'entrée, un panneau porte la
+  VILLE du joueur (`iso.setVille`, `debutVillage`) : il traverse sa propre ville.
+- **Service worker** (`public/sw.js`, enregistré hors localhost) : précache page, config, MP3, polices ;
+  réseau d'abord pour la page et config, cache d'abord pour le reste. `CACHE = "jaip-v1"`.
+- **Sprint du dimanche** (`config.sprintDureeS` 60) : bouton visible le dimanche à partir de midi
+  (`net.sprintOuvert`), graine = date (`graineSprint`), une tentative par jour (clé `jaipSprint`, honneur),
+  score envoyé avec `mode: "sprint"`, classement du jour toutes ligues confondues sur l'écran de fin
+  (« · une place » pour les 5 premiers). REJOUER après un sprint = une vraie course.
+- **Relais de ligue** (`config.relaisDistance` 30 000) : vue `ligue_relais` (mètres cumulés depuis le lundi),
+  affiché sous le classement de ligue. **Vagues** : `net.creerLigue` refuse au-delà de
+  `config.liguesParVague` (5) ligues créées dans la semaine (« la tienne démarre lundi »).
+- **Préinscription concert** (`#concert-sheet`) : proposée UNE fois, 2,6 s après la première course arrivée
+  au bout du morceau ; table `preinscriptions_concert`, compteur `count=planned`, clé `jaipPreinscrit` ;
+  ligne « Concert : 50 places à gagner · N préinscrits » sur l'écran de fin.
+- **Événements du funnel** (`net.evenement`, table `evenements`) : arrivee, inscription, premiere_course,
+  course_finie, invitation_envoyee, invitation_acceptee, clic_album, preinscription — avec pseudo, source
+  (`?src=`, clé `jaipSource`) et ligue.
+- Migration `supabase-migration-ligues.sql` complétée (deuxième partie idempotente : colonnes skin/mode,
+  ligue de démo, vues classement/relais, tables evenements/preinscriptions_concert).
+
+**Reste à faire** : exécuter la migration complète côté Supabase (l'artiste), puis vérifier ligue + skins
+entre deux téléphones ; distribution effective des places (hors jeu).

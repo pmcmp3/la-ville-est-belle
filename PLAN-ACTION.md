@@ -662,3 +662,8 @@ slop ; la police : il faut de l'Alphabetica ; revoir les couleurs ». Plus dix i
   (leur nombre = le plafond de potes), 6 personnes max (client + trigger SQL).
 - ✅ Troisième passe : voies +20 %, route remontée, peloton espacé, moitié moins de pièces et de
   dangers, vitesse max 2,6 et turbo +20 %, tiroir album propre au jeu 2, SQL idempotent.
+- ✅ **Plan de campagne implémenté** (7 septembre 2026, soir) : menu en 3 étapes (inscription → ligue →
+  cycliste), skins (t-shirt/motif/short/chapeau/chaussures, VTT ou Grand Bi) visibles chez les potes,
+  ligue de démo Paul/Léa/Marius/Inès/Hugo par défaut, biome village avec la ville du joueur, service
+  worker, sprint du dimanche, relais de ligue, vagues de 5 ligues, préinscription concert, événements de
+  funnel. Migration SQL complétée, à exécuter par l'artiste.

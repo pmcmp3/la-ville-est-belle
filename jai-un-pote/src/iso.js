@@ -102,10 +102,14 @@ function hash(n) {
 // Biomes TRANCHÉS (« d'un seul coup on passe dans un champ, après la prairie,
 // comme Minecraft ») : 55 rangées chacun, changement net.
 const ZONE_ROWS = 55;
-const ZONES = ["ble", "prairie", "tournesol", "foret", "vigne"];
+const ZONES = ["ble", "prairie", "tournesol", "village", "foret", "vigne"];
 export function zoneAt(r) { return ZONES[Math.floor(Math.max(0, r) / ZONE_ROWS) % ZONES.length]; }
-const SOIL = { ble: "#c9a648", prairie: "#7aa63c", tournesol: "#6f8c2f", foret: "#3f5a2a", vigne: "#8a6a45" };
-const GRASS_BY_ZONE = { ble: null, prairie: "#7aa63c", tournesol: null, foret: "#4a6a30", vigne: null };
+const SOIL = { ble: "#c9a648", prairie: "#7aa63c", tournesol: "#6f8c2f", foret: "#3f5a2a", vigne: "#8a6a45", village: "#8fa864" };
+const GRASS_BY_ZONE = { ble: null, prairie: "#7aa63c", tournesol: null, foret: "#4a6a30", vigne: null, village: "#8fa864" };
+let villeJoueur = null; // nom saisi à l'inscription : le joueur traverse SA ville
+export function setVille(nom) { villeJoueur = nom ? String(nom).toUpperCase().slice(0, 16) : null; }
+export function villeDuJoueur() { return villeJoueur; }
+export function debutVillage(r) { return zoneAt(r) === "village" && zoneAt(r - 1) !== "village"; }
 
 // Une rangée r couvre v ∈ [r − 0,5 ; r + 0,5[. `boue` = colonne boueuse.
 function renderRow(ctx, r, boue) {
@@ -162,6 +166,20 @@ export function rowDecor(ctx, r, clear) {
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v + 0.1, 0.1, 0.1, 0.9, "#4f7a2a"); drawBox(ctx, u - 0.05 + sw, v - 0.05, 0.42, 0.24, 0.42, "#f2c02c", 0.85); drawBox(ctx, u + 0.08 + sw, v - 0.08, 0.18, 0.1, 0.2, "#5a3a1a", 0.95); });
       } else if (zone === "vigne") {
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.1, v, 0.1, 0.1, 0.8, "#6b4b2e"); drawBox(ctx, u - 0.15 + sw, v - 0.1, 0.6, 0.35, 0.4, "#3f7a2a", 0.55); });
+      } else if (zone === "village") {
+        // Petites maisons (murs + toit), une voiture garée, un skateur.
+        // Une maison toutes les 3 rangées, une voiture toutes les 5, un skateur toutes les 9 : le village respire.
+        if (i === 0 && r % 3 === (side > 0 ? 0 : 1)) {
+          const mur = ["#f2ede2", "#e8d8b8", "#d9c3a0"][r % 3], toit = ["#b8402c", "#5c4a3a", "#3a3a40"][(r + 1) % 3];
+          const hu = side * (ROAD_HALF + 1.6 + a * 2), hv = r - 0.4;
+          push(hu, hv, () => { drawBox(ctx, hu, hv, 1.4, 1.2, 1.0, mur); drawBox(ctx, hu - 0.1, hv - 0.1, 1.6, 1.4, 0.35, toit, 1.0); drawBox(ctx, hu + 0.3, hv + 0.3, 0.8, 0.6, 0.3, toit, 1.35); drawBox(ctx, hu + 0.55, hv - 0.02, 0.3, 0.04, 0.5, "#3a3a40"); });
+        } else if (i === 1 && r % 5 === (side > 0 ? 2 : 4)) {
+          const cu = side * (ROAD_HALF + 0.35) - (side < 0 ? 0.9 : 0), cv = r - 0.5, col = ["#2f5fb0", "#e13e26", "#e9e4d8"][r % 3];
+          push(cu, cv, () => { drawBox(ctx, cu, cv, 0.9, 1.9, 0.4, col, 0.15); drawBox(ctx, cu + 0.08, cv + 0.5, 0.74, 0.8, 0.32, "#a8d8f0", 0.55); for (const [lx, ly] of [[-0.03, 0.2], [-0.03, 1.4], [0.75, 0.2], [0.75, 1.4]]) drawBox(ctx, cu + lx, cv + ly, 0.18, 0.3, 0.28, "#1a1a1e"); });
+        } else if (i === 2 && r % 9 === (side > 0 ? 4 : 7)) {
+          const su = side * (ROAD_HALF + 0.55), sv = r - 0.3, k2 = r * 1.3;
+          push(su, sv, () => { const roll = Math.sin(decorT * 2 + k2) * 0.3; drawBox(ctx, su, sv + roll, 0.25, 0.7, 0.06, "#e13e26", 0.12); drawBox(ctx, su + 0.03, sv + 0.1 + roll, 0.2, 0.2, 0.55, "#3a3e4e", 0.18); drawBox(ctx, su, sv + 0.05 + roll, 0.26, 0.3, 0.4, "#ffcf2e", 0.73); drawBox(ctx, su + 0.02, sv + 0.1 + roll, 0.22, 0.22, 0.24, "#d69a68", 1.13); });
+        }
       } else if (zone === "prairie") {
         const fl = a < 0.5 ? "#ffffff" : "#ffcf2e";
         push(u, v, () => { const sw = sway(k); drawBox(ctx, u + 0.05, v + 0.05, 0.06, 0.06, 0.3, "#4f7a2a"); drawBox(ctx, u + sw, v, 0.16, 0.16, 0.1, fl, 0.3); });

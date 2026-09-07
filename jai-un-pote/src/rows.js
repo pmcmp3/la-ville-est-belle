@@ -34,7 +34,7 @@ const LAIT_EVERY = 48;    // brique de lait : une chance toutes les ~48 rangées
 const ROUGE_EVERY = 70;   // pièce rouge : toutes les ~70 rangées
 
 let runSeed = 0;
-export function reseed() { runSeed = Math.floor(Math.random() * 100000); }
+export function reseed(force) { runSeed = force !== undefined ? force : Math.floor(Math.random() * 100000); }
 reseed();
 function hash(n) {
   const x = Math.sin(n * 91.173 + runSeed * 0.731) * 43758.5453;

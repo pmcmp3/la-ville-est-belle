@@ -573,7 +573,10 @@ sa fin termine la course), swipe = voie / tap = saut / re-tap en l'air = salto, 
 tracteurs (et les poules lancées par les fermiers) traversent — ARMÉS sur le passage du joueur —,
 les pièces jaunes font venir des POTES (Soberland, Jules, Oscar, Elliot, Nita, Pablo, Hermance,
 Kilian) en file indienne, la pièce rouge en donne un direct, la brique de lait = turbo 5 s, la
-boue freine, la nuit tombe à 95 s, tuto sur les 2 premières parties, chargement ≥ 5 s. Seul le
+boue freine, la nuit tombe à 95 s, tuto sur les 2 premières parties, chargement ≥ 5 s. Depuis le
+7 septembre au soir : menu en trois étapes (inscription → ma ligue → mon cycliste), skins (VTT ou
+Grand Bi), ligue de démo Paul/Léa/Marius/Inès/Hugo par défaut, biome village, service worker,
+sprint du dimanche, relais de ligue, préinscription concert, événements de funnel (Supabase). Seul le
 joueur prend des dégâts, seul on meurt, score en mètres × potes. **Sa propre racine Vite, ses
 propres copies des modules moteur** (rien de partagé avec `src/`, volontairement). Tout est
 documenté dans `ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run

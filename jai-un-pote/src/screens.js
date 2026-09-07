@@ -8,6 +8,7 @@
 import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as friends from "./friends.js";
+import { COULEURS, SHORTS, CHAUSSURES, CHAPEAUX, VELOS, SKIN_DEFAUT } from "./rider.js";
 
 let deps = null;
 const $ = (id) => document.getElementById(id);
@@ -64,6 +65,7 @@ const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
 const CLE_PARTIES = "jaipParties";
 const CLE_LIGUE = "jaipLigue";
+const CLE_INSTA = "jaipInsta", CLE_VILLE = "jaipVille", CLE_SKIN = "jaipSkin", CLE_SOURCE = "jaipSource", CLE_PREINSCRIT = "jaipPreinscrit", CLE_SPRINT = "jaipSprint";
 
 // `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
 // jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
@@ -97,6 +99,44 @@ function niveauConversion() {
 export function niveauConversionCourant() { return niveauConversion(); }
 
 export function getPseudo() { return pseudoInput.value.trim().replace(/^@+/, ""); }
+const instaInput = $("insta-input"), villeInput = $("ville-input");
+export function getInsta() { return instaInput.value.trim().replace(/^@+/, ""); }
+export function getVille() { return villeInput.value.trim(); }
+export function getSource() { return lsGet(CLE_SOURCE) || null; }
+// Skin du joueur (personnalisation, étape 3 du menu).
+let skin = null;
+export function getSkin() {
+  if (!skin) { try { skin = { ...SKIN_DEFAUT, ...(JSON.parse(lsGet(CLE_SKIN) || "{}")) }; } catch (e) { skin = { ...SKIN_DEFAUT }; } }
+  return skin;
+}
+function setSkin(cle, val) { getSkin()[cle] = val; lsSet(CLE_SKIN, JSON.stringify(skin)); construireSkinUi(); }
+function construireSkinUi() {
+  const sk = getSkin();
+  const listes = { c1: COULEURS, short: SHORTS, chaussures: CHAUSSURES, motif: [["uni", "uni"], ["rayé", "raye"], ["carreaux", "carreaux"]], chapeau: CHAPEAUX.map((c) => [c, c]), velo: [["VTT", "vtt"], ["Grand Bi", "grandbi"]] };
+  document.querySelectorAll("#skin-options .chips").forEach((box) => {
+    const cle = box.dataset.cle;
+    box.textContent = "";
+    for (const [label, val] of listes[cle]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const couleur = cle === "c1" || cle === "short" || cle === "chaussures";
+      b.className = `chip${couleur ? " couleur" : ""}${sk[cle] === val ? " actif" : ""}`;
+      if (couleur) { b.style.background = val; b.title = label; b.setAttribute("aria-label", label); } else b.textContent = label;
+      b.addEventListener("click", (e) => { e.stopPropagation(); setSkin(cle, val); if (cle === "c1" && sk.motif === "raye") setSkin("c2", val === "#f2ede2" ? "#e13e26" : "#f2ede2"); });
+      box.appendChild(b);
+    }
+  });
+}
+
+// --- Menu en trois étapes ----------------------------------------------------
+const onboarding = $("onboarding");
+export function setStep(n) { onboarding.dataset.step = String(n); if (n === 3) construireSkinUi(); majSprint(); }
+export function stepCourante() { return Number(onboarding.dataset.step) || 1; }
+function enregistrerProfil() {
+  const nouveau = !lsGet(CLE_PSEUDO);
+  lsSet(CLE_PSEUDO, getPseudo()); lsSet(CLE_INSTA, getInsta()); lsSet(CLE_VILLE, getVille());
+  if (nouveau) net.evenement("inscription", { pseudo: getPseudo(), source: getSource(), ligue: ligue ? ligue.code : null });
+}
 export function getRecord() { return Number(lsGet(CLE_RECORD)) || 0; }
 export function getParties() { return Number(lsGet(CLE_PARTIES)) || 0; }
 export function compterPartie() { lsSet(CLE_PARTIES, String(getParties() + 1)); }
@@ -215,6 +255,7 @@ function construirePlateformes() {
       if (!gateEtat || gateEtat.phase !== "demande") return;
       lsSet(CLE_PLATEFORME, p.id || p.nom);
       lsSet(CLE_MORCEAU_OUVERT, "1");
+      net.evenement("clic_album", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
       fanCache = true;
       setTimeout(gatePhaseAbsence, 0);
     });
@@ -337,11 +378,12 @@ function afficherLigue() {
   ligueBloc.classList.remove("hidden");
   ligueSans.classList.toggle("hidden", !!ligue);
   ligueAvec.classList.toggle("hidden", !ligue);
+  $("step2-next").textContent = ligue ? "Continuer" : "Continuer sans ligue";
   if (ligue) {
     ligueCodeEl.textContent = ligue.code;
-    const autres = ligue.membres.filter((m) => m !== getPseudo());
-    if (ligue.enAttente) ligueMembresEl.textContent = "Tu en fais partie ! Écris ton pseudo et appuie sur JOUER.";
-    else ligueMembresEl.textContent = autres.length ? `Tes potes dans le peloton : ${autres.map((m) => "@" + m).join(", ")}` : "Tu es seul pour l'instant : invite des potes, ce sont eux qui pédaleront derrière toi.";
+    const autres = ligue.membres.filter((m) => m.nom !== getPseudo());
+    if (ligue.enAttente) ligueMembresEl.textContent = "Tu en fais partie ! Appuie sur Continuer.";
+    else ligueMembresEl.textContent = autres.length ? `Tes potes dans le peloton : ${autres.map((m) => "@" + m.nom).join(", ")}` : "Tu es seul pour l'instant : invite des potes, ce sont eux qui pédaleront derrière toi.";
     const n = ligue.membres.length;
     liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}`;
   }
@@ -349,7 +391,7 @@ function afficherLigue() {
 function memoriserLigue() { if (ligue) lsSet(CLE_LIGUE, JSON.stringify(ligue)); else { try { localStorage.removeItem(CLE_LIGUE); } catch (e) { /* rien */ } } }
 function appliquerNomsLigue() {
   const moi = getPseudo();
-  friends.setNomsLigue(ligue && !ligue.enAttente ? ligue.membres.filter((m) => m !== moi) : null);
+  friends.setNomsLigue(ligue && !ligue.enAttente ? ligue.membres.filter((m) => m.nom !== moi) : null);
 }
 async function rejoindre(code, creer = false) {
   const pseudo = getPseudo();
@@ -357,20 +399,23 @@ async function rejoindre(code, creer = false) {
   code = net.normaliserCode(code);
   if (code.length < 4) { ligueMessage("Code de ligue : 5 lettres."); return false; }
   ligueMessage("…");
-  const r = creer ? await net.creerLigue(code, pseudo) : await net.rejoindreLigue(code, pseudo);
+  const invitation = !!(ligue && ligue.enAttente);
+  const r = creer ? await net.creerLigue(code, pseudo, getSkin()) : await net.rejoindreLigue(code, pseudo, getSkin());
   if (r.erreur) {
-    ligueMessage(r.erreur === "complete" ? `Cette ligue est complète (${net.LIGUE_MAX} max).` : r.erreur === "inexistante" ? "Cette ligue n'existe pas." : "Pas de réseau, réessaie.");
+    ligueMessage(r.erreur === "complete" ? `Cette ligue est complète (${net.LIGUE_MAX} max).` : r.erreur === "inexistante" ? "Cette ligue n'existe pas." : r.erreur === "vague" ? `${window.CONFIG.liguesParVague || 5} ligues sont déjà en course cette semaine. La tienne démarre lundi : réessaie à ce moment-là.` : "Pas de réseau, réessaie.");
     if (ligue && ligue.enAttente) { ligue = null; memoriserLigue(); afficherLigue(); }
     return false;
   }
   ligue = { code, membres: r.membres };
   memoriserLigue(); appliquerNomsLigue(); afficherLigue(); ligueMessage("");
+  if (invitation) net.evenement("invitation_acceptee", { pseudo, ligue: code, source: getSource() });
   return true;
 }
 function lienLigue(code) { return `${window.CONFIG.lienJeu || location.origin + location.pathname}?ligue=${code}`; }
 async function partagerLigue(texte) {
   const code = ligue ? ligue.code : "";
   const data = { title: "J'ai un pote", text: texte, url: lienLigue(code) };
+  net.evenement("invitation_envoyee", { pseudo: getPseudo(), ligue: code, source: getSource() });
   try {
     if (navigator.share) { await navigator.share(data); return; }
     await navigator.clipboard.writeText(`${texte} ${data.url}`);
@@ -387,12 +432,38 @@ export async function preparerLigue() {
   appliquerNomsLigue(); afficherLigue();
 }
 // Fin de course : envoi du score, puis classement de la ligue sur la carte.
-export async function finLigue(metres, potes) {
+export async function finLigue(metres, potes, mode = "course") {
   endLigue.classList.add("hidden");
-  if (!ligue) return;
-  await net.envoyerScore(ligue.code, getPseudo(), metres, potes);
+  majConcertFin();
+  if (mode === "sprint") lsSet(CLE_SPRINT, net.jourSprint());
+  const code = ligue ? ligue.code : (window.CONFIG.ligueDemo || "PMCMP");
+  if (!ligue && mode !== "sprint") return;
+  await net.envoyerScore(code, getPseudo(), metres, potes, mode);
+  const endRelais = $("end-relais");
+  if (mode === "sprint") {
+    // Classement du sprint du jour, toutes ligues confondues.
+    const rows = await net.classementSprint(net.jourSprint());
+    if (!rows) return;
+    endLigueCode.textContent = "Sprint du dimanche";
+    endLigueListe.textContent = "";
+    const moi = getPseudo();
+    rows.slice(0, 10).forEach((r, i) => {
+      const li = document.createElement("li");
+      if (r.pseudo === moi) li.className = "moi";
+      li.innerHTML = `<span class="rang">${i + 1}</span><span class="nom"></span><span class="m">${Number(r.metres).toLocaleString("fr-FR")} m</span>`;
+      li.querySelector(".nom").textContent = `@${r.pseudo}${i < 5 ? " · une place" : ""}`;
+      endLigueListe.appendChild(li);
+    });
+    endRelais.classList.add("hidden");
+    endLigue.classList.remove("hidden");
+    return;
+  }
   const rows = await net.classement(ligue.code);
   if (!rows) return;
+  const relais = await net.relais(ligue.code);
+  const objectif = window.CONFIG.relaisDistance || 30000;
+  endRelais.classList.remove("hidden");
+  endRelais.textContent = `Relais de la semaine : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} m à toute la ligue`;
   endLigueCode.textContent = ligue.code;
   endLigueListe.textContent = "";
   const moi = getPseudo();
@@ -429,6 +500,37 @@ function initLigue() {
   ligueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rejoindre(ligueInput.value); } });
 }
 
+// --- Sprint du dimanche --------------------------------------------------------
+const sprintButton = $("sprint-button"), sprintNote = $("sprint-note");
+function majSprint() {
+  if (!net.estConfigure() || !net.sprintOuvert()) { sprintButton.classList.add("hidden"); sprintNote.classList.add("hidden"); return; }
+  const fait = lsGet(CLE_SPRINT) === net.jourSprint();
+  sprintButton.classList.toggle("hidden", fait);
+  sprintNote.classList.remove("hidden");
+  sprintNote.textContent = fait ? "Sprint du dimanche déjà couru : une seule tentative, le classement est sur ton écran de fin." : "Une seule tentative, la même route pour tout le monde. Les 5 premiers gagnent une place.";
+}
+
+// --- Concert : préinscription --------------------------------------------------
+const concertSheet = $("concert-sheet"), concertOui = $("concert-oui"), concertNon = $("concert-non"), concertCount = $("concert-count"), endConcert = $("end-concert");
+export function estPreinscrit() { return lsGet(CLE_PREINSCRIT) === "1"; }
+export async function proposerConcert() {
+  if (!net.estConfigure() || estPreinscrit()) return;
+  $("concert-title").textContent = `${window.CONFIG.concertPlaces || 50} places à gagner avec ta ligue`;
+  const n = await net.nbPreinscrits();
+  concertCount.classList.toggle("hidden", !n);
+  if (n) concertCount.textContent = `${n.toLocaleString("fr-FR")} préinscrit${n > 1 ? "s" : ""} déjà`;
+  concertSheet.classList.add("visible"); concertSheet.setAttribute("aria-hidden", "false");
+}
+function fermerConcert() { concertSheet.classList.remove("visible"); concertSheet.setAttribute("aria-hidden", "true"); }
+async function majConcertFin() {
+  if (!net.estConfigure()) { endConcert.classList.add("hidden"); return; }
+  const n = await net.nbPreinscrits();
+  endConcert.classList.remove("hidden");
+  endConcert.innerHTML = estPreinscrit()
+    ? `Concert : <b>tu es préinscrit</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`
+    : `Concert : <b>${window.CONFIG.concertPlaces || 50} places à gagner</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`;
+}
+
 // --- Chargement --------------------------------------------------------------
 // Au moins `config.chargementMinS` secondes de 0 à 100 % (6 septembre 2026 :
 // « une phase de chargement de 5-6 s, ça fait sérieux »), le temps de mettre
@@ -459,7 +561,7 @@ export function syncLoadingUi() {
 }
 
 // --- Fin de partie -----------------------------------------------------------
-export function showEndScreen({ metres, potesMax, record, fin }) {
+export function showEndScreen({ metres, potesMax, record, fin, sprint }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
   // Le but : arriver au bout du morceau avec un max de potes.
   const potesTxt = potesMax === 0 ? "sans un seul pote" : `avec ${potesMax} pote${potesMax > 1 ? "s" : ""}`;
@@ -469,7 +571,8 @@ export function showEndScreen({ metres, potesMax, record, fin }) {
       ? "Tu n'es pas arrivé au bout du morceau. Tu n'as pas eu de potes ? Tu prends des pièces pour les appeler."
       : `Tombé avant la fin du morceau, ${potesTxt} au mieux.`;
   endBest.classList.toggle("hidden", !record);
-  $("end-eyebrow").textContent = fin ? "Course terminée" : "Ta course";
+  $("end-eyebrow").textContent = sprint ? "Sprint du dimanche" : fin ? "Course terminée" : "Ta course";
+  if (sprint) endSub.textContent = fin ? `60 secondes ${potesTxt}. Une seule tentative, c'est celle-là.` : `Tombé pendant le sprint, ${potesTxt} au mieux.`;
   setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);
 }
 
@@ -494,13 +597,13 @@ function syncMuteIcon() {
 }
 
 // --- Démarrage ---------------------------------------------------------------
-function startGame() {
+function startGame(opts = {}) {
   if (deps.isGameStartRequested()) return;
   audio.unlock();
   audio.play();
-  lsSet(CLE_PSEUDO, getPseudo());
+  enregistrerProfil();
   preparerLigue();
-  deps.requestGameStart();
+  deps.requestGameStart(opts);
   hideOverlay();
   showPauseButton();
 }
@@ -513,11 +616,31 @@ export function init(d) {
   });
   instaLink.href = window.CONFIG.lienInsta;
   const credit = $("credit-insta"); if (credit) credit.href = window.CONFIG.lienInsta;
+  try { const src = new URLSearchParams(location.search).get("src"); if (src) lsSet(CLE_SOURCE, src.slice(0, 32)); } catch (e) { /* rien */ }
   pseudoInput.value = lsGet(CLE_PSEUDO) || "";
-  const syncPlay = () => { if (loadingDone) playButton.disabled = getPseudo().length === 0; };
+  instaInput.value = lsGet(CLE_INSTA) || "";
+  villeInput.value = lsGet(CLE_VILLE) || "";
+  const step1Next = $("step1-next");
+  const syncPlay = () => { if (loadingDone) playButton.disabled = getPseudo().length === 0; step1Next.disabled = getPseudo().length === 0; };
   pseudoInput.addEventListener("input", syncPlay);
-  ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => pseudoInput.addEventListener(t, (e) => e.stopPropagation()));
-  playButton.addEventListener("click", () => { if (getPseudo().length === 0) { pseudoInput.focus(); return; } startGame(); });
+  syncPlay();
+  [pseudoInput, instaInput, villeInput].forEach((inp) => ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => inp.addEventListener(t, (e) => e.stopPropagation())));
+  step1Next.addEventListener("click", () => { if (!getPseudo()) { pseudoInput.focus(); return; } enregistrerProfil(); setStep(2); });
+  $("step2-next").addEventListener("click", () => setStep(3));
+  $("step2-back").addEventListener("click", () => setStep(1));
+  $("step3-ligue").addEventListener("click", () => setStep(2));
+  $("step3-profil").addEventListener("click", () => setStep(1));
+  playButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); pseudoInput.focus(); return; } startGame(); });
+  sprintButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); return; } startGame({ sprint: true }); });
+  concertOui.addEventListener("click", async () => {
+    concertOui.classList.add("locked");
+    await net.preinscrire({ pseudo: getPseudo(), insta: getInsta() || null, ville: getVille() || null, ligue: ligue ? ligue.code : null, source: getSource() });
+    lsSet(CLE_PREINSCRIT, "1");
+    net.evenement("preinscription", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
+    fermerConcert(); majConcertFin();
+  });
+  concertNon.addEventListener("click", fermerConcert);
+  net.evenement("arrivee", { pseudo: lsGet(CLE_PSEUDO) || null, source: getSource(), ligue: null });
   // (Pas de MutationObserver sur `disabled` : il se redéclenchait lui-même en
   // boucle et gelait la page — syncLoadingUi relit le champ à la fin du
   // chargement, l'input le relit à chaque frappe.)
@@ -562,11 +685,13 @@ export function init(d) {
   });
   window.addEventListener("keydown", (e) => {
     if (e.code === "Escape") { if (deps.isManuallyPaused()) closePauseMenu(); else openPauseMenu(); }
-    if ((e.code === "Enter") && overlay.classList.contains("visible") && e.target !== ligueInput) {
+    if ((e.code === "Enter") && overlay.classList.contains("visible") && e.target !== ligueInput && stepCourante() === 3) {
       if (endScreenEl.classList.contains("active")) replayButton.click();
       else if (!playButton.disabled) startGame();
     }
   });
   initLigue();
   setView("onboarding");
+  // Habitué → directement « Mon cycliste » ; invitation → « Ma ligue » ; sinon l'inscription.
+  setStep(!lsGet(CLE_PSEUDO) ? 1 : (ligue && ligue.enAttente) ? 2 : 3);
 }
