@@ -89,7 +89,6 @@ window.CONFIG = {
   ligueBetaPlafond: 60,
   betaRetours: true,        // le bouton « Laisser un retour » sur l'écran de fin
   liguesParVague: 5,        // 5 ligues jouables en même temps, au-delà : lundi prochain
-  concertPlaces: 50,        // places de concert à gagner
   relaisDistance: 30000,    // mètres cumulés d'une ligue pour gagner le relais
   sprintDureeS: 60,         // le sprint du dimanche : 60 s, même route pour tous
 

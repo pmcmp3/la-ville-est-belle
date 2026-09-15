@@ -39,11 +39,15 @@ export function maxReached() { return maxCount; }
 // En ligue, le peloton c'est LES MEMBRES de la ligue, rien d'autre (7 septembre
 // 2026 : « c'est plus Soberland etc., juste les gens qui font partie de la
 // ligue, donc le nombre de potes = le nombre de personnes dans la ligue »).
-// ⚠️ Plafonné à `config.potesMax` (16 septembre 2026, bêta fermée) : une ligue
-// ordinaire fait 6 personnes donc 5 autres = potesMax, rien ne change ; la
-// ligue de bêta peut en compter 60, et le peloton (comme le score parfait de
-// simulation.js) ne doit pas suivre ce nombre.
-export function max() { return nomsLigue ? Math.min(nomsLigue.length, window.CONFIG.potesMax) : window.CONFIG.potesMax; }
+// ⚠️ TOUJOURS `config.potesMax` depuis le 16 septembre 2026 (bêta fermée) :
+// renversement assumé du « le nombre de potes = le nombre de personnes dans la
+// ligue » du 7 septembre. Mesuré sur la première course de bêta : premier
+// inscrit seul dans sa ligue → `potes: 0` en base, aucun pote ne vient de toute
+// la course, le jeu perd son cœur et paraît vide (« je suis tout seul, il n'y a
+// pas assez de difficulté »). Le peloton est donc COMPLÉTÉ par les potes par
+// défaut (listeMembres) : les membres de la ligue d'abord, les autres ensuite.
+// Le plafond protège aussi la ligue de bêta, qui peut compter 60 personnes.
+export function max() { return Math.min(listeMembres().length, window.CONFIG.potesMax); }
 
 export function recordPlayer(u, v, jumped) {
   if (jumped) jumpMarks.push(v);
@@ -57,7 +61,18 @@ export function recordPlayer(u, v, jumped) {
 let nomsLigue = null;
 export function setNomsLigue(liste) { nomsLigue = Array.isArray(liste) ? liste.map((m) => (typeof m === "string" ? { nom: m, skin: null } : m)) : null; }
 export function enLigue() { return nomsLigue !== null; }
-function listeMembres() { return nomsLigue || window.CONFIG.potesDefaut || (window.CONFIG.potesNoms || ["paul"]).map((n) => ({ nom: n, skin: null })); }
+function potesParDefaut() { return window.CONFIG.potesDefaut || (window.CONFIG.potesNoms || ["paul"]).map((n) => ({ nom: n, skin: null })); }
+// Les membres de la ligue D'ABORD (ce sont eux qu'on veut voir), complétés par
+// les potes par défaut jusqu'à `potesMax` : une ligue d'une seule personne
+// donne quand même un peloton.
+function listeMembres() {
+  const defauts = potesParDefaut();
+  if (!nomsLigue) return defauts;
+  const max = window.CONFIG.potesMax;
+  if (nomsLigue.length >= max) return nomsLigue;
+  const manquants = defauts.filter((d) => !nomsLigue.some((m) => m.nom === d.nom));
+  return nomsLigue.concat(manquants).slice(0, max);
+}
 function listeNoms() { return listeMembres().map((m) => m.nom); }
 // Prénom : le premier de la liste qui n'est pas déjà dans le peloton
 // (Soberland revient en premier s'il est parti — plus de doublons).

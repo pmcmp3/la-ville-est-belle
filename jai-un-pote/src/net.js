@@ -130,18 +130,18 @@ export function evenement(type, infos = {}) {
 // Retour d'un testeur (bêta fermée, 16 septembre 2026) : écrit depuis
 // l'écran de fin, lié au pseudo, jamais relu par le jeu (table retours_beta,
 // insert-only, lue dans le tableau de bord Supabase).
-export function envoyerRetour(infos) { return post("retours_beta", infos); }
-
-// Préinscription au concert.
-export function preinscrire(infos) { return post("preinscriptions_concert", infos); }
-export async function nbPreinscrits() {
-  if (!configured()) return null;
+// ⚠️ Renvoie le DÉTAIL de l'échec (statut HTTP ou message PostgREST) : le
+// premier retour de la bêta n'est jamais arrivé en base et rien à l'écran ne
+// disait pourquoi. Le tiroir affiche ce détail.
+export async function envoyerRetour(infos) {
+  if (!configured()) return { ok: false, detail: "hors ligne" };
   try {
-    const res = await fetch(url("preinscriptions_concert", "?select=id"), { headers: headers({ Prefer: "count=exact", Range: "0-0" }) });  // exact : petite table, appelée une fois par fin de course (planned renvoyait 400 sur une table vide) });
-    const cr = res.headers.get("content-range") || "";
-    const total = Number(cr.split("/")[1]);
-    return Number.isFinite(total) ? total : null;
-  } catch (e) { return null; }
+    const res = await fetch(url("retours_beta"), { method: "POST", headers: headers({ Prefer: "return=minimal" }), body: JSON.stringify(infos) });
+    if (res.ok) return { ok: true };
+    let detail = `erreur ${res.status}`;
+    try { const j = await res.json(); if (j && j.message) detail += ` · ${j.message}`; } catch (e) { /* corps vide */ }
+    return { ok: false, detail };
+  } catch (e) { return { ok: false, detail: "pas de réseau" }; }
 }
 
 // Classement de la ligue. Avec `graine` : seules les courses de CETTE route

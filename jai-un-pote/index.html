@@ -167,8 +167,7 @@
     #end-max { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
     #end-max b { color: var(--rouge); font-weight: 900; }
     #end-ligue-liste .fantome { margin-left: 4px; font-size: 11px; opacity: 0.7; }
-    #end-relais, #end-concert { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
-    #end-concert b { color: var(--rouge); }
+    #end-relais { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
 
     /* --- Bêta fermée (16 septembre 2026) ---------------------------------- */
     body.beta .beta-off { display: none !important; }
@@ -184,23 +183,12 @@
     #retour-text { margin: 0; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
     #retour-input { box-sizing: border-box; width: 100%; min-height: 108px; resize: none; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 10px; font: 500 14px/1.45 var(--police); color: var(--noir); background: transparent; -webkit-appearance: none; }
     #retour-input:focus { outline: none; border-color: var(--rouge); }
+    #retour-input, #pseudo-input, .champ-row input, #ligue-input { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
     #retour-compteur { margin: -6px 0 0; align-self: flex-end; font: 500 11px var(--police); color: rgba(0,0,0,0.45); font-variant-numeric: tabular-nums; }
     #retour-envoyer { width: 100%; }
     #retour-form { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
     #retour-ok { display: flex; flex-direction: column; align-items: center; gap: 8px; }
     #retour-ok .coche { width: 46px; height: 46px; border-radius: 50%; background: var(--rouge); color: var(--blanc); display: flex; align-items: center; justify-content: center; font: 900 24px var(--police); }
-
-    /* --- Concert --------------------------------------------------------- */
-    #concert-sheet { position: fixed; inset: 0; z-index: 48; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
-    #concert-sheet.visible { visibility: visible; transition: visibility 0s; }
-    #concert-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.25s ease; }
-    #concert-sheet.visible #concert-veil { opacity: 1; }
-    #concert-card { position: relative; box-sizing: border-box; width: min(300px, 100%); padding: 30px 20px 18px; border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
-    #concert-sheet.visible #concert-card { transform: scale(1); opacity: 1; }
-    #concert-title { margin: 2px 0 0; font: 900 28px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
-    #concert-text, #concert-count { margin: 0; font: 500 13px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
-    #concert-count { color: var(--rouge); font-weight: 700; }
-    #concert-oui { width: 100%; }
 
     /* --- Ligue ---------------------------------------------------------- */
     #ligue-bloc { width: 240px; margin: 0 0 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -463,7 +451,6 @@
               </span></span></button>
             <a id="end-cta" class="link-minimal" href="#" role="button">Écouter l'album</a>
           </div>
-          <p id="end-concert" class="hidden"></p>
           <p id="end-credit"><a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
           <a id="insta-link" href="#" class="hidden" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
         </div>
@@ -531,20 +518,6 @@
       <button id="revive-cta" class="btn btn-primary" type="button">Continuer la course</button>
       <button id="revive-replay" type="button" class="btn btn-secondary">Rejouer</button>
       <button id="revive-decline" type="button" class="link-minimal">Voir ma course</button>
-    </div>
-  </div>
-
-  <!-- Préinscription au concert (7 septembre 2026) : une fois, après la
-       première course arrivée au bout du morceau. -->
-  <div id="concert-sheet" aria-hidden="true">
-    <div id="concert-veil"></div>
-    <div id="concert-card">
-      <div class="panel-header"><p class="step-eyebrow">Concert</p></div>
-      <p id="concert-title">Une place de concert ?</p>
-      <p id="concert-text">Un tap, tu es préinscrit. Les places vont aux premiers de ligue.</p>
-      <p id="concert-count" class="hidden"></p>
-      <button id="concert-oui" type="button" class="btn btn-primary">Je veux une place</button>
-      <button id="concert-non" type="button" class="link-minimal">Plus tard</button>
     </div>
   </div>
 

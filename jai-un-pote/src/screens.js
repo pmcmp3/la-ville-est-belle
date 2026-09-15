@@ -69,7 +69,7 @@ const CLE_PSEUDO = "jaipPseudo";
 const CLE_RECORD = "jaipRecord";
 const CLE_PARTIES = "jaipParties";
 const CLE_LIGUE = "jaipLigue";
-const CLE_INSTA = "jaipInsta", CLE_VILLE = "jaipVille", CLE_SKIN = "jaipSkin", CLE_SOURCE = "jaipSource", CLE_PREINSCRIT = "jaipPreinscrit", CLE_SPRINT = "jaipSprint";
+const CLE_INSTA = "jaipInsta", CLE_VILLE = "jaipVille", CLE_SKIN = "jaipSkin", CLE_SOURCE = "jaipSource", CLE_SPRINT = "jaipSprint";
 
 // --- Bêta fermée (16 septembre 2026) -----------------------------------------
 // Une seule ligue pour les fans du groupe WhatsApp : on arrive par
@@ -406,7 +406,7 @@ function afficherLigue() {
     // La ligue a SA course (graine) ; le score parfait dépend du nombre de
     // potes possibles, donc du nombre d'autres membres (simulation.js).
     let parfait = "";
-    try { if (!ligue.enAttente) parfait = ` · score parfait ${pts(scoreParfait(graineLigue(ligue.code), autres.length).score)}`; } catch (e) { parfait = ""; }
+    try { if (!ligue.enAttente) parfait = ` · score parfait ${pts(scoreParfait(graineLigue(ligue.code), window.CONFIG.potesMax).score)}`; } catch (e) { parfait = ""; }
     liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}${parfait}`;
   }
 }
@@ -459,7 +459,6 @@ export async function preparerLigue() {
 // ligue sur cette route (9 septembre 2026).
 export async function finLigue(metres, potes, mode = "course", bilan = {}) {
   endLigue.classList.add("hidden");
-  majConcertFin();
   if (mode === "sprint") lsSet(CLE_SPRINT, net.jourSprint());
   const code = ligue ? ligue.code : (window.CONFIG.ligueDemo || "PMCMP");
   if (!ligue && mode !== "sprint") return;
@@ -482,7 +481,7 @@ export async function finLigue(metres, potes, mode = "course", bilan = {}) {
       const li = document.createElement("li");
       if (r.pseudo === moi) li.className = "moi";
       li.innerHTML = `<span class="rang">${i + 1}</span><span class="nom"></span><span class="m">${pts(r.metres)}</span>`;
-      li.querySelector(".nom").textContent = `@${r.pseudo}${i < 5 ? " · une place" : ""}`;
+      li.querySelector(".nom").textContent = `@${r.pseudo}`;
       endLigueListe.appendChild(li);
     });
     endRelais.classList.add("hidden");
@@ -540,29 +539,7 @@ function majSprint() {
   const fait = lsGet(CLE_SPRINT) === net.jourSprint();
   sprintButton.classList.toggle("hidden", fait);
   sprintNote.classList.remove("hidden");
-  sprintNote.textContent = fait ? "Sprint du dimanche déjà couru : une seule tentative, le classement est sur ton écran de fin." : "Une seule tentative, la même route pour tout le monde. Les 5 premiers gagnent une place.";
-}
-
-// --- Concert : préinscription --------------------------------------------------
-const concertSheet = $("concert-sheet"), concertOui = $("concert-oui"), concertNon = $("concert-non"), concertCount = $("concert-count"), endConcert = $("end-concert");
-export function estPreinscrit() { return lsGet(CLE_PREINSCRIT) === "1"; }
-export async function proposerConcert() {
-  // Pas en bêta : l'écran de fin doit rester sur le bouton de retour.
-  if (enBeta() || !net.estConfigure() || estPreinscrit()) return;
-  $("concert-title").textContent = "Une place de concert ?";
-  const n = await net.nbPreinscrits();
-  concertCount.classList.toggle("hidden", !n);
-  if (n) concertCount.textContent = `${n.toLocaleString("fr-FR")} préinscrit${n > 1 ? "s" : ""} déjà`;
-  concertSheet.classList.add("visible"); concertSheet.setAttribute("aria-hidden", "false");
-}
-function fermerConcert() { concertSheet.classList.remove("visible"); concertSheet.setAttribute("aria-hidden", "true"); }
-async function majConcertFin() {
-  if (!net.estConfigure()) { endConcert.classList.add("hidden"); return; }
-  const n = await net.nbPreinscrits();
-  endConcert.classList.remove("hidden");
-  endConcert.innerHTML = estPreinscrit()
-    ? `Concert : <b>préinscrit</b>${n ? ` · ${n.toLocaleString("fr-FR")}` : ""}`
-    : `Concert : <b>${window.CONFIG.concertPlaces || 50} places</b>${n ? ` · ${n.toLocaleString("fr-FR")} préinscrits` : ""}`;
+  sprintNote.textContent = fait ? "Sprint du dimanche déjà couru : une seule tentative, le classement est sur ton écran de fin." : "Une seule tentative, la même route pour tout le monde.";
 }
 
 // --- Chargement --------------------------------------------------------------
@@ -622,11 +599,13 @@ export function showEndScreen({ metres, potesMax, record, fin, sprint, scoreMax 
 const retourSheet = $("retour-sheet"), retourForm = $("retour-form"), retourOk = $("retour-ok");
 const retourInput = $("retour-input"), retourEnvoyer = $("retour-envoyer"), retourCompteur = $("retour-compteur");
 let derniereCourse = null;
+const TEXTE_RETOUR = "Ce qui t'a plu, ce qui t'a saoulé, ce qui bugue. Écris tout, c'est exactement ce qu'il me faut.";
 
 export function ouvrirRetour() {
   retourForm.classList.remove("hidden");
   retourOk.classList.add("hidden");
   $("retour-title").textContent = "Ton retour";
+  $("retour-text").textContent = TEXTE_RETOUR;
   retourEnvoyer.textContent = "Envoyer";
   retourEnvoyer.classList.remove("locked");
   majCompteurRetour();
@@ -660,13 +639,15 @@ async function envoyerRetour() {
     partie: getParties(),
     appareil: navigator.userAgent.slice(0, 180),
   });
-  if (!ok) {
+  if (!ok.ok) {
     retourEnvoyer.disabled = false;
     retourEnvoyer.classList.remove("locked");
     retourEnvoyer.textContent = "Réessayer";
     $("retour-title").textContent = "Pas parti, réessaie";
+    $("retour-text").textContent = `${ok.detail || "envoi impossible"} — réessaie, ou envoie-moi ça sur WhatsApp.`;
     return;
   }
+  $("retour-text").textContent = TEXTE_RETOUR;
   retourInput.value = "";
   majCompteurRetour();
   retourForm.classList.add("hidden");
@@ -741,14 +722,6 @@ export function init(d) {
   $("step3-profil").addEventListener("click", () => setStep(1));
   playButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); pseudoInput.focus(); return; } startGame(); });
   sprintButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); return; } startGame({ sprint: true }); });
-  concertOui.addEventListener("click", async () => {
-    concertOui.classList.add("locked");
-    await net.preinscrire({ pseudo: getPseudo(), insta: getInsta() || null, ville: getVille() || null, ligue: ligue ? ligue.code : null, source: getSource() });
-    lsSet(CLE_PREINSCRIT, "1");
-    net.evenement("preinscription", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
-    fermerConcert(); majConcertFin();
-  });
-  concertNon.addEventListener("click", fermerConcert);
   net.evenement("arrivee", { pseudo: lsGet(CLE_PSEUDO) || null, source: getSource(), ligue: null });
   // (Pas de MutationObserver sur `disabled` : il se redéclenchait lui-même en
   // boucle et gelait la page — syncLoadingUi relit le champ à la fin du

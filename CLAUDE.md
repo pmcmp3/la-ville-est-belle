@@ -588,7 +588,11 @@ déployer**), atteinte par `…/jai-un-pote/?ligue=BETA` : le lien inscrit le jo
 ligue ET simplifie le menu (pseudo → cycliste → JOUER ; ni choix de ligue, ni sprint, ni
 tiroir album). Le mode ne s'allume que si la ligue courante est celle-là — les autres
 visiteurs gardent le jeu normal. Écran de fin : bouton « Laisser un retour » → champ libre →
-table `retours_beta` (insert-only, lue dans le tableau de bord Supabase), lié au pseudo.
+table `retours_beta` (insert-only, ⚠️ **illisible avec la clé anon** — se lit UNIQUEMENT
+dans le Table editor Supabase), lié au pseudo. ⚠️ Même jour : le **peloton ne suit plus la
+taille de la ligue** (un joueur seul dans sa ligue n'avait AUCUN pote — mesuré), il est
+complété par `potesDefaut` jusqu'à `potesMax` ; et **le concert / les « 50 places » sont
+retirés partout** (« enlève les 50 places gagnées au début, cash pistache »).
 Sa propre racine Vite, ses
 propres copies des modules moteur** (rien de partagé avec `src/`, volontairement). Tout est
 documenté dans `ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run

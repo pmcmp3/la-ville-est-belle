@@ -2460,6 +2460,29 @@ partent pas — le tiroir affiche « Pas parti, réessaie », vérifié).
   user-agent. Échec réseau → « Pas parti, réessaie », le texte reste à l'écran. Lecture : Table
   editor Supabase, `retours_beta` triée par date.
 - Classement de fin : 12 lignes en bêta au lieu de 6.
+- ⚠️ **`retours_beta` est INSERT-ONLY : illisible avec la clé anon** (aucune policy de
+  lecture). Une requête REST de vérification renvoie donc toujours `[]`, même quand la table
+  est pleine — piège vécu le 16 septembre, conclusion « la table est vide » alors que
+  l'insert répondait 201. Les retours se lisent dans le **Table editor Supabase**, nulle part
+  ailleurs. (`ligue_membres`/`ligue_scores`, eux, ont bien une lecture publique.)
+- ⚠️ **Le peloton n'est plus indexé sur la taille de la ligue** (16 septembre 2026,
+  renversement du 7 septembre) : première course de bêta, l'artiste seul inscrit dans `BETA`
+  → `friends.max()` valait 0, aucun pote de toute la course, `potes: 0` en base (vérifié), jeu
+  vide et sans enjeu. `listeMembres()` complète désormais les membres de la ligue par
+  `config.potesDefaut` jusqu'à `config.potesMax` (membres d'abord), et `max()` vaut toujours
+  `potesMax`. `screens.afficherLigue` calcule donc le score parfait sur `potesMax`.
+- ⚠️ **Le concert et ses « 50 places » sont SUPPRIMÉS partout** (16 septembre 2026, demandé :
+  « enlève les 50 places gagnées au début, partout ») : bannière de départ (`annoncerConcert`,
+  main.js), carte de préinscription (`#concert-sheet`), ligne de l'écran de fin
+  (`#end-concert`), mention « une place » du sprint, `config.concertPlaces`,
+  `net.preinscrire`/`nbPreinscrits`. La table `preinscriptions_concert` reste en base, sans
+  écriture. Ce que gagne le premier de ligue n'est plus annoncé : c'est justement une des
+  trois questions posées aux bêta-testeurs.
+- Champs de saisie forcés en `-webkit-user-select: text` : `body` est en `user-select: none`,
+  ce qui peut empêcher le curseur dans un `textarea` sur certains WebKit iOS (piste du
+  « j'ai pas réussi à mettre mon retour »).
+- Échec d'envoi d'un retour : le tiroir affiche le **détail** (statut HTTP + message
+  PostgREST), plus un « Pas parti » muet.
 
 **Reste à faire** : exécuter la migration (troisième partie) côté Supabase, déployer
 (`./deploy.sh`), tester sur téléphone (lisibilité de la route à 5 voies, vitesse des tracteurs,

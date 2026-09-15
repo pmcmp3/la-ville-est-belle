@@ -182,15 +182,7 @@ function tutoStep(dt, now) {
     tuto.timer += dt;
     if (tuto.timer > 25) { tuto.index += 1; tuto.timer = 0; }
   }
-  if (tuto.index >= TUTO_ETAPES.length) { tuto.actif = false; annoncerConcert(); }
-}
-// Le concert se dit au DÉBUT de la course (« faut en parler au début, on peut
-// gagner une place de concert »), une seule fois par partie, en serif.
-let concertAnnonce = false;
-function annoncerConcert() {
-  if (concertAnnonce) return;
-  concertAnnonce = true;
-  afficherBanner(`${window.CONFIG.concertPlaces || 50} places de concert à gagner`, screens.getLigue() ? "avec ta ligue, jusqu'au bout du morceau" : "crée ta ligue, va au bout du morceau", JAUNE, 3);
+  if (tuto.index >= TUTO_ETAPES.length) tuto.actif = false;
 }
 function tutoVue() {
   if (!tuto.actif) return null;
@@ -275,7 +267,7 @@ function resetRun() {
   game.startedAt = perfClock();
   player.col = iso.COL_CENTRE; player.u = iso.colU(iso.COL_CENTRE); player.prevU = player.u; player.v = 0; player.prevV = 0;
   player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0; player.doubled = false; player.flip = 0; player.prevFlip = 0; player.elan = 1;
-  sparkles.length = 0; ghosts.length = 0; concertAnnonce = false;
+  sparkles.length = 0; ghosts.length = 0;
   speed = V_UNIT * window.CONFIG.vitesseBase; slowMul = 1; nuitDebut = null;
   friends.reset();
   klaxonne = new Set();
@@ -354,7 +346,6 @@ function terminer() {
   screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true, sprint: game.sprint, scoreMax: game.scoreMax });
   screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course", bilanCourse());
   net.evenement("course_finie", { pseudo: screens.getPseudo(), source: screens.getSource(), ligue: screens.getLigue() ? screens.getLigue().code : null });
-  if (!game.sprint) setTimeout(() => screens.proposerConcert(), 2600);
 }
 
 function endGame(reason) {
@@ -508,7 +499,6 @@ function step(dt) {
   const now = clock.now();
   const phys = jumpPhysics();
   tutoStep(dt, now);
-  if (!tuto.actif && now >= 1.5 && !concertAnnonce && !game.sprint) annoncerConcert();
 
   // --- Nuit : tombe à partir de nuitDebutS, 30 s de transition ---
   const nd = nuitDebut !== null ? nuitDebut : window.CONFIG.nuitDebutS;
