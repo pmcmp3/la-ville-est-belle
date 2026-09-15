@@ -1,0 +1,211 @@
+// friends.js — Le peloton derrière le joueur (7 septembre 2026 : « ce qui
+// serait dingue, c'est qu'ils ne soient pas assignés à une seule ligne mais
+// qu'ils naviguent entre les lignes, et qu'ils réussissent TOUJOURS à éviter
+// les objets »). Chaque pote roule SPACING rangées derrière le précédent,
+// choisit sa propre voie : il se balade d'une voie à l'autre quand c'est
+// libre, et change TOUJOURS de voie avant un obstacle posé, une flaque de
+// boue ou une voiture garée. Il saute là où le joueur a sauté (pour le
+// plaisir des yeux). Les potes ne prennent aucun dégât ; ils ramassent les
+// pièces qu'ils croisent.
+
+import { project, ROAD_HALF, COLS, colU } from "./iso.js";
+import * as rows from "./rows.js";
+import { PALETTES, paletteDepuisSkin } from "./rider.js";
+import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
+
+// Écart entre potes (0,95 → 1,5 : « beaucoup trop serré derrière moi, ça gêne
+// la vue »), et DISTANCE du premier pote derrière le joueur (9 septembre
+// 2026 : « il faut que les potes soient un peu plus éloignés de toi, c'est
+// trop difficile sinon ») — réglages dans config.js, valeurs de repli ici.
+export const SPACING = 1.5;
+function ecart() { return window.CONFIG.potesEcart || SPACING; }
+function premierRecul() { return window.CONFIG.potesRecul || 3.0; }
+// Rangée d'un pote de rang `slot` (0 = juste derrière le joueur).
+function vDuSlot(playerV, slot) { return playerV - premierRecul() - slot * ecart(); }
+const LEAVE_S = 0.7;
+const ARRIVAL_S = 1.1;
+const LANE_TWEEN = 7;
+const LOOK_AHEAD = 3;   // rangées regardées devant pour éviter
+
+let potes = [];
+let maxCount = 0;
+let joins = 0;
+let jumpMarks = [];
+
+export function reset() { potes = []; maxCount = 0; joins = 0; jumpMarks = []; tirerSelection(); }
+export function alive() { return potes.filter((p) => !p.leave); }
+export function count() { return alive().length; }
+export function maxReached() { return maxCount; }
+// En ligue, le peloton c'est LES MEMBRES de la ligue, rien d'autre (7 septembre
+// 2026 : « c'est plus Soberland etc., juste les gens qui font partie de la
+// ligue, donc le nombre de potes = le nombre de personnes dans la ligue »).
+// ⚠️ TOUJOURS `config.potesMax` depuis le 16 septembre 2026 (bêta fermée) :
+// renversement assumé du « le nombre de potes = le nombre de personnes dans la
+// ligue » du 7 septembre. Mesuré sur la première course de bêta : premier
+// inscrit seul dans sa ligue → `potes: 0` en base, aucun pote ne vient de toute
+// la course, le jeu perd son cœur et paraît vide (« je suis tout seul, il n'y a
+// pas assez de difficulté »). Le peloton est donc COMPLÉTÉ par les potes par
+// défaut (listeMembres) : les membres de la ligue d'abord, les autres ensuite.
+// Le plafond protège aussi la ligue de bêta, qui peut compter 60 personnes.
+export function max() { return Math.min(listeMembres().length, window.CONFIG.potesMax); }
+
+export function recordPlayer(u, v, jumped) {
+  if (jumped) jumpMarks.push(v);
+  const minV = vDuSlot(v, max() + 1) - 1;
+  jumpMarks = jumpMarks.filter((m) => m > minV);
+}
+
+// Les potes portent les pseudos de la LIGUE quand il y en a une (5 membres
+// tirés au hasard par course), complétés par les prénoms par défaut.
+// Liste de membres { nom, skin } : ceux de la ligue, sinon la ligue de démo.
+let nomsLigue = null;
+export function setNomsLigue(liste) {
+  nomsLigue = Array.isArray(liste) ? liste.map((m) => (typeof m === "string" ? { nom: m, skin: null } : m)) : null;
+  tirerSelection();
+}
+// ⚠️ 5 membres TIRÉS AU HASARD à chaque course (16 septembre 2026, demandé
+// pour la bêta : « oui, 5 personnes aléatoires à chaque fois »). Une ligue de
+// bêta peut compter 60 personnes pour 5 places dans le peloton : sans tirage,
+// tout le monde verrait éternellement les 5 premiers inscrits. Le tirage est
+// refait à chaque `reset()` (donc à chaque course) et à chaque arrivée d'une
+// nouvelle liste de membres ; il est FIGÉ pendant la course, sinon les
+// prénoms changeraient entre deux potes d'un même peloton.
+// Non seedé, volontairement : les prénoms ne touchent pas au gameplay, la
+// course reste la même pour toute la ligue (graine du code, regles.js).
+let selection = null;
+function tirerSelection() {
+  if (!nomsLigue) { selection = null; return; }
+  const max = window.CONFIG.potesMax;
+  const pool = nomsLigue.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const choisis = pool.slice(0, max);
+  const manquants = potesParDefaut().filter((d) => !choisis.some((m) => m.nom === d.nom));
+  selection = choisis.concat(manquants).slice(0, max);
+}
+export function enLigue() { return nomsLigue !== null; }
+function potesParDefaut() { return window.CONFIG.potesDefaut || (window.CONFIG.potesNoms || ["paul"]).map((n) => ({ nom: n, skin: null })); }
+// Le peloton de la course : le tirage ci-dessus (membres de la ligue d'abord,
+// complétés par les potes par défaut), sinon la ligue de démo.
+function listeMembres() { return selection || potesParDefaut(); }
+function listeNoms() { return listeMembres().map((m) => m.nom); }
+// Prénom : le premier de la liste qui n'est pas déjà dans le peloton
+// (Soberland revient en premier s'il est parti — plus de doublons).
+function prochainNom() {
+  const noms = listeNoms();
+  const pris = new Set(alive().map((p) => p.name));
+  return noms.find((n) => !pris.has(n)) || null;
+}
+
+export function join(player) {
+  const vivants = alive();
+  if (vivants.length >= max()) return null;
+  const slot = vivants.length;
+  const name = prochainNom();
+  if (!name) return null;
+  const idx = Math.max(0, listeNoms().indexOf(name));
+  const membre = listeMembres()[idx];
+  const base = PALETTES.potes[idx % PALETTES.potes.length];
+  const palette = membre && membre.skin ? paletteDepuisSkin(membre.skin, base) : base;
+  joins += 1;
+  const side = slot % 2 ? 1 : -1;
+  const pote = {
+    slot, palette, name,
+    col: player.col, u: side * (ROAD_HALF + 3.2), v: vDuSlot(player.v, slot),
+    arrive: 0, leave: null, pedal: Math.random() * 6,
+    jumpY: 0, jumpVy: 0, lastMark: -Infinity, balade: 1 + Math.random() * 2.5,
+  };
+  potes.push(pote);
+  maxCount = Math.max(maxCount, vivants.length + 1);
+  return pote;
+}
+
+export function lose(n) {
+  const vivants = alive().sort((a, b) => b.slot - a.slot);
+  const perdus = vivants.slice(0, n);
+  for (const p of perdus) p.leave = { t: 0, dir: p.u >= 0 ? 1 : -1 };
+  return perdus;
+}
+
+// Voies bloquées sur les LOOK_AHEAD prochaines rangées : obstacle posé,
+// boue, voiture garée. Les traversants ne comptent pas (les potes ne
+// prennent pas de dégât, et un tracteur est imprévisible pour eux).
+function voiesBloquees(v) {
+  const r0 = Math.floor(v + 0.5);
+  const bloc = new Set();
+  for (let r = Math.max(0, r0); r <= r0 + LOOK_AHEAD; r++) {
+    const row = rows.rowAt(r);
+    if (row.type === "statique") for (const c of row.cols) bloc.add(c);
+    if (row.boue !== null && row.boue !== undefined) bloc.add(row.boue);
+  }
+  return bloc;
+}
+
+function choisirVoie(p, bloc, forcer) {
+  if (!forcer && !bloc.has(p.col)) return p.col;
+  // Voisines d'abord, puis n'importe quelle voie libre.
+  const toutes = Array.from({ length: COLS }, (_, c) => c);
+  const cands = [p.col - 1, p.col + 1, ...toutes].filter((c) => c >= 0 && c < COLS && c !== p.col && !bloc.has(c));
+  if (!cands.length) return p.col;
+  return cands[Math.floor(Math.random() * Math.min(2, cands.length))];
+}
+
+export function update(dt, player, phys) {
+  const vivants = alive().sort((a, b) => a.slot - b.slot);
+  vivants.forEach((p, i) => { p.slot = i; });
+  for (const p of potes) {
+    if (p.leave) { p.leave.t += dt / LEAVE_S; continue; }
+    p.v = vDuSlot(player.v, p.slot);
+    if (p.arrive < 1) {
+      p.arrive = Math.min(1, p.arrive + dt / ARRIVAL_S);
+      p.u += (colU(p.col) - p.u) * Math.min(1, 3.2 * dt);
+      continue;
+    }
+    const bloc = voiesBloquees(p.v);
+    if (bloc.has(p.col)) {
+      p.col = choisirVoie(p, bloc, true);
+      p.balade = 1.5 + Math.random() * 2;
+    } else {
+      p.balade -= dt;
+      if (p.balade <= 0) { p.col = choisirVoie(p, bloc, true); p.balade = 1.5 + Math.random() * 3; }
+    }
+    p.u += (colU(p.col) - p.u) * Math.min(1, LANE_TWEEN * dt);
+    const mark = jumpMarks.find((m) => m > p.lastMark && m <= p.v);
+    if (mark !== undefined && p.jumpY <= 0) { p.jumpVy = phys.vJump; p.jumpY = 0.001; p.lastMark = mark; }
+    if (p.jumpY > 0) { p.jumpVy -= phys.g * dt; p.jumpY += p.jumpVy * dt; if (p.jumpY <= 0) { p.jumpY = 0; p.jumpVy = 0; } }
+  }
+  potes = potes.filter((p) => !p.leave || p.leave.t < 1);
+}
+
+export function members() {
+  return alive().filter((p) => p.arrive >= 1).map((p) => ({ id: `p${p.slot}`, u: p.u, v: p.v, pote: p }));
+}
+
+export function drawables(ctx, pedalPhase) {
+  const out = [];
+  for (const p of potes) {
+    let u = p.u, y = p.jumpY, alpha = 1;
+    if (p.leave) {
+      const t = p.leave.t;
+      u += p.leave.dir * t * 4;
+      y += Math.sin(Math.min(1, t) * Math.PI) * 1.6;
+      alpha = 1 - t;
+    }
+    out.push({
+      u, v: p.v, draw: () => {
+        drawRider(ctx, u, p.v, y, p.palette, pedalPhase + p.pedal, alpha);
+        if (p.name && p.arrive >= 1 && !p.leave) {
+          const g = project(u, p.v, y + RIDER_HEIGHT + 0.15);
+          ctx.save();
+          ctx.font = `700 11px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+          ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineJoin = "round";
+          ctx.strokeText(`@${p.name}`, g.x, g.y);
+          ctx.fillStyle = "#fff";
+          ctx.fillText(`@${p.name}`, g.x, g.y);
+          ctx.restore();
+        }
+      },
+    });
+  }
+  return out;
+}

@@ -1,0 +1,2680 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0d0d10" />
+  <!-- Favicon : étoile Mario du jeu sur le rouge de charte (demandé le
+       21 août 2026 — il apparaît dans le navigateur intégré d'Instagram et
+       dans l'îlot dynamique quand le son joue). Chemins RELATIFS, comme tout
+       le reste (le site vit sous /la-ville-est-belle/). La vignette de la
+       Dynamic Island/écran verrouillé, elle, vient de mediaSession (audio.js,
+       pochette de l'EP). -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <title>La ville est belle</title>
+  <!-- Balises de partage (Open Graph + Twitter) : chaque lien du jeu envoyé
+       sur un réseau social affiche la pochette de l'EP et la promesse du
+       concours — URLs ABSOLUES obligatoires (les crawlers ne résolvent pas les
+       chemins relatifs), et JPG plutôt que WebP (encore mal supporté par
+       certains crawlers). -->
+  <meta property="og:title" content="La ville est belle — le jeu" />
+  <meta property="og:description" content="Fonce dans Paris au coucher du soleil, attrape les étoiles. Meilleur score = le vinyle de l'EP de PMC à gagner." />
+  <meta property="og:image" content="https://la-ville-est-belle-pmc.fr/assets/cover-ep-og.jpg" />
+  <meta property="og:url" content="https://la-ville-est-belle-pmc.fr/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="La ville est belle — le jeu" />
+  <meta name="twitter:description" content="Meilleur score = le vinyle de l'EP de PMC à gagner." />
+  <meta name="twitter:image" content="https://la-ville-est-belle-pmc.fr/assets/cover-ep-og.jpg" />
+  <style>
+    /* Polices de la charte PMC, fournies par l'artiste.
+       - Flawsome : police d'affichage, réservée au titre du jeu.
+       - Stage Grotesk : interface. Deux graisses seulement (Black pour les
+         boutons/chiffres, Medium pour le texte courant) pour tenir le poids
+         sur data mobile — les 7 graisses pesaient ~520 ko, on est à 216 ko
+         tout compris. `font-display: block` parce que hud.js peint aussi du
+         texte dans le canvas : mieux vaut une brève attente qu'un rendu en
+         police système figé ensuite. */
+    /* Source Serif Black (4 septembre 2026, fichiers fournis par l'artiste —
+       "Source Serif Pro Black" dans la table de noms) : la fonte du titre de
+       l'e-card. Une seule graisse, sous-ensemble latin en woff2 (~30 Ko) ;
+       elle remplace Flawsome, dont le fichier reste dans public/fonts mais
+       n'est plus déclaré, donc plus téléchargé. */
+    @font-face {
+      font-family: "Source Serif 2";
+      src: url("fonts/SourceSerif2-Black.woff2") format("woff2"),
+           url("fonts/SourceSerif2-Black.ttf") format("truetype");
+      font-weight: 900;
+      font-style: normal;
+      font-display: block;
+    }
+
+    @font-face {
+      font-family: "Stage Grotesk";
+      src: url("fonts/StageGrotesk-Medium.otf") format("opentype");
+      font-weight: 500;
+      font-style: normal;
+      font-display: block;
+    }
+
+    @font-face {
+      font-family: "Stage Grotesk";
+      src: url("fonts/StageGrotesk-Black.otf") format("opentype");
+      font-weight: 900;
+      font-style: normal;
+      font-display: block;
+    }
+
+    :root {
+      --rouge: #e13e26;   /* rouge de la charte (dossier DA « ROUGE - #E13E26 ») */
+      --rouge-clair: #ff6a4a; /* reflet haut des boutons/panneaux "pressables" */
+      --rouge-fonce: #8f2415; /* tranche basse des boutons/panneaux "pressables" */
+      --blanc: #ffffff;
+      --noir: #0d0d10;
+      /* Réchauffés le 12 août 2026 (demandé : « cohérent avec la DA »), pour
+         que les cartes de menu appartiennent au même monde que les nouvelles
+         façades pierre rosée/dorée plutôt qu'un blanc/noir neutres — mêmes
+         teintes que CORNICE_COLOR/ROOF_RIDGE_COLOR dans world.js. Police et
+         rouge de charte inchangés (locked, voir CLAUDE.md). */
+      /* ⚠️ Refonte du 4 septembre 2026, calée sur l'e-card de l'EP (fournie par
+         l'artiste : titre en serif noir très condensé sur photo, étiquette
+         rouge posée de travers, boutons rectangulaires à texte espacé, fond
+         blanc). Les cartes crème à bord brun et coins 22 px ont disparu :
+         blanc pur, bord noir fin, rayon 4 px, et le rouge de charte ne sert
+         plus qu'aux actions et aux étiquettes. */
+      --panneau-fond: #ffffff;
+      --panneau-bord: #0d0d10;
+      --rayon: 4px;
+      --police: "Stage Grotesk", system-ui, sans-serif;
+      /* Source Serif Black (fichiers fournis le 4 septembre 2026) : le titre
+         de l'e-card. Sous-ensemble latin en woff2 (voir public/fonts). */
+      --titre: "Source Serif 2", Georgia, "Times New Roman", serif;
+
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      /* Barre d'onglets/adresse de Safari iOS : PAS comptée dans safe-area-
+         inset-bottom (qui ne couvre que le home indicator matériel), mais
+         recouvre quand même le bas de l'écran en navigateur. Mise à jour en
+         JS via window.visualViewport (voir main.js) — 0 par défaut/ailleurs. */
+      --browser-chrome-bottom: 0px;
+
+      /* Hauteur libre sous les contrôles. Le plancher de 64px est le point
+         important : sur iOS, window.innerHeight exclut DÉJÀ la barre d'outils
+         de Safari, donc --browser-chrome-bottom y vaut ~0 et ne rattrape
+         rien — les contrôles finissaient derrière la barre, invisibles
+         (remonté au playtest iPhone). On garde quand même la mesure
+         dynamique : elle sert là où le chrome recouvre vraiment la page. */
+      --controls-bottom: max(
+        64px,
+        calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom))
+      );
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--noir);
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transition: filter 0.6s ease;
+    }
+
+    /* Dernier cœur : alternance couleur/N&B plutôt qu'un N&B statique lourd
+       (retour explicite après un premier test : « c'est trop en noir et blanc,
+       j'aimerais que ça alterne entre images saturées normales et noires et
+       blanches, toutes les une seconde, qu'on comprenne que c'est difficile »).
+       Repassé à un cycle de 4s après un test réel (Antoine) : en continu
+       toutes les 1s, c'était « beaucoup trop stressant et trop intense » sur
+       la durée d'une vraie course. Le principe reste le même (un flash N&B
+       = rappel du danger) mais il ne se déclenche plus qu'UNE fois toutes les
+       4s (bref aller-retour en tout début de cycle) plutôt qu'en continu.
+       Classe posée/retirée par updateHealthFilterIfChanged() (main.js) selon
+       game.lives — jamais en même temps que .game-over-bw ci-dessous. */
+    #game-canvas.heart-warning {
+      animation: canvas-heart-warning 4s ease-in-out infinite;
+    }
+
+    @keyframes canvas-heart-warning {
+      0%, 15%, 100% { filter: grayscale(0); }
+      7.5% { filter: grayscale(1); }
+    }
+
+    /* Game over : N&B total et statique (pas d'alternance ici, contrairement
+       au dernier cœur — la partie est terminée, pas "en train de devenir
+       difficile"). Le titre/bandeau de l'écran de fin restent en couleur
+       puisqu'ils sont en DOM, hors du canvas. */
+    #game-canvas.game-over-bw {
+      filter: grayscale(1);
+    }
+
+    /* Vignette : léger flou sur le pourtour de l'écran, netteté intacte au
+       centre (demandé explicitement : « léger blur partout autour de
+       l'écran en mode vignette »). Fait en CSS (`backdrop-filter` + masque
+       radial) plutôt qu'en canvas : composité par le GPU, zéro coût dans la
+       boucle de rendu, et bien supporté par Safari iOS. `mask-image` limite
+       le flou aux bords — le centre (55 % du rayon) n'est pas touché.
+       Au-dessus du canvas (z-index > auto) mais sous tous les contrôles/
+       overlays DOM (20+) : purement décoratif, jamais au-dessus de ce qui
+       doit rester net et lisible. `pointer-events: none` le rend invisible
+       aux gestes — les swipes traversent jusqu'au canvas normalement. */
+    #vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
+    }
+
+    /* --- Écrans hors-jeu (démarrage / fin) ---------------------------------
+       Un seul conteneur, réutilisé pour les deux : mêmes règles de placement,
+       mêmes fondus, rien à recentrer d'un écran à l'autre. Il est en DOM et
+       non plus dessiné dans le canvas — ce sont donc de vrais boutons, donc
+       de vraies cibles tactiles (≥44px, recommandation iOS), et les fondus
+       sont de simples transitions CSS gérées par le compositeur. */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: calc(24px + var(--safe-top)) 24px calc(72px + var(--safe-bottom));
+      box-sizing: border-box;
+      background: linear-gradient(
+        180deg,
+        rgba(13, 13, 16, 0.1) 0%,
+        rgba(13, 13, 16, 0.3) 55%,
+        rgba(13, 13, 16, 0.5) 100%
+      );
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.45s ease, visibility 0s linear 0.45s;
+    }
+
+    #overlay.visible {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.45s ease, visibility 0s;
+    }
+
+    /* Chaque bloc monte légèrement en apparaissant, en décalé : l'écran se
+       compose au lieu de surgir d'un seul tenant. */
+    #overlay .fade {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    #overlay.visible .fade {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #overlay.visible .fade:nth-child(1) { transition-delay: 0.05s; }
+    #overlay.visible .fade:nth-child(2) { transition-delay: 0.13s; }
+    #overlay.visible .fade:nth-child(3) { transition-delay: 0.21s; }
+    #overlay.visible .fade:nth-child(4) { transition-delay: 0.29s; }
+    #overlay.visible .fade:nth-child(5) { transition-delay: 0.37s; }
+
+    /* Titre façon e-card (4 septembre 2026) : « la ville est belle » en
+       minuscules, Source Serif Black CONDENSÉ (scaleX, la fonte n'a pas de
+       chasse étroite — c'est aussi ce que fait l'e-card), blanc, sans ombre.
+       Le bloc peut dépasser la largeur de l'écran avant contraction : il est
+       recentré par translateX(-50%) puis contracté autour de son centre, donc
+       toujours centré à l'écran. « PMC » en grotesk, petit, collé en bas à
+       droite comme sur l'e-card. */
+    #menu-title {
+      position: relative;
+      width: 100%;
+      margin: 0 0 30px;
+      color: var(--blanc);
+      text-align: center;
+    }
+
+    #menu-title .titre-mot {
+      display: block;
+      width: max-content;
+      margin-left: 50%;
+      transform: translateX(-50%) scaleX(0.66);
+      transform-origin: center bottom;
+      font: 900 62px/0.85 var(--titre);
+      letter-spacing: -0.035em;
+      white-space: nowrap;
+    }
+
+    /* (Le « PMC » en grotesk à droite du titre a été retiré le jour même :
+       « ne fonctionne pas très bien ».) */
+
+    /* --- Écran de fin (refonte v3) -----------------------------------------
+       Playtest : « il faut revoir l'écran de game over entièrement pour qu'il
+       soit cohérent avec l'UX et l'UI du design system du premier écran ».
+       La v2 était une mise en page éditoriale alignée à gauche, SANS carte —
+       délibérément en rupture avec le menu. C'est exactement ce qui posait
+       problème : deux langages visuels dans le même jeu. La v3 repasse donc
+       l'écran de fin sur le MÊME composant que les étapes du menu : carte
+       .panel + bandeau .panel-header rouge + .panel-body centré, et le bouton
+       principal est le .btn/.btn-primary standard, sans surcharge locale.
+       Le titre "La ville est belle" reste centré comme sur le menu (plus de
+       surcharge :has() qui l'alignait à gauche ici seulement) ; le résultat
+       de la partie est porté par l'eyebrow du bandeau, à la place exacte où
+       le menu affiche "Étape 1/2 — Ton pseudo". */
+    #end-screen.active {
+      width: 100%;
+      align-items: center;
+      /* margin:auto + overlay défilable (voir .end-view) : centré quand la
+         carte tient dans l'écran, défilable depuis le HAUT quand elle ne
+         tient pas — le centrage flex seul TRONQUAIT le haut de la carte sans
+         aucun moyen de le voir (capture iPhone 16 à l'appui, 20 août 2026). */
+      margin: auto 0;
+    }
+
+    /* Vue de fin : la carte est le plus grand écran du jeu (score + classement
+       + 3 boutons + note). Trois mesures pour qu'elle rentre sur TOUS les
+       écrans, y compris les petits (iPhone SE) :
+       1. le titre du jeu est masqué (le bandeau « Game Over » identifie déjà
+          l'écran, et le titre était de toute façon poussé hors cadre) ;
+       2. l'overlay devient défilable (secours universel) ;
+       3. le padding bas revient à une marge simple — les 72px réservaient la
+          place du CTA flottant, qui n'est pas affiché sur cette vue. */
+    #overlay.end-view {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
+      padding-bottom: calc(24px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      /* html/body sont en touch-action:none (gestes de jeu) : sans pan-y ici,
+         iOS refuse le défilement au doigt de cette vue. */
+      touch-action: pan-y;
+    }
+
+    #overlay.end-view #menu-title {
+      display: none;
+    }
+
+
+    /* Fenêtre un peu plus petite (demandé explicitement, après un premier
+       test) : la carte de l'écran de fin partage .panel/.panel-body avec le
+       menu, mais n'a plus besoin d'autant d'air une fois le statut concours
+       retiré — réduit spécifiquement ICI (pas sur .panel-body en général,
+       qui doit garder sa taille pour le champ pseudo de l'onboarding). */
+    #end-screen .panel {
+      max-width: 270px;
+    }
+
+    #end-screen .panel-body {
+      padding: 26px 16px 18px; /* haut : place du sticker « Votre score » */
+    }
+
+    /* ⚠️ Les .btn ont une largeur fixe de 240px, or l'intérieur de la carte de
+       fin ne fait que ~238px (270 − 2×16) : sans ça ils débordaient de la
+       carte (le panel les rognait via overflow:hidden — « ça déborde de
+       partout », capture à l'appui le 20 août 2026). */
+    #end-screen .btn {
+      width: 100%;
+      /* Padding latéral resserré : « AJOUTER LE MORCEAU » + icône doivent
+         tenir sur UNE ligne dans les ~234px utiles de la carte (mesuré :
+         170px de texte à 15px + 15px d'icône + 8px d'écart — encore plus de
+         marge depuis le passage à 14px le 23 août 2026). */
+      padding: 9px 10px;
+      min-height: 44px; /* cible tactile toujours ≥ 44px (recommandation iOS) */
+      white-space: nowrap;
+    }
+
+    /* « Il faut que ce soit calme, l'écran de fin. » Il y avait quatre aplats
+       rouges qui se disputaient l'attention : le bandeau, le score géant, la
+       1re place et le bouton REJOUER — plus la ligne surlignée. Le rouge est
+       donc ramené à trois emplois qui ont chacun une raison d'être : le
+       bandeau (composant du design system), la ligne du joueur (l'info qu'il
+       cherche) et REJOUER (l'action). Le score et la 1re place repassent en
+       blanc : la hiérarchie se fait à la taille, pas à la couleur. */
+    #end-hero {
+      text-align: center;
+      margin: 2px 0 14px; /* 12→14 le 23 août 2026, même passe que #leaderboard */
+    }
+
+    /* (#replay-button.locked supprimé le 23 août 2026 avec le verrou de rejeu
+       lui-même : REJOUER n'est plus jamais conditionné, voir screens.js.) */
+    /* --- Classement complet (23 août 2026) --------------------------------
+       Tiroir qui glisse depuis le bas : voile + carte ancrée en bas d'écran.
+       C'est le patron standard du jeu pour ce type de panneau (il servait
+       aussi au verrou de rejeu, supprimé le 23 août 2026). */
+    #leaderboard-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      visibility: hidden;
+      transition: visibility 0s linear 0.3s;
+    }
+
+    #leaderboard-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #leaderboard-sheet-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.55);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #leaderboard-sheet.visible #leaderboard-sheet-veil {
+      opacity: 1;
+    }
+
+    #leaderboard-sheet-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      box-sizing: border-box;
+      max-height: 78vh;
+      padding: 22px 24px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      border-radius: 8px 8px 0 0;
+      border: 1.5px solid var(--panneau-bord);
+      border-bottom: none;
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transform: translateY(105%);
+      transition: transform 0.3s ease;
+    }
+
+    #leaderboard-sheet.visible #leaderboard-sheet-card {
+      transform: translateY(0);
+    }
+
+    #leaderboard-sheet-title {
+      margin: 0;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    /* Liste complète, scrollable et centrée sur le joueur (même logique que
+       l'ancien #leaderboard-list avant le 23 août 2026, reprise ici) — les
+       lignes elles-mêmes réutilisent le style #leaderboard-list li ci-dessus
+       (voir screens.js, construireLigneClassement). */
+    #leaderboard-sheet-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      width: 100%;
+      max-height: min(50vh, 435px); /* 15 lignes de 29px */
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-top: 1px solid rgba(0, 0, 0, 0.14);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+    }
+
+    #leaderboard-sheet-close {
+      width: min(280px, 100%);
+    }
+
+    /* --- Seconde chance à la mort (revive) --------------------------------
+       Carte CENTRÉE (pas un tiroir du bas) : c'est un moment d'arrêt total,
+       la décision EST l'écran. Le cercle de décompte est la pièce centrale —
+       « un petit décompte au centre du cercle » (demandé). */
+    #revive-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 45; /* au-dessus du tiroir de classement (40) — jamais ouverts ensemble, mais autant trancher */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      visibility: hidden;
+      transition: visibility 0s linear 0.25s;
+    }
+
+    #revive-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #revive-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.62);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    #revive-sheet.visible #revive-veil {
+      opacity: 1;
+    }
+
+    #revive-card {
+      position: relative;
+      box-sizing: border-box;
+      width: min(300px, 100%);
+      padding: 22px 20px 18px;
+      border-radius: var(--rayon);
+      border: 1.5px solid var(--panneau-bord);
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    #revive-sheet.visible #revive-card {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    #revive-timer,
+    #gate-timer {
+      position: relative;
+      width: 76px;
+      height: 76px;
+    }
+
+    #revive-timer svg,
+    #gate-timer svg {
+      width: 100%;
+      height: 100%;
+      /* L'arc démarre à midi et se vide dans le sens horaire. */
+      transform: rotate(-90deg);
+    }
+
+    #revive-timer .piste,
+    #gate-timer .piste {
+      fill: none;
+      stroke: rgba(225, 62, 38, 0.18);
+      stroke-width: 6;
+    }
+
+    /* Longueur d'arc pilotée en JS (stroke-dashoffset) — la circonférence
+       (2π×33 ≈ 207,3) est posée ici ET recalculée côté screens.js. */
+    #revive-arc,
+    #gate-arc {
+      fill: none;
+      stroke: var(--rouge);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 207.3;
+      stroke-dashoffset: 0;
+    }
+
+    #revive-timer-num,
+    #gate-timer-num {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 900 30px var(--police);
+      color: var(--noir);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #revive-title {
+      margin: 2px 0 0;
+      font: 900 24px/1.05 var(--titre); /* serif de l'e-card, comme le titre et le score */
+      color: var(--noir);
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #revive-text {
+      margin: 0 0 4px;
+      font: 500 13.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    #revive-cta,
+    #revive-replay {
+      width: 100%;
+    }
+
+    /* Bouton visible mais verrouillé tant qu'un décompte tourne (le clic est
+       aussi ignoré côté JS). Sert au bouton d'action du tiroir de conversion
+       pendant le décompte 5-4-3-2-1 du retour de Spotify. */
+    #revive-cta.locked,
+    #gate-go.locked {
+      opacity: 0.45;
+    }
+
+    /* --- Tiroir de conversion (#gate-sheet, 23 août 2026) -----------------
+       Même patron de tiroir que #leaderboard-sheet : il SE SOULÈVE d'en bas
+       (demandé explicitement, « le petit dropdown qui se soulève d'en bas »),
+       il ne se pose pas au centre comme la carte de mort. z-index 50 : il
+       passe au-dessus de la carte de mort (45) et du classement (40), puisque
+       c'est lui qui porte la demande. */
+    #gate-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      visibility: hidden;
+      transition: visibility 0s linear 0.3s;
+    }
+
+    #gate-sheet.visible {
+      visibility: visible;
+      transition: visibility 0s;
+    }
+
+    #gate-veil {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 13, 16, 0.62);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #gate-sheet.visible #gate-veil {
+      opacity: 1;
+    }
+
+    #gate-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      box-sizing: border-box;
+      max-height: 88vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 24px calc(18px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      border-radius: 8px 8px 0 0;
+      border: 1.5px solid var(--panneau-bord);
+      border-bottom: none;
+      background: var(--panneau-fond);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+      transform: translateY(105%);
+      transition: transform 0.3s ease;
+    }
+
+    #gate-sheet.visible #gate-card {
+      transform: translateY(0);
+    }
+
+    /* --- Responsive des tiroirs (28 août 2026) --------------------------
+       Le jeu est portrait natif, mais il se joue aussi au navigateur de
+       bureau : un tiroir en `left:0;right:0` y occupait TOUTE la largeur de
+       l'écran (« ça prend l'ensemble de l'écran, c'est pas très digeste »).
+       Deux corrections, valables pour les deux tiroirs du jeu :
+         1. une largeur max, centrée — le tiroir garde le gabarit d'un
+            téléphone quelle que soit la fenêtre ;
+         2. au-delà de 700 px de large ET 600 px de haut, il se DÉCOLLE du bas
+            et devient une carte flottante à coins arrondis. L'animation ne
+            change pas (translateY(105%) le sort toujours de l'écran), donc
+            rien à revérifier côté transition. */
+    #gate-card,
+    #leaderboard-sheet-card {
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 700px) and (min-height: 600px) {
+      #gate-card,
+      #leaderboard-sheet-card {
+        bottom: 28px;
+        border-radius: 8px;
+        border-bottom: 1.5px solid var(--panneau-bord);
+        padding-bottom: 22px;
+      }
+
+      #gate-card { max-height: min(84vh, 760px); }
+      #leaderboard-sheet-card { max-height: min(78vh, 720px); }
+    }
+
+    /* Surtitre : il dit CE QUE le tiroir débloque (« pour continuer ta
+       partie » / « pour rejouer »), pour que la demande ne soit jamais lue
+       comme un péage posé au hasard. */
+    #gate-eyebrow {
+      margin: 0;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    #gate-title {
+      margin: 2px 0 0;
+      font: 900 24px/1.05 var(--titre);
+      color: var(--noir);
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #gate-text {
+      margin: 0 0 4px;
+      font: 500 13.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    #gate-cta,
+    #gate-go {
+      width: 100%;
+    }
+
+    #gate-cta.hidden,
+    #gate-go.hidden,
+    #gate-platforms.hidden,
+    #gate-hint.hidden,
+    #gate-timer.hidden {
+      display: none;
+    }
+
+    /* --- Panneau de plateformes (28 août 2026) --------------------------
+       Une ligne par plateforme, nom en TEXTE + pastille de couleur : jamais
+       un badge recréé (les règles de marque d'Apple l'interdisent
+       explicitement). Le choix précédent remonte en tête et passe en plein
+       gabarit (.prefere) — la 2e fois, il n'y a plus qu'un bouton à viser. */
+    #gate-platforms {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin: 2px 0 0;
+    }
+
+    .plat-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 11px 14px;
+      border: 1.5px solid var(--panneau-bord);
+      border-radius: var(--rayon);
+      background: #fff;
+      color: var(--noir);
+      font: 700 14px var(--police);
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .plat-btn:active {
+      transform: translateY(1px);
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .plat-btn .plat-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .plat-btn .plat-nom {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+
+    .plat-btn .plat-fleche {
+      flex: 0 0 auto;
+      opacity: 0.4;
+      font-size: 13px;
+    }
+
+    /* Plateforme déjà choisie la fois d'avant : plein gabarit, rouge de
+       charte, en tête de liste. Les autres restent accessibles dessous. */
+    .plat-btn.prefere {
+      background: var(--rouge);
+      border-color: var(--rouge);
+      color: #fff;
+      padding: 14px;
+      font: 900 15px var(--police);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .plat-btn.prefere .plat-fleche { opacity: 0.75; }
+
+    /* Séparateur muet avant les autres plateformes, quand il y a un
+       préféré : « ou sur une autre plateforme ». */
+    #gate-platforms .plat-sep {
+      margin: 3px 0 1px;
+      font: 500 10px var(--police);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.38);
+      text-align: center;
+    }
+
+    /* LA ligne qui fait monter le taux de sauvegarde : elle dit quoi toucher
+       une fois dans l'app. Personne ne le fait parce que personne ne le
+       demande. */
+    #gate-hint {
+      margin: 4px 0 0;
+      font: 500 12px/1.45 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    /* (#score-label « Voici votre score » supprimé le 20 août 2026 : redondant
+       depuis que le bandeau dit « Votre score », et la carte débordait.) */
+    #score-num {
+      /* 52px → 40px le 20 août 2026 (« ça déborde de partout ») ;
+         40px → 46px le 23 août 2026 (« qu'on voie un peu plus de score ») —
+         la place est reprise sur les boutons, réduits le même jour, pas sur
+         la carte, qui garde son gabarit. */
+      /* Source Serif Black depuis le 4 septembre 2026 : le score est le
+         « titre » de cet écran, il prend la fonte du titre de l'e-card. */
+      font: 900 58px/0.9 var(--titre);
+      color: var(--noir);
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+      display: block;
+    }
+
+    /* Rappel du concours, à la place du statut technique "Score valable pour
+       le concours" (retiré — confus pour un joueur qui découvre le jeu,
+       signalé au playtest). Simple ligne muette, cohérente avec le vocabulaire
+       déjà utilisé pendant le décompte ("gagne le vinyl de l'EP"). */
+    #end-note {
+      margin: 8px 0 0;
+      font: 500 11px var(--police);
+      letter-spacing: 0.01em;
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    /* Classement (étape 7, Supabase) : filet fin entre les lignes, chiffres
+       tabulaires. Le rouge reste réservé à la 1re place et au score courant. */
+    #leaderboard {
+      width: 100%;
+      /* 14→16px le 23 août 2026 : l'air gagné par la fusion des notes et le
+         resserrement des lignes du classement est réinvesti ICI, entre les
+         sections — c'est ça, « que ça respire », pas des lignes en moins pour
+         tasser encore plus. */
+      margin: 0 0 16px;
+    }
+
+    #leaderboard.hidden {
+      display: none;
+    }
+
+    .board-title {
+      margin: 0 0 8px;
+      font: 500 10px var(--police);
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    #end-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    /* DÉFIER UN AMI en pleine largeur depuis le 23 août 2026 (deuxième passe
+       le même jour, « tout le monde s'en fout [de PARTAGER], tu laisses
+       défier un ami prendre toute la place ») — même gabarit que
+       REJOUER/AJOUTER LE MORCEAU (#end-screen .btn, width:100%), colonne
+       interne seulement pour empiler le libellé et la rangée d'icônes. */
+    /* ⚠️ La colonne (libellé + rangée d'icônes) vit dans un SPAN interne, pas
+       sur le <button> lui-même : WebKit/iOS est connu pour ignorer
+       display:flex posé sur un bouton. Défense, pas la cause du bug du
+       23 août 2026 (voir ARCHITECTURE.md §10 n°11). Le libellé, lui, a son
+       propre span #defi-label — c'est LUI que screens.js réécrit, jamais le
+       bouton, sans quoi les icônes seraient détruites. */
+    #defi-button {
+      display: block;
+    }
+
+    #defi-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    #defi-apps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      opacity: 0.55; /* indice discret, jamais plus voyant que le libellé */
+    }
+
+    /* Les SVG décoratifs n'ont PAS de titre SVG : le texte d'un tel titre
+       entre dans le `textContent` du bouton, que screens.js mémorisait puis
+       réécrivait — les icônes étaient alors remplacées par la phrase
+       « DÉFIER UN AMI WhatsApp Messages Snapchat » en clair (23 août 2026,
+       voir ARCHITECTURE.md §10 n°11). Le conteneur est aria-hidden, ces
+       titres n'apportaient rien. */
+    #defi-apps svg {
+      display: block;
+      flex: none;
+    }
+
+    /* Note « boost fan » : petite promesse sous le bouton principal, en rouge
+       très doux — disparaît une fois le morceau ajouté. */
+    #fan-note {
+      margin: -2px 0 2px;
+      font: 500 11px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    /* Note du boost défi (23 août 2026) : même gabarit muet que #fan-note —
+       elle vend le bouton juste au-dessus, elle ne se dispute pas le clic. */
+    #defi-note {
+      margin: -4px 0 0;
+      font: 500 11px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    #fan-note.hidden, #runs-count.hidden, #change-pseudo.hidden,
+    #perfect-note.hidden, #defi-result.hidden, #defi-banner.hidden,
+    #defi-button.hidden {
+      display: none;
+    }
+
+    /* Course parfaite : jaune des étoiles, la couleur du gain dans tout le
+       jeu (le rouge de charte reste réservé au malus). Pastille, pas une
+       simple ligne — c'est une récompense, elle doit se voir. */
+    #perfect-note {
+      width: fit-content;
+      max-width: 100%;
+      margin: 8px auto 0;
+      padding: 5px 12px;
+      border-radius: 2px;
+      transform: rotate(-1.5deg); /* sticker, comme l'étiquette rouge de l'e-card */
+      background: #ffcf2e;
+      font: 700 11px var(--police);
+      letter-spacing: 0.1em;
+      color: #4a3305;
+      text-align: center;
+    }
+
+    /* Verdict du défi. Relevé = même jaune que la course parfaite ; manqué =
+       gris neutre (un défi raté n'est pas une pénalité, juste un constat —
+       le rouge braquerait sur l'échec au lieu du « rejoue »). */
+    #defi-result {
+      width: fit-content;
+      max-width: 100%;
+      margin: 8px auto 0;
+      padding: 5px 12px;
+      border-radius: 2px;
+      background: rgba(0, 0, 0, 0.06);
+      font: 500 11.5px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.62);
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #defi-result.gagne {
+      background: #ffcf2e;
+      color: #4a3305;
+      font-weight: 900;
+    }
+
+    #defi-banner b {
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Instagram de l'artiste : ligne muette collée au rappel du concours,
+       juste au-dessus — même famille typographique que #end-note, le lien
+       seul portant la couleur. */
+    #end-note a {
+      color: var(--rouge);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    /* Bandeau de défi au menu : c'est l'accroche qui a fait venir ce
+       visiteur, donc plein contraste (aplat rouge de charte), au-dessus de
+       JOUER. */
+    #defi-banner {
+      width: 100%;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border-radius: 2px;
+      transform: rotate(-1.5deg); /* sticker rouge, comme sur l'e-card */
+      background: var(--rouge);
+      font: 500 12.5px/1.45 var(--police);
+      color: #fff;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    /* ⚠️ Sans ceci, #change-pseudo collait directement sous JOUER (0px : ni
+       l'un ni l'autre n'a de marge propre, `.panel-body` n'a pas de `gap`) —
+       « laisse-le respirer, c'est pas lisible » (21 août 2026). */
+    #change-pseudo {
+      margin-top: 14px;
+    }
+
+    /* Compteur de parties : preuve sociale, donc il doit se LIRE — l'ancienne
+       version (10px, gris à 45 %) se confondait avec la mention légale juste
+       au-dessus. Pastille + point rouge qui bat = « c'est en train de tourner
+       en ce moment », ce que le chiffre seul ne dit pas. */
+    /* ⚠️ Bloc centré, PAS un flex : en flex, le libellé devient un enfant de
+       largeur contrainte et se coupait en deux lignes déséquilibrées
+       (« parties jouées depuis le / lancement ») dans la carte de fin, qui est
+       étroite. En bloc, le texte coule normalement autour de la pastille et
+       les lignes se répartissent toutes seules. */
+    #runs-count {
+      width: fit-content;
+      max-width: 100%;
+      margin: 8px auto 12px;
+      padding: 0;
+      /* Plus de pastille (4 septembre 2026, « des boîtes dans des boîtes ») :
+         une ligne, le point rouge qui bat suffit. */
+      font: 500 11.5px/1.4 var(--police);
+      color: rgba(0, 0, 0, 0.62);
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    #runs-count-num {
+      font-weight: 900;
+      color: var(--noir);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .runs-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-right: 5px;
+      vertical-align: 1px;
+      border-radius: 50%;
+      background: var(--rouge);
+      animation: runs-blink 2s ease-in-out infinite;
+    }
+
+    @keyframes runs-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .runs-dot { animation: none; }
+    }
+
+    #leaderboard-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      /* Plus de scroll depuis le 23 août 2026 (« écran de fin trop chargé »)
+         : la carte ne rend plus que le TOP 3 + éventuellement la ligne du
+         joueur (renderLeaderboard, screens.js) — jamais plus de 4 <li>, donc
+         plus besoin de max-height/overflow, la hauteur suit le contenu. Le
+         classement complet (scrollable, centré sur le joueur) vit dans
+         #leaderboard-sheet plus bas. */
+      border-top: 1px solid rgba(0, 0, 0, 0.14);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+    }
+
+    /* Ligne du joueur quand il est HORS podium (renderLeaderboard) : léger
+       fond + bordure plus marquée au lieu d'une ligne "···" séparée, pour ne
+       pas ajouter de 5e <li> juste pour la séparation visuelle. */
+    #leaderboard-list li.self-gap {
+      border-top: 1px dashed rgba(0, 0, 0, 0.25);
+    }
+
+    #leaderboard-expand {
+      display: block;
+      margin: 6px auto 0;
+      font-size: 12px;
+    }
+
+    /* Petits écrans en hauteur (iPhone SE, Android compacts, et tout iPhone
+       une fois les barres de Safari déployées — le viewport VISIBLE descend
+       facilement sous 700px sur un écran « normal »). Revu le 21 août 2026
+       (« sur les petits téléphones ça va pas du tout », capture à l'appui :
+       REJOUER coupé par la barre du bas) : plus seulement le classement —
+       toute la carte se resserre pour tenir SANS défilement dans ~640px.
+       Le classement passe de 5 à 3 lignes visibles (nombre impair conservé,
+       le centrage au scroll en a besoin — voir scrollCurrentScoreIntoView).
+       ⚠️ Doit rester APRÈS les règles de base : à spécificité égale, c'est
+       l'ordre qui tranche. */
+    @media (max-height: 740px) {
+      #end-screen .panel-body {
+        padding: 22px 14px 14px;
+      }
+      #score-num {
+        font-size: 48px;
+      }
+      #end-note {
+        margin-top: 5px;
+        font-size: 10.5px;
+      }
+      #leaderboard {
+        margin-bottom: 8px;
+      }
+      .board-title {
+        margin-bottom: 5px;
+      }
+      #end-actions {
+        gap: 8px;
+      }
+      #runs-count {
+        margin-top: 6px;
+        padding: 4px 12px;
+        font-size: 11px;
+      }
+    }
+
+    #leaderboard-list li,
+    #leaderboard-sheet-list li {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      align-items: baseline;
+      gap: 10px;
+      box-sizing: border-box;
+      height: 29px;              /* fixe : indispensable au centrage au scroll — 32→29 le 23 août 2026 (passe « ça respire pas ») */
+      padding: 6px 6px;
+      font: 500 12.5px var(--police);
+      color: var(--noir);
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    #leaderboard-list li:first-child,
+    #leaderboard-sheet-list li:first-child {
+      border-top: none;
+    }
+
+    /* Ligne unique affichée quand la requête de classement a échoué (et
+       seulement dans ce cas — une table vide reste silencieuse). Sort de la
+       grille à 3 colonnes des vraies lignes et n'a pas de hauteur fixe : le
+       message en ?debug porte la raison technique et peut passer à la ligne. */
+    #leaderboard-list li.board-message,
+    #leaderboard-sheet-list li.board-message {
+      display: block;
+      height: auto;
+      text-align: center;
+      font: 500 12px var(--police);
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    #leaderboard-list .rank,
+    #leaderboard-sheet-list .rank {
+      font: 500 11px var(--police);
+      letter-spacing: 0.06em;
+      color: rgba(0, 0, 0, 0.45);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    #leaderboard-list .pseudo,
+    #leaderboard-sheet-list .pseudo {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    #leaderboard-list .points,
+    #leaderboard-sheet-list .points {
+      font: 900 14px var(--police);
+      font-variant-numeric: tabular-nums;
+      color: var(--noir);
+      letter-spacing: -0.01em;
+    }
+
+    /* Première place : distinguée par la graisse seulement, plus par le rouge
+       (voir la note "écran calme" plus haut) — sinon deux lignes rouges se
+       disputent l'œil avec celle du joueur. */
+    #leaderboard-list li:first-child .rank,
+    #leaderboard-sheet-list li:first-child .rank {
+      color: rgba(0, 0, 0, 0.75);
+    }
+
+    #leaderboard-list li:first-child .points,
+    #leaderboard-sheet-list li:first-child .points {
+      color: var(--noir);
+    }
+
+    /* Score du joueur surligné : demandé explicitement (« je veux que mon
+       score arrive au milieu de mon écran et que ce soit surligné »). Aplat
+       rouge de charte plein — pas une teinte à 15 % qu'on cherche encore. */
+    #leaderboard-list li.current-score,
+    #leaderboard-sheet-list li.current-score {
+      background: var(--rouge);
+      border-top-color: var(--rouge);
+      color: var(--blanc);
+      font-weight: 900;
+    }
+
+    #leaderboard-list li.current-score .rank,
+    #leaderboard-sheet-list li.current-score .rank,
+    #leaderboard-list li.current-score .points,
+    #leaderboard-sheet-list li.current-score .points,
+    #leaderboard-list li.current-score .pseudo,
+    #leaderboard-sheet-list li.current-score .pseudo {
+      color: var(--blanc);
+    }
+
+    /* Le joueur est aussi 1er : le rouge du surlignage l'emporte, on remet
+       les chiffres en blanc (règle ci-dessus) — rien à faire de plus, mais la
+       spécificité doit rester supérieure, d'où l'ordre de ces deux blocs. */
+
+    /* --- Vues de l'overlay --------------------------------------------------
+       #overlay a 3 vues mutuellement exclusives : l'accueil en 3 étapes
+       (#onboarding), le décompte avant course (#countdown) et l'écran de fin
+       (#end-screen). Une seule ".active" à la fois (voir setView() dans
+       main.js). Chaque vue/étape rejoue sa propre petite entrée en animation
+       à chaque activation — indépendant du fondu d'ouverture/fermeture de
+       #overlay lui-même, qui ne joue qu'à l'apparition/disparition globale. */
+    .view, .menu-step {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .view.active, .menu-step.active {
+      display: flex;
+      animation: view-in 0.4s ease both;
+    }
+
+    @keyframes view-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #onboarding.active {
+      width: 100%;
+    }
+
+    /* --- Panneau "arcade" ---------------------------------------------------
+       Repris de la référence DA envoyée par l'artiste (popup de jeu mobile :
+       carte à bordure nette, bandeau d'en-tête coloré, action principale à
+       fort contraste) — traduit dans la charte du projet (rouge #E13E26 /
+       noir / blanc, StageGrotesk) plutôt que les couleurs de l'exemple
+       (bleu/or), qui appartiennent à un autre jeu. Un seul composant, réutilisé
+       pour chaque étape du menu et l'écran de fin — pas pour le décompte
+       (voir plus bas : il doit au contraire laisser voir le cycliste). */
+    /* ⚠️ 4 septembre 2026 : carte blanche à bord noir fin et coins 4 px. Le
+       bandeau rouge d'en-tête devient un STICKER — l'étiquette rouge posée de
+       travers de l'e-card — à cheval sur le bord haut de la carte. overflow
+       n'est plus hidden (le sticker déborde), d'où le position:relative. */
+    .panel {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+      border-radius: var(--rayon);
+      border: 1.5px solid var(--panneau-bord);
+      background: var(--panneau-fond);
+    }
+
+    .panel-header {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translate(-50%, -52%) rotate(-2deg);
+      padding: 7px 14px;
+      background: var(--rouge);
+      border-radius: 2px;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .panel-body {
+      padding: 30px 22px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-eyebrow {
+      margin: 0;
+      font: 700 11.5px var(--police);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--blanc);
+    }
+
+    .menu-step [data-next] {
+      margin-top: 22px;
+    }
+
+    /* Pastilles d'étape sous la carte (repère visuel DA : étape active en
+       pilule rouge, les autres en petit point). Restent claires (et non
+       noir/20% comme sur la maquette d'origine) car elles reposent sur le
+       fond de jeu semi-transparent, pas sur une page blanche. */
+    #step-dots {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .step-dot {
+      display: block;
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.35);
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .step-dot.active {
+      width: 20px;
+      background: var(--rouge);
+    }
+
+    /* --- Décompte avant course ---------------------------------------------
+       Entre le tap sur JOUER et le vrai début : le geste iOS a déjà débloqué
+       l'audio (audio.unlock(), voir main.js), la lecture réelle (audio.play())
+       n'est déclenchée qu'à la fin du décompte — le contexte est déjà prêt à
+       ce moment-là, plus besoin d'un geste. */
+    /* Voile allégé plus bas (.countdown-view) : le texte doit maintenant se
+       détacher tout seul d'un fond clair (ciel/route), pas juste d'un fond
+       sombre — vraie ombre de contraste en plus du halo rouge de charte. */
+    /* Remonté en haut de l'écran (demandé explicitement : « laisse le 20
+       écrit en haut en énorme ») — auparavant centré verticalement avec la
+       légende, ce qui le mettait pile au milieu de l'écran, en concurrence
+       avec le personnage. Le repositionnement se fait sur #overlay.countdown-
+       view (justify-content: flex-start) plus bas, pas ici. */
+    /* 104px → 56px le 20 août 2026, puis → 26px le 21 août 2026 (« le 1/4 est
+       énorme pour rien »). Le chiffre géant datait du décompte « 20 → 1 »
+       plein écran, où il ÉTAIT le contenu ; en « 1/4 » ce n'est qu'un
+       indicateur de progression, il ne doit pas concurrencer la consigne ni
+       la scène — c'est elle qu'on demande au joueur de regarder. Rendu en
+       blanc légèrement retenu pour la même raison. */
+    #countdown-num {
+      font: 900 30px/1 var(--titre); /* serif de l'e-card, comme le décompte 3-2-1-GO du canvas */
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+    }
+
+    /* Masqué net au départ de la course (screens.js, beginRun) : le décompte
+       « 3, 2, 1, GO » peint dans le canvas prend sa place. */
+    #countdown-num.hidden { opacity: 0; }
+
+    /* Pop du « 1/4 » quand l'étape change : la classe est retirée puis reposée
+       par screens.js (avec reflow entre les deux) pour rejouer l'animation. */
+    #countdown-num.step-pop {
+      animation: num-pop 0.4s ease;
+    }
+
+    @keyframes num-pop {
+      0% { transform: scale(1.25); }
+      100% { transform: scale(1); }
+    }
+
+    /* Titre masqué pendant le décompte : redondant avec le numéro géant et
+       la légende, et ça encombrait l'écran (retour direct : "il faut que tu
+       revoies [ça]"). Reste affiché sur le menu et l'écran de fin. */
+    #overlay.countdown-view #menu-title,
+    #overlay.play-step-view #menu-title {
+      display: none;
+    }
+
+    /* Légende du décompte : UNE phrase à la fois (hype → tuto du contrôle
+       tactile → rappel son), alternées en fondu par main.js plutôt que les
+       3 empilées d'un coup — demandé explicitement après un premier test où
+       c'était illisible/encombré, superposé au personnage. Fond translucide
+       propre (comme les autres panneaux du HUD) : garantit la lisibilité
+       quel que soit ce qu'il y a derrière (ciel clair, façades...), l'ombre
+       de texte seule ne suffisait pas sur les zones les plus claires. */
+    /* Centrée à l'écran depuis le 12 août 2026 (demandé explicitement :
+       « centrer les consignes au centre de l'écran », le "20" reste en haut
+       — voir #countdown-num). Hors de #countdown dans le HTML (voir le
+       commentaire à cet endroit), donc gérée en display:none/block par
+       #overlay.countdown-view plutôt que par .view.active. */
+    #countdown-caption {
+      display: none;
+      position: absolute;
+      /* ⚠️ Ancrée SOUS le « 1/4 », plus jamais centrée sur lui. L'ancien
+         top:27% + translate(-50%,-50%) centrait le panneau sur un point fixe
+         de l'écran : dès que la consigne faisait 3 lignes, elle remontait et
+         recouvrait le chiffre (retour capture à l'appui le 20 août 2026).
+         L'ancrage par le HAUT (translateX seul) fait pousser le texte vers le
+         bas quelle que soit sa longueur — le chiffre reste toujours dégagé.
+         86px = padding-top de .countdown-view (48px) + hauteur du chiffre
+         (26px depuis le 21 août 2026) + 12px d'air. */
+      top: calc(86px + var(--safe-top));
+      left: 50%;
+      transform: translateX(-50%);
+      margin: 0;
+      /* ⚠️ `width` explicite, pas juste `max-width` : un `left:50%` sans
+         largeur posée fait calculer au navigateur une largeur "disponible"
+         de 50% du conteneur (containing block width − left), donc ~187px
+         sur un iPhone plutôt que les 320px voulus — bug trouvé en vérifiant
+         (texte débordant de son fond, 6 lignes étroites au lieu de 4). */
+      width: min(288px, calc(100% - 48px));
+      box-sizing: border-box;
+      padding: 10px 16px;
+      border-radius: var(--rayon);
+      /* 0,55 → 0,7 en même temps que le voile assombri (12 août 2026) : sur
+         le fond désormais plus sombre du décompte, l'ancienne opacité rendait
+         le panneau presque invisible, fondu dans le voile derrière. */
+      background: rgba(13, 13, 16, 0.7);
+      text-align: center;
+      /* 22px → 16px le 20 août 2026 (« faut plus petit »), → 13,5px le 21 août
+         2026 (même retour, les éléments se marchaient dessus). Les 22px
+         dataient de l'ANCIEN décompte passif où la consigne était seule à
+         l'écran ; en tutoriel elle cohabite avec le « 1/4 », la pochette et
+         la scène à regarder. À 13,5px en 900, une consigne de 2 lignes tient
+         dans 55px au lieu de 94 — c'est ce qui dégage la pochette en dessous
+         sur les petits écrans (iPhone SE : la marge passe de −13px à +35px,
+         mesuré). */
+      font: 900 13.5px/1.45 var(--police);
+      color: var(--blanc);
+      opacity: 1;
+      /* 0,35 s → 0,2 s : sert aussi de fondu ENTRE deux consignes (screens.js
+         masque, remplace le texte, réaffiche) — à 0,35 s l'aller-retour
+         faisait un trou de 0,7 s entre deux phrases. */
+      transition: opacity 0.2s ease;
+    }
+
+    #overlay.countdown-view #countdown-caption {
+      display: block;
+    }
+
+    #countdown-caption.hidden {
+      opacity: 0;
+    }
+
+    /* Bouton "Passer l'intro" : pour qui a déjà joué, pas la peine de
+       resubir 20 s de tutoriel à chaque fois. Apparaît en fondu après un
+       court délai (SKIP_BUTTON_DELAY, main.js) plutôt que d'emblée — le
+       début du décompte reste sans distraction pour un premier joueur qui
+       découvre le jeu. En bas, à l'écart du numéro/de la légende (en haut,
+       voir #overlay.countdown-view) et du personnage (au centre).
+       ⚠️ #overlay.countdown-view passe en `pointer-events: none` pour
+       laisser passer les touchers vers le jeu en dessous (tutoriel jouable
+       pendant le décompte) — ce bouton doit donc réactiver `pointer-events`
+       lui-même, sinon il devient visible mais intappable. */
+    #skip-countdown {
+      position: absolute;
+      left: 50%;
+      bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      transform: translateX(-50%);
+      padding: 8px 4px;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.6);
+      font: 500 13px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    #skip-countdown.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #skip-countdown:active {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    /* Voile allégé pendant le décompte : le fond sombre standard de #overlay
+       (jusqu'à 92% de noir en bas) masquait le cycliste juste au moment où on
+       veut au contraire bien le montrer, prêt à partir (demandé explicitement
+       : "garde le bonhomme visible tant que le décompte n'est pas fini"). */
+    #overlay.countdown-view {
+      /* Groupe (numéro + légende) remonté en haut plutôt que centré au milieu
+         de l'écran (demandé explicitement) — laisse aussi plus d'air au
+         personnage juste en dessous, qui doit rester bien visible. */
+      justify-content: flex-start;
+      padding-top: calc(48px + var(--safe-top));
+      /* ⚠️ Rallégé le 19 août 2026 (retour direct : « le fond est trop sombre,
+         faut absolument que tu me le remontes pour qu'on voit ce qui se
+         passe »). L'assombrissement du 12 août (0,35/0,55/0,82) avait été
+         demandé pour l'ANCIEN décompte, un écran passif où on ne faisait que
+         lire des consignes — la scène derrière n'était qu'un décor. Le
+         tutoriel interactif renverse la logique : la scène EST le contenu
+         (le pont qui approche, les étoiles, le personnage qui répond aux
+         gestes), le voile ne doit plus faire écran. La lisibilité des textes
+         ne repose plus sur lui : la consigne a son propre panneau sombre
+         (#countdown-caption) et le « 1/4 » son ombre portée. */
+      background: linear-gradient(
+        180deg,
+        rgba(13, 13, 16, 0.10) 0%,
+        rgba(13, 13, 16, 0.16) 45%,
+        rgba(13, 13, 16, 0.30) 100%
+      );
+      /* Le décompte sert de TUTORIEL : la bande de pilotage et le saut doivent
+         vraiment répondre pendant qu'il tourne. Or #overlay (z-index 20)
+         recouvre le canvas et les contrôles (z-index 10) — il avalait donc
+         tous les touchers, et le tutoriel n'était qu'une image. Le décompte
+         n'ayant plus aucun élément interactif (le bouton « Passer » a été
+         retiré), on lui retire les événements pointeur : la bande, le bouton
+         SAUT et le tap-pour-sauter deviennent utilisables dès le décompte.
+         La bascule son reste tapable (z-index 30, au-dessus de l'overlay). */
+      pointer-events: none;
+    }
+
+    /* --- Chargement : barre + pourcentage ---------------------------------
+       Le morceau pèse 3,9 Mo : sur data mobile l'attente est réelle. Un
+       pourcentage qui monte dit que ça avance, là où « Chargement… » laisse
+       croire que c'est bloqué. */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 200px;
+      margin-bottom: 28px;
+    }
+
+    #loading.done {
+      display: none;
+    }
+
+    /* Échec de chargement du morceau (voir syncLoadingUi dans screens.js) : le
+       bloc RESTE visible pour porter le message, seule la barre disparaît —
+       elle n'a plus rien à montrer. Le bouton JOUER est débloqué en même
+       temps : la course tourne sans le morceau. */
+    #loading.failed #loading-track {
+      display: none;
+    }
+
+    #loading.failed #loading-label {
+      color: var(--rouge);
+    }
+
+    #loading-track {
+      width: 100%;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+    }
+
+    #loading-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--rouge);
+      transition: width 0.25s linear;
+    }
+
+    #loading-label {
+      font: 500 13px var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* --- Boutons ----------------------------------------------------------
+       Hauteur ≥ 48px et largeur fixe : cibles confortables au pouce, et une
+       hiérarchie nette — un seul bouton plein (l'action principale), le
+       reste en contour. Pas d'ombre portée (retour direct au premier
+       playtest : "trop moche") — le retour tactile passe par un
+       assombrissement + tassement au tap, pas par un bevel à ombre. */
+    .btn {
+      display: block;
+      width: 228px;
+      /* 54px/17px → 50px/15px le 20 août 2026 (« polices plus petites, que
+         disent les standards ? ») ; 50px/15px → 46px/14px le 23 août 2026
+         (« réduis un peu la taille de tous les boutons au global pour que
+         tout soit un peu plus lisible et qu'on voie un peu plus de score »).
+         La cible tactile reste ≥ 44px (recommandation Apple) — ne pas
+         descendre sous 44 sans redemander. */
+      min-height: 46px;
+      margin: 0;
+      padding: 11px 18px;
+      /* Boutons de l'e-card (4 septembre 2026) : rectangle à coins 4 px, bord
+         fin, capitales espacées en 13 px — plus la pilule 900/14px. */
+      border-radius: var(--rayon);
+      border: 1.5px solid transparent;
+      font: 700 13px var(--police);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--rouge);
+      color: var(--blanc);
+      border-color: var(--rouge);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.96);
+      filter: brightness(0.85);
+    }
+
+    /* Action SECONDAIRE (12 août 2026). Hiérarchie inversée sur l'écran de
+       fin : « l'objectif, c'est que les gens cliquent sur Aller écouter
+       l'album [...] la priorité, c'est pas qu'ils rejouent ». « Écouter le
+       morceau » prend donc le rouge de l'action principale, et REJOUER passe
+       ici — même gabarit (donc même surface tactile, il reste facile à
+       viser), mais contour seul, sans aplat : il se lit en second sans
+       disparaître. Le jeu existe pour amener au morceau, l'écran de fin est
+       le seul endroit où ça se joue vraiment. */
+    .btn-secondary {
+      background: var(--blanc);
+      color: var(--panneau-bord);
+      border-color: var(--panneau-bord);
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.96);
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    /* L'ancre "Écouter le morceau" de la carte de fin est un <a>, pas un
+       <button> : il lui manque le centrage vertical que le bouton a
+       d'origine, et l'icône « nouvel onglet » doit rester collée au libellé. */
+    a.btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-sizing: border-box;
+      text-decoration: none;
+    }
+
+    a.btn svg {
+      flex: none;
+      opacity: 0.8;
+    }
+
+    /* Désactivé en gris franc plutôt qu'en rouge délavé (retour DA) : se
+       distingue nettement de l'état actif au lieu d'une simple opacité. */
+    .btn-primary:disabled {
+      background: #cccccc;
+      border-color: #bbbbbb;
+      color: var(--blanc);
+      opacity: 1;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    /* Note sous les champs du menu (pseudo/insta) : c'est elle qui porte la
+       promesse de confidentialité — « seul ton pseudo apparaît au classement ».
+       Sans elle, demander un insta juste avant un classement public est
+       légitimement inquiétant. */
+    .field-note {
+      width: 240px;
+      /* Même marge au-dessus qu'entre les deux champs (14px, voir #pseudo-row/
+         #insta-row) — retour explicite : « il faut qu'ils aient la même marge
+         entre pseudo et insta, et entre insta et le texte du dessous », le
+         texte était bien plus collé (2px) que l'écart entre les deux champs. */
+      margin: 14px 0 20px;
+      font: 500 11.5px/1.45 var(--police);
+      color: rgba(0, 0, 0, 0.55);
+      text-align: left;
+    }
+
+    .field-note strong { font-weight: 500; }
+
+    /* Lien légal du menu. Volontairement DISCRET : les pages existent pour
+       être fournies sur demande (presse, plateformes), pas pour concurrencer
+       JOUER. Posé sous les pastilles d'étape, donc visible aux deux étapes de
+       l'accueil et nulle part ailleurs. */
+    #legal-links {
+      margin: 14px 0 0;
+      font: 500 10px/1.4 var(--police);
+      text-align: center;
+      opacity: 0.38;
+    }
+
+    #legal-links a {
+      color: var(--blanc);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+    }
+
+    #legal-links span { margin: 0 5px; color: var(--blanc); }
+
+    /* Rappel son de l'étape 2/2 (demandé : « il faut mettre une notification
+       qui dit aux gens de monter le son, sinon ils ne sont pas au courant que
+       la musique existe »). Encadré, pas une petite ligne grise : c'est le
+       cœur du projet. */
+    #sound-notice {
+      width: 240px;
+      box-sizing: border-box;
+      margin: 0 0 22px;
+      /* Plus d'encadré rosé dans la carte (4 septembre 2026, « des boîtes
+         dans des boîtes ») : le haut-parleur pixel et deux lignes, à nu. */
+      padding: 4px 0 0;
+      color: var(--noir);
+      text-align: center;
+    }
+
+    /* Haut-parleur pixel art. `crispEdges` désactive l'antialiasing du SVG :
+       c'est LUI qui fait que les blocs restent des blocs (sans, le navigateur
+       adoucit les bords à l'agrandissement et le rendu redevient "vectoriel
+       lisse", exactement ce qu'on ne veut pas ici). */
+    #sound-pixel {
+      display: block;
+      width: 118px;
+      height: 74px;
+      margin: 0 auto 10px;
+      shape-rendering: crispEdges;
+    }
+
+    /* Les ondes s'allument en cascade, de la plus proche à la plus lointaine :
+       le son qui "sort" du haut-parleur. --i porte le rang de chaque onde. */
+    #sound-pixel .onde {
+      animation: onde-pulse 1.5s steps(1, end) infinite;
+      animation-delay: calc(var(--i) * 0.18s);
+    }
+
+    /* Palier bas à 0,5 et pas 0,18 : à 0,18 l'onde disparaissait carrément du
+       panneau (rouge clair sur fond rosé), et l'icône passait la moitié du
+       temps amputée de ses ondes — c'est le pictogramme complet qui doit se
+       lire d'un coup d'œil, l'animation ne fait que l'animer. Marches dures
+       (steps) plutôt qu'un fondu : cohérent avec la DA pixel. */
+    @keyframes onde-pulse {
+      0%, 55% { opacity: 1; }
+      56%, 100% { opacity: 0.5; }
+    }
+
+    .sound-lead {
+      margin: 0 0 10px;
+      font: 900 13.5px/1.35 var(--police);
+      color: var(--noir);
+    }
+
+    .sound-tips {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font: 500 12px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.66);
+    }
+
+    .sound-tips li + li { margin-top: 2px; }
+
+    .sound-tips b {
+      display: inline-block;
+      min-width: 58px;
+      font-weight: 900;
+      color: var(--noir);
+    }
+
+    /* Respect de « réduire les animations » (réglage système iOS/Android) :
+       les ondes se figent allumées plutôt que de clignoter. */
+    @media (prefers-reduced-motion: reduce) {
+      #sound-pixel .onde { animation: none; opacity: 1; }
+    }
+
+    /* Playtest 3 : "le slider est beaucoup trop grand". Le range natif
+       iOS Safari a un thumb ~32 px, disproportionné avec la ligne fine du
+       track — on repasse en styling explicite (webkit + moz) pour un
+       curseur compact rouge charte sur une barre 3 px.
+       Classe partagée (au lieu d'un id) : réutilisée par le curseur du menu
+       dépliant (#volume-slider) ET par celui du menu pause
+       (#pause-volume-slider) — même rendu, deux emplacements. */
+    #volume-slider { flex: 1; }
+    #pause-volume-slider { width: 100%; }
+    /* Piste/curseur sombres sur fond blanc : la classe .volume-range de base
+       cible le panneau son translucide (fond sombre), qui reste inchangé. */
+    #pause-volume-slider.volume-range::-webkit-slider-runnable-track { background: rgba(0, 0, 0, 0.15); }
+    #pause-volume-slider.volume-range::-moz-range-track { background: rgba(0, 0, 0, 0.15); }
+    #pause-volume-slider.volume-range::-webkit-slider-thumb { border-color: var(--noir); }
+    #pause-volume-slider.volume-range::-moz-range-thumb { border-color: var(--noir); }
+    .volume-range {
+      height: 18px;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    .volume-range::-webkit-slider-runnable-track {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 2px;
+    }
+    .volume-range::-moz-range-track {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 2px;
+    }
+    .volume-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin-top: -6.5px;    /* centre le thumb sur le track de 3 px */
+      border-radius: 50%;
+      background: var(--rouge);
+      border: 1.5px solid #fff;
+    }
+    .volume-range::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--rouge);
+      border: 1.5px solid #fff;
+    }
+
+    /* --- Pseudo Instagram (étape 7, classement du concours) ---------------
+       Identifiant = pseudo Insta, jamais un email (décision verrouillée,
+       PLAN-ACTION.md §6). Volontairement facultatif et jamais bloquant : sans
+       pseudo, la partie reste jouable, seul l'envoi du score au classement
+       est sauté (voir postScoreIfEligible() dans main.js). Persisté en
+       localStorage pour ne pas le retaper à chaque partie. */
+    #pseudo-row, #insta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 240px;
+      margin-top: 14px;
+    }
+
+    /* Arobase fixe, hors du champ éditable (retour explicite : « ils ne
+       comprennent pas qu'ils n'ont pas besoin de mettre l'arobase » — le
+       placeholder "@ton_insta" disparaissait dès la frappe, les joueurs
+       retapaient leur propre "@" devant leur pseudo). Toujours visible,
+       jamais à retaper. cleanInsta() (main.js) retire de toute façon un "@"
+       si quelqu'un en tape un par réflexe — ceinture et bretelles. */
+    #insta-at {
+      flex: none;
+      margin-right: -6px;
+      font: 500 14px var(--police);
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    #pseudo-row .icon, #insta-row .icon {
+      font: 500 13px var(--police);
+      color: rgba(0, 0, 0, 0.6);
+      white-space: nowrap;
+      /* Largeur fixe : les deux libellés ("Pseudo", "Insta") n'ont pas la
+         même longueur, sans ça les deux champs ne commenceraient pas au même
+         x et la carte partirait en escalier. */
+      width: 48px;
+    }
+
+    #pseudo-input, #insta-input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid rgba(0, 0, 0, 0.4);
+      color: var(--noir);
+      font: 500 14px var(--police);
+      padding: 4px 2px;
+      -webkit-appearance: none;
+    }
+
+    #pseudo-input::placeholder, #insta-input::placeholder {
+      color: rgba(0, 0, 0, 0.32);
+    }
+
+    #pseudo-input:focus {
+      outline: none;
+      border-bottom-color: var(--rouge);
+    }
+
+    /* Lien secondaire ancré en bas : présent, mais sans disputer la place au
+       bouton JOUER (demandé : « le morceau, on va le mettre autre part »).
+       En bouton contour par défaut (menu + « parcours terminé » — l'objectif
+       du jeu mérite mieux qu'un lien sous-titré) ; réduit à un simple lien
+       via .cta-minimal sur Game Over, où l'enjeu est de relancer vite plutôt
+       que de retenir l'attention (voir endGame() dans main.js). */
+    #cta-link {
+      position: absolute;
+      left: 50%;
+      bottom: calc(26px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 240px;
+      box-sizing: border-box;
+      padding: 13px 22px;
+      /* Le bouton « JOUER AU JEU » de l'e-card : blanc, bord noir fin,
+         capitales espacées (4 septembre 2026). */
+      border: 1.5px solid var(--noir);
+      border-radius: var(--rayon);
+      background: var(--blanc);
+      color: var(--noir);
+      font: 700 13px var(--police);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      text-decoration: none;
+      white-space: nowrap;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, opacity 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Icône « ouvrir dans un nouvel onglet » : annonce que le jeu ne sera pas
+       perdu (playtest : « si je clique sur Écouter le morceau, ça enlève la
+       page ? donc je vais jamais cliquer là-dessus »). Légèrement atténuée —
+       elle informe, elle n'appelle pas au clic à la place du libellé. */
+    #cta-link svg {
+      flex: none;
+      opacity: 0.75;
+    }
+
+    #cta-link:active {
+      transform: translateX(-50%) scale(0.96);
+      filter: brightness(0.85);
+    }
+
+    #cta-link.cta-minimal {
+      width: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.72);
+      font: 500 14px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    #cta-link.cta-minimal:active {
+      transform: translateX(-50%);
+    }
+
+    /* Lien secondaire générique (même recette visuelle que .cta-minimal,
+       mais sans le positionnement absolu propre à #cta-link) : bouton
+       "Recommencer" du menu pause, ou tout futur second choix discret à
+       côté d'un .btn-primary. */
+    .link-minimal {
+      display: inline-block;
+      padding: 0;
+      border: none;
+      background: none;
+      color: rgba(0, 0, 0, 0.55);
+      font: 500 13px var(--police);
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s ease;
+    }
+
+    .link-minimal:active {
+      opacity: 0.6;
+    }
+
+    /* --- Menu pause ---------------------------------------------------------
+       Demandé : « mets un menu pause avec le volume ». Bouton dédié (visible
+       uniquement en cours de course, voir main.js) plutôt qu'un tap-écran —
+       même règle que partout ailleurs dans le jeu, une action = un bouton
+       visible. Le rendu du jeu continue d'afficher la dernière frame derrière
+       (la simulation, elle, s'arrête complètement — voir main.js) : le voile
+       sombre standard suffit, pas besoin du traitement allégé du décompte.
+       Retour : « le bouton Pause, il faut le mettre à la place du bouton
+       Volume ». Il prend donc exactement l'emplacement de #sound-control
+       (haut gauche) plutôt que le bas droit — les deux occupent le MÊME coin
+       et ne sont jamais visibles en même temps : la bascule son y reste sur
+       les écrans hors-jeu (menu/décompte/fin), Pause la remplace pendant la
+       course (voir showPauseButton()/hidePauseButton() dans main.js, qui
+       masquent aussi #sound-control). Le menu pause contient déjà le
+       volume — plus besoin d'un second contrôle pendant la course. */
+    #pause-button {
+      position: fixed;
+      left: calc(14px + var(--safe-left));
+      top: calc(14px + var(--safe-top));
+      z-index: 30;
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(255, 255, 255, 0.6);
+      background: rgba(13, 13, 16, 0.7);
+      color: var(--blanc);
+      font: 900 14px var(--police);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s ease, filter 0.08s ease, opacity 0.2s ease;
+    }
+
+    #pause-button[hidden] { display: none; }
+
+    #pause-button:active {
+      transform: scale(0.92);
+      filter: brightness(0.85);
+    }
+
+    #pause-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 25; /* au-dessus de #overlay (20), sous la bascule son (30) */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+      background: rgba(13, 13, 16, 0.45);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+    }
+
+    #pause-screen.visible {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.25s ease, visibility 0s;
+    }
+
+    /* Grossi de 20 % (demandé explicitement le 12 août 2026) — .panel garde
+       sa taille de boîte normale (300px max-width), un transform:scale() sur
+       la carte visible suffit : #pause-screen n'affiche jamais rien d'autre
+       en même temps, aucun risque de chevauchement à agrandir. */
+    /* Le zoom ×1,2 de la carte pause a sauté le 4 septembre 2026 (audit :
+       seule carte d'un autre gabarit que les autres). */
+    #pause-screen .panel {
+      transform: none;
+    }
+
+    #pause-volume-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 240px;
+      margin: 2px 0 22px;
+    }
+
+    #pause-volume-row .icon {
+      flex: none;
+      font-size: 18px;
+    }
+
+    #pause-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* --- Vue « Règles & points » de la carte pause (21 août 2026) --------- */
+    #pause-main.hidden, #pause-rules.hidden {
+      display: none;
+    }
+
+    #pause-rules {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: min(264px, 100%);
+    }
+
+    /* (pas de ré-affirmation de #pause-rules.hidden nécessaire : id+classe
+       sur-spécifie l'id seul du display:flex, la règle partagée plus haut
+       gagne quel que soit l'ordre.) */
+
+    #pause-rules-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font: 500 12.5px/1.5 var(--police);
+      color: rgba(0, 0, 0, 0.7);
+      /* La liste est l'élément le plus haut du jeu : elle défile plutôt que
+         de pousser la carte hors de l'écran sur les petits téléphones. */
+      max-height: min(340px, 52vh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #pause-rules-list li + li {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    #pause-rules-list b {
+      color: var(--noir);
+      font-weight: 900;
+    }
+
+    #pause-rules-back {
+      width: 100%;
+    }
+
+    /* ⚠️ La carte pause est zoomée ×1,2 (#pause-screen .panel plus bas) —
+       très bien pour volume+2 boutons, mais la liste des règles y déborderait
+       de l'écran : le zoom saute tant que la vue règles est ouverte. */
+    #pause-screen.rules-open .panel {
+      transform: scale(1);
+    }
+
+    /* --- Contrôles en jeu -------------------------------------------------
+       Il n'y en a plus. Tout se joue au geste (swipe gauche/droite = voie,
+       swipe haut = saut, voir input.js) : la bande de pilotage et le bouton
+       SAUT ont été retirés à la demande du playtest — ils mangeaient le bas
+       de l'écran et obligeaient à jouer à deux mains. Ne reste que le
+       réglage du son, ci-dessous. */
+
+    /* Son : bouton en haut à gauche qui DÉPLIE un curseur de volume
+       (demandé : « une fois que c'est lancé, à la place du bouton volume, il
+       faut un petit menu dépliant »). Le curseur a quitté le menu d'avant-
+       partie : on règle le son quand on l'entend, pas avant.
+       Playtest iPhone 16 : le panneau s'ouvrait vers la DROITE, et chevauchait
+       le panneau HUD (score/vies/énergie, ancré en haut à droite, largeur
+       variable) sur la largeur d'un iPhone. Il se déroule maintenant vers le
+       BAS (flex-direction: column) — les deux panneaux ne se rencontrent plus
+       jamais, quelle que soit la largeur de l'écran. */
+    #sound-control {
+      position: fixed;
+      left: calc(14px + var(--safe-left));
+      top: calc(14px + var(--safe-top));
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* Spécificité ID (#sound-control) > sélecteur d'attribut ([hidden] de la
+       feuille de style par défaut du navigateur) : sans cette règle propre,
+       poser l'attribut `hidden` (voir showPauseButton() dans main.js) ne
+       masquerait rien — même piège déjà traité pour #pause-button. */
+    #sound-control[hidden] { display: none; }
+
+    #sound-panel {
+      display: flex;
+      align-items: center;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(255, 255, 255, 0.28);
+      background: rgba(13, 13, 16, 0.82);
+      animation: sound-panel-in 0.22s ease;
+    }
+
+    #sound-panel[hidden] { display: none; }
+
+    @keyframes sound-panel-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #sound-panel input[type="range"] {
+      width: 128px;
+      accent-color: var(--rouge);
+      background: transparent;
+    }
+
+    /* Bouton son : déplacé en haut à gauche (la zone libérée par l'ancien
+       indicateur giro, retiré avec le gyroscope) — hors de l'axe de lecture
+       de la route ET hors de la nouvelle bande de pilotage en bas.
+       Affiché sur TOUS les écrans (demandé explicitement) : menu, décompte,
+       course, écran de fin. Le morceau tourne en fond dès l'étape 2 du menu
+       et ne s'arrête jamais entre deux parties — il doit donc être coupable
+       à tout instant, pas seulement pendant la course.
+       z-index 30 = au-dessus de #overlay (20), sinon il passerait derrière le
+       voile des écrans hors-jeu et deviendrait intappable. */
+    #mute-button {
+      display: block;
+      flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(255, 255, 255, 0.6);
+      background: rgba(13, 13, 16, 0.7);
+      color: var(--blanc);
+      font: 500 16px var(--police);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 30;
+      opacity: 1;
+      transition: opacity 0.4s ease, transform 0.08s ease, filter 0.08s ease;
+    }
+
+    #mute-button:active {
+      transform: scale(0.92);
+      filter: brightness(0.85);
+    }
+
+    #mute-button.muted {
+      color: rgba(255, 255, 255, 0.4);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #overlay, #overlay .fade, .btn, #mute-button, #loading-fill, #countdown-caption, #skip-countdown {
+        transition-duration: 0.01s;
+      }
+      .view.active, .menu-step.active {
+        animation-duration: 0.01s;
+      }
+      #overlay.countdown-view #steer-thumb {
+        animation: none;
+      }
+      #game-canvas.heart-warning {
+        animation: none;
+        filter: grayscale(0.6); /* repli statique : pas de clignotement, juste un indice visuel */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+  </div>
+  <div id="vignette" aria-hidden="true"></div>
+
+  <div id="overlay">
+    <h1 id="menu-title" class="fade"><span class="titre-mot">la ville est belle</span></h1>
+
+    <!-- Accueil en 2 étapes : pseudo → volume/JOUER. Une seule action par
+         écran (voir §"Ne jamais faire du tap n'importe où" dans
+         PLAN-ACTION.md) — ici une seule DÉCISION par écran. L'étape
+         "inclinaison" a été retirée avec le gyroscope (demandé explicitement) ;
+         le tutoriel du contrôle tactile se fait pendant le décompte plus bas. -->
+    <div id="onboarding" class="view active">
+      <div class="menu-step active" data-step="pseudo">
+        <div class="panel">
+          <div class="panel-header"><p class="step-eyebrow">Étape 1/2 — Ton pseudo</p></div>
+          <div class="panel-body">
+            <div id="pseudo-row">
+              <span class="icon">Pseudo</span>
+              <input
+                type="text"
+                id="pseudo-input"
+                placeholder="ton pseudo de joueur"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="24"
+              />
+            </div>
+            <div id="insta-row">
+              <span class="icon">Insta</span>
+              <span id="insta-at" aria-hidden="true">@</span>
+              <input
+                type="text"
+                id="insta-input"
+                placeholder="ton_insta"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="40"
+              />
+            </div>
+            <p class="field-note">Seul ton pseudo apparaît au classement. Ton insta est obligatoire, PMC va te contacter si tu gagnes avec ce nom. Il n'est visible que par lui.</p>
+            <button type="button" id="pseudo-next" class="btn btn-primary" data-next disabled>Suivant →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-step" data-step="play">
+        <div class="panel">
+          <div class="panel-header"><p class="step-eyebrow">Monte le son</p></div>
+          <div class="panel-body">
+            <div id="loading">
+              <div id="loading-track"><div id="loading-fill"></div></div>
+              <span id="loading-label">0 %</span>
+            </div>
+            <!-- Écran « monte le son » (21 août 2026, demandé : « je veux un
+                 truc pour dire de monter le volume en DA pixel et juste un
+                 texte simple pour android et iphone »). Le jeu est calé sur
+                 le morceau : jouer en silencieux, c'est passer à côté du
+                 produit — d'où un vrai visuel plutôt qu'une note grise.
+                 Haut-parleur en PIXEL ART : SVG à `shape-rendering:
+                 crispEdges`, un <rect> par bloc, donc des arêtes dures à
+                 n'importe quelle densité d'écran (un PNG aurait bavé sur les
+                 écrans @3x, un emoji aurait imposé la fonte du système). Même
+                 grammaire que les sprites voxel du jeu. -->
+            <div id="sound-notice">
+              <svg id="sound-pixel" viewBox="0 0 38 24" aria-hidden="true">
+                <!-- Corps + cône du haut-parleur, tout centré sur y=12 -->
+                <g fill="var(--panneau-bord)">
+                  <rect x="2" y="9" width="4" height="6" />
+                  <rect x="6" y="8" width="2" height="8" />
+                  <rect x="8" y="6" width="2" height="12" />
+                  <rect x="10" y="4" width="2" height="16" />
+                </g>
+                <!-- Trois ondes concentriques, en escalier (2 marches + un
+                     ventre) pour qu'un arc se LISE comme un arc : une simple
+                     barre verticale se lisait comme un « | », pas comme du
+                     son. Chacune est symétrique autour de y=12. -->
+                <g fill="var(--rouge)">
+                  <g class="onde" style="--i: 0">
+                    <rect x="14" y="7" width="2" height="2" />
+                    <rect x="16" y="9" width="2" height="2" />
+                    <rect x="18" y="11" width="2" height="2" />
+                    <rect x="16" y="13" width="2" height="2" />
+                    <rect x="14" y="15" width="2" height="2" />
+                  </g>
+                  <g class="onde" style="--i: 1">
+                    <rect x="22" y="4" width="2" height="2" />
+                    <rect x="24" y="6" width="2" height="3" />
+                    <rect x="26" y="9" width="2" height="6" />
+                    <rect x="24" y="15" width="2" height="3" />
+                    <rect x="22" y="18" width="2" height="2" />
+                  </g>
+                  <g class="onde" style="--i: 2">
+                    <rect x="30" y="1" width="2" height="2" />
+                    <rect x="32" y="3" width="2" height="4" />
+                    <rect x="34" y="7" width="2" height="10" />
+                    <rect x="32" y="17" width="2" height="4" />
+                    <rect x="30" y="21" width="2" height="2" />
+                  </g>
+                </g>
+              </svg>
+              <p class="sound-lead">Le jeu est calé sur le morceau.</p>
+              <ul class="sound-tips">
+                <li><b>iPhone</b> coupe le mode silencieux</li>
+                <li><b>Android</b> monte le volume média</li>
+              </ul>
+            </div>
+            <!-- Défi reçu par lien (`?defi=…`, voir defi.js) : c'est LA raison
+                 pour laquelle ce visiteur est là, donc c'est la dernière
+                 chose qu'il lit avant de presser JOUER. Masqué en temps
+                 normal (aucun paramètre dans l'URL). -->
+            <p id="defi-banner" class="hidden">
+              <b id="defi-banner-qui"></b> te défie<br>
+              <b id="defi-banner-num"></b> points à battre<br>
+              <!-- Boost de départ (23 août 2026) : l'appât du lien de défi,
+                   annoncé AVANT de presser JOUER. Texte rempli par screens.js
+                   (le multiplicateur dépend de config.js). -->
+              <span id="defi-banner-boost"></span>
+            </p>
+            <button id="play-button" class="btn btn-primary" type="button" disabled>JOUER</button>
+            <!-- Joueur connu (pseudo+insta en localStorage) : l'étape 1 est
+                 sautée et ce lien permet quand même d'en changer — téléphone
+                 prêté, faute de frappe la première fois... Voir screens.js. -->
+            <button id="change-pseudo" type="button" class="link-minimal hidden">Modifier mon pseudo</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="step-dots" aria-hidden="true">
+        <span class="step-dot" data-dot="0"></span>
+        <span class="step-dot" data-dot="1"></span>
+      </div>
+
+      <!-- Règlement du concours et mentions légales. Discret par choix : ces
+           pages doivent EXISTER et être atteignables (un lot est en jeu, et la
+           presse ou une plateforme peut les demander), pas capter l'attention
+           d'un joueur qui veut appuyer sur JOUER. target="_blank" : ne jamais
+           perdre l'accueil en cours. -->
+      <p id="legal-links">
+        <a href="reglement/" target="_blank" rel="noopener">Règlement</a>
+        <span aria-hidden="true">·</span>
+        <a href="mentions-legales/" target="_blank" rel="noopener">Mentions légales</a>
+      </p>
+    </div>
+
+    <!-- Décompte avant course, entre le tap JOUER et le vrai début. Sert
+         aussi de tutoriel : la bande de pilotage tout en bas est déjà active
+         et utilisable, message dédié pour expliquer comment s'en servir.
+         Volontairement SANS carte ".panel" pleine : la carte à fond plein
+         masquerait le cycliste, alors que la décision prise plus tôt était
+         justement de le garder visible pendant le décompte (voir
+         PLAN-ACTION.md, "Personnage gardé visible pendant le décompte"). -->
+    <div id="countdown" class="view">
+      <div id="countdown-num">20</div>
+    </div>
+
+    <!-- #countdown-caption et #skip-countdown sont hors de #countdown
+         volontairement : .view.active porte une animation (transform:
+         translateY, voir @keyframes view-in), et tout ancêtre avec un
+         transform actif devient le référentiel de positionnement de ses
+         descendants position:absolute — un élément centré à l'intérieur se
+         retrouverait centré sur le bloc du décompte (donc collé au numéro en
+         haut), pas sur l'écran entier. Même contournement que #cta-link. La
+         légende est désormais centrée à l'écran (demandé explicitement :
+         « centrer les consignes au centre de l'écran », le "20" reste en
+         haut) — voir #countdown-caption plus bas dans le CSS. -->
+    <p id="countdown-caption"></p>
+    <button id="skip-countdown" type="button">Passer l'intro →</button>
+
+    <!-- Écran de fin : MÊME carte .panel que les étapes du menu (demandé —
+         « il faut revoir l'écran de game over entièrement pour qu'il soit
+         cohérent avec l'UX et l'UI du design system du premier écran »).
+         Le résultat de la partie ("Game Over" / "Parcours terminé") est porté
+         par l'eyebrow du bandeau, exactement là où le menu affiche
+         "Étape 1/2 — Ton pseudo" ; #menu-title garde donc le titre du jeu,
+         centré comme sur le menu. -->
+    <div id="end-screen" class="view">
+      <div class="panel">
+        <!-- « Votre score » plutôt que « Game Over » (20 août 2026) : le
+             bandeau annonce directement ce que la carte montre, et la ligne
+             « Voici votre score » devenait redondante — supprimée, ça libère
+             de la place sur les petits écrans (« toutes les informations ne
+             rentrent pas »). -->
+        <div class="panel-header"><p class="step-eyebrow" id="end-eyebrow">Votre score</p></div>
+        <div class="panel-body">
+          <div id="end-hero">
+            <div id="score-num"></div>
+            <!-- Course parfaite : parcours terminé sans un seul choc. Le badge
+                 le plus rare du jeu (tous les obstacles de la grille sont
+                 fatals) — il se lit ici ET sur l'image de partage. -->
+            <p id="perfect-note" class="hidden">COURSE PARFAITE — aucun choc</p>
+            <!-- Verdict du défi, quand le joueur est arrivé par un lien. -->
+            <p id="defi-result" class="hidden"></p>
+            <!-- UNE ligne au lieu de deux depuis le 23 août 2026 (« écran de
+                 fin super méga chargé, ça respire pas assez ») : le rappel du
+                 concours et l'Instagram de l'artiste fusionnent — les deux
+                 messages survivent, l'Instagram reste accroché au concours
+                 (sa raison d'être, décision du 21 août), on gagne une ligne. -->
+            <p id="end-note">Un vinyle à gagner — résultats sur <a id="insta-link" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
+          </div>
+          <div id="leaderboard" class="hidden">
+            <p class="board-title">Meilleurs scores</p>
+            <!-- Refonte du 23 août 2026 (« écran de fin trop chargé ») : la
+                 carte ne montre plus qu'un TOP 3 fixe (+ la ligne du joueur
+                 s'il est hors podium — voir renderLeaderboard, screens.js),
+                 sans scroll. Le classement complet (jusqu'à 50, voir
+                 CONFIG.apiScoresLimit) vit dans #leaderboard-sheet, ouvert au
+                 clic ci-dessous — jamais chargé deux fois, screens.js réutilise
+                 la même réponse réseau. -->
+            <ol id="leaderboard-list"></ol>
+            <button id="leaderboard-expand" type="button" class="link-minimal hidden">Voir le classement complet →</button>
+            <!-- Deadline du concours + preuve sociale (nombre total de courses,
+                 Supabase) : deux petites lignes sous le classement. -->
+          </div>
+          <!-- Compteur de parties, VOLONTAIREMENT hors de #leaderboard : il y
+               était imbriqué, donc invisible dès que le classement ne se
+               chargeait pas (réseau, bloqueur de contenu) alors qu'il ne
+               dépend pas du tout de lui. Rafraîchi en continu tant que l'écran
+               de fin est ouvert (voir demarrerCompteurCourses, screens.js) —
+               « un compteur en temps réel ». -->
+          <p id="runs-count" class="hidden">
+            <span class="runs-dot" aria-hidden="true"></span>
+            <span id="runs-count-num"></span> courses depuis le lancement
+          </p>
+          <!-- Ordre volontaire : le lien vers le morceau EST l'action
+               principale de cet écran, REJOUER passe dessous en secondaire
+               (« la priorité, c'est pas qu'ils rejouent, c'est qu'ils cliquent
+               sur le lien »). Le CTA flottant en bas d'écran (#cta-link) est
+               masqué sur cette vue, il ferait doublon. -->
+          <!-- ⚠️ Hiérarchie INVERSÉE le 21 août 2026 : REJOUER est le bouton
+               principal rouge — c'est LUI que tout le monde veut presser.
+               ⚠️ Il ne déclenche PLUS aucun verrou depuis le 23 août 2026
+               (voir screens.js) : la demande de conversion a migré sur la
+               carte de mort, où elle achète la continuation de la course en
+               cours au lieu de péager le droit de rejouer. AJOUTER LE MORCEAU
+               reste présent ici en secondaire, sans rien bloquer. -->
+          <div id="end-actions">
+            <button id="replay-button" class="btn btn-primary" type="button">REJOUER</button>
+            <a id="end-cta" class="btn btn-secondary" href="#">
+              <span>ÉCOUTER L'ALBUM</span>
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+                <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+            <!-- Boost fan : annoncé tant que le joueur n'a pas ajouté le
+                 morceau — la conversion est récompensée (+10 % de score),
+                 pas seulement exigée. -->
+            <p id="fan-note" class="hidden">Ajoute l'album : +10 % de score sur toutes tes courses (boost fan)</p>
+            <!-- PARTAGER MON SCORE retiré le 23 août 2026 (« tout le monde
+                 s'en fout, tu laisses défier un ami prendre toute la
+                 place ») — share.js reste sur le disque mais n'est plus
+                 importé, donc plus bundlé (même sort que clip.js le 20 août,
+                 ne pas le rebrancher sans redemander). DÉFIER UN AMI passe
+                 en pleine largeur, même gabarit que REJOUER/AJOUTER LE
+                 MORCEAU au lieu de sa rangée à deux colonnes. -->
+            <!-- Icônes WhatsApp/Messages/Snap (23 août 2026, « pour que les
+                 gens captent ») : indice visuel — le bouton ouvre en vrai
+                 le partage natif du téléphone (partagerDefi(), screens.js,
+                 navigator.share), qui liste déjà ces apps si elles sont
+                 installées. Les icônes ne DÉCLENCHENT rien de spécifique,
+                 elles annoncent juste ce qui va s'ouvrir. -->
+            <button id="defi-button" class="btn btn-secondary" type="button">
+              <span id="defi-inner">
+              <span id="defi-label">DÉFIER UN AMI</span>
+              <span id="defi-apps" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false">
+                  <path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/>
+                </svg>
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false">
+                  <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                </svg>
+                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false">
+                  <path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+                </svg>
+              </span>
+              </span>
+            </button>
+            <p id="defi-note">Ton ami démarre avec un boost d'étoiles offert</p>
+            <!-- Le bouton « PARTAGER LE CLIP » a été retiré le 20 août 2026
+                 (demandé : « tu peux enlever Partager le clip, tu mets juste
+                 Partager mon score ») — l'enregistrement clip.js est coupé
+                 avec lui, voir main.js. -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- target="_blank" : le jeu ne doit JAMAIS être perdu en allant écouter
+         le morceau. L'icône « ouvrir dans un nouvel onglet » l'annonce avant
+         le clic (demandé : « il faut que tu mettes une icône à droite, à
+         l'intérieur du bouton »). -->
+    <a id="cta-link" href="#">
+      <!-- ⚠️ 28 août 2026, jour de la sortie : ce CTA flottant est la seule
+           ligne que 100 % des joueurs voient, avant même d'appuyer sur JOUER.
+           C'est donc là qu'on annonce la sortie, pas sur l'écran de fin. -->
+      <span>L'album est sorti</span>
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+        <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </div>
+
+  <!-- Plus AUCUN contrôle à l'écran : tout se joue au geste (swipe
+       gauche/droite = changer de voie, swipe haut = sauter — voir input.js).
+       Demandé au playtest : « on oublie le slider présent en bas et on oublie
+       le bouton de saut », le jeu doit se tenir à un pouce comme une Game Boy
+       verticale. Ne reste que le son, en haut à gauche, hors de l'axe de
+       lecture de la route. -->
+  <div id="sound-control">
+    <button id="mute-button" type="button" aria-label="Réglage du son" aria-expanded="false">♪</button>
+    <div id="sound-panel" hidden>
+      <input type="range" id="volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+    </div>
+  </div>
+
+  <!-- Bouton pause : visible uniquement en cours de course (affiché/masqué
+       en JS, voir main.js). En bas à droite — le bas de l'écran est libre
+       depuis le passage aux contrôles 100% swipe. -->
+  <button id="pause-button" type="button" aria-label="Pause" hidden>❚❚</button>
+
+  <!-- Menu pause : la simulation s'arrête complètement (voir main.js), le
+       rendu garde la dernière frame à l'écran derrière le voile. Même
+       composant .panel que le reste du jeu. -->
+  <div id="pause-screen">
+    <div class="panel">
+      <div class="panel-header"><p class="step-eyebrow" id="pause-eyebrow">Pause</p></div>
+      <div class="panel-body">
+        <!-- Vue principale de la pause : volume + reprendre. -->
+        <div id="pause-main">
+          <div id="pause-volume-row">
+            <span class="icon">🔊</span>
+            <input type="range" id="pause-volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+          </div>
+          <div id="pause-actions">
+            <button id="resume-button" class="btn btn-primary" type="button">REPRENDRE</button>
+            <button id="pause-rules-btn" type="button" class="link-minimal">Règles &amp; points</button>
+            <button id="pause-replay-button" type="button" class="link-minimal">Recommencer la course</button>
+          </div>
+        </div>
+        <!-- Vue « Règles & points » (21 août 2026, demandé : « rajoute les
+             règles des points etc dans le menu pause avec un menu spécial +
+             la manipulation de sauvegarder le jeu pour ne pas perdre ses
+             points »). Une seule carte, deux vues basculées par screens.js —
+             pas un second écran, pour rester dans la mécanique pause
+             existante. ⚠️ Les chiffres ci-dessous suivent config.js (bonus,
+             comboSeuil/comboBonusParPalier, boost fan) : à mettre à jour
+             ensemble si l'un bouge. -->
+        <div id="pause-rules" class="hidden">
+          <ul id="pause-rules-list">
+            <li><b>⭐ Étoile</b> = des points. Plus elle est grosse, plus elle rapporte (50&nbsp;→&nbsp;500).</li>
+            <li><b>✨ Étoile dorée</b> = points ×2.</li>
+            <li><b>🔥 Combo</b> : 5 étoiles d'affilée = gains ×1,5, puis 10 = ×2, 15 = ×2,5…</li>
+            <li><b>💥 Obstacles</b> : tous fatals — sauf les voitures qui traversent (−1&nbsp;cœur, et le combo retombe à&nbsp;0).</li>
+            <li><b>🎵 Morceau ajouté</b> = +10&nbsp;% de points sur toutes tes courses, pour toujours.</li>
+            <li><b>💾 Sauve ta course</b> : à ta première mort, tu as 10&nbsp;secondes — ajoute le morceau et tu reprends PILE où tu étais, score et combo conservés.</li>
+          </ul>
+          <button id="pause-rules-back" class="btn btn-secondary" type="button">← RETOUR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Classement complet (23 août 2026) : la carte de fin ne montre plus
+       qu'un TOP 3 + la ligne du joueur (voir #leaderboard plus haut) — ce
+       panneau porte le classement en entier (jusqu'à 50, CONFIG.apiScoresLimit),
+       même patron de tiroir que la carte de mort. Rempli par screens.js à
+       l'ouverture, en réutilisant la réponse réseau déjà reçue (aucun second
+       appel à net.getTopScores). -->
+  <div id="leaderboard-sheet" aria-hidden="true">
+    <div id="leaderboard-sheet-veil"></div>
+    <div id="leaderboard-sheet-card">
+      <p id="leaderboard-sheet-title">Classement complet</p>
+      <ol id="leaderboard-sheet-list"></ol>
+      <button id="leaderboard-sheet-close" type="button" class="btn btn-secondary">Fermer</button>
+    </div>
+  </div>
+
+  <!-- Seconde chance à la mort (21 août 2026) : carte centrée + décompte de
+       10 s dans un cercle. Le décompte SE FIGE quand l'onglet est caché
+       (screens.js) : partir ajouter le morceau ne consume pas la fenêtre.
+       Voir offerRevive() dans main.js pour l'architecture complète. -->
+  <div id="revive-sheet" aria-hidden="true">
+    <div id="revive-veil"></div>
+    <div id="revive-card">
+      <div id="revive-timer">
+        <svg viewBox="0 0 76 76" aria-hidden="true">
+          <circle class="piste" cx="38" cy="38" r="33"></circle>
+          <circle id="revive-arc" cx="38" cy="38" r="33"></circle>
+        </svg>
+        <span id="revive-timer-num">10</span>
+      </div>
+      <p id="revive-title">Ta course n'est pas finie !</p>
+      <p id="revive-text">Reprends PILE ici, avec tes <strong id="revive-score">0</strong>&nbsp;points.</p>
+      <!-- ⚠️ Depuis le 23 août 2026 (quatrième passe), cette carte ne porte
+           PLUS de lien Spotify : elle ne pose que le choix, « continuer » ou
+           « rejouer ». La demande de conversion vit dans le tiroir
+           #gate-sheet, qui se soulève par-dessus quand l'un des deux boutons
+           est touché — et les DEUX passent par exactement les mêmes
+           conditions (demandé : « pareil pour le rejouer, il faut que ce soit
+           exactement les mêmes conditions »). Le <a> reste un <a> : le tiroir
+           lui rend un href quand il redevient un lien sortant. -->
+      <a id="revive-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+        <span id="revive-cta-label">CONTINUER LA PARTIE</span>
+        <svg id="revive-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+          <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <!-- ⚠️ « Terminer ma course » (21 août 2026) : le libellé annonçait un
+           ABANDON, alors que l'action réelle est simplement d'aller voir son
+           score — la carte de fin s'ouvre juste derrière, avec le classement
+           et le partage. Renommé pour dire ce qui se passe vraiment, sans
+           faire porter au joueur le mot « terminer » au moment où il vient
+           de mourir. -->
+      <!-- Sortie de secours (23 août 2026) : repartir de zéro sans rien
+           devoir. ⚠️ Avant ce bouton, un joueur qui n'avait jamais ajouté le
+           morceau n'avait AUCUN moyen de rejouer — cette carte n'offrait que
+           le lien Spotify, et REJOUER sur l'écran de fin était verrouillé lui
+           aussi. Le lien Spotify achète la CONTINUATION de la course en cours
+           (garder son score), jamais le droit de jouer. -->
+      <button id="revive-replay" type="button" class="btn btn-secondary">REJOUER</button>
+      <button id="revive-decline" type="button" class="link-minimal">Voir mon score</button>
+    </div>
+  </div>
+
+  <!-- Tiroir de conversion (23 août 2026, quatrième passe — demandé : « le
+       petit dropdown qui se soulève d'en bas [...] tu dois d'abord
+       pré-sauvegarder l'album de PMC sur Spotify »). Il se soulève par-dessus
+       la carte de mort OU par-dessus l'écran de fin, selon d'où vient la
+       demande, et porte l'échelle à trois paliers :
+         écoute + ajout de l'album → abonnement à PMC → plus rien à demander.
+       ⚠️ Le premier palier était une PRÉ-SAUVEGARDE jusqu'au 28 août 2026 ;
+       depuis la sortie de l'album, c'est « écoute-le et ajoute-le ».
+       ⚠️ Les DEUX actions (continuer, rejouer) passent par ce tiroir et par
+       les mêmes paliers : c'est le point de la demande. Une fois les deux
+       paliers franchis, il ne s'ouvre plus jamais.
+       ⚠️ Même règle que partout : la conversion se donne AU CLIC, jamais sur
+       une preuve (impossible à obtenir depuis une page web). -->
+  <div id="gate-sheet" aria-hidden="true">
+    <div id="gate-veil"></div>
+    <div id="gate-card">
+      <p id="gate-eyebrow">POUR CONTINUER TA PARTIE</p>
+      <div id="gate-timer">
+        <svg viewBox="0 0 76 76" aria-hidden="true">
+          <circle class="piste" cx="38" cy="38" r="33"></circle>
+          <circle id="gate-arc" cx="38" cy="38" r="33"></circle>
+        </svg>
+        <span id="gate-timer-num">10</span>
+      </div>
+      <p id="gate-title">Ajoute l'album à ta bibliothèque</p>
+      <p id="gate-text">Écoute l'album de PMC et ajoute-le à ta bibliothèque pour continuer.</p>
+      <!-- Panneau de plateformes (28 août 2026) : rempli par screens.js à
+           partir de CONFIG.plateformesAlbum. Il REMPLACE le smartlink au
+           palier 1 — un tap ouvre l'album dans l'app native, sans page
+           intermédiaire. Le <a id="gate-cta"> juste dessous reste utilisé
+           par le palier 2 (s'abonner à PMC sur Spotify), qui n'a qu'une
+           seule destination. -->
+      <div id="gate-platforms" class="hidden"></div>
+      <p id="gate-hint" class="hidden"></p>
+      <a id="gate-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">
+        <span id="gate-cta-label">ÉCOUTER L'ALBUM</span>
+        <svg id="gate-cta-icone" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+          <path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <!-- Armé seulement au retour de Spotify, et jamais déclenché tout seul :
+           la reprise reste un TAP explicite (invariant verrouillé du 22 août
+           2026 — jamais dans le dos de quelqu'un qui a posé son téléphone). -->
+      <button id="gate-go" type="button" class="btn btn-primary hidden">CONTINUER MA PARTIE</button>
+      <button id="gate-later" type="button" class="link-minimal">Plus tard</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

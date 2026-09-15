@@ -1,0 +1,789 @@
+// screens.js — Écrans hors-jeu de « J'ai un pote » : menu (un seul champ),
+// écran de fin, carte de mort, tiroir album (même échelle de conversion que
+// le premier jeu, mêmes clés localStorage — un joueur qui a déjà ouvert
+// l'album sur l'autre jeu est « libre » ici aussi), pause, son.
+// Câblage DOM et présentation uniquement ; main.js garde l'état de partie et
+// reçoit les actions en callbacks via init().
+
+import * as audio from "./audio.js";
+import * as net from "./net.js";
+import * as friends from "./friends.js";
+import { COULEURS, SHORTS, CHAUSSURES, CHAPEAUX, VELOS, SKIN_DEFAUT } from "./rider.js";
+import { graineLigue } from "./regles.js";
+import { scoreParfait } from "./simulation.js";
+
+const pts = (n) => `${Math.floor(Number(n) || 0).toLocaleString("fr-FR")} pts`;
+
+let deps = null;
+const $ = (id) => document.getElementById(id);
+
+const overlay = $("overlay");
+const onboardingEl = $("onboarding");
+const endScreenEl = $("end-screen");
+const pseudoInput = $("pseudo-input");
+const playButton = $("play-button");
+const loadingBlock = $("loading");
+const loadingFill = $("loading-fill");
+const loadingLabel = $("loading-label");
+const ctaLink = $("cta-link");
+const endCta = $("end-cta");
+const scoreVal = $("score-val");
+const endSub = $("end-sub");
+const endBest = $("end-best");
+const replayButton = $("replay-button");
+const instaLink = $("insta-link");
+const reviveSheet = $("revive-sheet");
+const reviveArc = $("revive-arc");
+const reviveTimer = $("revive-timer");
+const reviveTimerNum = $("revive-timer-num");
+const reviveTitle = $("revive-title");
+const reviveText = $("revive-text");
+const reviveCta = $("revive-cta");
+const reviveReplay = $("revive-replay");
+const reviveDecline = $("revive-decline");
+const gateSheet = $("gate-sheet");
+const gatePlatforms = $("gate-platforms");
+const gateHint = $("gate-hint");
+const gateEyebrow = $("gate-eyebrow");
+const gateTitle = $("gate-title");
+const gateText = $("gate-text");
+const gateCta = $("gate-cta");
+const gateCtaLabel = $("gate-cta-label");
+const gateGo = $("gate-go");
+const gateLater = $("gate-later");
+const muteButton = $("mute-button");
+const pauseButton = $("pause-button");
+const pauseScreen = $("pause-screen");
+const pauseVolumeSlider = $("pause-volume-slider");
+const resumeButton = $("resume-button");
+const pauseReplayButton = $("pause-replay-button");
+
+// --- Conversion (mêmes clés que le premier jeu) -----------------------------
+// Clés PROPRES à « J'ai un pote » depuis le 7 septembre 2026 : quelqu'un qui a
+// déjà franchi le tiroir sur « La ville est belle » repasse par l'album ici
+// (« la personne avait déjà joué, elle a pu rejouer sans passer par Spotify »).
+const CLE_MORCEAU_OUVERT = "jaipMorceauOuvert";
+const CLE_PMC_SUIVI = "jaipPmcSuivi";
+const CLE_PLATEFORME = "jaipPlateformeAlbum";
+const CLE_PSEUDO = "jaipPseudo";
+const CLE_RECORD = "jaipRecord";
+const CLE_PARTIES = "jaipParties";
+const CLE_LIGUE = "jaipLigue";
+const CLE_INSTA = "jaipInsta", CLE_VILLE = "jaipVille", CLE_SKIN = "jaipSkin", CLE_SOURCE = "jaipSource", CLE_SPRINT = "jaipSprint";
+
+// --- Bêta fermée (16 septembre 2026) -----------------------------------------
+// Une seule ligue pour les fans du groupe WhatsApp : on arrive par
+// `…/jai-un-pote/?ligue=BETA`, le menu se réduit (pseudo → cycliste → JOUER),
+// il n'y a ni choix de ligue, ni sprint, ni tiroir album, et l'écran de fin
+// porte un bouton « Laisser un retour ». Les autres visiteurs, eux, gardent le
+// jeu normal : le mode ne s'allume QUE si la ligue courante est celle-là.
+const CODE_BETA = String(window.CONFIG.ligueBeta || "").toUpperCase();
+export function enBeta() { return Boolean(CODE_BETA) && Boolean(ligue) && ligue.code === CODE_BETA; }
+
+// `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
+// jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
+try {
+  if (new URLSearchParams(location.search).has("zero")) {
+    localStorage.clear();
+    const url = new URL(location.href); url.searchParams.delete("zero"); history.replaceState(null, "", url.toString());
+  }
+} catch (e) { /* rien */ }
+try {
+  if (new URLSearchParams(location.search).has("neuf")) {
+    localStorage.removeItem(CLE_MORCEAU_OUVERT);
+    localStorage.removeItem(CLE_PMC_SUIVI);
+    localStorage.removeItem(CLE_PLATEFORME);
+    const url = new URL(location.href); url.searchParams.delete("neuf"); history.replaceState(null, "", url.toString());
+  }
+} catch (e) { /* rien */ }
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* navigation privée */ } }
+
+function morceauDejaOuvert() { return lsGet(CLE_MORCEAU_OUVERT) === "1"; }
+function pmcDejaSuivi() { return lsGet(CLE_PMC_SUIVI) === "1"; }
+let fanCache = morceauDejaOuvert();
+export function estFan() { return fanCache; }
+function niveauConversion() {
+  if (!morceauDejaOuvert()) return "presave";
+  if (!pmcDejaSuivi()) return "suivre";
+  return "libre";
+}
+export function niveauConversionCourant() { return niveauConversion(); }
+
+export function getPseudo() { return pseudoInput.value.trim().replace(/^@+/, ""); }
+const instaInput = $("insta-input"), villeInput = $("ville-input");
+export function getInsta() { return instaInput.value.trim().replace(/^@+/, ""); }
+export function getVille() { return villeInput.value.trim(); }
+export function getSource() { return lsGet(CLE_SOURCE) || null; }
+// Skin du joueur (personnalisation, étape 3 du menu).
+let skin = null;
+export function getSkin() {
+  if (!skin) { try { skin = { ...SKIN_DEFAUT, ...(JSON.parse(lsGet(CLE_SKIN) || "{}")) }; } catch (e) { skin = { ...SKIN_DEFAUT }; } }
+  return skin;
+}
+function setSkin(cle, val) { getSkin()[cle] = val; lsSet(CLE_SKIN, JSON.stringify(skin)); construireSkinUi(); }
+function construireSkinUi() {
+  const sk = getSkin();
+  const listes = { c1: COULEURS, short: SHORTS, chaussures: CHAUSSURES, motif: [["uni", "uni"], ["rayé", "raye"], ["carreaux", "carreaux"]], chapeau: CHAPEAUX.map((c) => [c, c]), velo: [["VTT", "vtt"], ["Grand Bi", "grandbi"]] };
+  document.querySelectorAll("#skin-options .chips").forEach((box) => {
+    const cle = box.dataset.cle;
+    box.textContent = "";
+    for (const [label, val] of listes[cle]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const couleur = cle === "c1" || cle === "short" || cle === "chaussures";
+      b.className = `chip${couleur ? " couleur" : ""}${sk[cle] === val ? " actif" : ""}`;
+      if (couleur) { b.style.background = val; b.title = label; b.setAttribute("aria-label", label); } else b.textContent = label;
+      b.addEventListener("click", (e) => { e.stopPropagation(); setSkin(cle, val); if (cle === "c1" && sk.motif === "raye") setSkin("c2", val === "#f2ede2" ? "#e13e26" : "#f2ede2"); });
+      box.appendChild(b);
+    }
+  });
+}
+
+// --- Menu en trois étapes ----------------------------------------------------
+const onboarding = $("onboarding");
+export function setStep(n) {
+  if (enBeta() && n === 2) n = 3; // pas d'étape « ma ligue » en bêta : elle est imposée
+  onboarding.dataset.step = String(n); if (n === 3) construireSkinUi(); majSprint();
+}
+export function stepCourante() { return Number(onboarding.dataset.step) || 1; }
+function enregistrerProfil() {
+  const nouveau = !lsGet(CLE_PSEUDO);
+  lsSet(CLE_PSEUDO, getPseudo()); lsSet(CLE_INSTA, getInsta()); lsSet(CLE_VILLE, getVille());
+  if (nouveau) net.evenement("inscription", { pseudo: getPseudo(), source: getSource(), ligue: ligue ? ligue.code : null });
+}
+export function getRecord() { return Number(lsGet(CLE_RECORD)) || 0; }
+export function getParties() { return Number(lsGet(CLE_PARTIES)) || 0; }
+export function compterPartie() { lsSet(CLE_PARTIES, String(getParties() + 1)); }
+export function setRecord(m) { lsSet(CLE_RECORD, String(Math.floor(m))); }
+
+export function showOverlay() { overlay.classList.add("visible"); }
+export function hideOverlay() { overlay.classList.remove("visible"); }
+export function showOverlayOnLoad() { requestAnimationFrame(() => requestAnimationFrame(showOverlay)); }
+
+function setView(view) {
+  onboardingEl.classList.toggle("active", view === "onboarding");
+  endScreenEl.classList.toggle("active", view === "end");
+  overlay.classList.toggle("end-view", view === "end");
+  ctaLink.style.display = view === "onboarding" ? "" : "none";
+}
+
+// --- Décompte circulaire (carte de mort) -----------------------------------
+const REVIVE_DELAI_S = 10;
+const REVIVE_TICK_MAX_S = 0.3;
+const ARC = 2 * Math.PI * 33;
+
+function creerDecompte(boite, num, arc) {
+  let id = 0, restant = 0, total = 1;
+  const maj = () => {
+    num.textContent = `${Math.max(0, Math.ceil(restant))}`;
+    arc.style.strokeDashoffset = `${ARC * (1 - Math.max(0, restant) / total)}`;
+  };
+  return {
+    get restant() { return restant; },
+    arreter() { clearInterval(id); id = 0; },
+    demarrer(duree, onZero) {
+      clearInterval(id);
+      total = duree; restant = duree;
+      boite.classList.remove("hidden");
+      maj();
+      audio.setReviveIntensity(0);
+      let precedent = performance.now();
+      id = setInterval(() => {
+        const maintenant = performance.now();
+        const ecoule = Math.min((maintenant - precedent) / 1000, REVIVE_TICK_MAX_S);
+        precedent = maintenant;
+        if (document.hidden) return;
+        restant -= ecoule;
+        maj();
+        audio.setReviveIntensity(1 - Math.max(0, restant) / total);
+        if (restant <= 0) { clearInterval(id); id = 0; onZero(); }
+      }, 100);
+    },
+  };
+}
+const decompteRevive = creerDecompte(reviveTimer, reviveTimerNum, reviveArc);
+
+let reviveCallbacks = null;
+let reviveMetres = 0;
+
+// `potes` = nombre de potes au maximum de la course : la carte les promet de
+// retour (c'est le ressort émotionnel demandé : les potes s'en vont, ouvre
+// l'album pour les rattraper).
+export function openReviveSheet({ metres, potes, onAccept, onDecline, onReplay }) {
+  reviveCallbacks = { onAccept, onDecline, onReplay };
+  reviveMetres = metres;
+  reviveTitle.textContent = potes > 0 ? "Tes potes t'attendent" : "Ta course n'est pas finie";
+  reviveText.textContent = potes > 0
+    ? `Reprends à ${pts(metres)}, et ${Math.min(2, potes)} pote${Math.min(2, potes) > 1 ? "s" : ""} te retombe${Math.min(2, potes) > 1 ? "nt" : ""} dessus.`
+    : `Reprends pile ici, à ${pts(metres)}.`;
+  reviveCta.classList.remove("locked");
+  reviveSheet.classList.add("visible");
+  reviveSheet.setAttribute("aria-hidden", "false");
+  decompteRevive.demarrer(REVIVE_DELAI_S, () => reviveResoudre("onDecline"));
+}
+function closeReviveSheet() {
+  decompteRevive.arreter();
+  reviveSheet.classList.remove("visible");
+  reviveSheet.setAttribute("aria-hidden", "true");
+}
+function reviveResoudre(issue) {
+  if (!reviveCallbacks) return;
+  const cb = reviveCallbacks[issue];
+  reviveCallbacks = null;
+  closeReviveSheet();
+  cb();
+}
+function reprendreDecompteRevive(restant) {
+  if (!reviveCallbacks) return;
+  if (restant <= 0) { reviveResoudre("onDecline"); return; }
+  decompteRevive.demarrer(restant, () => reviveResoudre("onDecline"));
+}
+
+// --- Tiroir album ------------------------------------------------------------
+let gateEtat = null;
+let gateRetourTimer = 0;
+
+function plateformes() {
+  const l = window.CONFIG.plateformesAlbum;
+  return Array.isArray(l) ? l.filter((p) => p && p.url && p.nom) : [];
+}
+function texteGeste(liste) {
+  const pref = liste.find((p) => p.id === lsGet(CLE_PLATEFORME));
+  const geste = pref && pref.geste ? pref.geste : "appuie sur ＋ ou ♥";
+  return `Une fois dans l'app : ${geste} pour ajouter l'album à ta bibliothèque.`;
+}
+function construirePlateformes() {
+  const liste = plateformes();
+  gatePlatforms.textContent = "";
+  if (!liste.length) return false;
+  // Cinq liens de la même taille, sans « préféré » (6 septembre 2026).
+  liste.forEach((p) => {
+    const a = document.createElement("a");
+    a.className = "plat-btn";
+    a.href = p.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    const dot = document.createElement("span"); dot.className = "plat-dot"; dot.style.background = p.couleur || "#0d0d10";
+    const nom = document.createElement("span"); nom.className = "plat-nom"; nom.textContent = p.nom;
+    const fl = document.createElement("span"); fl.className = "plat-fleche"; fl.textContent = "↗";
+    a.append(dot, nom, fl);
+    a.addEventListener("click", () => {
+      if (!gateEtat || gateEtat.phase !== "demande") return;
+      lsSet(CLE_PLATEFORME, p.id || p.nom);
+      lsSet(CLE_MORCEAU_OUVERT, "1");
+      net.evenement("clic_album", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
+      fanCache = true;
+      setTimeout(gatePhaseAbsence, 0);
+    });
+    gatePlatforms.appendChild(a);
+  });
+  return true;
+}
+
+// Même tiroir, même wording pour les trois entrées (6 septembre 2026 :
+// « ça doit être la même condition pour rejouer [...] tu vires le titre, tu
+// mets "Ajoute l'album à ta bibliothèque pour continuer la partie" »).
+function gateTextes(action, niveau) {
+  const continuer = action === "continuer";
+  const presave = niveau === "presave";
+  return {
+    eyebrow: "",
+    titre: presave
+      ? (continuer ? "Ajoute l'album à ta bibliothèque pour continuer la partie" : "Ajoute l'album à ta bibliothèque pour rejouer")
+      : (continuer ? "Abonne-toi à PMC pour continuer la partie" : "Abonne-toi à PMC pour rejouer"),
+    texte: "",
+    ctaLabel: presave ? "Écouter l'album" : "S'abonner à PMC",
+    goLabel: continuer ? "Continuer ma course" : "Rejouer",
+  };
+}
+
+function ouvrirGate({ action, onUnlocked, onCancel, niveauForce, goLabelForce = null }) {
+  const niveau = niveauForce || niveauConversion();
+  const t = gateTextes(action, niveau);
+  gateEtat = { action, onUnlocked, onCancel, niveau, phase: "demande" };
+  gateEyebrow.textContent = t.eyebrow;
+  gateEyebrow.classList.toggle("hidden", !t.eyebrow);
+  gateTitle.textContent = t.titre;
+  gateText.textContent = t.texte;
+  gateText.classList.toggle("hidden", !t.texte);
+  gateCtaLabel.textContent = t.ctaLabel;
+  gateCta.href = niveau === "presave" ? ((plateformes()[0] || {}).url || "#") : (window.CONFIG.lienSuivre || "#");
+  const panneau = niveau === "presave" && construirePlateformes();
+  gatePlatforms.classList.toggle("hidden", !panneau);
+  gateHint.classList.add("hidden");
+  gateCta.classList.toggle("hidden", panneau);
+  gateGo.textContent = goLabelForce || t.goLabel;
+  gateGo.classList.add("hidden");
+  gateGo.classList.add("locked");
+  gateLater.textContent = "Fermer";
+  gateSheet.classList.add("visible");
+  gateSheet.setAttribute("aria-hidden", "false");
+}
+function gatePhaseAbsence() {
+  if (!gateEtat) return;
+  gateEtat.phase = "absence";
+  gateTitle.textContent = gateEtat.niveau === "presave" ? "Tu l'as ajouté ? Merci !" : "Abonnement enregistré, merci !";
+  gateText.textContent = gateEtat.action === "ecouter" ? "Reviens dans le jeu quand tu veux." : "Reviens dans le jeu quand tu veux, c'est débloqué.";
+  gateText.classList.remove("hidden");
+  gatePlatforms.classList.add("hidden");
+  gateHint.classList.add("hidden");
+  gateCta.classList.add("hidden");
+  gateGo.classList.remove("hidden");
+  gateGo.classList.add("locked");
+  audio.setReviveIntensity(0);
+  clearTimeout(gateRetourTimer);
+  gateRetourTimer = setTimeout(() => { if (gateEtat && gateEtat.phase === "absence" && !document.hidden) gatePhasePret(); }, 1800);
+}
+function gatePhasePret() {
+  if (!gateEtat) return;
+  clearTimeout(gateRetourTimer);
+  gateEtat.phase = "pret";
+  audio.setReviveIntensity(1);
+  gateTitle.textContent = gateEtat.action === "ecouter" ? "Merci !" : "C'est reparti !";
+  gateText.textContent = gateEtat.action === "continuer" ? "Tes potes reviennent. Reprends quand tu es prêt." : gateEtat.action === "ecouter" ? "Bonne écoute." : "Nouvelle course, quand tu veux.";
+  gateText.classList.remove("hidden");
+  gateGo.classList.remove("hidden");
+  gateGo.classList.remove("locked");
+}
+function fermerGate() {
+  clearTimeout(gateRetourTimer);
+  gateSheet.classList.remove("visible");
+  gateSheet.setAttribute("aria-hidden", "true");
+}
+function gateResoudre(issue) {
+  if (!gateEtat) return;
+  const cb = issue === "onUnlocked" ? gateEtat.onUnlocked : gateEtat.onCancel;
+  gateEtat = null;
+  fermerGate();
+  if (cb) cb();
+}
+export function ouvrirEcoute() {
+  if (!plateformes().length) return;
+  // Depuis l'écran de fin, le bouton armé au retour relance une course ;
+  // depuis le menu, il ferme simplement (JOUER est juste là).
+  const enFin = endScreenEl.classList.contains("active");
+  ouvrirGate({
+    action: "rejouer", niveauForce: "presave",
+    onUnlocked: enFin ? () => { hideOverlay(); showPauseButton(); deps.restartGame(); } : null,
+    onCancel: null,
+    goLabelForce: enFin ? null : "Fermer",
+  });
+}
+function exigerConversion({ action, onOk, onCancel }) {
+  // En bêta, aucune porte : les testeurs sont déjà des fans (groupe WhatsApp)
+  // et doivent pouvoir enchaîner les parties pour trouver des bugs.
+  if (enBeta() || niveauConversion() === "libre") { onOk(); return; }
+  ouvrirGate({ action, onUnlocked: onOk, onCancel });
+}
+
+// --- Ligue entre potes (7 septembre 2026) -------------------------------------
+// Un code à 5 lettres, stocké en local. Les autres membres deviennent les
+// potes du peloton ; chaque course envoie un score ; l'écran de fin montre le
+// classement de la ligue. `?ligue=CODE` dans l'URL = invitation.
+const ligueBloc = $("ligue-bloc"), ligueSans = $("ligue-sans"), ligueAvec = $("ligue-avec");
+const ligueInput = $("ligue-input"), ligueRejoindre = $("ligue-rejoindre"), ligueCreer = $("ligue-creer");
+const ligueCodeEl = $("ligue-code"), ligueMembresEl = $("ligue-membres"), liguePartager = $("ligue-partager"), ligueQuitter = $("ligue-quitter"), ligueMsg = $("ligue-msg");
+const liguePlaces = $("ligue-places");
+const endLigue = $("end-ligue"), endLigueCode = $("end-ligue-code"), endLigueListe = $("end-ligue-liste"), endLiguePartager = $("end-ligue-partager");
+let ligue = null;           // { code, membres: [] }
+let ligueInvitation = null; // code reçu par l'URL, en attente d'un pseudo
+
+export function getLigue() { return ligue; }
+
+function ligueMessage(txt) { ligueMsg.textContent = txt || ""; ligueMsg.classList.toggle("hidden", !txt); }
+function afficherLigue() {
+  if (!net.estConfigure()) { ligueBloc.classList.add("hidden"); return; }
+  ligueBloc.classList.remove("hidden");
+  ligueSans.classList.toggle("hidden", !!ligue);
+  ligueAvec.classList.toggle("hidden", !ligue);
+  $("step2-next").textContent = ligue ? "Continuer" : "Continuer sans ligue";
+  if (ligue) {
+    ligueCodeEl.textContent = ligue.code;
+    const autres = ligue.membres.filter((m) => m.nom !== getPseudo());
+    if (ligue.enAttente) ligueMembresEl.textContent = "Tu en fais partie ! Appuie sur Continuer.";
+    else ligueMembresEl.textContent = autres.length ? `Tes potes dans le peloton : ${autres.map((m) => "@" + m.nom).join(", ")}` : "Tu es seul pour l'instant : invite des potes, ce sont eux qui pédaleront derrière toi.";
+    const n = ligue.membres.length;
+    // La ligue a SA course (graine) ; le score parfait dépend du nombre de
+    // potes possibles, donc du nombre d'autres membres (simulation.js).
+    let parfait = "";
+    try { if (!ligue.enAttente) parfait = ` · score parfait ${pts(scoreParfait(graineLigue(ligue.code), window.CONFIG.potesMax).score)}`; } catch (e) { parfait = ""; }
+    liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}${parfait}`;
+  }
+}
+function memoriserLigue() { if (ligue) lsSet(CLE_LIGUE, JSON.stringify(ligue)); else { try { localStorage.removeItem(CLE_LIGUE); } catch (e) { /* rien */ } } }
+function appliquerNomsLigue() {
+  const moi = getPseudo();
+  friends.setNomsLigue(ligue && !ligue.enAttente ? ligue.membres.filter((m) => m.nom !== moi) : null);
+}
+async function rejoindre(code, creer = false) {
+  const pseudo = getPseudo();
+  if (!pseudo) { ligueMessage("Écris ton pseudo d'abord."); pseudoInput.focus(); return false; }
+  code = net.normaliserCode(code);
+  if (code.length < 4) { ligueMessage("Code de ligue : 5 lettres."); return false; }
+  ligueMessage("…");
+  const invitation = !!(ligue && ligue.enAttente);
+  const r = creer ? await net.creerLigue(code, pseudo, getSkin()) : await net.rejoindreLigue(code, pseudo, getSkin());
+  if (r.erreur) {
+    ligueMessage(r.erreur === "complete" ? `Cette ligue est complète (${net.LIGUE_MAX} max).` : r.erreur === "inexistante" ? "Cette ligue n'existe pas." : r.erreur === "vague" ? `${window.CONFIG.liguesParVague || 5} ligues sont déjà en course cette semaine. La tienne démarre lundi : réessaie à ce moment-là.` : "Pas de réseau, réessaie.");
+    if (ligue && ligue.enAttente) { ligue = null; memoriserLigue(); afficherLigue(); }
+    return false;
+  }
+  ligue = { code, membres: r.membres };
+  memoriserLigue(); appliquerNomsLigue(); afficherLigue(); appliquerModeBeta(); ligueMessage("");
+  if (invitation) net.evenement("invitation_acceptee", { pseudo, ligue: code, source: getSource() });
+  return true;
+}
+function lienLigue(code) { return `${window.CONFIG.lienJeu || location.origin + location.pathname}?ligue=${code}`; }
+async function partagerLigue(texte) {
+  const code = ligue ? ligue.code : "";
+  const data = { title: "J'ai un pote", text: texte, url: lienLigue(code) };
+  net.evenement("invitation_envoyee", { pseudo: getPseudo(), ligue: code, source: getSource() });
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+    await navigator.clipboard.writeText(`${texte} ${data.url}`);
+    ligueMessage("Lien copié !");
+  } catch (e) { /* partage annulé */ }
+}
+// Rafraîchit les membres au démarrage d'une course (les potes qui ont
+// rejoint depuis apparaissent).
+export async function preparerLigue() {
+  if (ligue && ligue.enAttente) { await rejoindre(ligue.code); ligueInvitation = null; }
+  if (!ligue) { friends.setNomsLigue(null); return; }
+  const membres = await net.membres(ligue.code);
+  if (membres) { ligue.membres = membres; memoriserLigue(); }
+  appliquerNomsLigue(); afficherLigue();
+}
+// Fin de course : envoi du score, puis classement de la ligue sur la carte.
+// `bilan` = { graine, trace, scoreMax } (main.js) : la graine de la route et
+// la trace du fantôme, envoyée SEULEMENT si la course bat le record de la
+// ligue sur cette route (9 septembre 2026).
+export async function finLigue(metres, potes, mode = "course", bilan = {}) {
+  endLigue.classList.add("hidden");
+  if (mode === "sprint") lsSet(CLE_SPRINT, net.jourSprint());
+  const code = ligue ? ligue.code : (window.CONFIG.ligueDemo || "PMCMP");
+  if (!ligue && mode !== "sprint") return;
+  let trace = null;
+  if (mode !== "sprint" && bilan.trace) {
+    const avant = await net.classement(ligue.code, bilan.graine);
+    const meilleur = avant && avant.length ? Math.max(...avant.map((r) => Number(r.metres) || 0)) : 0;
+    if (Math.floor(metres) > meilleur) trace = bilan.trace;
+  }
+  await net.envoyerScore(code, getPseudo(), metres, potes, mode, { graine: bilan.graine, trace });
+  const endRelais = $("end-relais");
+  if (mode === "sprint") {
+    // Classement du sprint du jour, toutes ligues confondues.
+    const rows = await net.classementSprint(net.jourSprint());
+    if (!rows) return;
+    endLigueCode.textContent = "Sprint du dimanche";
+    endLigueListe.textContent = "";
+    const moi = getPseudo();
+    rows.slice(0, 10).forEach((r, i) => {
+      const li = document.createElement("li");
+      if (r.pseudo === moi) li.className = "moi";
+      li.innerHTML = `<span class="rang">${i + 1}</span><span class="nom"></span><span class="m">${pts(r.metres)}</span>`;
+      li.querySelector(".nom").textContent = `@${r.pseudo}`;
+      endLigueListe.appendChild(li);
+    });
+    endRelais.classList.add("hidden");
+    endLigue.classList.remove("hidden");
+    return;
+  }
+  const rows = await net.classement(ligue.code, bilan.graine);
+  if (!rows) return;
+  const relais = await net.relais(ligue.code);
+  const objectif = window.CONFIG.relaisDistance || 30000;
+  endRelais.classList.remove("hidden");
+  endRelais.textContent = `Relais : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} pts`;
+  endLigueCode.textContent = ligue.code;
+  endLigueListe.textContent = "";
+  const moi = getPseudo();
+  rows.slice(0, enBeta() ? 12 : 6).forEach((r, i) => {
+    const li = document.createElement("li");
+    if (r.pseudo === moi) li.className = "moi";
+    const rang = document.createElement("span"); rang.className = "rang"; rang.textContent = `${i + 1}`;
+    const nom = document.createElement("span"); nom.className = "nom"; nom.textContent = `@${r.pseudo}`;
+    // Le premier est le fantôme que tout le monde voit rouler sur la route.
+    if (i === 0) { const f = document.createElement("span"); f.className = "fantome"; f.textContent = "· fantôme"; nom.appendChild(f); }
+    const m = document.createElement("span"); m.className = "m"; m.textContent = pts(r.metres);
+    li.append(rang, nom, m);
+    endLigueListe.appendChild(li);
+  });
+  endLigue.classList.remove("hidden");
+}
+function initLigue() {
+  try { const j = lsGet(CLE_LIGUE); if (j) ligue = JSON.parse(j); } catch (e) { ligue = null; }
+  try {
+    const code = new URLSearchParams(location.search).get("ligue");
+    // Le lien d'invitation suffit : la personne fait déjà partie de la ligue,
+    // elle n'a plus qu'à écrire son pseudo (l'adhésion part au JOUER).
+    if (code) {
+      ligueInvitation = net.normaliserCode(code);
+      if (!ligue || ligue.code !== ligueInvitation) ligue = { code: ligueInvitation, membres: [], enAttente: true };
+      const url = new URL(location.href); url.searchParams.delete("ligue"); history.replaceState(null, "", url.toString());
+    }
+  } catch (e) { /* rien */ }
+  afficherLigue(); appliquerNomsLigue();
+  ligueRejoindre.addEventListener("click", () => rejoindre(ligueInput.value));
+  ligueCreer.addEventListener("click", () => rejoindre(net.genererCode(), true));
+  ligueQuitter.addEventListener("click", () => { ligue = null; memoriserLigue(); appliquerNomsLigue(); afficherLigue(); appliquerModeBeta(); });
+  liguePartager.addEventListener("click", () => partagerLigue(`Tu es dans ma ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}) : tu pédales derrière moi, viens battre mon score`));
+  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} pts dans notre ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}), même course pour tout le monde. Viens me battre`));
+  ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => ligueInput.addEventListener(t, (e) => e.stopPropagation()));
+  ligueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rejoindre(ligueInput.value); } });
+}
+
+// --- Sprint du dimanche --------------------------------------------------------
+const sprintButton = $("sprint-button"), sprintNote = $("sprint-note");
+function majSprint() {
+  if (enBeta() || !net.estConfigure() || !net.sprintOuvert()) { sprintButton.classList.add("hidden"); sprintNote.classList.add("hidden"); return; }
+  const fait = lsGet(CLE_SPRINT) === net.jourSprint();
+  sprintButton.classList.toggle("hidden", fait);
+  sprintNote.classList.remove("hidden");
+  sprintNote.textContent = fait ? "Sprint du dimanche déjà couru : une seule tentative, le classement est sur ton écran de fin." : "Une seule tentative, la même route pour tout le monde.";
+}
+
+// --- Chargement --------------------------------------------------------------
+// Au moins `config.chargementMinS` secondes de 0 à 100 % (6 septembre 2026 :
+// « une phase de chargement de 5-6 s, ça fait sérieux »), le temps de mettre
+// en cache le morceau, les polices et de préchauffer le moteur (main.js,
+// prechauffer()). La barre ne dépasse jamais ce qui est VRAIMENT chargé.
+let loadingDone = false;
+const loadingT0 = performance.now();
+const ETAPES = ["Le morceau arrive", "Les potes s'échauffent", "La route se construit", "Les poules se placent", "C'est prêt"];
+let prechauffe = 0; // 0..1, rempli par main.js
+export function setPrechauffage(p) { prechauffe = Math.max(prechauffe, Math.min(1, p)); }
+export function syncLoadingUi() {
+  if (loadingDone) return;
+  if (audio.getLoadError()) {
+    loadingDone = true;
+    loadingBlock.classList.add("failed");
+    loadingLabel.textContent = "Son indisponible, le jeu reste jouable";
+    playButton.disabled = false;
+    return;
+  }
+  const minS = window.CONFIG.chargementMinS || 0;
+  const tempsT = minS > 0 ? Math.min(1, (performance.now() - loadingT0) / 1000 / minS) : 1;
+  const reel = (audio.isReadyToStart() ? 1 : audio.getProgress()) * 0.7 + prechauffe * 0.3;
+  const p = Math.min(reel, tempsT);
+  const pct = Math.round(p * 100);
+  loadingFill.style.width = `${pct}%`;
+  loadingLabel.textContent = `${ETAPES[Math.min(ETAPES.length - 1, Math.floor(p * ETAPES.length))]} · ${pct} %`;
+  if (p >= 1) { loadingDone = true; loadingBlock.classList.add("done"); playButton.disabled = getPseudo().length === 0; }
+}
+
+// --- Fin de partie -----------------------------------------------------------
+export function showEndScreen({ metres, potesMax, record, fin, sprint, scoreMax }) {
+  scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
+  derniereCourse = { metres: Math.floor(metres), potes: potesMax, fin: !!fin };
+  // Course de ligue : le score PARFAIT de cette route (simulation.js), pour
+  // savoir à quelle distance du maximum on est (« si le score maximal c'est
+  // 100 000 et que le premier fait 88 000… »).
+  const endMax = $("end-max");
+  endMax.classList.toggle("hidden", !scoreMax);
+  if (scoreMax) endMax.innerHTML = `Score parfait sur cette course : <b>${pts(scoreMax)}</b> · tu es à ${Math.min(100, Math.round(100 * metres / scoreMax))} %`;
+  // Le but : arriver au bout du morceau avec un max de potes.
+  const potesTxt = potesMax === 0 ? "0 pote" : `${potesMax} pote${potesMax > 1 ? "s" : ""}`;
+  endSub.textContent = fin ? `Au bout du morceau · ${potesTxt}` : `Tombé avant la fin · ${potesTxt}`;
+  endBest.classList.toggle("hidden", !record);
+  $("end-eyebrow").textContent = sprint ? "Sprint du dimanche" : fin ? "Course terminée" : "Ta course";
+  if (sprint) endSub.textContent = `Sprint · ${potesTxt}`;
+  setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);
+}
+
+// --- Retour des testeurs (bêta fermée, 16 septembre 2026) --------------------
+// « Laisser un retour » sur l'écran de fin : une carte, un champ libre, un
+// envoi, une confirmation dans la MÊME carte (pas de second pop-up qui se
+// referme tout seul). Le retour part avec le pseudo, le score de la course
+// qui vient de finir et le numéro de partie — table retours_beta, jamais
+// relue par le jeu. Un échec réseau le dit et garde le texte à l'écran.
+const retourSheet = $("retour-sheet"), retourForm = $("retour-form"), retourOk = $("retour-ok");
+const retourInput = $("retour-input"), retourEnvoyer = $("retour-envoyer"), retourCompteur = $("retour-compteur");
+let derniereCourse = null;
+const TEXTE_RETOUR = "Ce qui t'a plu, ce qui t'a saoulé, ce qui bugue. Écris tout, c'est exactement ce qu'il me faut.";
+
+export function ouvrirRetour() {
+  retourForm.classList.remove("hidden");
+  retourOk.classList.add("hidden");
+  $("retour-title").textContent = "Ton retour";
+  $("retour-text").textContent = TEXTE_RETOUR;
+  retourEnvoyer.textContent = "Envoyer";
+  retourEnvoyer.classList.remove("locked");
+  majCompteurRetour();
+  retourSheet.classList.add("visible");
+  retourSheet.setAttribute("aria-hidden", "false");
+  setTimeout(() => retourInput.focus(), 120);
+}
+function fermerRetour() {
+  retourSheet.classList.remove("visible");
+  retourSheet.setAttribute("aria-hidden", "true");
+}
+function majCompteurRetour() {
+  const n = retourInput.value.trim().length;
+  retourCompteur.textContent = `${retourInput.value.length}/1200`;
+  retourEnvoyer.disabled = n < 3;
+}
+async function envoyerRetour() {
+  const texte = retourInput.value.trim();
+  if (texte.length < 3) return;
+  retourEnvoyer.disabled = true;
+  retourEnvoyer.classList.add("locked");
+  retourEnvoyer.textContent = "Envoi…";
+  const c = derniereCourse || {};
+  const ok = await net.envoyerRetour({
+    ligue: ligue ? ligue.code : null,
+    pseudo: getPseudo() || null,
+    texte,
+    score: c.metres !== undefined ? c.metres : null,
+    potes: c.potes !== undefined ? c.potes : null,
+    fin: c.fin !== undefined ? c.fin : null,
+    partie: getParties(),
+    appareil: navigator.userAgent.slice(0, 180),
+  });
+  if (!ok.ok) {
+    retourEnvoyer.disabled = false;
+    retourEnvoyer.classList.remove("locked");
+    retourEnvoyer.textContent = "Réessayer";
+    $("retour-title").textContent = "Pas parti, réessaie";
+    $("retour-text").textContent = `${ok.detail || "envoi impossible"} — réessaie, ou envoie-moi ça sur WhatsApp.`;
+    return;
+  }
+  $("retour-text").textContent = TEXTE_RETOUR;
+  retourInput.value = "";
+  majCompteurRetour();
+  retourForm.classList.add("hidden");
+  retourOk.classList.remove("hidden");
+  net.evenement("retour_beta", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
+}
+
+// Bascule visuelle du mode bêta : menu réduit, sprint et tiroir album hors
+// jeu, bouton de retour sur l'écran de fin.
+function appliquerModeBeta() {
+  const on = enBeta();
+  document.body.classList.toggle("beta", on);
+  $("beta-tag").classList.toggle("hidden", !on);
+  $("beta-note").classList.toggle("hidden", !on);
+  $("end-retour").classList.toggle("hidden", !(on && window.CONFIG.betaRetours !== false));
+  if (on) $("beta-tag").textContent = `Bêta-test · ligue ${ligue.code}`;
+}
+
+// --- Pause / son -------------------------------------------------------------
+export function showPauseButton() { pauseButton.hidden = false; muteButton.hidden = true; }
+export function hidePauseButton() { pauseButton.hidden = true; muteButton.hidden = false; if (deps.isManuallyPaused()) closePauseMenu(); }
+function openPauseMenu() {
+  if (deps.isManuallyPaused() || pauseButton.hidden) return;
+  deps.openPause();
+  pauseVolumeSlider.value = String(Math.round(audio.getVolume() * 100));
+  pauseScreen.classList.add("visible");
+}
+function closePauseMenu() {
+  if (!deps.isManuallyPaused()) return;
+  deps.closePause();
+  pauseScreen.classList.remove("visible");
+}
+function syncMuteIcon() {
+  const coupe = audio.getVolume() <= 0;
+  muteButton.classList.toggle("muted", coupe);
+  muteButton.textContent = coupe ? "✕" : "♪";
+}
+
+// --- Démarrage ---------------------------------------------------------------
+function startGame(opts = {}) {
+  if (deps.isGameStartRequested()) return;
+  audio.unlock();
+  audio.play();
+  enregistrerProfil();
+  preparerLigue();
+  deps.requestGameStart(opts);
+  hideOverlay();
+  showPauseButton();
+}
+
+export function init(d) {
+  deps = d;
+  [ctaLink, endCta].forEach((lien) => {
+    lien.removeAttribute("href"); lien.removeAttribute("target"); lien.setAttribute("role", "button");
+    lien.addEventListener("click", (e) => { e.preventDefault(); ouvrirEcoute(); });
+  });
+  instaLink.href = window.CONFIG.lienInsta;
+  const credit = $("credit-insta"); if (credit) credit.href = window.CONFIG.lienInsta;
+  try { const src = new URLSearchParams(location.search).get("src"); if (src) lsSet(CLE_SOURCE, src.slice(0, 32)); } catch (e) { /* rien */ }
+  pseudoInput.value = lsGet(CLE_PSEUDO) || "";
+  instaInput.value = lsGet(CLE_INSTA) || "";
+  villeInput.value = lsGet(CLE_VILLE) || "";
+  const step1Next = $("step1-next");
+  const syncPlay = () => { if (loadingDone) playButton.disabled = getPseudo().length === 0; step1Next.disabled = getPseudo().length === 0; };
+  pseudoInput.addEventListener("input", syncPlay);
+  syncPlay();
+  [pseudoInput, instaInput, villeInput].forEach((inp) => ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => inp.addEventListener(t, (e) => e.stopPropagation())));
+  step1Next.addEventListener("click", () => { if (!getPseudo()) { pseudoInput.focus(); return; } enregistrerProfil(); setStep(enBeta() ? 3 : 2); });
+  $("step2-next").addEventListener("click", () => setStep(3));
+  $("step2-back").addEventListener("click", () => setStep(1));
+  $("step3-ligue").addEventListener("click", () => setStep(2));
+  $("step3-profil").addEventListener("click", () => setStep(1));
+  playButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); pseudoInput.focus(); return; } startGame(); });
+  sprintButton.addEventListener("click", () => { if (getPseudo().length === 0) { setStep(1); return; } startGame({ sprint: true }); });
+  net.evenement("arrivee", { pseudo: lsGet(CLE_PSEUDO) || null, source: getSource(), ligue: null });
+  // (Pas de MutationObserver sur `disabled` : il se redéclenchait lui-même en
+  // boucle et gelait la page — syncLoadingUi relit le champ à la fin du
+  // chargement, l'input le relit à chaque frappe.)
+
+  $("end-retour").addEventListener("click", ouvrirRetour);
+  retourInput.addEventListener("input", majCompteurRetour);
+  ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => retourSheet.addEventListener(t, (e) => e.stopPropagation()));
+  retourEnvoyer.addEventListener("click", envoyerRetour);
+  $("retour-fermer").addEventListener("click", fermerRetour);
+  $("retour-ok-fermer").addEventListener("click", fermerRetour);
+  // Entrée envoie, Maj+Entrée fait un retour à la ligne.
+  retourInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envoyerRetour(); } });
+
+  replayButton.addEventListener("click", () => {
+    exigerConversion({ action: "rejouer", onOk: () => { hideOverlay(); showPauseButton(); deps.restartGame(); }, onCancel: () => {} });
+  });
+
+  function porteDepuisCarteDeMort(action, issue) {
+    if (!reviveCallbacks) return;
+    const restant = decompteRevive.restant;
+    decompteRevive.arreter();
+    exigerConversion({ action, onOk: () => reviveResoudre(issue), onCancel: () => reprendreDecompteRevive(restant) });
+  }
+  reviveCta.addEventListener("click", () => porteDepuisCarteDeMort("continuer", "onAccept"));
+  reviveReplay.addEventListener("click", () => porteDepuisCarteDeMort("rejouer", "onReplay"));
+  reviveDecline.addEventListener("click", () => reviveResoudre("onDecline"));
+
+  gateCta.addEventListener("click", () => {
+    if (!gateEtat || gateEtat.phase !== "demande") return;
+    if (gateEtat.niveau === "presave") { lsSet(CLE_MORCEAU_OUVERT, "1"); fanCache = true; }
+    else lsSet(CLE_PMC_SUIVI, "1");
+    setTimeout(gatePhaseAbsence, 0);
+  });
+  gateGo.addEventListener("click", () => { if (!gateEtat || gateEtat.phase !== "pret") return; gateResoudre("onUnlocked"); });
+  gateLater.addEventListener("click", () => gateResoudre("onCancel"));
+  document.addEventListener("visibilitychange", () => {
+    if (!gateEtat) return;
+    if (document.hidden) { audio.setReviveIntensity(0); return; }
+    if (gateEtat.phase === "absence") gatePhasePret();
+  });
+
+  syncMuteIcon();
+  muteButton.addEventListener("click", (e) => { e.stopPropagation(); audio.setVolume(audio.getVolume() > 0 ? 0 : 1); syncMuteIcon(); });
+  pauseButton.addEventListener("click", (e) => { e.stopPropagation(); openPauseMenu(); });
+  resumeButton.addEventListener("click", (e) => { e.stopPropagation(); closePauseMenu(); });
+  pauseReplayButton.addEventListener("click", (e) => { e.stopPropagation(); closePauseMenu(); deps.restartGame(); });
+  pauseVolumeSlider.addEventListener("input", () => { audio.setVolume(Number(pauseVolumeSlider.value) / 100); syncMuteIcon(); });
+  ["pointerdown", "pointerup", "touchstart", "touchmove", "touchend", "mousedown"].forEach((t) => {
+    pauseScreen.addEventListener(t, (e) => e.stopPropagation());
+    [muteButton, pauseButton].forEach((b) => b.addEventListener(t, (e) => e.stopPropagation()));
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Escape") { if (deps.isManuallyPaused()) closePauseMenu(); else openPauseMenu(); }
+    if ((e.code === "Enter") && overlay.classList.contains("visible") && e.target !== ligueInput && stepCourante() === 3) {
+      if (endScreenEl.classList.contains("active")) replayButton.click();
+      else if (!playButton.disabled) startGame();
+    }
+  });
+  initLigue();
+  appliquerModeBeta();
+  setView("onboarding");
+  // Habitué → directement « Mon cycliste » ; invitation → « Ma ligue » ; sinon l'inscription.
+  setStep(!lsGet(CLE_PSEUDO) ? 1 : (ligue && ligue.enAttente) ? 2 : 3);
+}

@@ -1,0 +1,41 @@
+# En-têtes HTTP appliqués par Netlify (fichier copié tel quel dans dist/ par Vite).
+#
+# But : qu'un iPhone qui a DÉJÀ ouvert le jeu voie la nouvelle version tout seul
+# après un déploiement, sans rechargement forcé.
+#
+# Principe : deux régimes opposés.
+#   - Ce qui n'a PAS de hash dans son nom (index.html, config.js) est revalidé à
+#     chaque visite → jamais périmé.
+#   - Ce qui EST versionné par un hash (le bundle JS) ou ne change quasi jamais
+#     (polices, MP3) est mis en cache longtemps → moins de data mobile
+#     consommée, et moins de bande passante facturée côté Netlify.
+
+# --- Jamais mis en cache : c'est ce qui pointe vers le reste ---
+
+/
+  Cache-Control: no-store, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: no-store, max-age=0, must-revalidate
+
+# config.js n'est pas bundlé (chargé tel quel, nom fixe) : sans ça, un réglage
+# modifié resterait invisible sur un téléphone qui a déjà ouvert le jeu.
+/config.js
+  Cache-Control: no-store, max-age=0, must-revalidate
+
+# --- Mis en cache longtemps : le nom change quand le contenu change ---
+
+# Bundle Vite : nom en index-<hash>.js, donc un nouveau build = une nouvelle URL.
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# --- Mis en cache une semaine : nom fixe, mais contenu quasi figé ---
+
+# Le MP3 fait 4,1 Mo : le remettre en cache évite de le retélécharger à chaque
+# partie (c'est ce qui consommait les crédits Netlify). En cas de nouveau master,
+# renommer le fichier pour propager immédiatement.
+/assets/*.mp3
+  Cache-Control: public, max-age=604800
+
+/fonts/*
+  Cache-Control: public, max-age=604800
