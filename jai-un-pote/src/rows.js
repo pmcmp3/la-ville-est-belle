@@ -8,14 +8,30 @@
 //   - « traverse » : un TRACTEUR qui traverse, ou une POULE LANCÉE par un
 //     fermier posté au bord. ⚠️ Calés sur le passage du joueur (6 septembre
 //     2026 : « quand il y a un tracteur qui traverse, il faut vraiment qu'il
-//     traverse quand on est là ») : la traversée s'arme ~2,6 s avant l'arrivée
+//     traverse quand on est là ») : la traversée s'arme ~4 s avant l'arrivée
 //     du joueur et vise une colonne au moment où il passe.
+//
+// ⚠️ GÉNÉRATEUR À QUOTAS depuis le 9 septembre 2026 (« par ligue, il faut que
+// ce soit la même course [...] chaque ligue va avoir le même nombre de
+// tracteurs, le même nombre de biomes »). La route est hachée par BLOCS de
+// 24 rangées : chaque bloc porte un nombre EXACT de dangers (diffusion
+// d'erreur sur la courbe de densité), les espèces sortent d'un PAQUET fixe
+// mélangé par la graine, les pièces sont un quota exact des rangées
+// éligibles, la boue une flaque tous les deux blocs, lait et pièce rouge sur
+// des rangées RÉSERVÉES par leur index. Résultat : deux graines donnent deux
+// routes différentes (positions, voies, ordre des espèces) mais exactement le
+// même nombre de tracteurs, de poules, de pièces, de laits… Seule exception,
+// rarissime (mesurée : 0 sur 40 graines × 1 100 rangées) : un lait ou une
+// pièce rouge dont la rangée réservée ne peut pas être libérée d'un danger.
 
 import { COLS, colU, ROAD_HALF } from "./iso.js";
 
 export const KINDS = {
-  tracteur:  { traverse: true,  saut: false, cout: 3, vitesse: 2.2, long: 2.4, larg: 1.05, h: 1.4, nom: "un tracteur" },
-  poulelancee: { traverse: true, saut: true, cout: 1, vitesse: 4.5, long: 0.55, larg: 0.5, h: 0.55, nom: "une poule lancée" },
+  // `vmax` = vitesse plafond d'une traversée armée (u/s). Tracteur ralenti
+  // le 9 septembre 2026 (« réduis la vitesse des tracteurs, parfois c'est
+  // difficile d'avancer ») : 9 → 3,2, et armé plus tôt (main.js, ARM_AHEAD_S).
+  tracteur:  { traverse: true,  saut: false, cout: 3, vitesse: 2.2, vmax: 3.2, long: 2.4, larg: 1.05, h: 1.4, nom: "un tracteur" },
+  poulelancee: { traverse: true, saut: true, cout: 1, vitesse: 4.5, vmax: 9, long: 0.55, larg: 0.5, h: 0.55, nom: "une poule lancée" },
   poule:    { traverse: false, saut: true,  cout: 1, long: 0.55, larg: 0.5,  h: 0.55, nom: "une poule" },
   chat:     { traverse: false, saut: true,  cout: 1, long: 0.6,  larg: 0.35, h: 0.4,  nom: "un chat" },
   chien:    { traverse: false, saut: true,  cout: 1, long: 0.8,  larg: 0.4,  h: 0.6,  nom: "un chien" },
@@ -27,101 +43,235 @@ export const KINDS = {
   voiture:  { traverse: false, saut: false, cout: 2, long: 0.95, larg: 2.0,  h: 0.75, nom: "une voiture garée" },
 };
 
-const GRACE_ROWS = 40;    // 10 → 40 (« laisse vraiment du temps au début ») : ~9 s sans rien
+export const GRACE_ROWS = 40;    // 10 → 40 (« laisse vraiment du temps au début ») : ~9 s sans rien
 const RAMP_ROWS = 1000;
 const P_DANGER_START = 0.10, P_DANGER_MAX = 0.30; // 0,42 → 0,30 (« trop d'informations en même temps »)
-const LAIT_EVERY = 48;    // brique de lait : une chance toutes les ~48 rangées
-const ROUGE_EVERY = 70;   // pièce rouge : toutes les ~70 rangées
+const GAP_MIN = 3;               // toujours 3 rangées sûres après un danger
+export const BLOC = 24;          // taille d'un bloc de génération
+const P_PIECE = 0.25;            // pièces sur 25 % des rangées éligibles (40 % avant : « beaucoup trop »)
+const LAIT_EVERY = 48;           // brique de lait : rangées 24, 72, 120…
+const ROUGE_EVERY = 70;          // pièce rouge : rangées 40, 110, 180…
+const BOUE_DEBUT_T = 0.08;       // pas de boue avant 8 % de la rampe
 
-let runSeed = 0;
-export function reseed(force) { runSeed = force !== undefined ? force : Math.floor(Math.random() * 100000); }
-reseed();
-function hash(n) {
-  const x = Math.sin(n * 91.173 + runSeed * 0.731) * 43758.5453;
-  return x - Math.floor(x);
-}
+// Paquets d'espèces (12 dangers chacun), par phase du parcours : les deux
+// premiers paquets sont doux, puis les gros animaux arrivent, puis les
+// tracteurs doublent. Même composition pour toutes les graines.
+const PAQUETS = [
+  ["poule", "poule", "poule", "chat", "chat", "chien", "mouton", "mouton", "botte", "botte", "tracteur", "poulelancee"],
+  ["poule", "poule", "chat", "chien", "mouton", "botte", "cochon", "vache", "fermier", "voiture", "tracteur", "poulelancee"],
+  ["poule", "chat", "mouton", "botte", "cochon", "cochon", "vache", "fermier", "voiture", "tracteur", "tracteur", "poulelancee"],
+];
+function paquetPour(d) { return PAQUETS[d < 2 ? 0 : d < 5 ? 1 : 2]; }
 
-const cache = new Map();
-let fenetreSure = null; // [from, to] : rangées forcées sûres (turbo lait)
-export function reset() { cache.clear(); resolved.clear(); coins.clear(); fenetreSure = null; }
+// --- La route : une CLASSE (9 septembre 2026) ---------------------------------
+// Tout l'état (graine, cache de rangées, fenêtre sûre, quotas, pièces prises,
+// collisions résolues) vit dans une instance `Route`. Le jeu utilise
+// l'instance `live` à travers les fonctions exportées plus bas ; la
+// simulation du score parfait (simulation.js) crée SES PROPRES instances et
+// ne touche jamais au parcours en cours — on peut la lancer pendant une
+// course ou sur l'écran de fin sans faire disparaître une pièce ramassée.
+export class Route {
+  constructor(seed) {
+    this.seed = seed !== undefined ? seed : Math.floor(Math.random() * 100000);
+    this.cache = new Map();
+    this.fenetreSure = null;   // [from, to] : rangées forcées sûres (turbo lait)
+    this.piecesCumul = new Map();
+    this.resolved = new Set();
+    this.coins = new Set();
+  }
+  hash(n) {
+    const x = Math.sin(n * 91.173 + this.seed * 0.731) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  reset() { this.cache.clear(); this.resolved.clear(); this.coins.clear(); this.piecesCumul.clear(); this.fenetreSure = null; }
+  dansFenetre(r) { return this.fenetreSure !== null && r >= this.fenetreSure[0] && r <= this.fenetreSure[1]; }
+  rangeeSure(r) {
+    return { type: "safe", coins: r % 3 === 1 ? [Math.floor(this.hash(r * 11 + 4) * COLS)] : [], boue: null };
+  }
+  // TURBO LAIT (7 septembre 2026 : « quand ça va plus vite, il faudrait qu'à
+  // ce moment il n'y ait pas d'obstacles, sinon personne ne voudra aller plus
+  // vite ») : les rangées [from, to] deviennent sûres, avec une pièce sur
+  // trois — même celles déjà hachées, tant qu'elles ne sont pas à l'écran.
+  ouvrirFenetreSure(from, to) {
+    this.fenetreSure = [from, to];
+    for (let r = from; r <= to; r++) this.cache.set(r, this.rangeeSure(r));
+  }
 
-// TURBO LAIT (7 septembre 2026 : « quand ça va plus vite, il faudrait qu'à ce
-// moment il n'y ait pas d'obstacles, sinon personne ne voudra aller plus
-// vite ») : les rangées [from, to] deviennent sûres, avec une pièce sur deux
-// — même celles déjà hachées, tant qu'elles ne sont pas encore à l'écran.
-export function ouvrirFenetreSure(from, to) {
-  fenetreSure = [from, to];
-  for (let r = from; r <= to; r++) cache.set(r, { type: "safe", coins: r % 3 === 1 ? [Math.floor(hash(r * 11 + 4) * COLS)] : [], boue: null });
-}
+  // Mélange de Fisher-Yates seedé (paquet d'espèces, pièces).
+  melange(liste, k) {
+    const a = liste.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.hash(k * 131 + i * 17 + 5) * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  especeDanger(i) { const d = Math.floor(i / 12); return this.melange(paquetPour(d), 1000 + d)[i % 12]; }
 
-function pick(list, h) {
-  let total = 0;
-  for (const [, w] of list) total += w;
-  let r = h * total;
-  for (const [k, w] of list) { r -= w; if (r <= 0) return k; }
-  return list[0][0];
-}
+  // Répartit `libres` rangées libres dans n+1 trous (bâtons et étoiles seedés).
+  trous(n, libres, k) {
+    const coupes = [];
+    for (let i = 0; i < n; i++) coupes.push(Math.floor(this.hash(k * 7 + i * 13 + 2) * (libres + 1)));
+    coupes.sort((a, b) => a - b);
+    const g = [];
+    let prev = 0;
+    for (const c of coupes) { g.push(c - prev); prev = c; }
+    g.push(libres - prev);
+    return g;
+  }
 
-export function rowAt(r) {
-  if (cache.has(r)) return cache.get(r);
-  let row;
-  const t = Math.min(1, Math.max(0, r) / RAMP_ROWS);
-  if (r < GRACE_ROWS || (fenetreSure && r >= fenetreSure[0] && r <= fenetreSure[1])) {
-    row = { type: "safe", coins: r % 3 === 1 ? [Math.floor(hash(r * 11 + 4) * COLS)] : [], boue: null };
-  } else {
-    const prev1 = rowAt(r - 1), prev2 = rowAt(r - 2), prev3 = rowAt(r - 3);
-    const gapMin = 3; // toujours 3 rangées sûres entre deux dangers
-    const recentDanger = prev1.type !== "safe" || prev2.type !== "safe" || (gapMin === 3 && prev3.type !== "safe");
-    const pDanger = P_DANGER_START + (P_DANGER_MAX - P_DANGER_START) * t;
-    const danger = !recentDanger && hash(r * 7 + 1) < pDanger;
-    if (!danger) {
-      const h = hash(r * 5 + 2);
-      const c0 = Math.floor(hash(r * 11 + 4) * COLS);
-      // Pièces sur 25 % des rangées sûres (40 % avant : « beaucoup trop »),
-      // jamais juste après un danger (une chose à la fois).
-      const coins = h < 0.75 || prev1.type !== "safe" ? [] : [c0];
-      row = { type: "safe", coins, boue: null };
-      // Boue : une flaque de 3 rangées sur une voie, de temps en temps.
-      const boueDe = prev1.type === "safe" && prev1.boue !== null && prev1.boueLen < 3 ? prev1.boue : null;
-      if (boueDe !== null) { row.boue = boueDe; row.boueLen = prev1.boueLen + 1; }
-      else if (t > 0.08 && hash(r * 43 + 6) < 0.05) { row.boue = Math.floor(hash(r * 47 + 1) * COLS); row.boueLen = 1; }
-      // Lait et pièce rouge : rares, jamais sur une rangée à pièce.
-      if (r % LAIT_EVERY === 24 && !coins.length) row.lait = Math.floor(hash(r * 53 + 2) * COLS);
-      if (r % ROUGE_EVERY === 40 && !coins.length && row.lait === undefined) row.rouge = Math.floor(hash(r * 59 + 3) * COLS);
-    } else {
-      const late = 1 + t * 2;
-      const kind = pick([
-        ["poule", 3], ["chat", 1.6], ["chien", 1.2], ["mouton", 2], ["botte", 1.8], ["cochon", 1.2 * late],
-        ["vache", 1.1 * late], ["fermier", 0.9 * late], ["voiture", 0.7 * late], ["tracteur", 1.3 * late], ["poulelancee", 0.9 * late],
-      ], hash(r * 17 + 3));
+  // Positions des n dangers dans le bloc (rangées relatives 0..23), chaque
+  // danger suivi de GAP_MIN rangées sûres, jamais sur une rangée réservée.
+  positionsDangers(b, n) {
+    const r0 = GRACE_ROWS + b * BLOC;
+    const libres = BLOC - n * (1 + GAP_MIN);
+    let pos = [];
+    for (let essai = 0; essai < 30; essai++) {
+      const g = this.trous(n, libres, b * 97 + essai);
+      pos = [];
+      let cur = g[0];
+      for (let i = 0; i < n; i++) { pos.push(cur); cur += 1 + GAP_MIN + g[i + 1]; }
+      if (pos.every((p) => !estReservee(r0 + p))) return pos;
+    }
+    // Repli (jamais mesuré) : le lait / la pièce rouge de la rangée réservée
+    // saute pour cette graine.
+    return pos;
+  }
+
+  // Un bloc complet : dangers, pièces, boue, lait, pièce rouge.
+  genererBloc(b) {
+    const r0 = GRACE_ROWS + b * BLOC;
+    const n = nbDangersBloc(b);
+    const pos = this.positionsDangers(b, n);
+    const base = indexDangerBase(b);
+    const rowsBloc = new Array(BLOC);
+    const apresDanger = new Set();
+    pos.forEach((p, j) => {
+      const r = r0 + p;
+      const kind = this.especeDanger(base + j);
       const K = KINDS[kind];
+      apresDanger.add(p + 1);
       if (K.traverse) {
-        const dir = hash(r * 19 + 8) < 0.5 ? -1 : 1;
+        const dir = this.hash(r * 19 + 8) < 0.5 ? -1 : 1;
         // Colonne visée au moment où le joueur passe : le tracteur couvre deux
         // voies, la poule une seule — il reste toujours de quoi passer.
-        const cible = Math.floor(hash(r * 23 + 9) * COLS);
-        row = { type: "traverse", kind, dir, cible, armed: false, t0: 0, u0: 0, vitesse: K.vitesse, coins: [], boue: null };
+        const cible = Math.floor(this.hash(r * 23 + 9) * COLS);
+        rowsBloc[p] = { type: "traverse", kind, dir, cible, armed: false, t0: 0, u0: 0, vitesse: K.vitesse, coins: [], boue: null };
       } else {
-        const c = Math.floor(hash(r * 19 + 8) * COLS);
-        const libres = [0, 1, 2].filter((x) => x !== c);
-        row = { type: "statique", kind, cols: [c], coins: [], boue: null };
+        rowsBloc[p] = { type: "statique", kind, cols: [Math.floor(this.hash(r * 19 + 8) * COLS)], coins: [], boue: null };
+      }
+    });
+    for (let p = 0; p < BLOC; p++) if (!rowsBloc[p]) rowsBloc[p] = { type: "safe", coins: [], boue: null };
+    // Lait et pièce rouge sur leurs rangées réservées (si elles sont sûres).
+    for (let p = 0; p < BLOC; p++) {
+      const r = r0 + p, row = rowsBloc[p];
+      if (row.type !== "safe") continue;
+      if (r % LAIT_EVERY === LAIT_EVERY / 2) row.lait = Math.floor(this.hash(r * 53 + 2) * COLS);
+      else if (r % ROUGE_EVERY === 40) row.rouge = Math.floor(this.hash(r * 59 + 3) * COLS);
+    }
+    // Pièces : quota exact (diffusion d'erreur) sur les rangées éligibles —
+    // sûres, pas juste après un danger (une chose à la fois), sans lait ni rouge.
+    const eligibles = [];
+    for (let p = 0; p < BLOC; p++) { const row = rowsBloc[p]; if (row.type === "safe" && !apresDanger.has(p) && row.lait === undefined && row.rouge === undefined) eligibles.push(p); }
+    const nPieces = this.nbPiecesBloc(b, eligibles.length);
+    for (const p of this.melange(eligibles, 2000 + b).slice(0, nPieces)) rowsBloc[p].coins = [Math.floor(this.hash((r0 + p) * 11 + 4) * COLS)];
+    // Boue : une flaque de 3 rangées sur une voie, tous les deux blocs.
+    if (b % 2 === 1 && tBloc(b) > BOUE_DEBUT_T) {
+      const departs = [];
+      for (let p = 0; p + 2 < BLOC; p++) if (rowsBloc[p].type === "safe" && rowsBloc[p + 1].type === "safe" && rowsBloc[p + 2].type === "safe") departs.push(p);
+      if (departs.length) {
+        const p = departs[Math.floor(this.hash(b * 43 + 6) * departs.length)];
+        const voie = Math.floor(this.hash(b * 47 + 1) * COLS);
+        for (let i = 0; i < 3; i++) rowsBloc[p + i].boue = voie;
       }
     }
+    for (let p = 0; p < BLOC; p++) { const r = r0 + p; if (!this.cache.has(r) && !this.dansFenetre(r)) this.cache.set(r, rowsBloc[p]); }
   }
-  cache.set(r, row);
-  return row;
+  // Quota de pièces cumulé : P_PIECE × rangées éligibles, arrondi par diffusion.
+  nbPiecesBloc(b, nElig) {
+    const avant = b > 0 ? (this.piecesCumul.get(b - 1) || 0) : 0;
+    const cumul = avant + P_PIECE * nElig;
+    this.piecesCumul.set(b, cumul);
+    return Math.round(cumul) - Math.round(avant);
+  }
+
+  rowAt(r) {
+    const hit = this.cache.get(r);
+    if (hit) return hit;
+    if (r < GRACE_ROWS || this.dansFenetre(r)) { const row = this.rangeeSure(r); this.cache.set(r, row); return row; }
+    const b = Math.floor((r - GRACE_ROWS) / BLOC);
+    // Les blocs se génèrent dans l'ordre (le quota de pièces se diffuse).
+    for (let k = 0; k <= b; k++) if (!this.piecesCumul.has(k)) this.genererBloc(k);
+    return this.cache.get(r);
+  }
+
+  coinTaken(r, c) { return this.coins.has(`${r}:${c}`); }
+  bonusTaken(r, kind) { return this.coins.has(`${r}:${kind}`); }
+
+  checkMember(id, u, v, airborne, t) {
+    const r = Math.floor(v + 0.5);
+    const row = this.rowAt(r);
+    const events = [];
+    for (const c of row.coins) {
+      if (this.coins.has(`${r}:${c}`)) continue;
+      if (Math.abs(u - colU(c)) < 0.55 && Math.abs(v - r) < 0.45) {
+        this.coins.add(`${r}:${c}`);
+        events.push({ type: "piece", r, c });
+      }
+    }
+    for (const kind of ["lait", "rouge"]) {
+      if (row[kind] === undefined || this.coins.has(`${r}:${kind}`)) continue;
+      if (Math.abs(u - colU(row[kind])) < 0.55 && Math.abs(v - r) < 0.45) {
+        this.coins.add(`${r}:${kind}`);
+        events.push({ type: kind, r, c: row[kind] });
+      }
+    }
+    if (row.type === "traverse") {
+      for (const inst of crossersAt(r, row, t)) {
+        const key = `${inst.id}:${id}`;
+        if (this.resolved.has(key)) continue;
+        if (Math.abs(inst.u - u) < inst.K.long / 2 + 0.3 && Math.abs(v - r) < 0.5) {
+          this.resolved.add(key);
+          if (!(airborne && inst.K.saut)) events.push({ type: "obstacle", kind: inst.kind, cout: inst.K.cout, saut: inst.K.saut });
+        }
+      }
+    } else if (row.type === "statique") {
+      const key = `s${r}:${id}`;
+      if (!this.resolved.has(key)) {
+        const K = KINDS[row.kind];
+        for (const c of row.cols) {
+          if (Math.abs(u - colU(c)) < 0.58 && Math.abs(v - r) < K.larg / 2 + 0.15) {
+            this.resolved.add(key);
+            if (!(airborne && K.saut)) events.push({ type: "obstacle", kind: row.kind, cout: K.cout, saut: K.saut });
+            break;
+          }
+        }
+      }
+    }
+    return events;
+  }
 }
 
+// --- Densité et quotas (indépendants de la graine) ------------------------------
+// Densité EFFECTIVE de dangers (dangers par rangée) : l'ancien tirage à
+// probabilité p suivi de 3 rangées sûres donnait p / (1 + 3p), soit 7,7 % au
+// départ → 15,8 % au bout de la rampe. Même courbe, mais en quota exact.
+function densiteDanger(t) { const p = P_DANGER_START + (P_DANGER_MAX - P_DANGER_START) * t; return p / (1 + GAP_MIN * p); }
+function tBloc(b) { return Math.min(1, Math.max(0, (GRACE_ROWS + b * BLOC) / RAMP_ROWS)); }
+function cumulDangers(b) { let s = 0; for (let k = 0; k <= b; k++) s += BLOC * densiteDanger(tBloc(k)); return s; }
+export function nbDangersBloc(b) { return b < 0 ? 0 : Math.round(cumulDangers(b)) - (b > 0 ? Math.round(cumulDangers(b - 1)) : 0); }
+function indexDangerBase(b) { return b > 0 ? Math.round(cumulDangers(b - 1)) : 0; }
+function estReservee(r) { return r % LAIT_EVERY === LAIT_EVERY / 2 || r % ROUGE_EVERY === 40; }
+
 // Armement d'une traversée : elle part du bord et atteint la colonne visée
-// exactement à `tArrivee` (instant où le joueur sera sur la rangée).
+// exactement à `tArrivee` (instant où le joueur sera sur la rangée), dans la
+// limite de sa vitesse plafond (le tracteur reste lent et lisible).
 export function armer(row, now, tArrivee) {
   if (row.armed) return;
   row.armed = true;
   row.t0 = now;
-  row.u0 = -row.dir * (ROAD_HALF + 6.0); // part hors champ (l'écran montre ~±7 unités)
+  row.u0 = -row.dir * (ROAD_HALF + 6.0); // part hors champ (l'écran montre ~±8 unités)
   const dist = Math.abs(colU(row.cible) - row.u0);
   const dt = Math.max(0.6, tArrivee - now);
-  row.vitesse = Math.max(1.8, Math.min(9, dist / dt));
+  const K = KINDS[row.kind];
+  row.vitesse = Math.max(1.8, Math.min(K.vmax || 9, dist / dt));
 }
 
 // Instance visible d'une traversée à l'instant t (une seule par rangée).
@@ -133,51 +283,13 @@ export function crossersAt(r, row, t) {
   return [{ id: r * 100003, r, u, dir: row.dir, kind: row.kind, K }];
 }
 
-// --- Résolution ------------------------------------------------------------------
-const resolved = new Set();
-const coins = new Set();
-export function coinTaken(r, c) { return coins.has(`${r}:${c}`); }
-export function bonusTaken(r, kind) { return coins.has(`${r}:${kind}`); }
-
-export function checkMember(id, u, v, airborne, t) {
-  const r = Math.floor(v + 0.5);
-  const row = rowAt(r);
-  const events = [];
-  for (const c of row.coins) {
-    if (coins.has(`${r}:${c}`)) continue;
-    if (Math.abs(u - colU(c)) < 0.55 && Math.abs(v - r) < 0.45) {
-      coins.add(`${r}:${c}`);
-      events.push({ type: "piece", r, c });
-    }
-  }
-  for (const kind of ["lait", "rouge"]) {
-    if (row[kind] === undefined || coins.has(`${r}:${kind}`)) continue;
-    if (Math.abs(u - colU(row[kind])) < 0.55 && Math.abs(v - r) < 0.45) {
-      coins.add(`${r}:${kind}`);
-      events.push({ type: kind, r, c: row[kind] });
-    }
-  }
-  if (row.type === "traverse") {
-    for (const inst of crossersAt(r, row, t)) {
-      const key = `${inst.id}:${id}`;
-      if (resolved.has(key)) continue;
-      if (Math.abs(inst.u - u) < inst.K.long / 2 + 0.3 && Math.abs(v - r) < 0.5) {
-        resolved.add(key);
-        if (!(airborne && inst.K.saut)) events.push({ type: "obstacle", kind: inst.kind, cout: inst.K.cout, saut: inst.K.saut });
-      }
-    }
-  } else if (row.type === "statique") {
-    const key = `s${r}:${id}`;
-    if (!resolved.has(key)) {
-      const K = KINDS[row.kind];
-      for (const c of row.cols) {
-        if (Math.abs(u - colU(c)) < 0.58 && Math.abs(v - r) < K.larg / 2 + 0.15) {
-          resolved.add(key);
-          if (!(airborne && K.saut)) events.push({ type: "obstacle", kind: row.kind, cout: K.cout, saut: K.saut });
-          break;
-        }
-      }
-    }
-  }
-  return events;
-}
+// --- L'instance VIVANTE (celle du jeu) et son API historique ----------------------
+let live = new Route();
+export function getSeed() { return live.seed; }
+export function reseed(force) { live = new Route(force); }
+export function reset() { live.reset(); }
+export function ouvrirFenetreSure(from, to) { live.ouvrirFenetreSure(from, to); }
+export function rowAt(r) { return live.rowAt(r); }
+export function coinTaken(r, c) { return live.coinTaken(r, c); }
+export function bonusTaken(r, kind) { return live.bonusTaken(r, kind); }
+export function checkMember(id, u, v, airborne, t) { return live.checkMember(id, u, v, airborne, t); }

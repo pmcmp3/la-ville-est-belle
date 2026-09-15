@@ -78,7 +78,7 @@
       display: block; margin-top: 14px;
       font: 700 11px var(--police); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.85);
     }
-    #overlay.end-view #menu-title { display: none; }
+    #overlay.end-view #menu-title, #overlay.end-view #beta-tag { display: none; }
     #overlay.end-view { overflow-y: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; touch-action: pan-y; padding-bottom: calc(24px + var(--safe-bottom) + var(--browser-chrome-bottom)); }
     #end-screen.active { width: 100%; align-items: center; margin: auto 0; }
 
@@ -164,8 +164,31 @@
     .chip.actif { border-color: var(--noir); box-shadow: 0 0 0 2px var(--jaune); }
     #sprint-button { margin-top: 8px; }
     #sprint-note { margin: 6px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
+    #end-max { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
+    #end-max b { color: var(--rouge); font-weight: 900; }
+    #end-ligue-liste .fantome { margin-left: 4px; font-size: 11px; opacity: 0.7; }
     #end-relais, #end-concert { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
     #end-concert b { color: var(--rouge); }
+
+    /* --- Bêta fermée (16 septembre 2026) ---------------------------------- */
+    body.beta .beta-off { display: none !important; }
+    #beta-tag { margin: 0 0 26px; padding: 5px 10px; background: var(--rouge); color: var(--blanc); border-radius: 2px; transform: rotate(-1.5deg); font: 900 10.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; }
+    #end-retour { margin-top: 2px; }
+    #retour-sheet { position: fixed; inset: 0; z-index: 49; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
+    #retour-sheet.visible { visibility: visible; transition: visibility 0s; }
+    #retour-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.25s ease; }
+    #retour-sheet.visible #retour-veil { opacity: 1; }
+    #retour-card { position: relative; box-sizing: border-box; width: min(320px, 100%); padding: 30px 20px 18px; border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
+    #retour-sheet.visible #retour-card { transform: scale(1); opacity: 1; }
+    #retour-title { margin: 2px 0 0; font: 900 26px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #retour-text { margin: 0; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
+    #retour-input { box-sizing: border-box; width: 100%; min-height: 108px; resize: none; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 10px; font: 500 14px/1.45 var(--police); color: var(--noir); background: transparent; -webkit-appearance: none; }
+    #retour-input:focus { outline: none; border-color: var(--rouge); }
+    #retour-compteur { margin: -6px 0 0; align-self: flex-end; font: 500 11px var(--police); color: rgba(0,0,0,0.45); font-variant-numeric: tabular-nums; }
+    #retour-envoyer { width: 100%; }
+    #retour-form { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+    #retour-ok { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #retour-ok .coche { width: 46px; height: 46px; border-radius: 50%; background: var(--rouge); color: var(--blanc); display: flex; align-items: center; justify-content: center; font: 900 24px var(--police); }
 
     /* --- Concert --------------------------------------------------------- */
     #concert-sheet { position: fixed; inset: 0; z-index: 48; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
@@ -333,6 +356,8 @@
   <div id="overlay">
     <h1 id="menu-title" class="fade"><span class="titre-mot">j'ai un pote</span></h1>
 
+    <p id="beta-tag" class="fade hidden">Bêta-test</p>
+
     <div id="onboarding" class="view active" data-step="1">
       <!-- Menu en TROIS ÉTAPES (7 septembre 2026, ordre demandé : inscription →
            ma ligue → mon cycliste). Un habitué arrive directement à l'étape 3. -->
@@ -343,9 +368,10 @@
             <span class="icon">@</span>
             <input type="text" id="pseudo-input" placeholder="ton pseudo" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
           </div>
-          <div class="champ-row"><span class="icon">IG</span><input type="text" id="insta-input" placeholder="ton Instagram (facultatif)" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" /></div>
-          <div class="champ-row"><span class="icon">⌂</span><input type="text" id="ville-input" placeholder="ton village, ta ville (facultatif)" autocomplete="off" spellcheck="false" maxlength="24" /></div>
-          <p class="field-note">Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement.</p>
+          <div class="champ-row beta-off"><span class="icon">IG</span><input type="text" id="insta-input" placeholder="ton Instagram (facultatif)" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" /></div>
+          <div class="champ-row beta-off"><span class="icon">⌂</span><input type="text" id="ville-input" placeholder="ton village, ta ville (facultatif)" autocomplete="off" spellcheck="false" maxlength="24" /></div>
+          <p class="field-note beta-off">Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement.</p>
+          <p id="beta-note" class="field-note hidden">Bêta-test : tout le monde court la <b>même course</b>. Écris ton pseudo, joue, et laisse-moi ton retour à la fin.</p>
           <button id="step1-next" class="btn btn-primary" type="button" disabled>Continuer</button>
         </div>
       </div>
@@ -404,9 +430,9 @@
             <span id="loading-label">0 %</span>
           </div>
           <button id="play-button" class="btn btn-primary" type="button" disabled>Jouer</button>
-          <button id="sprint-button" class="btn btn-secondary hidden" type="button">Sprint du dimanche · 60 s</button>
+          <button id="sprint-button" class="btn btn-secondary hidden beta-off" type="button">Sprint du dimanche · 60 s</button>
           <p id="sprint-note" class="hidden"></p>
-          <div id="step3-links"><button id="step3-ligue" type="button" class="link-minimal">Ma ligue</button><button id="step3-profil" type="button" class="link-minimal">Mon profil</button></div>
+          <div id="step3-links"><button id="step3-ligue" type="button" class="link-minimal beta-off">Ma ligue</button><button id="step3-profil" type="button" class="link-minimal">Mon profil</button></div>
         </div>
       </div>
     </div>
@@ -417,8 +443,9 @@
         <div class="panel-body">
           <p id="end-best" class="hidden">Nouveau record</p>
           <div id="end-hero">
-            <div id="score-num"><span id="score-val">0</span><small>m</small></div>
+            <div id="score-num"><span id="score-val">0</span><small>pts</small></div>
             <p id="end-sub"></p>
+            <p id="end-max" class="hidden"></p>
           </div>
           <div id="end-ligue" class="hidden">
             <p id="end-ligue-titre">Ligue <b id="end-ligue-code">—</b></p>
@@ -427,6 +454,7 @@
           </div>
           <div id="end-actions">
             <button id="replay-button" class="btn btn-primary" type="button">Rejouer</button>
+            <button id="end-retour" class="btn btn-secondary hidden" type="button">Laisser un retour</button>
             <button id="end-ligue-partager" class="btn btn-secondary share-btn" type="button"><span class="share-inner"><span>Inviter des potes</span><span class="share-apps" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
@@ -446,6 +474,30 @@
       <span>L'album est sorti</span>
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </a>
+  </div>
+
+  <!-- Tiroir de RETOUR (bêta fermée, 16 septembre 2026) : le testeur écrit,
+       envoie, et une confirmation s'affiche dans la même carte. Le retour
+       part avec son pseudo, son score et le numéro de sa partie. -->
+  <div id="retour-sheet" aria-hidden="true">
+    <div id="retour-veil"></div>
+    <div id="retour-card" role="dialog" aria-modal="true" aria-labelledby="retour-title">
+      <div class="panel-header"><p class="step-eyebrow">Bêta-test</p></div>
+      <div id="retour-form">
+        <h2 id="retour-title">Ton retour</h2>
+        <p id="retour-text">Ce qui t'a plu, ce qui t'a saoulé, ce qui bugue. Écris tout, c'est exactement ce qu'il me faut.</p>
+        <textarea id="retour-input" maxlength="1200" placeholder="Écris ton retour ici…" autocomplete="off" spellcheck="true"></textarea>
+        <p id="retour-compteur">0/1200</p>
+        <button id="retour-envoyer" class="btn btn-primary" type="button" disabled>Envoyer</button>
+        <button id="retour-fermer" type="button" class="link-minimal">Plus tard</button>
+      </div>
+      <div id="retour-ok" class="hidden">
+        <div class="coche" aria-hidden="true">✓</div>
+        <h2 id="retour-ok-title">Retour enregistré</h2>
+        <p id="retour-ok-text">Merci, c'est envoyé. Tu peux en laisser d'autres après chaque partie.</p>
+        <button id="retour-ok-fermer" class="btn btn-primary" type="button">Fermer</button>
+      </div>
+    </div>
   </div>
 
   <button id="mute-button" type="button" aria-label="Son">♪</button>

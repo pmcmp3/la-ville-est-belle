@@ -12,12 +12,18 @@
 
 import { shade } from "./voxel.js";
 
-export const COLS = 3;
-export const COL_W = 1.5;    // 1,25 → 1,5 le 7 septembre 2026 (« élargis chaque voie de 20 % »)
-export const ROAD_HALF = (COLS * COL_W) / 2;   // 2,25
+// 5 VOIES depuis le 9 septembre 2026 (« la même logique que Crossy Road [...]
+// il n'y a que trois voies, fais la même chose avec cinq voies ») : 3 → 5.
+// Voies un peu moins larges (1,5 → 1,35) et champ élargi (14 → 16 unités)
+// pour que la route tienne à l'écran ; la route reste plus large qu'avant
+// (6,75 unités contre 4,5). Le joueur démarre au CENTRE (COL_CENTRE).
+export const COLS = 5;
+export const COL_W = 1.35;
+export const COL_CENTRE = Math.floor(COLS / 2);
+export const ROAD_HALF = (COLS * COL_W) / 2;   // 3,375
 const ANGLE = (30 * Math.PI) / 180;
 const SA = Math.sin(ANGLE), CA = Math.cos(ANGLE);
-const UNITS_ACROSS = 14;
+const UNITS_ACROSS = 16;
 const TILT = 0.62;                             // caméra basse
 const VERT = 0.92;
 const ANCHOR = { x: 0.48, y: 0.65 };           // 0,72 → 0,65 (« monte la route au niveau des yeux, ~50 px »)
@@ -138,8 +144,8 @@ function renderRow(ctx, r, boue) {
     drawFlat(ctx, bx + COL_W - 0.43, v, 0.13, 1, MUD);
   }
   if (r % 2 === 0) {
-    drawFlat(ctx, -COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);
-    drawFlat(ctx, COL_W / 2 - 0.04, v + 0.2, 0.08, 0.6, LINE);
+    // Pointillés entre chaque paire de voies (COLS − 1 lignes).
+    for (let c = 1; c < COLS; c++) drawFlat(ctx, -ROAD_HALF + c * COL_W - 0.04, v + 0.2, 0.08, 0.6, LINE);
   }
 }
 

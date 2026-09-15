@@ -577,7 +577,19 @@ boue freine, la nuit tombe à 95 s, tuto sur les 2 premières parties, chargemen
 7 septembre au soir : menu en trois étapes (inscription → ma ligue → mon cycliste), skins (VTT ou
 Grand Bi), ligue de démo Paul/Léa/Marius/Inès/Hugo par défaut, biome village, service worker,
 sprint du dimanche, relais de ligue, préinscription concert, événements de funnel (Supabase). Seul le
-joueur prend des dégâts, seul on meurt, score en mètres × potes. **Sa propre racine Vite, ses
+joueur prend des dégâts, seul on meurt, score en pts (distance × potes + pièces). **Depuis le
+9 septembre 2026 : 5 voies, tracteurs ralentis, potes plus loin, UNE LIGUE = UNE COURSE (graine
+du code, générateur à quotas : mêmes nombres de tracteurs/pièces/laits pour toutes les graines),
+score PARFAIT simulé (`simulation.js`) affiché au menu et à la fin, FANTÔME du meilleur de la
+ligue (`fantome.js`, trace envoyée avec le score record). Migration SQL troisième partie à
+exécuter avant déploiement.** ****Depuis le 16 septembre 2026 : BÊTA FERMÉE** — une ligue unique `BETA`
+(`config.ligueBeta`, plafond 60, `supabase-migration-beta.sql` **à exécuter avant de
+déployer**), atteinte par `…/jai-un-pote/?ligue=BETA` : le lien inscrit le joueur dans cette
+ligue ET simplifie le menu (pseudo → cycliste → JOUER ; ni choix de ligue, ni sprint, ni
+tiroir album). Le mode ne s'allume que si la ligue courante est celle-là — les autres
+visiteurs gardent le jeu normal. Écran de fin : bouton « Laisser un retour » → champ libre →
+table `retours_beta` (insert-only, lue dans le tableau de bord Supabase), lié au pseudo.
+Sa propre racine Vite, ses
 propres copies des modules moteur** (rien de partagé avec `src/`, volontairement). Tout est
 documenté dans `ARCHITECTURE.md` §14 — le lire avant de toucher à `jai-un-pote/`. `npm run
 dev:pote` (port 5174), `deploy.sh` construit et pousse les deux jeux.

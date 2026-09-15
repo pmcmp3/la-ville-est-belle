@@ -2,7 +2,7 @@
 // (2,1 Mo), les polices et la page sont mis en cache au premier passage.
 // Page et config : réseau d'abord (une mise à jour est vue tout de suite),
 // repli cache hors ligne. Tout le reste : cache d'abord, puis réseau.
-const CACHE = "jaip-v1";
+const CACHE = "jaip-v3"; // v3 : bêta fermée + retours dans le jeu (16 septembre 2026)
 const PRECACHE = ["./", "./config.js", "./assets/jai-un-pote.mp3", "./fonts/SourceSerif2-Black.woff2", "./fonts/StageGrotesk-Medium.otf", "./fonts/StageGrotesk-Black.otf"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

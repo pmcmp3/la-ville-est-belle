@@ -133,3 +133,19 @@ drop policy if exists "Preinscription publique" on public.preinscriptions_concer
 create policy "Preinscription publique" on public.preinscriptions_concert for insert to anon with check (true);
 drop policy if exists "Comptage public des preinscriptions" on public.preinscriptions_concert;
 create policy "Comptage public des preinscriptions" on public.preinscriptions_concert for select to anon using (true);
+
+
+-- ============================================================================
+-- Troisième partie (9 septembre 2026) : une COURSE PAR LIGUE et le FANTÔME.
+-- Idempotent. À exécuter dans l'éditeur SQL Supabase AVANT de déployer :
+-- sans ces colonnes, le jeu se replie (score envoyé sans graine ni trace,
+-- classement par la vue historique), mais le fantôme n'existe pas.
+-- ============================================================================
+-- `graine` : la route jouée (regles.graineLigue(code) — la même pour tous les
+-- membres d'une ligue ; change avec VERSION_COURSE quand le générateur change,
+-- ce qui repart sur un classement vierge sans rien supprimer).
+-- `trace` : la trajectoire du joueur (fantome.js, ~15 Ko), envoyée SEULEMENT
+-- quand la course bat le record de la ligue sur cette route.
+alter table public.ligue_scores add column if not exists graine integer;
+alter table public.ligue_scores add column if not exists trace text;
+create index if not exists ligue_scores_graine_idx on public.ligue_scores (code, graine, metres desc);

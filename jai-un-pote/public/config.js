@@ -46,8 +46,10 @@ window.CONFIG = {
   // === GRILLE ===
   cadenceSpawnBeats: 1.5, // un créneau tous les 1,5 temps = 1,06 s à 85 BPM
 
-  // === SCORE = MÈTRES ===
-  metresParUnite: 1,      // 1 rangée = 1 m (4,4 rangées/s au départ = 16 km/h, 34 km/h au plafond)
+  // === SCORE (en « pts » depuis le 9 septembre 2026 : tout le monde fait la
+  // même distance sur la même course, ce qui départage c'est les potes gardés
+  // et les pièces — le mot « mètres » ne voulait plus rien dire) ===
+  metresParUnite: 1,      // 1 rangée = 1 pt de base (× potes, × turbo)
   // Chaque pote ajoute ce pourcentage aux mètres gagnés (×1 seul, ×3 avec 8 potes).
   potesBonusMetres: 0.25,
   // Mètres bonus par pièce ramassée (avant multiplicateur de potes).
@@ -58,6 +60,12 @@ window.CONFIG = {
   // est plus long à gagner que le précédent). Le premier arrive vite (8
   // pièces) pour que le principe se comprenne dans les dix premières secondes.
   potesMax: 5,              // sans ligue : la ligue de démo (5 membres)
+  // Peloton (9 septembre 2026 : « il faut que les potes soient un peu plus
+  // éloignés de toi, parce que c'est trop difficile sinon ») : le premier
+  // pote roule `potesRecul` rangées derrière le joueur, puis `potesEcart`
+  // rangées entre chaque pote (avant : 1,5 et 1,5).
+  potesRecul: 3.0,
+  potesEcart: 1.6,
   potesPaliers: [5, 12, 20, 30, 42],
   // Prénoms des potes, dans l'ordre d'arrivée (Soberland en premier, verrouillé).
   // Sans ligue, le peloton c'est la LIGUE DE DÉMO (7 septembre 2026) : Paul et
@@ -71,6 +79,15 @@ window.CONFIG = {
   ],
   potesNoms: ["paul", "lea", "marius", "ines", "hugo"],
   ligueDemo: "PMCMP",       // code de la ligue de démo (jamais ouverte au public)
+  // === BÊTA FERMÉE (16 septembre 2026) ===
+  // Une ligue unique pour les fans du groupe WhatsApp. Arriver par
+  // `lienJeu?ligue=BETA` met le joueur dans cette ligue ET simplifie tout le
+  // menu (plus de choix de ligue, plus de sprint, plus de tiroir album) : on
+  // ne joue QUE dans cette ligue. Les autres visiteurs gardent le jeu normal.
+  // Table et plafond (60) créés par supabase-migration-beta.sql.
+  ligueBeta: "BETA",
+  ligueBetaPlafond: 60,
+  betaRetours: true,        // le bouton « Laisser un retour » sur l'écran de fin
   liguesParVague: 5,        // 5 ligues jouables en même temps, au-delà : lundi prochain
   concertPlaces: 50,        // places de concert à gagner
   relaisDistance: 30000,    // mètres cumulés d'une ligue pour gagner le relais

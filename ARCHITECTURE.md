@@ -2375,4 +2375,93 @@ Comptage des préinscrits en `count=exact` (planned renvoyait 400 sur une table 
 est passée** : ligues réelles en base (UKMVV pol/pims, scores, skins) — ne plus créer de ligue de test,
 chaque création compte dans le plafond hebdomadaire de 5.
 
-**Reste à faire** : distribution effective des places (hors jeu), vérification du sprint un dimanche.
+**Sixième passe du 9 septembre 2026 (retours à l'oral : 5 voies, tracteurs, potes, une course par
+ligue, score parfait, fantôme)** :
+- **5 voies** (`iso.js` : `COLS` 5, `COL_W` 1,35, `UNITS_ACROSS` 16, `COL_CENTRE` = 2) — « la même
+  logique que Crossy Road [...] il n'y a que trois voies, fais la même chose avec cinq ». La route
+  fait 6,75 unités (4,5 avant), le champ est élargi pour qu'elle tienne à l'écran (K = W/16). Plus
+  aucun `[0, 1, 2]` en dur : friends.js prend `COLS`, le joueur démarre au centre.
+- **Tracteurs ralentis** : `KINDS.tracteur.vmax` 3,2 u/s (plafond d'`armer()`, 9 avant) et
+  `ARM_AHEAD_S` 2,6 → 4,0 s (main.js) : la traversée part plus tôt, donc plus lentement, et reste
+  calée pour croiser le joueur. La poule lancée garde son plafond de 9.
+- **Potes plus loin** : `config.potesRecul` 3,0 (premier pote derrière le joueur, 1,5 avant) et
+  `config.potesEcart` 1,6 (friends.js, `vDuSlot`).
+- ⚠️ **GÉNÉRATEUR À QUOTAS** (`rows.js`, classe `Route`) : la route est hachée par BLOCS de 24
+  rangées — nombre EXACT de dangers par bloc (diffusion d'erreur sur la courbe p/(1+3p), 7,7 % →
+  15,8 %), espèces tirées d'un PAQUET fixe de 12 mélangé par la graine (trois paquets selon la
+  phase : doux, gros animaux, tracteurs doublés), pièces = quota exact de 25 % des rangées
+  éligibles, boue = une flaque de 3 rangées tous les deux blocs, lait/rouge sur des rangées
+  RÉSERVÉES (24 + 48k, 40 + 70k — la rangée 600 cumule les deux, le lait gagne, pour tout le
+  monde). Mesuré (13 graines × 1 100 rangées) : 134-135 dangers, 22 laits, 15 rouges, 63 rangées
+  de boue, chaque espèce à ±1, écart ≥ 3 entre dangers, 0 pièce après un danger, 0 danger dans
+  la grâce. ⚠️ `rows.js` est une CLASSE : l'instance `live` sert le jeu via l'API historique
+  (`rowAt`, `reseed`, `reset`…) ; `simulation.js` crée ses propres `Route` et ne touche jamais
+  au parcours en cours.
+- ⚠️ **UNE LIGUE = UNE COURSE** (`regles.graineLigue(code)` = hash de `CODE#v{VERSION_COURSE}`,
+  `semerCourse()` dans main.js) : tous les membres jouent la même route ; sans ligue, graine
+  aléatoire ; le sprint garde sa graine du jour. **`VERSION_COURSE` (regles.js) à incrémenter
+  dès que le générateur ou les règles changent la route** : le classement et le fantôme d'une
+  ligue sont filtrés sur la graine (`net.classement(code, graine)` agrège `ligue_scores`
+  côté client ; la vue `ligue_classement` ne sert plus qu'en repli), donc une nouvelle version
+  repart sur un classement vierge sans rien effacer.
+- **Score en « pts »** (HUD, écran de fin, classement, relais, partage) : tout le monde fait la
+  même distance sur la même course, ce qui départage c'est les potes gardés et les pièces —
+  « ça ne peut pas être le nombre de mètres ». La colonne Supabase reste `metres`.
+- **Score PARFAIT** (`simulation.js`, `scoreParfait(graine, potesMax)`) : rejoue la course avec
+  les formules partagées de `regles.js` (`targetSpeed`, `multiplicateur`, `dureeCourse` =
+  morceau − GO ≈ 170,1 s), joueur idéal (toutes les pièces, laits, rouges, jamais un pote
+  perdu, jamais freiné) mais soumis au tween de voie. ~4 ms. Dépend du nombre de potes
+  possibles = les AUTRES membres : affiché dans le bloc ligue du menu (« score parfait N pts »)
+  et sur l'écran de fin (`#end-max`, « tu es à N % »). Ordres de grandeur : ~3 850 pts seul,
+  ~5 700 avec 2 potes, ~8 400 avec 5 potes (±1,5 % selon la graine).
+- **FANTÔME** (`fantome.js`) : la course du joueur est échantillonnée à 10 Hz (u, v, hauteur,
+  quantifiés, ~15 Ko pour 170 s) et envoyée avec le score SEULEMENT si elle bat le record de
+  la ligue sur cette route (`screens.finLigue` compare au classement avant d'envoyer). Au
+  départ d'une course de ligue, `net.fantome(code, graine)` charge la meilleure trace et
+  main.js dessine le cycliste en transparence (alpha 0,38, sans ombre, étiquette « @pseudo ·
+  fantôme »), position interpolée sur `now`. Le premier du classement de fin est marqué
+  « · fantôme ». Harnais : `window.__pote.injecterFantome(pts, pseudo)` avec `?debug`.
+- ⚠️ **Migration SQL, troisième partie** (`supabase-migration-ligues.sql`) : colonnes
+  `ligue_scores.graine` et `ligue_scores.trace` + index. **À exécuter AVANT de déployer** : sans
+  elles, `net.envoyerScore` se replie sur un insert sans graine ni trace (PostgREST refuse
+  une colonne inconnue — vérifié : 400 sur `?graine=eq.1` tant que la colonne manque), le
+  classement retombe sur la vue, et le fantôme n'existe pas.
+- Service worker `CACHE = "jaip-v2"`.
+
+### 14.x Bêta fermée (16 septembre 2026)
+
+Une ligue unique **`BETA`** pour le groupe WhatsApp de fans, plus un canal de retours écrit
+dans le jeu. Migration : **`jai-un-pote/supabase-migration-beta.sql`**, à exécuter AVANT de
+déployer (sinon la ligue n'existe pas → « Cette ligue n'existe pas », et les retours ne
+partent pas — le tiroir affiche « Pas parti, réessaie », vérifié).
+
+- **Le lien fait tout** : `https://la-ville-est-belle-pmc.fr/jai-un-pote/?ligue=BETA` met le
+  joueur dans la ligue (adhésion au JOUER, `preparerLigue`) et **allume le mode bêta**. Le mode
+  ne dépend d'aucun réglage global : il s'allume si et seulement si la ligue courante est
+  `config.ligueBeta` (`screens.enBeta()`), donc **les autres visiteurs gardent le jeu normal**.
+  Il survit au rechargement (la ligue est en localStorage) et s'éteint par « Quitter la ligue ».
+- **Menu réduit** : pseudo (sans Insta ni ville) → cycliste → JOUER. L'étape 2 « ma ligue »
+  n'existe plus (`setStep` renvoie 2 → 3), le sprint du dimanche est masqué, la proposition de
+  concert ne sort pas, et **le tiroir album ne barre plus rien** (`exigerConversion` passe) :
+  un testeur doit pouvoir enchaîner les parties. Masquage par `body.beta .beta-off`.
+- **Plafond de ligue par ligue** : colonne `ligues.plafond` (défaut 6), lue par le trigger
+  `ligue_plafond()` ; `BETA` est à 60. `net.membres` remonte à 200 lignes.
+  ⚠️ `friends.max()` est désormais **plafonné à `config.potesMax`** : sans ça, une ligue de 40
+  testeurs aurait fait un peloton de 40 et un score parfait absurde. Sans effet sur une ligue
+  ordinaire (6 membres → 5 autres = potesMax).
+  ⚠️ Corrigé au passage dans `net.rejoindreLigue` : le test « suis-je déjà membre ? » comparait
+  des objets `{nom, skin}` à une chaîne (`avant.includes(pseudo)`), donc un membre qui revenait
+  dans une ligue pleine se voyait répondre « complète ».
+- **Retours** (`#retour-sheet`, table `retours_beta` insert-only, jamais relue par le jeu) :
+  bouton « Laisser un retour » sous REJOUER sur l'écran de fin → carte avec champ libre →
+  Envoyer (ou Entrée ; Maj+Entrée = retour à la ligne) → **confirmation dans la même carte**
+  (pas un second pop-up qui se referme tout seul). Part avec pseudo, score/potes/fin de la
+  course qui vient de finir (`derniereCourse`, posé par `showEndScreen`), numéro de partie et
+  user-agent. Échec réseau → « Pas parti, réessaie », le texte reste à l'écran. Lecture : Table
+  editor Supabase, `retours_beta` triée par date.
+- Classement de fin : 12 lignes en bêta au lieu de 6.
+
+**Reste à faire** : exécuter la migration (troisième partie) côté Supabase, déployer
+(`./deploy.sh`), tester sur téléphone (lisibilité de la route à 5 voies, vitesse des tracteurs,
+distance des potes), distribution effective des places (hors jeu), vérification du sprint un
+dimanche.

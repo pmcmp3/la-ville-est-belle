@@ -1,5 +1,6 @@
-// hud.js — Interface peinte dans le canvas pendant la course : les mètres en
-// gros (serif de l'e-card), le multiplicateur, la rangée de potes et la
+// hud.js — Interface peinte dans le canvas pendant la course : le SCORE en
+// gros (serif de l'e-card ; « pts » depuis le 9 septembre 2026 — tout le
+// monde fait la même distance, ce qui compte c'est les potes et les pièces), le multiplicateur, la rangée de potes et la
 // jauge vers le prochain, le décompte 3-2-1-GO, le rappel des commandes.
 // Le canvas ne lit pas les variables CSS : mêmes valeurs qu'index.html.
 
@@ -70,14 +71,14 @@ export function renderHud(ctx, width, height, hud) {
   while (ctx.measureText(num).width + 22 > centerW && taille > 22) { taille -= 2; ctx.font = `900 ${taille}px ${POLICE_TITRE}`; }
   const wNum = ctx.measureText(num).width;
   ctx.font = `700 14px ${POLICE}`;
-  const wUnit = ctx.measureText(" m").width;
+  const wUnit = ctx.measureText(" pts").width;
   const x0 = cx - (wNum + wUnit) / 2;
   ctx.fillStyle = BLANC;
   ctx.textAlign = "left";
   ctx.font = `900 ${taille}px ${POLICE_TITRE}`;
   ctx.fillText(num, x0, top + PAD - 6);
   ctx.font = `700 14px ${POLICE}`;
-  ctx.fillText(" m", x0 + wNum, top + PAD + taille * 0.5 - 4);
+  ctx.fillText(" pts", x0 + wNum, top + PAD + taille * 0.5 - 4);
 
   // Chrono sous les mètres.
   if (hud.restantS !== undefined) {

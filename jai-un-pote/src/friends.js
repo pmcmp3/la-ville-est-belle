@@ -13,7 +13,15 @@ import * as rows from "./rows.js";
 import { PALETTES, paletteDepuisSkin } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 
-export const SPACING = 1.5;   // 0,95 → 1,5 (« beaucoup trop serré derrière moi, ça gêne la vue »)
+// Écart entre potes (0,95 → 1,5 : « beaucoup trop serré derrière moi, ça gêne
+// la vue »), et DISTANCE du premier pote derrière le joueur (9 septembre
+// 2026 : « il faut que les potes soient un peu plus éloignés de toi, c'est
+// trop difficile sinon ») — réglages dans config.js, valeurs de repli ici.
+export const SPACING = 1.5;
+function ecart() { return window.CONFIG.potesEcart || SPACING; }
+function premierRecul() { return window.CONFIG.potesRecul || 3.0; }
+// Rangée d'un pote de rang `slot` (0 = juste derrière le joueur).
+function vDuSlot(playerV, slot) { return playerV - premierRecul() - slot * ecart(); }
 const LEAVE_S = 0.7;
 const ARRIVAL_S = 1.1;
 const LANE_TWEEN = 7;
@@ -31,11 +39,15 @@ export function maxReached() { return maxCount; }
 // En ligue, le peloton c'est LES MEMBRES de la ligue, rien d'autre (7 septembre
 // 2026 : « c'est plus Soberland etc., juste les gens qui font partie de la
 // ligue, donc le nombre de potes = le nombre de personnes dans la ligue »).
-export function max() { return nomsLigue ? nomsLigue.length : window.CONFIG.potesMax; }
+// ⚠️ Plafonné à `config.potesMax` (16 septembre 2026, bêta fermée) : une ligue
+// ordinaire fait 6 personnes donc 5 autres = potesMax, rien ne change ; la
+// ligue de bêta peut en compter 60, et le peloton (comme le score parfait de
+// simulation.js) ne doit pas suivre ce nombre.
+export function max() { return nomsLigue ? Math.min(nomsLigue.length, window.CONFIG.potesMax) : window.CONFIG.potesMax; }
 
 export function recordPlayer(u, v, jumped) {
   if (jumped) jumpMarks.push(v);
-  const minV = v - (max() + 1) * SPACING - 1;
+  const minV = vDuSlot(v, max() + 1) - 1;
   jumpMarks = jumpMarks.filter((m) => m > minV);
 }
 
@@ -69,7 +81,7 @@ export function join(player) {
   const side = slot % 2 ? 1 : -1;
   const pote = {
     slot, palette, name,
-    col: player.col, u: side * (ROAD_HALF + 3.2), v: player.v - (slot + 1) * SPACING,
+    col: player.col, u: side * (ROAD_HALF + 3.2), v: vDuSlot(player.v, slot),
     arrive: 0, leave: null, pedal: Math.random() * 6,
     jumpY: 0, jumpVy: 0, lastMark: -Infinity, balade: 1 + Math.random() * 2.5,
   };
@@ -102,7 +114,8 @@ function voiesBloquees(v) {
 function choisirVoie(p, bloc, forcer) {
   if (!forcer && !bloc.has(p.col)) return p.col;
   // Voisines d'abord, puis n'importe quelle voie libre.
-  const cands = [p.col - 1, p.col + 1, 0, 1, 2].filter((c) => c >= 0 && c < COLS && c !== p.col && !bloc.has(c));
+  const toutes = Array.from({ length: COLS }, (_, c) => c);
+  const cands = [p.col - 1, p.col + 1, ...toutes].filter((c) => c >= 0 && c < COLS && c !== p.col && !bloc.has(c));
   if (!cands.length) return p.col;
   return cands[Math.floor(Math.random() * Math.min(2, cands.length))];
 }
@@ -112,7 +125,7 @@ export function update(dt, player, phys) {
   vivants.forEach((p, i) => { p.slot = i; });
   for (const p of potes) {
     if (p.leave) { p.leave.t += dt / LEAVE_S; continue; }
-    p.v = player.v - (p.slot + 1) * SPACING;
+    p.v = vDuSlot(player.v, p.slot);
     if (p.arrive < 1) {
       p.arrive = Math.min(1, p.arrive + dt / ARRIVAL_S);
       p.u += (colU(p.col) - p.u) * Math.min(1, 3.2 * dt);

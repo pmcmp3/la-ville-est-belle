@@ -5,7 +5,12 @@
 //
 // ⚠️ CONTRE-LA-MONTRE (6 septembre 2026) : la course dure exactement le
 // morceau (config.dureeMorceau, 173,65 s), qui ne boucle pas. Sa fin termine
-// la partie (« TERMINÉ ! »), sauf mort avant. Le score reste en mètres.
+// la partie (« TERMINÉ ! »), sauf mort avant. Le score est en « pts »
+// (9 septembre 2026) : distance × potes × turbo + pièces.
+//
+// ⚠️ UNE LIGUE = UNE COURSE (9 septembre 2026) : graine dérivée du code de
+// ligue (regles.graineLigue), score PARFAIT calculé par simulation.js, et
+// FANTÔME du meilleur de la ligue (fantome.js) qui roule à côté du joueur.
 
 import * as audio from "./audio.js";
 import * as sfx from "./sfx.js";
@@ -22,6 +27,9 @@ import { consumeJumpPress, consumeLaneMove, setAirborne } from "./input.js";
 import { PALETTES, paletteDepuisSkin } from "./rider.js";
 import { drawRider, RIDER_HEIGHT } from "./voxrider.js";
 import { drawCoin } from "./coin.js";
+import { V_UNIT, LEAD_IN, targetSpeed as targetSpeedRegle, multiplicateur as multRegle, graineLigue } from "./regles.js";
+import { scoreParfait } from "./simulation.js";
+import * as fantome from "./fantome.js";
 
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
@@ -80,7 +88,6 @@ function useFallbackClock(preserve) {
 
 const COUNT_IN_BEATS = 3;
 const COUNT_IN_GO_LINGER_S = 0.55;
-const LEAD_IN = 3.3;
 let departMorceau = 0; // position du morceau au GO (le contre-la-montre compte à partir de là)
 function ancrerDepartSurLaGrille() {
   const pos = audioDrivesClock ? audio.now() : 0;
@@ -124,22 +131,20 @@ const game = {
   metres: 0, points: 0, potesGagnes: 0, etoiles: 0,
   ended: false, endReason: null, reviveOffered: false, sansFaute: true, startedAt: 0,
   turbo: 0, finAge: -1, boue: 0, sprint: false,
+  graine: 0, ligueCourse: false, scoreMax: null, // course de LIGUE : graine partagée, score parfait
 };
-const player = { col: 1, u: iso.colU(1), prevU: iso.colU(1), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0, doubled: false, flip: 0, prevFlip: 0, elan: 1 };
-const LANE_TWEEN = 11;
+const player = { col: iso.COL_CENTRE, u: iso.colU(iso.COL_CENTRE), prevU: iso.colU(iso.COL_CENTRE), v: 0, prevV: 0, jumpY: 0, prevJumpY: 0, jumpVy: 0, pedal: 0, prevPedal: 0, doubled: false, flip: 0, prevFlip: 0, elan: 1 };
+const LANE_TWEEN = 11; // même valeur dans simulation.js
 let camU = 0;
-const V_UNIT = 2.6, V_DOUBLING_S = 70;
 let speed = V_UNIT * window.CONFIG.vitesseBase;
 let slowMul = 1; // boue (lissé)
-function targetSpeed(t) {
-  const { vitesseBase, vitesseMax } = window.CONFIG;
-  return V_UNIT * Math.min(vitesseMax, vitesseBase * Math.pow(2, Math.max(0, t) / V_DOUBLING_S));
-}
+// Courbe de vitesse et multiplicateur : regles.js (partagés avec la simulation).
+const targetSpeed = targetSpeedRegle;
 function jumpPhysics() {
   const T = window.CONFIG.sautDuree, apex = window.CONFIG.sautHauteur;
   return { vJump: 4 * apex / T, g: 8 * apex / (T * T) };
 }
-function multiplicateur() { return (1 + window.CONFIG.potesBonusMetres * friends.count()) * (game.turbo > 0 ? 2 : 1); }
+function multiplicateur() { return multRegle(friends.count(), game.turbo > 0); }
 function palierPrecedent() { const p = window.CONFIG.potesPaliers; return game.potesGagnes === 0 ? 0 : p[game.potesGagnes - 1]; }
 function prochainPalier() { const p = window.CONFIG.potesPaliers; return p[Math.min(game.potesGagnes, p.length - 1)]; }
 const sparkles = [];
@@ -219,13 +224,43 @@ function preparerJoueur() {
 }
 // Graine du sprint du dimanche : la même route pour tout le monde ce jour-là.
 function graineSprint() { let h = 0; for (const ch of net.jourSprint()) h = (h * 31 + ch.charCodeAt(0)) % 100000; return h; }
+// --- La course de la ligue (9 septembre 2026) --------------------------------------
+// Une ligue = une graine (regles.graineLigue) : tous ses membres jouent la
+// MÊME route. Le sprint garde sa graine du jour ; sans ligue, graine aléatoire
+// (chaque partie différente). Calcule aussi le score PARFAIT de la course
+// (simulation.js, ~4 ms, avec le nombre de potes possibles = les autres
+// membres) et va chercher le FANTÔME du meilleur de la ligue.
+function semerCourse() {
+  const l = screens.getLigue();
+  const seed = game.sprint ? graineSprint() : l ? graineLigue(l.code) : Math.floor(Math.random() * 100000);
+  rows.reseed(seed);
+  rows.reset();
+  game.graine = seed;
+  game.ligueCourse = !!l && !game.sprint;
+  game.scoreMax = game.ligueCourse ? scoreParfait(seed, friends.max()).score : null;
+  fantome.demarrerEnregistrement();
+  ghost = null;
+  if (game.ligueCourse) chargerFantome(l, seed);
+}
+let ghost = null; // { graine, pseudo, palette, trace } — le meilleur de la ligue
+async function chargerFantome(l, seed) {
+  const f = await net.fantome(l.code, seed);
+  if (!f || seed !== game.graine) return;
+  const trace = fantome.decoder(f.trace);
+  if (!trace) return;
+  const membre = (l.membres || []).find((m) => m.nom === f.pseudo);
+  const base = PALETTES.potes[0];
+  const palette = membre && membre.skin ? paletteDepuisSkin(membre.skin, base) : base;
+  ghost = { graine: seed, pseudo: f.pseudo, metres: f.metres, palette, trace };
+}
+
 function requestGameStart(opts = {}) {
   game.startedAt = perfClock();
   startRequested = true;
   startRequestedAt = perfClock();
   hintTimer = 9;
   game.sprint = !!opts.sprint;
-  if (game.sprint) { rows.reseed(graineSprint()); rows.reset(); }
+  semerCourse();
   preparerJoueur();
   if (screens.getParties() === 0) net.evenement("premiere_course", { pseudo: screens.getPseudo(), source: screens.getSource(), ligue: screens.getLigue() ? screens.getLigue().code : null });
   if (screens.getParties() < (window.CONFIG.tutoParties || 0) && !game.sprint) tutoDemarrer();
@@ -238,13 +273,11 @@ function resetRun() {
   game.ended = false; game.endReason = null; game.reviveOffered = false; game.sansFaute = true;
   game.turbo = 0; game.finAge = -1; game.boue = 0;
   game.startedAt = perfClock();
-  player.col = 1; player.u = iso.colU(1); player.prevU = player.u; player.v = 0; player.prevV = 0;
+  player.col = iso.COL_CENTRE; player.u = iso.colU(iso.COL_CENTRE); player.prevU = player.u; player.v = 0; player.prevV = 0;
   player.jumpY = 0; player.prevJumpY = 0; player.jumpVy = 0; player.doubled = false; player.flip = 0; player.prevFlip = 0; player.elan = 1;
   sparkles.length = 0; ghosts.length = 0; concertAnnonce = false;
   speed = V_UNIT * window.CONFIG.vitesseBase; slowMul = 1; nuitDebut = null;
   friends.reset();
-  rows.reseed();
-  rows.reset();
   klaxonne = new Set();
   popups.length = 0; banner = null; damageFlash = 0; shake.time = 0; hudAlpha = 0; hintTimer = 6;
   canvas.classList.remove("game-over-bw", "danger", "turbo");
@@ -264,6 +297,7 @@ function restartGame() {
     useFallbackClock(false);
   }
   resetRun();
+  semerCourse();
   ancrerDepartSurLaGrille();
   gameStarted = true;
   startRequested = true;
@@ -317,8 +351,8 @@ function terminer() {
   screens.hidePauseButton();
   const record = !game.sprint && game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
-  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true, sprint: game.sprint });
-  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course");
+  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: true, sprint: game.sprint, scoreMax: game.scoreMax });
+  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course", bilanCourse());
   net.evenement("course_finie", { pseudo: screens.getPseudo(), source: screens.getSource(), ligue: screens.getLigue() ? screens.getLigue().code : null });
   if (!game.sprint) setTimeout(() => screens.proposerConcert(), 2600);
 }
@@ -331,9 +365,13 @@ function endGame(reason) {
   screens.hidePauseButton();
   const record = game.metres > screens.getRecord();
   if (record) screens.setRecord(game.metres);
-  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: false, sprint: game.sprint });
-  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course");
+  screens.showEndScreen({ metres: game.metres, potesMax: friends.maxReached(), record, fin: false, sprint: game.sprint, scoreMax: game.scoreMax });
+  screens.finLigue(game.metres, friends.maxReached(), game.sprint ? "sprint" : "course", bilanCourse());
 }
+
+// Ce que la fin de course envoie à la ligue : graine (le classement d'une
+// ligue ne compare que les courses de la même route) et trace du fantôme.
+function bilanCourse() { return { graine: game.graine, trace: fantome.encoder(), scoreMax: game.scoreMax }; }
 
 function triggerShake(amp, duration) { shake.amp = amp; shake.duration = duration; shake.time = duration; }
 
@@ -399,7 +437,7 @@ function toucherJoueur(ev) {
 }
 
 // --- Traversées armées sur le passage du joueur --------------------------------
-const ARM_AHEAD_S = 2.6;
+const ARM_AHEAD_S = 4.0; // 2,6 → 4,0 le 9 septembre 2026 : le tracteur part plus tôt, donc plus lentement (rows.js, vmax)
 function armerTraversees(now, vitesse) {
   const r0 = Math.floor(player.v + 0.5);
   const rMax = r0 + Math.ceil(vitesse * ARM_AHEAD_S) + 1;
@@ -523,6 +561,7 @@ function step(dt) {
     game.metres += dv * window.CONFIG.metresParUnite * multiplicateur();
   }
   player.pedal += vitesse * dt * 3.2;
+  if (now >= 0) fantome.enregistrer(now, player.u, player.v, player.jumpY);
   friends.recordPlayer(player.u, player.v, jumped);
   friends.update(dt, player, phys);
 
@@ -649,6 +688,21 @@ function render(alpha) {
     }
   }
   if (gameStarted) for (const dr of friends.drawables(ctx, pedal)) items.push({ d: iso.depth(dr.u, dr.v), draw: dr.draw });
+  // Le fantôme du meilleur de la ligue : transparent, sans ombre, étiqueté.
+  const gp = gameStarted && ghost && ghost.graine === game.graine ? fantome.positionA(ghost.trace, now) : null;
+  if (gp) items.push({ d: iso.depth(gp.u, gp.v) + 0.005, draw: () => {
+    drawRider(ctx, gp.u, gp.v, gp.h, ghost.palette, pedal, 0.38 * gp.alpha, 0, false);
+    const g = iso.project(gp.u, gp.v, gp.h + RIDER_HEIGHT + 0.15);
+    ctx.save();
+    ctx.globalAlpha = 0.7 * gp.alpha;
+    ctx.font = `700 11px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineJoin = "round";
+    ctx.strokeText(`@${ghost.pseudo} · fantôme`, g.x, g.y);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(`@${ghost.pseudo} · fantôme`, g.x, g.y);
+    ctx.restore();
+  } });
   for (const g of ghosts) items.push({ d: iso.depth(g.u, g.v) + 0.01, draw: () => drawRider(ctx, g.u, g.v, g.h, paletteJoueur, pedal, 0.22 * (1 - g.age / 0.35), g.flip, false) });
   items.push({ d: iso.depth(u, v), draw: () => drawRider(ctx, u, v, jy, paletteJoueur, pedal, 1, flip) });
   items.sort((a, b) => b.d - a.d);
@@ -725,7 +779,7 @@ function render(alpha) {
   debugOverlay.renderStats(ctx, {
     fps: perf.fps, frameMs: perf.frameMs, playerX: player.u,
     audioStatus: audio.getStatus(), clockSource: audioDrivesClock ? "audio" : "secours",
-    conversion: screens.niveauConversionCourant(), classement: `potes ${friends.count()} · pts ${game.points} · v ${player.v.toFixed(1)} · ${speed.toFixed(1)} r/s · reste ${gameStarted ? tempsRestant().toFixed(0) : "-"} s · nuit ${night.toFixed(2)}`,
+    conversion: screens.niveauConversionCourant(), classement: `graine ${game.graine}${game.scoreMax ? ` · max ${game.scoreMax}` : ""}${ghost ? ` · fantôme @${ghost.pseudo}` : ""} · potes ${friends.count()} · pièces ${game.points} · v ${player.v.toFixed(1)} · ${speed.toFixed(1)} r/s · reste ${gameStarted ? tempsRestant().toFixed(0) : "-"} s · nuit ${night.toFixed(2)}`,
   });
 }
 
@@ -825,5 +879,12 @@ screens.init({
 });
 screens.showOverlayOnLoad();
 prechauffer();
-if (debugOverlay.isEnabled()) window.__pote = { player, game, rows, friends, clock };
+if (debugOverlay.isEnabled()) {
+  window.__pote = {
+    player, game, rows, friends, clock, fantome, scoreParfait,
+    // Harnais headless : poser un fantôme sans réseau (pts = [[u, v, h], …] à 10 Hz).
+    injecterFantome: (pts, pseudo = "test") => { ghost = { graine: game.graine, pseudo, metres: 0, palette: PALETTES.potes[0], trace: { hz: fantome.HZ, pts } }; },
+    estDemarre: () => gameStarted,
+  };
+}
 requestAnimationFrame(frame);

@@ -9,6 +9,10 @@ import * as audio from "./audio.js";
 import * as net from "./net.js";
 import * as friends from "./friends.js";
 import { COULEURS, SHORTS, CHAUSSURES, CHAPEAUX, VELOS, SKIN_DEFAUT } from "./rider.js";
+import { graineLigue } from "./regles.js";
+import { scoreParfait } from "./simulation.js";
+
+const pts = (n) => `${Math.floor(Number(n) || 0).toLocaleString("fr-FR")} pts`;
 
 let deps = null;
 const $ = (id) => document.getElementById(id);
@@ -66,6 +70,15 @@ const CLE_RECORD = "jaipRecord";
 const CLE_PARTIES = "jaipParties";
 const CLE_LIGUE = "jaipLigue";
 const CLE_INSTA = "jaipInsta", CLE_VILLE = "jaipVille", CLE_SKIN = "jaipSkin", CLE_SOURCE = "jaipSource", CLE_PREINSCRIT = "jaipPreinscrit", CLE_SPRINT = "jaipSprint";
+
+// --- Bêta fermée (16 septembre 2026) -----------------------------------------
+// Une seule ligue pour les fans du groupe WhatsApp : on arrive par
+// `…/jai-un-pote/?ligue=BETA`, le menu se réduit (pseudo → cycliste → JOUER),
+// il n'y a ni choix de ligue, ni sprint, ni tiroir album, et l'écran de fin
+// porte un bouton « Laisser un retour ». Les autres visiteurs, eux, gardent le
+// jeu normal : le mode ne s'allume QUE si la ligue courante est celle-là.
+const CODE_BETA = String(window.CONFIG.ligueBeta || "").toUpperCase();
+export function enBeta() { return Boolean(CODE_BETA) && Boolean(ligue) && ligue.code === CODE_BETA; }
 
 // `?zero` : tout effacer (pseudo, record, conversion) — « comme si je n'avais
 // jamais joué ». Même origine que le premier jeu, donc ça le remet à zéro aussi.
@@ -130,7 +143,10 @@ function construireSkinUi() {
 
 // --- Menu en trois étapes ----------------------------------------------------
 const onboarding = $("onboarding");
-export function setStep(n) { onboarding.dataset.step = String(n); if (n === 3) construireSkinUi(); majSprint(); }
+export function setStep(n) {
+  if (enBeta() && n === 2) n = 3; // pas d'étape « ma ligue » en bêta : elle est imposée
+  onboarding.dataset.step = String(n); if (n === 3) construireSkinUi(); majSprint();
+}
 export function stepCourante() { return Number(onboarding.dataset.step) || 1; }
 function enregistrerProfil() {
   const nouveau = !lsGet(CLE_PSEUDO);
@@ -200,8 +216,8 @@ export function openReviveSheet({ metres, potes, onAccept, onDecline, onReplay }
   reviveMetres = metres;
   reviveTitle.textContent = potes > 0 ? "Tes potes t'attendent" : "Ta course n'est pas finie";
   reviveText.textContent = potes > 0
-    ? `Reprends à ${Math.floor(metres).toLocaleString("fr-FR")} m, et ${Math.min(2, potes)} pote${Math.min(2, potes) > 1 ? "s" : ""} te retombe${Math.min(2, potes) > 1 ? "nt" : ""} dessus.`
-    : `Reprends pile ici, à ${Math.floor(metres).toLocaleString("fr-FR")} m.`;
+    ? `Reprends à ${pts(metres)}, et ${Math.min(2, potes)} pote${Math.min(2, potes) > 1 ? "s" : ""} te retombe${Math.min(2, potes) > 1 ? "nt" : ""} dessus.`
+    : `Reprends pile ici, à ${pts(metres)}.`;
   reviveCta.classList.remove("locked");
   reviveSheet.classList.add("visible");
   reviveSheet.setAttribute("aria-hidden", "false");
@@ -354,7 +370,9 @@ export function ouvrirEcoute() {
   });
 }
 function exigerConversion({ action, onOk, onCancel }) {
-  if (niveauConversion() === "libre") { onOk(); return; }
+  // En bêta, aucune porte : les testeurs sont déjà des fans (groupe WhatsApp)
+  // et doivent pouvoir enchaîner les parties pour trouver des bugs.
+  if (enBeta() || niveauConversion() === "libre") { onOk(); return; }
   ouvrirGate({ action, onUnlocked: onOk, onCancel });
 }
 
@@ -385,7 +403,11 @@ function afficherLigue() {
     if (ligue.enAttente) ligueMembresEl.textContent = "Tu en fais partie ! Appuie sur Continuer.";
     else ligueMembresEl.textContent = autres.length ? `Tes potes dans le peloton : ${autres.map((m) => "@" + m.nom).join(", ")}` : "Tu es seul pour l'instant : invite des potes, ce sont eux qui pédaleront derrière toi.";
     const n = ligue.membres.length;
-    liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}`;
+    // La ligue a SA course (graine) ; le score parfait dépend du nombre de
+    // potes possibles, donc du nombre d'autres membres (simulation.js).
+    let parfait = "";
+    try { if (!ligue.enAttente) parfait = ` · score parfait ${pts(scoreParfait(graineLigue(ligue.code), autres.length).score)}`; } catch (e) { parfait = ""; }
+    liguePlaces.textContent = ligue.enAttente ? "" : `${n}/${net.LIGUE_MAX} place${n > 1 ? "s" : ""} prise${n > 1 ? "s" : ""}${parfait}`;
   }
 }
 function memoriserLigue() { if (ligue) lsSet(CLE_LIGUE, JSON.stringify(ligue)); else { try { localStorage.removeItem(CLE_LIGUE); } catch (e) { /* rien */ } } }
@@ -407,7 +429,7 @@ async function rejoindre(code, creer = false) {
     return false;
   }
   ligue = { code, membres: r.membres };
-  memoriserLigue(); appliquerNomsLigue(); afficherLigue(); ligueMessage("");
+  memoriserLigue(); appliquerNomsLigue(); afficherLigue(); appliquerModeBeta(); ligueMessage("");
   if (invitation) net.evenement("invitation_acceptee", { pseudo, ligue: code, source: getSource() });
   return true;
 }
@@ -432,13 +454,22 @@ export async function preparerLigue() {
   appliquerNomsLigue(); afficherLigue();
 }
 // Fin de course : envoi du score, puis classement de la ligue sur la carte.
-export async function finLigue(metres, potes, mode = "course") {
+// `bilan` = { graine, trace, scoreMax } (main.js) : la graine de la route et
+// la trace du fantôme, envoyée SEULEMENT si la course bat le record de la
+// ligue sur cette route (9 septembre 2026).
+export async function finLigue(metres, potes, mode = "course", bilan = {}) {
   endLigue.classList.add("hidden");
   majConcertFin();
   if (mode === "sprint") lsSet(CLE_SPRINT, net.jourSprint());
   const code = ligue ? ligue.code : (window.CONFIG.ligueDemo || "PMCMP");
   if (!ligue && mode !== "sprint") return;
-  await net.envoyerScore(code, getPseudo(), metres, potes, mode);
+  let trace = null;
+  if (mode !== "sprint" && bilan.trace) {
+    const avant = await net.classement(ligue.code, bilan.graine);
+    const meilleur = avant && avant.length ? Math.max(...avant.map((r) => Number(r.metres) || 0)) : 0;
+    if (Math.floor(metres) > meilleur) trace = bilan.trace;
+  }
+  await net.envoyerScore(code, getPseudo(), metres, potes, mode, { graine: bilan.graine, trace });
   const endRelais = $("end-relais");
   if (mode === "sprint") {
     // Classement du sprint du jour, toutes ligues confondues.
@@ -450,7 +481,7 @@ export async function finLigue(metres, potes, mode = "course") {
     rows.slice(0, 10).forEach((r, i) => {
       const li = document.createElement("li");
       if (r.pseudo === moi) li.className = "moi";
-      li.innerHTML = `<span class="rang">${i + 1}</span><span class="nom"></span><span class="m">${Number(r.metres).toLocaleString("fr-FR")} m</span>`;
+      li.innerHTML = `<span class="rang">${i + 1}</span><span class="nom"></span><span class="m">${pts(r.metres)}</span>`;
       li.querySelector(".nom").textContent = `@${r.pseudo}${i < 5 ? " · une place" : ""}`;
       endLigueListe.appendChild(li);
     });
@@ -458,21 +489,23 @@ export async function finLigue(metres, potes, mode = "course") {
     endLigue.classList.remove("hidden");
     return;
   }
-  const rows = await net.classement(ligue.code);
+  const rows = await net.classement(ligue.code, bilan.graine);
   if (!rows) return;
   const relais = await net.relais(ligue.code);
   const objectif = window.CONFIG.relaisDistance || 30000;
   endRelais.classList.remove("hidden");
-  endRelais.textContent = `Relais : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} m`;
+  endRelais.textContent = `Relais : ${Number(relais.metres).toLocaleString("fr-FR")} / ${objectif.toLocaleString("fr-FR")} pts`;
   endLigueCode.textContent = ligue.code;
   endLigueListe.textContent = "";
   const moi = getPseudo();
-  rows.slice(0, 6).forEach((r, i) => {
+  rows.slice(0, enBeta() ? 12 : 6).forEach((r, i) => {
     const li = document.createElement("li");
     if (r.pseudo === moi) li.className = "moi";
     const rang = document.createElement("span"); rang.className = "rang"; rang.textContent = `${i + 1}`;
     const nom = document.createElement("span"); nom.className = "nom"; nom.textContent = `@${r.pseudo}`;
-    const m = document.createElement("span"); m.className = "m"; m.textContent = `${Number(r.metres).toLocaleString("fr-FR")} m`;
+    // Le premier est le fantôme que tout le monde voit rouler sur la route.
+    if (i === 0) { const f = document.createElement("span"); f.className = "fantome"; f.textContent = "· fantôme"; nom.appendChild(f); }
+    const m = document.createElement("span"); m.className = "m"; m.textContent = pts(r.metres);
     li.append(rang, nom, m);
     endLigueListe.appendChild(li);
   });
@@ -493,9 +526,9 @@ function initLigue() {
   afficherLigue(); appliquerNomsLigue();
   ligueRejoindre.addEventListener("click", () => rejoindre(ligueInput.value));
   ligueCreer.addEventListener("click", () => rejoindre(net.genererCode(), true));
-  ligueQuitter.addEventListener("click", () => { ligue = null; memoriserLigue(); appliquerNomsLigue(); afficherLigue(); });
+  ligueQuitter.addEventListener("click", () => { ligue = null; memoriserLigue(); appliquerNomsLigue(); afficherLigue(); appliquerModeBeta(); });
   liguePartager.addEventListener("click", () => partagerLigue(`Tu es dans ma ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}) : tu pédales derrière moi, viens battre mon score`));
-  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} m dans notre ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}). Viens me battre`));
+  endLiguePartager.addEventListener("click", () => partagerLigue(`J'ai fait ${scoreVal.textContent} pts dans notre ligue « J'ai un pote » (code ${ligue ? ligue.code : ""}), même course pour tout le monde. Viens me battre`));
   ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => ligueInput.addEventListener(t, (e) => e.stopPropagation()));
   ligueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rejoindre(ligueInput.value); } });
 }
@@ -503,7 +536,7 @@ function initLigue() {
 // --- Sprint du dimanche --------------------------------------------------------
 const sprintButton = $("sprint-button"), sprintNote = $("sprint-note");
 function majSprint() {
-  if (!net.estConfigure() || !net.sprintOuvert()) { sprintButton.classList.add("hidden"); sprintNote.classList.add("hidden"); return; }
+  if (enBeta() || !net.estConfigure() || !net.sprintOuvert()) { sprintButton.classList.add("hidden"); sprintNote.classList.add("hidden"); return; }
   const fait = lsGet(CLE_SPRINT) === net.jourSprint();
   sprintButton.classList.toggle("hidden", fait);
   sprintNote.classList.remove("hidden");
@@ -514,7 +547,8 @@ function majSprint() {
 const concertSheet = $("concert-sheet"), concertOui = $("concert-oui"), concertNon = $("concert-non"), concertCount = $("concert-count"), endConcert = $("end-concert");
 export function estPreinscrit() { return lsGet(CLE_PREINSCRIT) === "1"; }
 export async function proposerConcert() {
-  if (!net.estConfigure() || estPreinscrit()) return;
+  // Pas en bêta : l'écran de fin doit rester sur le bouton de retour.
+  if (enBeta() || !net.estConfigure() || estPreinscrit()) return;
   $("concert-title").textContent = "Une place de concert ?";
   const n = await net.nbPreinscrits();
   concertCount.classList.toggle("hidden", !n);
@@ -561,8 +595,15 @@ export function syncLoadingUi() {
 }
 
 // --- Fin de partie -----------------------------------------------------------
-export function showEndScreen({ metres, potesMax, record, fin, sprint }) {
+export function showEndScreen({ metres, potesMax, record, fin, sprint, scoreMax }) {
   scoreVal.textContent = Math.floor(metres).toLocaleString("fr-FR");
+  derniereCourse = { metres: Math.floor(metres), potes: potesMax, fin: !!fin };
+  // Course de ligue : le score PARFAIT de cette route (simulation.js), pour
+  // savoir à quelle distance du maximum on est (« si le score maximal c'est
+  // 100 000 et que le premier fait 88 000… »).
+  const endMax = $("end-max");
+  endMax.classList.toggle("hidden", !scoreMax);
+  if (scoreMax) endMax.innerHTML = `Score parfait sur cette course : <b>${pts(scoreMax)}</b> · tu es à ${Math.min(100, Math.round(100 * metres / scoreMax))} %`;
   // Le but : arriver au bout du morceau avec un max de potes.
   const potesTxt = potesMax === 0 ? "0 pote" : `${potesMax} pote${potesMax > 1 ? "s" : ""}`;
   endSub.textContent = fin ? `Au bout du morceau · ${potesTxt}` : `Tombé avant la fin · ${potesTxt}`;
@@ -570,6 +611,78 @@ export function showEndScreen({ metres, potesMax, record, fin, sprint }) {
   $("end-eyebrow").textContent = sprint ? "Sprint du dimanche" : fin ? "Course terminée" : "Ta course";
   if (sprint) endSub.textContent = `Sprint · ${potesTxt}`;
   setTimeout(() => { setView("end"); showOverlay(); }, fin ? 1500 : 600);
+}
+
+// --- Retour des testeurs (bêta fermée, 16 septembre 2026) --------------------
+// « Laisser un retour » sur l'écran de fin : une carte, un champ libre, un
+// envoi, une confirmation dans la MÊME carte (pas de second pop-up qui se
+// referme tout seul). Le retour part avec le pseudo, le score de la course
+// qui vient de finir et le numéro de partie — table retours_beta, jamais
+// relue par le jeu. Un échec réseau le dit et garde le texte à l'écran.
+const retourSheet = $("retour-sheet"), retourForm = $("retour-form"), retourOk = $("retour-ok");
+const retourInput = $("retour-input"), retourEnvoyer = $("retour-envoyer"), retourCompteur = $("retour-compteur");
+let derniereCourse = null;
+
+export function ouvrirRetour() {
+  retourForm.classList.remove("hidden");
+  retourOk.classList.add("hidden");
+  $("retour-title").textContent = "Ton retour";
+  retourEnvoyer.textContent = "Envoyer";
+  retourEnvoyer.classList.remove("locked");
+  majCompteurRetour();
+  retourSheet.classList.add("visible");
+  retourSheet.setAttribute("aria-hidden", "false");
+  setTimeout(() => retourInput.focus(), 120);
+}
+function fermerRetour() {
+  retourSheet.classList.remove("visible");
+  retourSheet.setAttribute("aria-hidden", "true");
+}
+function majCompteurRetour() {
+  const n = retourInput.value.trim().length;
+  retourCompteur.textContent = `${retourInput.value.length}/1200`;
+  retourEnvoyer.disabled = n < 3;
+}
+async function envoyerRetour() {
+  const texte = retourInput.value.trim();
+  if (texte.length < 3) return;
+  retourEnvoyer.disabled = true;
+  retourEnvoyer.classList.add("locked");
+  retourEnvoyer.textContent = "Envoi…";
+  const c = derniereCourse || {};
+  const ok = await net.envoyerRetour({
+    ligue: ligue ? ligue.code : null,
+    pseudo: getPseudo() || null,
+    texte,
+    score: c.metres !== undefined ? c.metres : null,
+    potes: c.potes !== undefined ? c.potes : null,
+    fin: c.fin !== undefined ? c.fin : null,
+    partie: getParties(),
+    appareil: navigator.userAgent.slice(0, 180),
+  });
+  if (!ok) {
+    retourEnvoyer.disabled = false;
+    retourEnvoyer.classList.remove("locked");
+    retourEnvoyer.textContent = "Réessayer";
+    $("retour-title").textContent = "Pas parti, réessaie";
+    return;
+  }
+  retourInput.value = "";
+  majCompteurRetour();
+  retourForm.classList.add("hidden");
+  retourOk.classList.remove("hidden");
+  net.evenement("retour_beta", { pseudo: getPseudo(), ligue: ligue ? ligue.code : null, source: getSource() });
+}
+
+// Bascule visuelle du mode bêta : menu réduit, sprint et tiroir album hors
+// jeu, bouton de retour sur l'écran de fin.
+function appliquerModeBeta() {
+  const on = enBeta();
+  document.body.classList.toggle("beta", on);
+  $("beta-tag").classList.toggle("hidden", !on);
+  $("beta-note").classList.toggle("hidden", !on);
+  $("end-retour").classList.toggle("hidden", !(on && window.CONFIG.betaRetours !== false));
+  if (on) $("beta-tag").textContent = `Bêta-test · ligue ${ligue.code}`;
 }
 
 // --- Pause / son -------------------------------------------------------------
@@ -621,7 +734,7 @@ export function init(d) {
   pseudoInput.addEventListener("input", syncPlay);
   syncPlay();
   [pseudoInput, instaInput, villeInput].forEach((inp) => ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => inp.addEventListener(t, (e) => e.stopPropagation())));
-  step1Next.addEventListener("click", () => { if (!getPseudo()) { pseudoInput.focus(); return; } enregistrerProfil(); setStep(2); });
+  step1Next.addEventListener("click", () => { if (!getPseudo()) { pseudoInput.focus(); return; } enregistrerProfil(); setStep(enBeta() ? 3 : 2); });
   $("step2-next").addEventListener("click", () => setStep(3));
   $("step2-back").addEventListener("click", () => setStep(1));
   $("step3-ligue").addEventListener("click", () => setStep(2));
@@ -640,6 +753,15 @@ export function init(d) {
   // (Pas de MutationObserver sur `disabled` : il se redéclenchait lui-même en
   // boucle et gelait la page — syncLoadingUi relit le champ à la fin du
   // chargement, l'input le relit à chaque frappe.)
+
+  $("end-retour").addEventListener("click", ouvrirRetour);
+  retourInput.addEventListener("input", majCompteurRetour);
+  ["pointerdown", "touchstart", "touchmove", "mousedown"].forEach((t) => retourSheet.addEventListener(t, (e) => e.stopPropagation()));
+  retourEnvoyer.addEventListener("click", envoyerRetour);
+  $("retour-fermer").addEventListener("click", fermerRetour);
+  $("retour-ok-fermer").addEventListener("click", fermerRetour);
+  // Entrée envoie, Maj+Entrée fait un retour à la ligne.
+  retourInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envoyerRetour(); } });
 
   replayButton.addEventListener("click", () => {
     exigerConversion({ action: "rejouer", onOk: () => { hideOverlay(); showPauseButton(); deps.restartGame(); }, onCancel: () => {} });
@@ -687,6 +809,7 @@ export function init(d) {
     }
   });
   initLigue();
+  appliquerModeBeta();
   setView("onboarding");
   // Habitué → directement « Mon cycliste » ; invitation → « Ma ligue » ; sinon l'inscription.
   setStep(!lsGet(CLE_PSEUDO) ? 1 : (ligue && ligue.enAttente) ? 2 : 3);

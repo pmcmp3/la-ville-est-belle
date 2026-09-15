@@ -33,6 +33,16 @@
         "--host"
       ],
       "port": 5174
+    },
+    {
+      "name": "grelots",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/pmc/Documents/_WORK/LEA/les-grelots-player/serve.js",
+        "/Users/pmc/Documents/_WORK/LEA/les-grelots-player",
+        "5180"
+      ],
+      "port": 5180
     }
   ]
 }
