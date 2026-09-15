@@ -32,7 +32,7 @@ let maxCount = 0;
 let joins = 0;
 let jumpMarks = [];
 
-export function reset() { potes = []; maxCount = 0; joins = 0; jumpMarks = []; }
+export function reset() { potes = []; maxCount = 0; joins = 0; jumpMarks = []; tirerSelection(); }
 export function alive() { return potes.filter((p) => !p.leave); }
 export function count() { return alive().length; }
 export function maxReached() { return maxCount; }
@@ -55,24 +55,38 @@ export function recordPlayer(u, v, jumped) {
   jumpMarks = jumpMarks.filter((m) => m > minV);
 }
 
-// Les potes portent les pseudos de la LIGUE quand il y en a une (les autres
-// membres, dans l'ordre d'arrivée), complétés par les prénoms par défaut.
+// Les potes portent les pseudos de la LIGUE quand il y en a une (5 membres
+// tirés au hasard par course), complétés par les prénoms par défaut.
 // Liste de membres { nom, skin } : ceux de la ligue, sinon la ligue de démo.
 let nomsLigue = null;
-export function setNomsLigue(liste) { nomsLigue = Array.isArray(liste) ? liste.map((m) => (typeof m === "string" ? { nom: m, skin: null } : m)) : null; }
+export function setNomsLigue(liste) {
+  nomsLigue = Array.isArray(liste) ? liste.map((m) => (typeof m === "string" ? { nom: m, skin: null } : m)) : null;
+  tirerSelection();
+}
+// ⚠️ 5 membres TIRÉS AU HASARD à chaque course (16 septembre 2026, demandé
+// pour la bêta : « oui, 5 personnes aléatoires à chaque fois »). Une ligue de
+// bêta peut compter 60 personnes pour 5 places dans le peloton : sans tirage,
+// tout le monde verrait éternellement les 5 premiers inscrits. Le tirage est
+// refait à chaque `reset()` (donc à chaque course) et à chaque arrivée d'une
+// nouvelle liste de membres ; il est FIGÉ pendant la course, sinon les
+// prénoms changeraient entre deux potes d'un même peloton.
+// Non seedé, volontairement : les prénoms ne touchent pas au gameplay, la
+// course reste la même pour toute la ligue (graine du code, regles.js).
+let selection = null;
+function tirerSelection() {
+  if (!nomsLigue) { selection = null; return; }
+  const max = window.CONFIG.potesMax;
+  const pool = nomsLigue.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const choisis = pool.slice(0, max);
+  const manquants = potesParDefaut().filter((d) => !choisis.some((m) => m.nom === d.nom));
+  selection = choisis.concat(manquants).slice(0, max);
+}
 export function enLigue() { return nomsLigue !== null; }
 function potesParDefaut() { return window.CONFIG.potesDefaut || (window.CONFIG.potesNoms || ["paul"]).map((n) => ({ nom: n, skin: null })); }
-// Les membres de la ligue D'ABORD (ce sont eux qu'on veut voir), complétés par
-// les potes par défaut jusqu'à `potesMax` : une ligue d'une seule personne
-// donne quand même un peloton.
-function listeMembres() {
-  const defauts = potesParDefaut();
-  if (!nomsLigue) return defauts;
-  const max = window.CONFIG.potesMax;
-  if (nomsLigue.length >= max) return nomsLigue;
-  const manquants = defauts.filter((d) => !nomsLigue.some((m) => m.nom === d.nom));
-  return nomsLigue.concat(manquants).slice(0, max);
-}
+// Le peloton de la course : le tirage ci-dessus (membres de la ligue d'abord,
+// complétés par les potes par défaut), sinon la ligue de démo.
+function listeMembres() { return selection || potesParDefaut(); }
 function listeNoms() { return listeMembres().map((m) => m.nom); }
 // Prénom : le premier de la liste qui n'est pas déjà dans le peloton
 // (Soberland revient en premier s'il est parti — plus de doublons).

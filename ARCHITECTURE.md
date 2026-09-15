@@ -2471,6 +2471,14 @@ partent pas — le tiroir affiche « Pas parti, réessaie », vérifié).
   vide et sans enjeu. `listeMembres()` complète désormais les membres de la ligue par
   `config.potesDefaut` jusqu'à `config.potesMax` (membres d'abord), et `max()` vaut toujours
   `potesMax`. `screens.afficherLigue` calcule donc le score parfait sur `potesMax`.
+- ⚠️ **5 membres TIRÉS AU HASARD par course** (16 septembre 2026, « oui, 5 personnes
+  aléatoires à chaque fois ») : le peloton n'a que `potesMax` places pour une ligue de bêta
+  qui peut compter 60 personnes — sans tirage, tout le monde verrait éternellement les 5
+  premiers inscrits. `tirerSelection()` (friends.js) mélange les membres à chaque `reset()`
+  et à chaque `setNomsLigue()`, complète avec `potesDefaut`, et la sélection est FIGÉE
+  pendant la course. Non seedée, volontairement : les prénoms ne touchent pas au gameplay,
+  la route reste celle de la ligue. Vérifié : 5 tirages successifs sur 12 membres donnent 5
+  pelotons différents.
 - ⚠️ **Le concert et ses « 50 places » sont SUPPRIMÉS partout** (16 septembre 2026, demandé :
   « enlève les 50 places gagnées au début, partout ») : bannière de départ (`annoncerConcert`,
   main.js), carte de préinscription (`#concert-sheet`), ligne de l'écran de fin
