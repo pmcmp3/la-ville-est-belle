@@ -88,9 +88,11 @@ window.CONFIG = {
   // BOOST DE LIGUE : pour faire le meilleur score, un fan doit faire jouer ses
   // potes. Chaque AUTRE membre de ta ligue qui a joué au moins
   // `boostLigueDureeS` secondes te donne +`boostLigueParPote` sur tous tes
-  // points, jusqu'à `boostLigueMaxPotes` potes (×3 à 20).
+  // points, jusqu'à `boostLigueMaxPotes` potes (×4 à 30 — 22 novembre 2026, demandé :
+  // « si t'as envie de 30 potes, ça fait +300 % »). ⚠️ Va avec `ligues.plafond` = 31
+  // et `plafond_score` = 115 000 dans la base (supabase/LIGUES-A-30-POTES.sql).
   boostLigueParPote: 0.10,
-  boostLigueMaxPotes: 20,
+  boostLigueMaxPotes: 30,
   boostLigueDureeS: 30,
   // Peloton : le premier pote roule `potesRecul` unités derrière le joueur,
   // puis `potesEcart` entre chaque pote. MEUTE serrée : en portrait on ne voit
