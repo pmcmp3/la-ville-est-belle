@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suivi J'ai un pote</title>
+<meta name="robots" content="noindex">
+<!-- Tableau de bord du suivi : lit les VUES agrégées de supabase/tableau-de-bord.sql
+     (jamais les événements bruts, jamais un pseudo) avec la clé anon de config.js.
+     ?exemple : la mise en page avec des chiffres INVENTÉS, signalés comme tels. -->
+<script src="config.js"></script>
+<style>
+  :root { --fond: #f6f3ec; --carte: #ffffff; --encre: #0d0d10; --doux: #6b6a66; --trait: #e3ded3; --rouge: #e13e26; --jaune: #ffcf2e; --barre: #0d0d10; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fond: #121214; --carte: #1c1c20; --encre: #f2efe8; --doux: #a19e97; --trait: #2c2c31; --barre: #f2efe8; } }
+  :root[data-theme="dark"] { --fond: #121214; --carte: #1c1c20; --encre: #f2efe8; --doux: #a19e97; --trait: #2c2c31; --barre: #f2efe8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fond); color: var(--encre); font: 15px/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--doux); margin: 0 0 12px; }
+  .sous { color: var(--doux); margin: 0 0 22px; }
+  .carte { background: var(--carte); border: 1px solid var(--trait); border-radius: 6px; padding: 18px; margin-bottom: 16px; }
+  .alerte { border-color: var(--rouge); }
+  .exemple { background: var(--jaune); color: #0d0d10; font-weight: 700; padding: 8px 12px; border-radius: 4px; margin-bottom: 16px; }
+  .chiffres { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .chiffre b { display: block; font-size: 28px; line-height: 1.1; }
+  .chiffre span { color: var(--doux); font-size: 13px; }
+  .ligne { display: grid; grid-template-columns: minmax(120px, 230px) 1fr 70px; gap: 10px; align-items: center; margin: 6px 0; font-size: 14px; }
+  .ligne .b { height: 14px; background: var(--trait); border-radius: 2px; overflow: hidden; }
+  .ligne .b i { display: block; height: 100%; background: var(--barre); }
+  .ligne .n { text-align: right; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--trait); }
+  th { color: var(--doux); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  td.n, th.n { text-align: right; }
+  .tableau { overflow-x: auto; }
+  code { font-size: 13px; }
+  ul.evts { margin: 0; padding-left: 18px; }
+  ul.evts li { margin: 3px 0; }
+  @media (max-width: 520px) { .ligne { grid-template-columns: 1fr 60px; } .ligne .b { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Suivi · J'ai un pote</h1>
+  <p class="sous" id="etat">Chargement…</p>
+  <div id="contenu"></div>
+
+  <section class="carte">
+    <h2>Ce que le jeu envoie</h2>
+    <p class="sous" style="margin-bottom:10px">Chaque événement porte la visite (un chargement de page) et un identifiant anonyme du joueur. Aucun chiffre ici ne montre un pseudo.</p>
+    <ul class="evts">
+      <li><code>arrivee</code>, <code>chargement_fini</code> (secondes de chargement) — on ouvre le jeu</li>
+      <li><code>menu_etape</code> (pseudo, ligue, cycliste), <code>inscription</code> — le menu</li>
+      <li><code>course_debut</code> (chaque course, rejouer compris), <code>premiere_course</code>, <code>pause</code></li>
+      <li><code>mort</code> (seconde, score), <code>mort_choix</code> (continuer, rejouer, voir le score), <code>course_finie</code> (seconde, score, potes)</li>
+      <li><code>porte_vue</code>, <code>clic_album</code> (plateforme), <code>clic_suivre</code>, <code>ecouter_album</code>, <code>continuer</code>, <code>rejouer</code> — l'album</li>
+      <li><code>fin_vue</code> (écran de fin), <code>partage_ouvert</code> et <code>invitation_envoyee</code> (d'où : fin, menu, ligue…), <code>invitation_ouverte</code>, <code>invitation_acceptee</code></li>
+      <li><code>cachee</code> / <code>revenue</code> — la page quittée ou retrouvée, avec l'endroit (chargement, menu, course, mort, fin…) et la seconde de course</li>
+      <li><code>retour_beta</code> — un retour de testeur</li>
+    </ul>
+  </section>
+</main>
+<script>
+(function () {
+  const C = window.CONFIG || {};
+  const exemple = new URLSearchParams(location.search).has("exemple");
+  const $ = (id) => document.getElementById(id);
+  const contenu = $("contenu");
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const nb = (x) => (x == null ? "—" : Number(x).toLocaleString("fr-FR"));
+  const pct = (a, b) => (b ? `${Math.round((100 * a) / b)} %` : "—");
+
+  const EXEMPLE = {
+    tb_jours: [{ jour: "2026-10-12", visites: 412, joueurs: 330, courses: 690, arrivees: 120, morts: 540, clics_album: 61, invitations: 44 }, { jour: "2026-10-11", visites: 280, joueurs: 231, courses: 455, arrivees: 70, morts: 372, clics_album: 38, invitations: 25 }],
+    tb_entonnoir: [[1, "Arrivés sur la page", 1000], [2, "Chargement terminé", 870], [3, "Pseudo écrit", 610], [4, "Première course lancée", 560], [5, "Course terminée (mort ou fin)", 480], [6, "Ligne d'arrivée franchie", 140], [7, "Deuxième course", 300], [8, "Clic sur l'album", 120], [9, "Invitation envoyée", 70]].map(([ordre, etape, joueurs]) => ({ ordre, etape, joueurs })),
+    tb_departs: [["course", 220], ["mort", 160], ["fin", 140], ["menu-pseudo", 90], ["chargement", 60], ["menu-cycliste", 30]].map(([ou, visites]) => ({ ou, visites })),
+    tb_durees: [{ moment: "mort", n: 912, moyenne_s: 78.4, mediane_s: 71 }, { moment: "arrivée", n: 190, moyenne_s: 162, mediane_s: 162 }, { moment: "quitte en pleine course", n: 220, moyenne_s: 41.2, mediane_s: 33 }],
+    tb_conversion: [{ type: "mort_choix", detail: "continuer", n: 410, joueurs: 300 }, { type: "mort_choix", detail: "rejouer", n: 220, joueurs: 170 }, { type: "mort_choix", detail: "score", n: 90, joueurs: 80 }, { type: "porte_vue", detail: "presave", n: 380, joueurs: 290 }, { type: "clic_album", detail: "spotify", n: 95, joueurs: 90 }, { type: "clic_album", detail: "deezer", n: 20, joueurs: 20 }],
+    tb_fin_invitations: [{ visites_fin: 300, ouvrent_le_partage: 64, envoient: 41 }],
+    tb_types: [],
+  };
+
+  async function lire(vue) {
+    if (exemple) return EXEMPLE[vue];
+    const r = await fetch(`${C.apiBase}/${vue}?select=*`, { headers: { apikey: C.apiKey, Authorization: `Bearer ${C.apiKey}` } });
+    if (!r.ok) throw new Error(`${vue} : ${r.status}`);
+    return r.json();
+  }
+  const carte = (titre, html) => `<section class="carte"><h2>${esc(titre)}</h2>${html}</section>`;
+  const barres = (lignes) => {
+    const max = Math.max(1, ...lignes.map((l) => l.n));
+    return lignes.map((l) => `<div class="ligne"><span>${esc(l.label)}</span><span class="b"><i style="width:${(100 * l.n) / max}%"></i></span><span class="n">${nb(l.n)}${l.extra ? ` <small style="color:var(--doux)">${esc(l.extra)}</small>` : ""}</span></div>`).join("");
+  };
+  const NOMS_OU = { chargement: "pendant le chargement", "menu-pseudo": "menu · pseudo", "menu-ligue": "menu · ligue", "menu-cycliste": "menu · cycliste", explication: "explication avant la course", course: "en pleine course", pause: "en pause", mort: "sur la carte « Tombé ! »", fin: "sur l'écran de fin", menu: "menu" };
+
+  async function afficher() {
+    if (!exemple && !(C.apiBase && C.apiKey)) {
+      $("etat").textContent = "Pas encore de données.";
+      contenu.innerHTML = carte("La base n'existe pas encore", `<p>Le jeu enregistre déjà tous les événements ci-dessous, mais il ne les envoie nulle part tant que la base Supabase v2 n'est pas créée (<code>apiBase</code> vide dans <code>config.js</code>).</p><p>Pour brancher : créer le projet Supabase, exécuter <code>supabase/schema-v2.sql</code> puis <code>supabase/tableau-de-bord.sql</code>, remplir <code>apiBase</code> et <code>apiKey</code> dans <code>config.js</code>, remettre en ligne. Cette page se remplit alors toute seule.</p><p><a href="?exemple">Voir la mise en page avec des chiffres d'exemple →</a></p>`).replace('class="carte"', 'class="carte alerte"');
+      return;
+    }
+    try {
+      const [jours, ent, dep, dur, conv, fin] = await Promise.all(["tb_jours", "tb_entonnoir", "tb_departs", "tb_durees", "tb_conversion", "tb_fin_invitations"].map(lire));
+      $("etat").textContent = exemple ? "" : `Mis à jour ${new Date().toLocaleString("fr-FR")}`;
+      let html = exemple ? `<div class="exemple">CHIFFRES D'EXEMPLE, INVENTÉS : seulement pour voir la mise en page.</div>` : "";
+      const tot = jours.reduce((a, j) => ({ visites: a.visites + j.visites, courses: a.courses + j.courses, clics: a.clics + j.clics_album, inv: a.inv + j.invitations }), { visites: 0, courses: 0, clics: 0, inv: 0 });
+      const mort = dur.find((d) => d.moment === "mort"), arr = dur.find((d) => d.moment === "arrivée");
+      const continuer = conv.filter((c) => c.type === "mort_choix").reduce((a, c) => ({ ...a, [c.detail]: c.n }), {});
+      const totChoix = Object.values(continuer).reduce((a, b) => a + b, 0);
+      const f = fin[0] || { visites_fin: 0, ouvrent_le_partage: 0, envoient: 0 };
+      html += carte("En bref", `<div class="chiffres">
+        <div class="chiffre"><b>${nb(tot.visites)}</b><span>visites</span></div>
+        <div class="chiffre"><b>${nb(tot.courses)}</b><span>courses lancées</span></div>
+        <div class="chiffre"><b>${mort ? `${nb(mort.mediane_s)} s` : "—"}</b><span>durée médiane d'une course (jusqu'à la mort)</span></div>
+        <div class="chiffre"><b>${pct(continuer.continuer || 0, totChoix)}</b><span>cliquent « Continuer » quand ils tombent</span></div>
+        <div class="chiffre"><b>${nb(tot.clics)}</b><span>clics sur l'album</span></div>
+        <div class="chiffre"><b>${pct(f.envoient, f.visites_fin)}</b><span>invitent un pote depuis l'écran de fin</span></div>
+      </div>`);
+      const e0 = ent.sort((a, b) => a.ordre - b.ordre), base = e0.length ? e0[0].joueurs : 0;
+      html += carte("Le parcours des joueurs (joueurs différents)", barres(e0.map((e) => ({ label: e.etape, n: e.joueurs, extra: pct(e.joueurs, base) }))));
+      html += carte("Où les gens quittent le jeu (dernière action de la visite)", barres(dep.map((d) => ({ label: NOMS_OU[d.ou] || d.ou, n: d.visites }))));
+      html += carte("Durée des courses (secondes de morceau)", `<div class="tableau"><table><tr><th>Fin de la course</th><th class="n">Courses</th><th class="n">Moyenne</th><th class="n">Médiane</th></tr>${dur.map((d) => `<tr><td>${esc(d.moment)}</td><td class="n">${nb(d.n)}</td><td class="n">${nb(d.moyenne_s)} s</td><td class="n">${nb(d.mediane_s)} s</td></tr>`).join("")}</table></div>${arr ? "" : ""}`);
+      html += carte("Quand ils tombent : le choix", barres(["continuer", "rejouer", "score"].map((k) => ({ label: { continuer: "Continuer", rejouer: "Rejouer", score: "Voir mon score" }[k], n: continuer[k] || 0, extra: pct(continuer[k] || 0, totChoix) }))));
+      html += carte("L'album", `<div class="tableau"><table><tr><th>Événement</th><th>Détail</th><th class="n">Fois</th><th class="n">Joueurs</th></tr>${conv.filter((c) => c.type !== "mort_choix").map((c) => `<tr><td>${esc(c.type)}</td><td>${esc(c.detail)}</td><td class="n">${nb(c.n)}</td><td class="n">${nb(c.joueurs)}</td></tr>`).join("")}</table></div>`);
+      html += carte("À la fin du morceau, invitent-ils des potes ?", barres([{ label: "Voient l'écran de fin", n: f.visites_fin }, { label: "Ouvrent le partage", n: f.ouvrent_le_partage, extra: pct(f.ouvrent_le_partage, f.visites_fin) }, { label: "Envoient l'invitation", n: f.envoient, extra: pct(f.envoient, f.visites_fin) }]));
+      html += carte("Par jour", `<div class="tableau"><table><tr><th>Jour</th><th class="n">Visites</th><th class="n">Joueurs</th><th class="n">Courses</th><th class="n">Arrivées</th><th class="n">Morts</th><th class="n">Album</th><th class="n">Invitations</th></tr>${jours.map((j) => `<tr><td>${esc(j.jour)}</td><td class="n">${nb(j.visites)}</td><td class="n">${nb(j.joueurs)}</td><td class="n">${nb(j.courses)}</td><td class="n">${nb(j.arrivees)}</td><td class="n">${nb(j.morts)}</td><td class="n">${nb(j.clics_album)}</td><td class="n">${nb(j.invitations)}</td></tr>`).join("")}</table></div>`);
+      contenu.innerHTML = html;
+    } catch (err) {
+      $("etat").textContent = "Lecture impossible.";
+      contenu.innerHTML = carte("Les vues ne répondent pas", `<p>${esc(err.message)}</p><p>Vérifier que <code>supabase/tableau-de-bord.sql</code> a bien été exécuté.</p>`);
+    }
+  }
+  afficher();
+})();
+</script>
+</body>
+</html>

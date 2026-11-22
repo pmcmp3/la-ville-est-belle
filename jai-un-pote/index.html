@@ -1,14 +1,37 @@
 <!doctype html>
 <html lang="fr">
 <head>
+  <script>
+    // Lien « ?9 » (29 septembre 2026 : « un truc 9 qui fait que n'importe qui
+    // qui clique sur le lien, ça vide le cache ») : tout paramètre fait d'un
+    // NOMBRE (?9, ?10…) vide le cache du service worker, le désinscrit, remet
+    // le tuto au ralenti à zéro, puis recharge la page propre (les autres
+    // paramètres, ?ligue=… compris, sont gardés).
+    (function () {
+      try {
+        var u = new URL(location.href), num = null;
+        u.searchParams.forEach(function (v, k) { if (/^\d+$/.test(k)) num = k; });
+        if (num === null) return;
+        u.searchParams.delete(num);
+        try { localStorage.removeItem("jp2-appris"); localStorage.removeItem("jp2-conseils-vus"); } catch (e) {}
+        var fini = function () { location.replace(u.toString()); };
+        // Dans l'ordre : service worker retiré D'ABORD, caches vidés ENSUITE. Les deux
+        // en même temps laissaient Safari passer le rechargement par un service
+        // worker mourant dont le cache venait d'être vidé (« Returned response is null »).
+        var sw = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();
+        sw.then(function () { return window.caches && caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }); }).then(fini, fini);
+        setTimeout(fini, 2500);
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0d0d10" />
-  <link rel="icon" type="image/png" href="../favicon.png" />
-  <title>J'ai un pote — PMC</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>J'ai un pote v2 — PMC</title>
   <meta property="og:title" content="J'ai un pote — le jeu" />
   <meta property="og:description" content="Pédale sur la route de campagne le temps du morceau, ramasse des pièces, appelle tes potes. Le plus loin possible, avec le plus de potes." />
   <meta property="og:image" content="https://la-ville-est-belle-pmc.fr/assets/cover-ep-og.jpg" />
@@ -16,15 +39,26 @@
     /* Même DA que « La ville est belle » depuis le 4 septembre 2026 : l'e-card
        de l'EP. Blanc, rouge de charte, serif noire condensée, stickers rouges
        posés de travers, boutons rectangulaires à capitales espacées. */
-    @font-face { font-family: "Source Serif 2"; src: url("fonts/SourceSerif2-Black.woff2") format("woff2"); font-weight: 900; font-style: normal; font-display: block; }
+    @font-face { font-family: "Source Serif 2"; src: url("fonts/SourceSerif2-Black.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
 
     :root {
-      --rouge: #e13e26;
+      --rouge: #d93820;
       --blanc: #ffffff;
       --noir: #0d0d10;
       --panneau-fond: #ffffff;
       --panneau-bord: #0d0d10;
       --rayon: 4px;
+      /* --- LE SYSTÈME (21 novembre 2026) : tout texte de l'interface prend
+         l'une de ces valeurs, jamais une taille écrite à la main. Voir DESIGN.md.
+         Tailles : xs étiquette · s note · m corps et boutons · saisie (16 px :
+         en dessous, iOS zoome dans le champ) · titre (serif) · score (serif).
+         Graisses : 500 texte, 700 ce qui compte ; 900 réservé à la serif.
+         Interlettrage : --ls-l pour les capitales, 0 pour tout le reste. */
+      --t-xs: 11px; --t-s: 12px; --t-m: 13px; --t-saisie: 16px; --t-titre: 22px;
+      --ls-s: 0.04em; --ls-l: 0.12em;
+      --gris: rgba(13,13,16,0.68); --jaune: #ffcf2e; --filet: rgba(13,13,16,0.12);
+      --e1: 4px; --e2: 8px; --e3: 12px; --e4: 16px; --e5: 24px;
+
       --police: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; /* 8 septembre 2026 : « après, Helvetica, simple, efficace » */
       --titre: "Source Serif 2", Georgia, "Times New Roman", serif;
       --safe-top: env(safe-area-inset-top, 0px);
@@ -40,30 +74,49 @@
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     }
     #app { position: fixed; inset: 0; }
-    #game-canvas { display: block; width: 100%; height: 100%; transition: filter 0.6s ease; }
-    #game-canvas.game-over-bw { filter: grayscale(1); }
+    #game-canvas { display: block; width: 100%; height: 100%; transition: filter 0.6s ease; filter: saturate(1.28) contrast(1.03); }
+    #game-canvas.game-over-bw { filter: grayscale(1) saturate(0); }
     #game-canvas.danger { animation: canvas-danger 4s ease-in-out infinite; }
-    #game-canvas.turbo { filter: saturate(1.7) contrast(1.06); }
+    #game-canvas.turbo { filter: saturate(1.95) contrast(1.1); }
+    /* Sur la plage, le ciel, le sable et les pièces sont tous orange ou dorés :
+       on baisse la saturation et on remonte le contraste pour que ce qui compte
+       (pièces, mouettes, véhicules) se détache du fond. */
+    #game-canvas.plage { filter: saturate(0.98) contrast(1.1) brightness(0.97); }
+    #game-canvas.plage.turbo { filter: saturate(1.5) contrast(1.12); }
     @keyframes canvas-danger { 0%, 15%, 100% { filter: grayscale(0); } 7.5% { filter: grayscale(0.8); } }
 
-    #vignette {
-      position: fixed; inset: 0; z-index: 5; pointer-events: none;
-      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-      mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
-      -webkit-mask-image: radial-gradient(ellipse at center, transparent 55%, black 100%);
-    }
+    /* Plus de flou dans les coins (5 octobre 2026 : « tu peux enlever le flou
+       [...] en haut à droite, ce n'est pas très lisible ») : la vignette floutait
+       aussi le HUD dessiné dans le canvas. */
+    #vignette { display: none; }
 
     /* --- Overlay des écrans hors-jeu ------------------------------------- */
     #overlay {
       position: fixed; inset: 0; z-index: 20;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding: calc(16px + var(--safe-top)) 20px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      padding: calc(16px + var(--safe-top) + var(--centre, 0px)) 20px calc(20px + var(--safe-bottom) + var(--browser-chrome-bottom));
       box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
       background: linear-gradient(180deg, rgba(13,13,16,0.1) 0%, rgba(13,13,16,0.3) 55%, rgba(13,13,16,0.5) 100%);
       opacity: 0; visibility: hidden;
       transition: opacity 0.45s ease, visibility 0s linear 0.45s;
     }
-    #overlay.visible { opacity: 1; visibility: visible; transition: opacity 0.45s ease, visibility 0s; }
+    #overlay.visible { opacity: 1; visibility: visible; transition: opacity 0.45s ease, visibility 0s, padding-top 0.35s ease; }
+    /* Clavier ouvert (4 octobre 2026, deuxième passe) : AUCUNE animation de mise
+       en page. La marge qui glissait en 0,35 s déplaçait le champ pendant que
+       Safari calculait son propre défilement vers lui : au premier tap, tout
+       partait de travers (« quand on clique une deuxième fois, ça va mieux »).
+       Le titre et le lien de l'album s'effacent net, la carte monte en haut. */
+    #overlay.visible.fige { transition: opacity 0.45s ease, visibility 0s; }
+    #overlay.clavier #menu-title, #overlay.clavier #champs-pourquoi, #overlay.clavier #beta-tag, #overlay.clavier #cta-link, #overlay.clavier ~ #mute-button { display: none; }
+    /* Clavier ouvert (5 octobre 2026, troisième passe — « ça monte d'un seul
+       coup et ça redescend », « les lignes se rétrécissent ») : la carte garde
+       EXACTEMENT sa forme ; elle est posée par une translation (--saisie-y,
+       screens.placerSaisie), centrée au-dessus du clavier. L'overlay ne
+       défile plus et n'a plus de marges : rien d'autre ne bouge. */
+    #overlay.clavier { padding-top: 0; padding-bottom: 0; overflow: hidden; }
+    #onboarding .step { transform: translateY(var(--saisie-y, 0px)); transition: transform 0.3s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    #overlay.retour #menu-title { animation: titre-retour 0.35s ease both; }
+    @keyframes titre-retour { from { opacity: 0; } to { opacity: 1; } }
     #overlay .fade { opacity: 0; transform: translateY(10px); transition: opacity 0.5s ease, transform 0.5s ease; }
     #overlay.visible .fade { opacity: 1; transform: translateY(0); }
     #overlay.visible .fade:nth-child(2) { transition-delay: 0.12s; }
@@ -74,10 +127,6 @@
       transform: translateX(-50%) scaleX(0.66); transform-origin: center bottom;
       font: 900 clamp(52px, 17vw, 72px)/0.85 var(--titre); letter-spacing: -0.035em; white-space: nowrap;
     }
-    #menu-title .titre-sous {
-      display: block; margin-top: 14px;
-      font: 700 11px var(--police); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.85);
-    }
     #overlay.end-view #menu-title, #overlay.end-view #beta-tag { display: none; }
     #overlay.end-view { overflow-y: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; touch-action: pan-y; padding-bottom: calc(24px + var(--safe-bottom) + var(--browser-chrome-bottom)); }
     #end-screen.active { width: 100%; align-items: center; margin: auto 0; }
@@ -87,6 +136,7 @@
     @keyframes view-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     #onboarding.active { width: 100%; flex: none; }
     #onboarding .panel { margin: 0 auto; }
+    #onboarding .panel-body { padding: 26px 18px 16px; }
 
     /* --- Carte + sticker ------------------------------------------------ */
     .panel {
@@ -99,13 +149,13 @@
       padding: 7px 14px; background: var(--rouge); border-radius: 2px; white-space: nowrap; text-align: center;
     }
     .panel-body { padding: 30px 22px 24px; display: flex; flex-direction: column; align-items: center; }
-    .step-eyebrow { margin: 0; font: 700 11.5px var(--police); letter-spacing: 0.14em; text-transform: uppercase; color: var(--blanc); }
+    .step-eyebrow { margin: 0; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: var(--blanc); }
 
     /* --- Boutons -------------------------------------------------------- */
     .btn {
       display: block; width: 228px; min-height: 46px; margin: 0; padding: 11px 18px;
       border-radius: var(--rayon); border: 1.5px solid transparent;
-      font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
+      font: 700 var(--t-m) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; text-align: center;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       transition: transform 0.08s ease, filter 0.08s ease, background 0.2s ease, opacity 0.2s ease;
     }
@@ -118,7 +168,7 @@
     .btn-primary:disabled { background: #cccccc; border-color: #bbbbbb; color: var(--blanc); cursor: not-allowed; transform: none; filter: none; }
     .link-minimal {
       display: inline-block; padding: 0; border: none; background: none;
-      color: rgba(0,0,0,0.55); font: 500 13px var(--police); text-decoration: underline; text-underline-offset: 4px;
+      color: rgba(0,0,0,0.68); font: 500 var(--t-m) var(--police); text-decoration: underline; text-underline-offset: 4px;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     .locked { opacity: 0.45; }
@@ -126,52 +176,110 @@
 
     /* --- Menu ----------------------------------------------------------- */
     #pseudo-row { display: flex; align-items: center; gap: 10px; width: 240px; margin-top: 6px; }
-    #pseudo-row .icon { font: 500 14px var(--police); color: rgba(0,0,0,0.45); }
+    #pseudo-row .icon { font: 500 var(--t-m) var(--police); color: rgba(0,0,0,0.68); }
     #pseudo-input {
       flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1.5px solid rgba(0,0,0,0.4);
-      color: var(--noir); font: 500 15px var(--police); padding: 5px 2px; -webkit-appearance: none;
+      color: var(--noir); font: 500 var(--t-saisie) var(--police); padding: 5px 2px; -webkit-appearance: none;
     }
-    #pseudo-input::placeholder { color: rgba(0,0,0,0.32); }
+    #pseudo-input::placeholder { color: rgba(0,0,0,0.68); }
     #pseudo-input:focus { outline: none; border-bottom-color: var(--rouge); }
-    .field-note { width: 240px; margin: 12px 0 18px; font: 500 13px/1.4 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
-    .regle { width: 240px; margin: 0 0 18px; padding: 0; list-style: none; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); }
+    .field-note { width: 240px; margin: 12px 0 18px; font: 500 var(--t-m)/1.4 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
+    .regle { width: 240px; margin: 0 0 18px; padding: 0; list-style: none; font: 500 var(--t-s)/1.5 var(--police); color: rgba(0,0,0,0.7); }
     .regle li { display: flex; gap: 8px; }
-    .regle b { font-weight: 900; color: var(--noir); min-width: 62px; }
-    #loading { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 200px; margin-bottom: 18px; }
-    #loading.done { display: none; }
+    .regle b { font-weight: 700; color: var(--noir); min-width: 62px; }
+    #splash { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--rouge); transition: opacity 0.45s ease, visibility 0s linear 0.45s; }
+    #splash.fini { opacity: 0; visibility: hidden; pointer-events: none; }
+    /* Logo FIXE (4 octobre 2026 : « vu qu'il y a le petit bonhomme qui fait du
+       vélo, fais pas tourner la ville ») : c'est le cycliste qui bouge. */
+    #splash-logo img { display: block; width: 150px; height: auto; }
+    #splash-velo { width: 200px; height: 110px; margin-top: -4px; }
+    #loading { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 200px; }
     #loading.failed #loading-track { display: none; }
-    #loading.failed #loading-label { color: var(--rouge); }
-    #loading-track { width: 100%; height: 3px; border-radius: 999px; background: rgba(0,0,0,0.12); overflow: hidden; }
-    #loading-fill { width: 0%; height: 100%; background: var(--rouge); transition: width 0.25s linear; }
-    #loading-label { font: 500 13px var(--police); color: rgba(0,0,0,0.55); font-variant-numeric: tabular-nums; }
+    #loading-track { width: 100%; height: 3px; border-radius: 999px; background: rgba(255,255,255,0.3); overflow: hidden; }
+    #loading-fill { width: 0%; height: 100%; background: #fff; transition: width 0.25s linear; }
+    #loading-label { font: 500 var(--t-m) var(--police); color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; }
 
     /* --- Menu en trois étapes ------------------------------------------- */
     #onboarding .step { display: none; }
     #onboarding[data-step="1"] .step[data-step="1"], #onboarding[data-step="2"] .step[data-step="2"], #onboarding[data-step="3"] .step[data-step="3"] { display: block; }
-    .champ-row { display: flex; align-items: center; gap: 10px; width: 240px; margin-top: 10px; }
-    .champ-row .icon { font: 700 11px var(--police); color: rgba(0,0,0,0.45); min-width: 16px; text-align: center; }
-    .champ-row input { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1.5px solid rgba(0,0,0,0.25); color: var(--noir); font: 500 14px var(--police); padding: 5px 2px; -webkit-appearance: none; }
+    .champ-row { display: flex; align-items: center; gap: 10px; width: 240px; margin-top: 12px; }
+    #champs-pourquoi { width: 240px; margin: 8px 0 14px; font: 500 var(--t-s)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: left; }
+    .champ-titre { width: 240px; margin: 22px 0 2px; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); text-align: left; }
+    #step1-next { margin-top: 24px; }
+    .champ-row .icon { font: 700 var(--t-xs) var(--police); color: rgba(0,0,0,0.68); min-width: 16px; text-align: center; }
+    .champ-row input { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1.5px solid rgba(0,0,0,0.25); color: var(--noir); font: 500 var(--t-saisie) var(--police); padding: 5px 2px; -webkit-appearance: none; }
     .champ-row input:focus { outline: none; border-bottom-color: var(--rouge); }
-    #step2-back, #step3-links { margin-top: 10px; }
+    #step3-links { margin-top: 10px; }
     #step3-links { display: flex; gap: 18px; }
-    #skin-canvas { display: block; width: 220px; height: 150px; margin: -6px 0 2px; }
-    #skin-options { display: flex; flex-direction: column; gap: 5px; width: 250px; margin-bottom: 12px; }
-    .skin-row { display: flex; align-items: center; gap: 8px; }
-    .skin-label { width: 68px; flex: none; font: 700 10px var(--police); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
-    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
-    .chip { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 3px; border: 1.5px solid rgba(0,0,0,0.25); background: #fff; font: 700 10px var(--police); letter-spacing: 0.06em; text-transform: uppercase; color: var(--noir); -webkit-tap-highlight-color: transparent; }
-    .chip.couleur { padding: 0; width: 20px; }
-    .chip.actif { border-color: var(--noir); box-shadow: 0 0 0 2px var(--jaune); }
+    /* ⚠️ Le canvas fait 240×140 et s'affiche en 240×140 : il était dessiné en
+       220×200 et affiché en 200×120, donc écrasé de 34 % en hauteur (« mon
+       bonhomme, il est écrasé dans le menu de base », 27 septembre 2026). */
+    /* Menu COMPACT (29 septembre 2026 : « c'est trop grand, j'ai besoin de
+       scroller pour voir que l'album est sorti ») : aperçu réduit, écarts serrés. */
+    #skin-canvas { display: block; width: 178px; height: 104px; margin: -14px 0 2px; }
+    #skin-options { display: flex; flex-direction: column; gap: 8px; width: 256px; margin-bottom: 12px; }
+    /* Libellé AU-DESSUS de ses pastilles (27 septembre 2026 : « laisse plus de
+       place entre maillot, chapeau et engin ») : chaque réglage tient sur une
+       ligne et se lit comme un bloc. */
+    .skin-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .skin-label { flex: none; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { min-width: 24px; height: 26px; padding: 0 6px; border-radius: 3px; border: 1.5px solid rgba(0,0,0,0.25); background: #fff; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-s); text-transform: uppercase; color: var(--noir); -webkit-tap-highlight-color: transparent; }
+    .chip.couleur { padding: 0; width: 26px; }
+    .chip.actif { border-color: var(--noir); box-shadow: 0 0 0 2px #ffcf2e; }
     #sprint-button { margin-top: 8px; }
-    #sprint-note { margin: 6px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
-    #end-max { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
-    #end-max b { color: var(--rouge); font-weight: 900; }
-    #end-ligue-liste .fantome { margin-left: 4px; font-size: 11px; opacity: 0.7; }
-    #end-relais { margin: 4px 0 0; font: 500 12px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; }
+    /* Boost de ligue (29 septembre 2026) : sticker jaune sous JOUER. */
+    #explication { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(13,13,16,0.55); }
+    #explication.hidden { display: none; }
+    #overlay.visible.estompe { opacity: 0.5; } /* « on voit encore ma ligue derrière, ça perturbe » */
+    #expl-carte { position: relative; width: min(300px, 100%); box-sizing: border-box; padding: 30px 20px 16px; background: #fff; border: 1.5px solid var(--noir); border-radius: var(--rayon); text-align: center; animation: expl-in 0.35s ease-out both; }
+    .expl-etape { display: none; }
+    .expl-etape.on { display: block; animation: expl-in 0.3s ease-out both; }
+    .expl-titre { margin: 4px 0 12px; font: 900 var(--t-titre)/1.1 var(--titre); color: var(--noir); }
+    .expl-texte { margin: 0 0 12px; font: 500 var(--t-m)/1.45 var(--police); color: var(--noir); }
+    /* Main et haut-parleur DESSINÉS (4 octobre 2026, nuit) : les emojis 👆 🔊
+       changeaient de tête selon le téléphone (Samsung ≠ iPhone). */
+    #expl-son { position: relative; width: 120px; height: 90px; margin: 0 auto 10px; }
+    #expl-son .hp { position: absolute; left: 10px; top: 20px; width: 48px; height: 48px; }
+    #expl-son .onde { position: absolute; left: 50px; top: 20px; width: 44px; height: 44px; border: 3px solid var(--rouge); border-left-color: transparent; border-bottom-color: transparent; border-radius: 50%; transform: rotate(45deg); opacity: 0; animation: expl-son 1.2s ease-out infinite; }
+    #expl-son .o2 { animation-delay: 0.25s; } #expl-son .o3 { animation-delay: 0.5s; }
+    @keyframes expl-son { 0% { opacity: 0; transform: rotate(45deg) scale(0.5); } 30% { opacity: 1; } 100% { opacity: 0; transform: rotate(45deg) scale(1.5); } }
+    /* La carte « Joue avec tes potes » : un score, et le fil des invitations. */
+    #expl-invit { width: 252px; max-width: 100%; margin: 0 auto 12px; }
+    #expl-score { position: relative; display: flex; align-items: baseline; justify-content: center; gap: 4px; margin: 0 0 10px; }
+    #expl-score b { font: 900 46px/1 var(--titre); color: var(--noir); font-variant-numeric: tabular-nums; }
+    #expl-score small { font: 700 var(--t-m) var(--police); color: var(--noir); }
+    #expl-score.pop b { animation: expl-pop 0.3s ease-out; }
+    #expl-gain { position: absolute; right: -2px; top: -6px; padding: 3px 7px; background: var(--rouge); color: #fff; font: 700 var(--t-m) var(--police); border-radius: 3px; transform: rotate(4deg); opacity: 0; }
+    #expl-gain.on { opacity: 1; animation: expl-pop 0.3s ease-out; }
+    #expl-fil { list-style: none; margin: 0; padding: 2px 0; height: 124px; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+    #expl-carte .step-eyebrow { white-space: nowrap; }
+    #expl-fil li { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 1.5px solid var(--noir); border-radius: var(--rayon); background: #fff; font: 700 var(--t-s) var(--police); color: var(--noir); text-align: left; animation: expl-fil-in 0.28s ease-out both; }
+    #expl-fil li .ico { flex: none; width: 18px; height: 18px; }
+    #expl-fil li .txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #expl-fil li .plus { flex: none; font-weight: 700; color: var(--rouge); }
+    #expl-fil li.rejoint { background: #ffcf2e; }
+    @keyframes expl-fil-in { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+    #expl-barre { height: 4px; background: rgba(0,0,0,0.12); overflow: hidden; }
+    #expl-barre i { display: block; height: 100%; width: 0; background: var(--rouge); }
+    #explication { flex-direction: column; }
+    #expl-passer { position: absolute; left: 0; right: 0; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); margin: 0; font: 700 var(--t-m) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: #fff; text-align: center; animation: expl-clignote 1.2s ease-in-out infinite; }
+    @keyframes expl-clignote { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+    @keyframes expl-in { from { transform: scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes expl-pop { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    #boost-ligue { margin-top: 8px; width: 100%; padding: 8px 10px; border: 1.5px solid var(--noir); border-radius: 3px; background: #ffcf2e; color: var(--noir); font: 500 var(--t-xs)/1.35 var(--police); text-align: left; -webkit-tap-highlight-color: transparent; }
+    #boost-ligue b { font-weight: 700; letter-spacing: var(--ls-s); }
+    #boost-ligue small { display: block; margin-top: 3px; font: 700 var(--t-xs)/1.35 var(--police); color: rgba(0,0,0,0.7); }
+    #end-rang { margin: 0; padding: 4px 10px; background: #ffcf2e; border: 1.5px solid var(--noir); transform: rotate(-1.5deg); font: 700 var(--t-m) var(--police); letter-spacing: var(--ls-s); text-transform: uppercase; color: var(--noir); }
+    #sprint-note { margin: 6px 0 0; font: 500 var(--t-xs) var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #end-max { margin: 4px 0 0; font: 500 var(--t-s)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #end-max b { color: var(--rouge); font-weight: 700; }
+    #end-ligue-liste .fantome { margin-left: 4px; font-size: var(--t-xs); opacity: 0.7; }
+    #end-relais { margin: 4px 0 0; font: 500 var(--t-s)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
 
     /* --- Bêta fermée (16 septembre 2026) ---------------------------------- */
     body.beta .beta-off { display: none !important; }
-    #beta-tag { margin: 0 0 26px; padding: 5px 10px; background: var(--rouge); color: var(--blanc); border-radius: 2px; transform: rotate(-1.5deg); font: 900 10.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; }
+    #beta-tag { margin: 0 0 26px; padding: 5px 10px; background: var(--rouge); color: var(--blanc); border-radius: 2px; transform: rotate(-1.5deg); font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; }
     #end-retour { margin-top: 2px; }
     #retour-sheet { position: fixed; inset: 0; z-index: 49; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
     #retour-sheet.visible { visibility: visible; transition: visibility 0s; }
@@ -179,50 +287,80 @@
     #retour-sheet.visible #retour-veil { opacity: 1; }
     #retour-card { position: relative; box-sizing: border-box; width: min(320px, 100%); padding: 30px 20px 18px; border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
     #retour-sheet.visible #retour-card { transform: scale(1); opacity: 1; }
-    #retour-title { margin: 2px 0 0; font: 900 26px/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
-    #retour-text { margin: 0; font: 500 12.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
-    #retour-input { box-sizing: border-box; width: 100%; min-height: 108px; resize: none; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 10px; font: 500 14px/1.45 var(--police); color: var(--noir); background: transparent; -webkit-appearance: none; }
+    #retour-title { margin: 2px 0 0; font: 900 var(--t-titre)/1.1 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #retour-text { margin: 0; font: 500 var(--t-s)/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; text-wrap: balance; }
+    #retour-input { box-sizing: border-box; width: 100%; min-height: 108px; resize: none; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 10px; font: 500 var(--t-m)/1.45 var(--police); color: var(--noir); background: transparent; -webkit-appearance: none; }
     #retour-input:focus { outline: none; border-color: var(--rouge); }
     #retour-input, #pseudo-input, .champ-row input, #ligue-input { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
-    #retour-compteur { margin: -6px 0 0; align-self: flex-end; font: 500 11px var(--police); color: rgba(0,0,0,0.45); font-variant-numeric: tabular-nums; }
+    #retour-compteur { margin: -6px 0 0; align-self: flex-end; font: 500 var(--t-xs) var(--police); color: rgba(0,0,0,0.68); font-variant-numeric: tabular-nums; }
     #retour-envoyer { width: 100%; }
     #retour-form { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
     #retour-ok { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    #retour-ok .coche { width: 46px; height: 46px; border-radius: 50%; background: var(--rouge); color: var(--blanc); display: flex; align-items: center; justify-content: center; font: 900 24px var(--police); }
+    #retour-ok .coche { width: 46px; height: 46px; border-radius: 50%; background: var(--rouge); color: var(--blanc); display: flex; align-items: center; justify-content: center; font: 900 var(--t-titre)/1.1 var(--titre); }
 
     /* --- Ligue ---------------------------------------------------------- */
     #ligue-bloc { width: 240px; margin: 0 0 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
     #ligue-bloc.hidden { display: none; }
     #ligue-row { display: flex; gap: 8px; width: 100%; }
-    #ligue-input { flex: 1; min-width: 0; box-sizing: border-box; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 8px 10px; font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; color: var(--noir); background: transparent; -webkit-appearance: none; }
+    #ligue-input { flex: 1; min-width: 0; box-sizing: border-box; border: 1.5px solid rgba(0,0,0,0.35); border-radius: var(--rayon); padding: 7px 10px; font: 700 var(--t-saisie) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: var(--noir); background: transparent; -webkit-appearance: none; }
     #ligue-input:focus { outline: none; border-color: var(--rouge); }
-    #ligue-row .btn { width: auto; min-height: 38px; padding: 8px 12px; font-size: 11px; }
+    #ligue-row .btn { width: auto; min-height: 38px; padding: 8px 12px; font-size: var(--t-xs); }
     #ligue-sans, #ligue-avec { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
-    #ligue-titre { margin: 0; font: 700 11px var(--police); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(0,0,0,0.6); }
-    #ligue-titre b, #end-ligue-titre b { color: var(--rouge); font-weight: 900; font-size: 15px; letter-spacing: 0.18em; }
-    #ligue-membres { margin: 0; font: 500 12px/1.4 var(--police); color: var(--noir); text-align: center; }
-    #ligue-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
-    #ligue-actions .btn { width: 100%; min-height: 40px; padding: 8px 12px; font-size: 12px; }
-    #ligue-places { margin: -4px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.5); text-align: center; }
+    #ligue-titre { margin: 0; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); }
+    #end-ligue-titre b { color: var(--rouge); font-weight: 700; font-size: var(--t-m); letter-spacing: var(--ls-l); }
+    #ligue-membres { margin: 0; font: 500 var(--t-s)/1.4 var(--police); color: var(--noir); text-align: center; }
     .share-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
     .share-apps { display: flex; align-items: center; justify-content: center; gap: 7px; opacity: 0.55; }
     .share-apps svg { display: block; flex: none; }
-    #ligue-msg { margin: 0; font: 500 12px var(--police); color: var(--rouge); text-align: center; }
+    #ligue-intro { margin: 0 0 6px; font: 500 var(--t-m)/1.4 var(--police); color: var(--noir); text-align: center; text-wrap: balance; }
+    #ligue-intro b { font-weight: 700; }
+    #ligue-sans > #ligue-creer { width: 100%; }
+    .lp-sep { position: relative; width: 100%; margin: 4px 0 0; text-align: center; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); }
+    .lp-sep::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(0,0,0,0.15); }
+    .lp-sep span { position: relative; padding: 0 8px; background: #fff; }
+    .lp-ou { margin: 0 0 -2px; font: 700 var(--t-s) var(--police); color: var(--noir); }
+    #ligue-code-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: -2px 0 2px; padding: 6px 14px; border: 1.5px dashed rgba(0,0,0,0.35); border-radius: var(--rayon); background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #ligue-code-btn b { font: 900 34px/1 var(--police); letter-spacing: var(--ls-l); color: var(--rouge); -webkit-user-select: all; user-select: all; }
+    #ligue-code-btn small { font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); }
+    #ligue-code-btn:active { transform: scale(0.97); }
+    #ligue-avec #ligue-partager { width: 100%; min-height: 76px; font-size: var(--t-m); }
+    #ligue-avec #ligue-partager .share-inner { gap: 9px; }
+    #ligue-avec #ligue-partager .share-apps { gap: 16px; opacity: 0.9; }
+    #ligue-code-btn { width: 100%; box-sizing: border-box; }
+    #ligue-avec, #ligue-sans { gap: 10px; }
+    #ligue-peloton { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; width: 100%; margin: 2px 0 0; padding: 0; list-style: none; }
+    #ligue-peloton li { padding: 4px 8px; border: 1.5px solid var(--noir); border-radius: 3px; font: 700 var(--t-xs) var(--police); color: var(--noir); }
+    #ligue-peloton li.moi { background: #ffcf2e; }
+    #ligue-peloton li.bot { border-style: dashed; border-color: rgba(0,0,0,0.68); color: rgba(0,0,0,0.68); font-weight: 700; }
+    #ligue-peloton li.nouveau { animation: expl-pop 0.3s ease-out; }
+    .btn.btn-petit { min-height: 38px; padding: 8px 14px; font-size: var(--t-xs); width: auto; }
+    #step2-liens { display: flex; gap: 26px; justify-content: center; align-items: center; margin-top: 14px; }
+    #step2-liens .link-minimal { margin: 0; line-height: 1.2; }
+    [data-step="2"] #step2-next { width: 100%; margin-top: 12px; }
+    [data-step="2"] #step2-next.btn-petit { width: auto; }
+    #ligue-msg { width: 100%; box-sizing: border-box; margin: 0; font: 700 var(--t-s)/1.35 var(--police); color: var(--rouge); text-align: center; }
+    #ligue-statut { width: 100%; box-sizing: border-box; margin: 0; padding: 8px 10px; background: #ffcf2e; border: 1.5px solid var(--noir); border-radius: 3px; font: 700 var(--t-m)/1.35 var(--police); color: var(--noir); text-align: center; }
     #end-ligue { width: 100%; margin: 0 0 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    #end-ligue-titre { margin: 0; font: 700 11px var(--police); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(0,0,0,0.6); }
-    #end-ligue-liste { width: 100%; margin: 0; padding: 0; list-style: none; font: 500 13px var(--police); color: var(--noir); }
+    #end-ligue-titre { margin: 0; padding: 0; border: none; background: none; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #end-ligue-titre b { text-decoration: underline; text-underline-offset: 4px; }
+    #end-ligue-titre small { font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-s); color: rgba(0,0,0,0.68); text-decoration: underline; text-underline-offset: 3px; }
+    #ligue-titre { margin: 0; }
+    #end-ligue-liste { width: 100%; margin: 0; padding: 0; list-style: none; font: 500 var(--t-m) var(--police); color: var(--noir); }
     #end-ligue-liste li { display: flex; gap: 8px; padding: 5px 4px; border-bottom: 1px solid rgba(0,0,0,0.08); }
-    #end-ligue-liste li.moi { background: rgba(255,207,46,0.35); border-radius: 3px; font-weight: 900; }
-    #end-ligue-liste .rang { width: 18px; color: rgba(0,0,0,0.45); font-weight: 900; }
+    #end-ligue-liste li.moi { background: rgba(255,207,46,0.35); border-radius: 3px; font-weight: 700; }
+    #end-ligue-liste .rang { width: 18px; color: rgba(0,0,0,0.68); font-weight: 700; }
+    #end-ligue-liste .rang .couronne { width: 16px; height: 12px; vertical-align: -1px; }
+    #end-ecart { margin: 0; font: 700 var(--t-m)/1.35 var(--police); text-align: center; color: var(--noir); }
+    #end-ecart b { font-weight: 700; color: var(--rouge); }
     #end-ligue-liste .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #end-ligue-liste .m { font-variant-numeric: tabular-nums; font-weight: 900; }
-    #end-ligue .btn { width: 100%; padding: 8px 10px; min-height: 40px; font-size: 12px; }
+    #end-ligue-liste .m { font-variant-numeric: tabular-nums; font-weight: 700; }
+    #end-ligue .btn { width: 100%; padding: 8px 10px; min-height: 40px; font-size: var(--t-s); }
 
     #cta-link {
-      position: relative; margin: 18px auto 0; flex: none;
-      display: flex; align-items: center; justify-content: center; gap: 8px; width: 240px; box-sizing: border-box; padding: 13px 22px;
+      position: relative; margin: 10px auto 0; flex: none;
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 240px; box-sizing: border-box; padding: 11px 22px;
       border: 1.5px solid var(--noir); border-radius: var(--rayon); background: var(--blanc); color: var(--noir);
-      font: 700 13px var(--police); letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none; white-space: nowrap;
+      font: 700 var(--t-m) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; text-decoration: none; white-space: nowrap;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #cta-link svg { flex: none; opacity: 0.75; }
@@ -234,21 +372,17 @@
     #end-screen .btn { width: 100%; padding: 9px 10px; min-height: 44px; white-space: nowrap; }
     #end-hero { text-align: center; margin: 2px 0 14px; }
     #score-num { font: 900 clamp(52px, 16vw, 64px)/0.9 var(--titre); color: var(--noir); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block; }
-    #score-num small { font: 700 16px var(--police); letter-spacing: 0.06em; margin-left: 4px; }
-    #end-sub { margin: 8px 0 0; font: 500 13px/1.4 var(--police); color: rgba(0,0,0,0.65); text-align: center; text-wrap: balance; }
+    #score-num small { font: 700 var(--t-saisie) var(--police); letter-spacing: var(--ls-s); margin-left: 4px; }
+    #end-sub { margin: 8px 0 0; font: 500 var(--t-m)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: center; text-wrap: balance; }
     /* « Nouveau record » : sticker en haut à droite de la carte (6 septembre 2026). */
     #end-best {
       position: absolute; top: 22px; right: -16px; margin: 0; padding: 6px 10px;
       transform: rotate(8deg); background: var(--rouge); color: var(--blanc); border-radius: 2px;
-      font: 900 10.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
-      box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+      font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; white-space: nowrap;
     }
-    #end-credit { margin: 10px 0 0; font: 500 10px/1.4 var(--police); color: rgba(0,0,0,0.45); text-align: center; text-wrap: balance; }
-    #end-ecouter { margin-top: 2px; }
-    #end-credit a { color: var(--rouge); font-weight: 900; text-decoration: none; }
+    #end-links { display: flex; justify-content: space-between; width: 100%; margin-top: 6px; }
+    #end-links .link-minimal { font: 500 var(--t-m) var(--police); color: rgba(0,0,0,0.68); text-decoration: underline; }
     #end-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-    #end-note { margin: 10px 0 0; font: 500 11px var(--police); color: rgba(0,0,0,0.55); text-align: center; }
-    #end-note a { color: var(--rouge); font-weight: 900; text-decoration: none; }
 
     /* --- Carte de mort -------------------------------------------------- */
     #revive-sheet { position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 24px; visibility: hidden; transition: visibility 0s linear 0.25s; }
@@ -256,7 +390,7 @@
     #revive-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.25s ease; }
     #revive-sheet.visible #revive-veil { opacity: 1; }
     #revive-card {
-      position: relative; box-sizing: border-box; width: min(300px, 100%); padding: 22px 20px 18px;
+      position: relative; box-sizing: border-box; width: min(300px, 100%); padding: 32px 20px 18px;
       border-radius: var(--rayon); border: 1.5px solid var(--panneau-bord); background: var(--panneau-fond);
       display: flex; flex-direction: column; align-items: center; gap: 10px;
       transform: scale(0.9); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease;
@@ -268,51 +402,67 @@
     #revive-arc, #gate-arc { fill: none; stroke: var(--rouge); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 207.3; stroke-dashoffset: 0; }
     #revive-timer-num, #gate-timer-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 900 30px var(--police); color: var(--noir); font-variant-numeric: tabular-nums; }
     #revive-title, #gate-title { margin: 2px 0 6px; font: 900 clamp(22px, 6.5vw, 28px)/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
-    #revive-text, #gate-text { margin: 0 0 4px; font: 500 13.5px/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
+    #revive-text, #gate-text { margin: 0 0 4px; font: 500 var(--t-m)/1.5 var(--police); color: rgba(0,0,0,0.7); text-align: center; }
     #revive-cta, #revive-replay, #gate-cta, #gate-go, #gate-later { width: 100%; }
     #gate-later { margin-top: 4px; }
 
     /* --- Tiroir album --------------------------------------------------- */
-    #gate-sheet { position: fixed; inset: 0; z-index: 50; visibility: hidden; transition: visibility 0s linear 0.3s; }
-    #gate-sheet.visible { visibility: visible; transition: visibility 0s; }
-    #gate-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.3s ease; }
-    #gate-sheet.visible #gate-veil { opacity: 1; }
-    #gate-card {
+    #gate-sheet, #partage-sheet { position: fixed; inset: 0; z-index: 50; visibility: hidden; transition: visibility 0s linear 0.3s; }
+    #partage-sheet { z-index: 55; }
+    #gate-sheet.visible, #partage-sheet.visible { visibility: visible; transition: visibility 0s; }
+    #gate-veil, #partage-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.3s ease; }
+    #gate-sheet.visible #gate-veil, #partage-sheet.visible #partage-veil { opacity: 1; }
+    #gate-card, #partage-card {
       position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; max-width: 460px; margin: 0 auto;
       max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
       padding: 20px 24px calc(18px + var(--safe-bottom) + var(--browser-chrome-bottom));
-      border-radius: 8px 8px 0 0; border: 1.5px solid var(--panneau-bord); border-bottom: none; background: var(--panneau-fond);
+      border-radius: var(--rayon) var(--rayon) 0 0; border: 1.5px solid var(--panneau-bord); border-bottom: none; background: var(--panneau-fond);
       display: flex; flex-direction: column; align-items: center; gap: 9px;
       transform: translateY(105%); transition: transform 0.3s ease;
     }
-    #gate-sheet.visible #gate-card { transform: translateY(0); }
+    #gate-sheet.visible #gate-card, #partage-sheet.visible #partage-card { transform: translateY(0); }
     @media (min-width: 700px) and (min-height: 600px) {
-      #gate-card { bottom: 28px; border-radius: 8px; border-bottom: 1.5px solid var(--panneau-bord); padding-bottom: 22px; max-height: min(84vh, 760px); }
+      #gate-card, #partage-card { bottom: 28px; border-radius: var(--rayon); border-bottom: 1.5px solid var(--panneau-bord); padding-bottom: 22px; max-height: min(84vh, 760px); }
     }
-    #gate-eyebrow { margin: 0; font: 500 10px var(--police); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(0,0,0,0.45); text-align: center; }
+    /* Même sticker rouge de travers que toutes les cartes (28 septembre 2026,
+       « je veux une cohérence dans les menus »). */
+    #gate-eyebrow, #partage-eyebrow { margin: 0 0 4px; padding: 7px 14px; background: var(--rouge); border-radius: 2px; transform: rotate(-2deg); font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: var(--blanc); text-align: center; }
     #gate-platforms { width: 100%; display: flex; flex-direction: column; gap: 7px; margin: 2px 0 0; }
     .plat-btn {
       display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: 11px 14px;
       border: 1.5px solid var(--panneau-bord); border-radius: var(--rayon); background: #fff; color: var(--noir);
-      font: 700 14px var(--police); text-decoration: none; -webkit-tap-highlight-color: transparent;
+      font: 700 var(--t-m) var(--police); text-decoration: none; -webkit-tap-highlight-color: transparent;
     }
     .plat-btn:active { transform: translateY(1px); background: rgba(0,0,0,0.04); }
     .plat-btn .plat-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
     .plat-btn .plat-nom { flex: 1 1 auto; text-align: left; }
-    .plat-btn .plat-fleche { flex: 0 0 auto; opacity: 0.4; font-size: 13px; }
-    .plat-btn.prefere { background: var(--rouge); border-color: var(--rouge); color: #fff; padding: 14px; font: 900 15px var(--police); letter-spacing: 0.02em; text-transform: uppercase; }
-    .plat-btn.prefere .plat-fleche { opacity: 0.75; }
-    #gate-platforms .plat-sep { margin: 3px 0 1px; font: 500 10px var(--police); letter-spacing: 0.18em; text-transform: uppercase; color: rgba(0,0,0,0.38); text-align: center; }
-    #gate-hint { margin: 4px 0 0; font: 500 12px/1.45 var(--police); color: rgba(0,0,0,0.55); text-align: center; }
+    .plat-btn .plat-fleche { flex: 0 0 auto; opacity: 0.4; font-size: var(--t-m); }
+    #gate-platforms .plat-sep { margin: 3px 0 1px; font: 500 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); text-align: center; }
+    #gate-hint { margin: 4px 0 0; font: 500 var(--t-s)/1.45 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    /* --- Tiroir de partage (5 octobre 2026, navigateurs intégrés) --------- */
+    #partage-title { margin: 2px 0 2px; font: 900 clamp(22px, 6.5vw, 26px)/1.05 var(--titre); color: var(--noir); text-align: center; text-wrap: balance; }
+    #partage-text { margin: 0 0 4px; font: 500 var(--t-m)/1.45 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #partage-lien {
+      width: 100%; box-sizing: border-box; margin: 0; padding: 11px 12px; border: 1.5px dashed rgba(0,0,0,0.32); border-radius: var(--rayon);
+      background: #f7f5f0; font: 700 var(--t-m)/1.3 var(--police); color: var(--noir); text-align: center; word-break: break-all;
+      -webkit-user-select: all; user-select: all; -webkit-touch-callout: default;
+    }
+    #partage-copier, #partage-plus { width: 100%; }
+    #partage-copier.fait { background: #1f8a4c; border-color: #1f8a4c; }
+    #partage-hint { margin: 0; font: 700 var(--t-s)/1.4 var(--police); color: #1f8a4c; text-align: center; }
+    #partage-hint.echec { color: var(--rouge); }
+    #partage-apps { width: 100%; display: flex; flex-direction: column; gap: 7px; }
+    #partage-apps .plat-sep { margin: 3px 0 1px; font: 500 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: rgba(0,0,0,0.68); text-align: center; }
+    #partage-apps .plat-dot.snap { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25); }
 
     /* --- Boutons flottants + pause -------------------------------------- */
     #mute-button, #pause-button {
       position: fixed; left: calc(14px + var(--safe-left)); top: calc(14px + var(--safe-top)); z-index: 30;
       width: 44px; height: 44px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.6);
-      background: rgba(13,13,16,0.7); color: var(--blanc); font: 900 14px var(--police);
+      background: rgba(13,13,16,0.7); color: var(--blanc); font: 700 var(--t-m) var(--police);
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    #mute-button { font-weight: 500; font-size: 16px; }
+    #mute-button { font-weight: 500; font-size: var(--t-saisie); }
     #mute-button[hidden], #pause-button[hidden] { display: none; }
     #mute-button.muted { color: rgba(255,255,255,0.4); border-color: rgba(255,255,255,0.18); }
     #pause-screen {
@@ -320,8 +470,18 @@
       background: rgba(13,13,16,0.45); opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0s linear 0.25s;
     }
     #pause-screen.visible { opacity: 1; visibility: visible; transition: opacity 0.25s ease, visibility 0s; }
-    #pause-volume-row { display: flex; align-items: center; gap: 10px; width: 240px; margin: 2px 0 22px; }
-    #pause-volume-row .icon { flex: none; font-size: 18px; }
+    /* Deux curseurs (4 octobre 2026, nuit : « un réglage pour la musique et un
+       réglage pour les effets sonores ») ; le bouton ♪ du menu ouvre le même
+       panneau, sans Reprendre ni Recommencer (classe .reglages). */
+    #pause-volume { display: flex; flex-direction: column; gap: 14px; width: 270px; max-width: 100%; margin: 4px 0 24px; }
+    .volume-row { display: flex; align-items: center; gap: 12px; }
+    /* 62 px ne tenaient pas « VIBRATIONS » en capitales espacées : la coche
+       s'écrivait sur le mot (iPhone 16, 15 novembre 2026). Une colonne assez
+       large pour le plus long des trois, et le reste s'aligne dessus. */
+    .volume-row .skin-label { width: 92px; white-space: nowrap; }
+    #son-fermer { display: none; }
+    #pause-screen.reglages #resume-button, #pause-screen.reglages #pause-replay-button { display: none; }
+    #pause-screen.reglages #son-fermer { display: block; }
     #pause-actions { display: flex; flex-direction: column; align-items: center; gap: 16px; }
     .volume-range { height: 18px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; width: 100%; }
     .volume-range::-webkit-slider-runnable-track { height: 3px; background: rgba(0,0,0,0.15); border-radius: 2px; }
@@ -329,20 +489,291 @@
     .volume-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6.5px; border-radius: 50%; background: var(--rouge); border: 1.5px solid var(--noir); }
     .volume-range::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--rouge); border: 1.5px solid var(--noir); }
 
+    /* --- Le concours de ligues ------------------------------------------- */
+    /* Replié, et ABSENT pendant la saisie du pseudo ou de l'Insta : la carte doit
+       tenir au-dessus du clavier d'un petit iPhone (outils/clavier.mjs). */
+    #plus-contact { width: 240px; margin-top: 10px; }
+    #plus-contact summary { cursor: pointer; font: 700 var(--t-s) var(--police); color: rgba(0,0,0,0.68); list-style: none; padding: 4px 0; }
+    #plus-contact summary::-webkit-details-marker { display: none; }
+    #overlay.clavier #plus-contact:not(:focus-within) { display: none; }
+    #newsletter-row { display: flex; align-items: flex-start; gap: 8px; width: 240px; margin-top: 11px; font: 500 var(--t-s)/1.35 var(--police); color: rgba(0,0,0,0.7); text-align: left; }
+    #newsletter-row input { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: var(--rouge); }
+    #pourquoi-contact { width: 240px; margin: 9px 0 0; font: 500 var(--t-xs)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: left; }
+    #pourquoi-contact a, #classement-regle a { color: var(--rouge); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    #ligue-nom-row { width: 100%; margin: 0 0 4px; }
+    #ligue-nom-apercu { margin: 0 0 11px; font: 700 var(--t-s)/1.35 var(--police); color: rgba(0,0,0,0.68); text-align: center; overflow-wrap: anywhere; }
+    #ligue-nom-apercu b { color: var(--noir); font-weight: 700; }
+    #ligue-lien { margin: 0 0 8px; font: 700 var(--t-s)/1.3 var(--police); color: rgba(0,0,0,0.68); text-align: center; overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+    #ligue-arrivees { margin: 4px 0 0; padding: 5px 10px; background: #ffcf2e; border: 1.5px solid var(--noir); border-radius: 3px; font: 700 var(--t-s)/1.35 var(--police); color: var(--noir); text-align: center; }
+    #ligue-concours { margin: 6px 0 0; font: 700 var(--t-s)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #ligue-concours b { color: var(--rouge); font-weight: 700; }
+
+    #end-concours { width: 100%; margin: 0 0 12px; padding: 11px 12px; box-sizing: border-box; border: 1.5px solid var(--noir); border-radius: var(--rayon); background: rgba(255,207,46,0.22); display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    #end-concours-titre { margin: 0; font: 700 var(--t-s) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: var(--noir); }
+    #end-concours-rang { margin: 0; font: 500 var(--t-m)/1.35 var(--police); color: var(--noir); text-align: center; }
+    #end-concours-rang b { font-weight: 700; }
+    #end-concours-detail { margin: 0; font: 500 var(--t-xs)/1.35 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #end-concours-ecart { margin: 0; font: 700 var(--t-m)/1.35 var(--police); color: var(--noir); text-align: center; }
+    #end-concours-ecart b { font-weight: 700; color: var(--rouge); }
+    #end-concours-temps { margin: 0; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-s); text-transform: uppercase; color: rgba(0,0,0,0.68); }
+    #end-concours-voir { margin-top: 1px; }
+
+    /* Même tiroir que l'album et le partage : une seule grammaire. */
+    #classement-sheet { position: fixed; inset: 0; z-index: 56; visibility: hidden; transition: visibility 0s linear 0.3s; }
+    #classement-sheet.visible { visibility: visible; transition: visibility 0s; }
+    #classement-veil { position: absolute; inset: 0; background: rgba(13,13,16,0.62); opacity: 0; transition: opacity 0.3s ease; }
+    #classement-sheet.visible #classement-veil { opacity: 1; }
+    #classement-card {
+      position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; max-width: 460px; margin: 0 auto;
+      max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 20px 24px calc(18px + var(--safe-bottom) + var(--browser-chrome-bottom));
+      border-radius: var(--rayon) var(--rayon) 0 0; border: 1.5px solid var(--panneau-bord); border-bottom: none; background: var(--panneau-fond);
+      display: flex; flex-direction: column; align-items: center; gap: 9px;
+      transform: translateY(105%); transition: transform 0.3s ease;
+    }
+    #classement-sheet.visible #classement-card { transform: translateY(0); }
+    @media (min-width: 700px) and (min-height: 600px) {
+      #classement-card { bottom: 28px; border-radius: var(--rayon); border-bottom: 1.5px solid var(--panneau-bord); padding-bottom: 22px; max-height: min(84vh, 760px); }
+    }
+    #classement-eyebrow { margin: 0 0 4px; padding: 7px 14px; background: var(--rouge); border-radius: 2px; transform: rotate(-2deg); font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); text-transform: uppercase; color: var(--blanc); text-align: center; }
+    #classement-title { margin: 0; font: 900 var(--t-titre)/1.1 var(--titre); color: var(--noir); text-align: center; }
+    #classement-onglets { display: flex; gap: 6px; margin: 2px 0 0; }
+    #classement-onglets .chip { height: 30px; padding: 0 11px; font-size: var(--t-xs); }
+    #classement-regle { margin: 0; font: 500 var(--t-xs)/1.4 var(--police); color: rgba(0,0,0,0.68); text-align: center; }
+    #classement-liste { width: 100%; margin: 0; padding: 0; list-style: none; font: 500 var(--t-m) var(--police); color: var(--noir); }
+    #classement-liste li { display: flex; align-items: baseline; gap: 8px; padding: 6px 4px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    #classement-liste li.moi { background: rgba(255,207,46,0.35); border-radius: 3px; font-weight: 700; }
+    #classement-liste li.podium .rang { color: var(--rouge); }
+    #classement-liste li.coupure { display: block; padding: 5px 4px 6px; border-bottom: 1.5px dashed rgba(0,0,0,0.35); font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-s); text-transform: uppercase; color: var(--rouge); text-align: center; }
+    #classement-liste .rang { width: 22px; flex: 0 0 auto; color: rgba(0,0,0,0.68); font-weight: 700; }
+    #classement-liste .nom { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #classement-liste .nom small { display: block; font: 500 var(--t-xs) var(--police); color: rgba(0,0,0,0.68); letter-spacing: var(--ls-s); }
+    #classement-liste .m { flex: 0 0 auto; font-weight: 700; }
+    #classement-vide { margin: 0; font: 700 var(--t-m)/1.4 var(--police); color: var(--noir); text-align: center; }
+
+    /* Les messages d'invitation : on en choisit un, il part avec le lien. */
+    #partage-messages { display: flex; flex-direction: column; gap: 5px; width: 100%; margin: 2px 0 0; }
+    .msg-choix { display: block; width: 100%; box-sizing: border-box; padding: 9px 11px; text-align: left; border: 1.5px solid rgba(0,0,0,0.22); border-radius: var(--rayon); background: #fff; font: 500 var(--t-m)/1.3 var(--police); color: var(--noir); -webkit-tap-highlight-color: transparent; }
+    .msg-choix.actif { border-color: var(--noir); box-shadow: 0 0 0 2px #ffcf2e; font-weight: 700; }
+
     @media (prefers-reduced-motion: reduce) {
       #overlay, #overlay .fade, .btn { transition-duration: 0.01s; }
       .view.active { animation-duration: 0.01s; }
       #game-canvas.danger { animation: none; filter: grayscale(0.6); }
     }
+
+    /* Pas de mot seul en bout de paragraphe (src/typo.js s'occupe des espaces insécables). */
+    p, small, li, summary, label span, .btn { text-wrap: balance; }
+    /* Le clavier voit toujours où il est, sur fond clair comme sur fond sombre. */
+    :focus-visible { outline: 3px solid var(--noir); outline-offset: 2px; box-shadow: 0 0 0 2px #ffcf2e; }
+    #annonces { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
+    #vibrations-row { display: flex; align-items: center; gap: 8px; }
+    #vibrations-input { width: 22px; height: 22px; accent-color: var(--rouge); margin: 0; }
+    
+    /* --- CIBLES TACTILES (audit du 21 novembre 2026, outils/audit-ecrans.mjs) ---
+       Tout ce qui se touche offre au moins 44 × 44 px au doigt, du plus petit
+       iPhone au plus grand Android. Le menu devait rester COMPACT (29 sept.) :
+       plutôt que de grossir les puces et les liens, c'est leur ZONE SENSIBLE
+       qui déborde, invisible (::after), jusqu'aux 44 px — sans jamais mordre
+       sur la voisine. Les champs et les boutons, eux, grandissent pour de bon. */
+    .chip, .link-minimal, #end-ligue-titre, #classement-regle a, #pourquoi-contact a, #plus-contact summary { position: relative; }
+    .chip::after, .link-minimal::after, #classement-regle a::after, #pourquoi-contact a::after, #plus-contact summary::after { content: ""; position: absolute; }
+    .chip { height: 30px; min-width: 44px; padding: 0 8px; }
+    .chip::after { inset: -7px -3px; }
+    .chip.couleur { width: 38px; min-width: 38px; }
+    #skin-options { width: min(260px, 100%); }
+    .chips[data-cle="c1"] { flex-wrap: nowrap; gap: 8px; width: 100%; }
+    .chips[data-cle="c1"] .chip.couleur { flex: 1 1 0; width: auto; min-width: 0; max-width: 38px; }
+    .chips[data-cle="c1"] .chip.couleur::after { inset: -7px -4px; }
+    @media (max-width: 340px) { #onboarding .panel-body { padding-left: 10px; padding-right: 10px; } }
+    .link-minimal::after { inset: -14px -8px -17px; }
+    #classement-regle a::after, #pourquoi-contact a::after { inset: -16px -6px; }
+    #plus-contact summary { padding: 8px 0; }
+    #plus-contact summary::after { inset: -6px 0; }
+    #pseudo-row, .champ-row { margin-top: 0; }
+    #pseudo-row, .champ-row { align-items: flex-end; }
+    #pseudo-row .icon, .champ-row .icon { padding-bottom: 9px; }
+    #pseudo-input, .champ-row input { box-sizing: border-box; min-height: 44px; padding: 16px 2px 5px; }
+    /* Clavier ouvert : les champs ont grandi, les écarts se resserrent pour que la
+       carte tienne au-dessus du clavier d'un iPhone SE (outils/clavier.mjs). */
+    #overlay.clavier .champ-titre { margin-top: 12px; }
+    #overlay.clavier #step1-next { margin-top: 14px; }
+    #ligue-input { min-height: 44px; }
+    #ligue-row .btn, .btn.btn-petit, #end-ligue .btn { min-height: 44px; }
+    #newsletter-row { margin-top: 4px; padding: 7px 0; min-height: 44px; box-sizing: border-box; align-items: center; }
+    #newsletter-row input { width: 22px; height: 22px; }
+    #vibrations-row { min-height: 44px; }
+    #vibrations-input { width: 26px; height: 26px; }
+    #pause-volume { gap: 0; }
+    .volume-range { height: 44px; }
+    .volume-range::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -10.5px; }
+    .volume-range::-moz-range-thumb { width: 24px; height: 24px; }
+    #mute-button, #pause-button { width: 46px; height: 46px; }
+    /* Écran de fin sur un petit téléphone : la carte, plus haute que l'écran,
+       montait sous le bouton ♪ (320 × 568). Elle commence dessous. */
+    #overlay.end-view { padding-top: calc(70px + var(--safe-top)); }
+    @media (min-width: 420px) { #overlay.end-view { padding-top: calc(16px + var(--safe-top)); } }
+    /* Le titre de la ligue en fin de course : son NOM (plus un code espacé qui
+       passait à la ligne), et dessous « copier le lien ». */
+    #end-ligue-titre { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; width: 100%; }
+    #end-ligue-titre b { font-size: var(--t-m); letter-spacing: var(--ls-s); line-height: 1.15; text-wrap: balance; overflow-wrap: anywhere; }
+    #end-ligue-titre small { letter-spacing: var(--ls-s); }
+    /* Paysage sur téléphone : la carte ne tient pas en hauteur, l'écran défile. */
+    @media (orientation: landscape) and (max-height: 500px) {
+      #menu-title { margin: 0 0 18px; }
+      #menu-title .titre-mot { font-size: 40px; }
+    }
+  
+    /* ====================================================================
+       LE SYSTÈME APPLIQUÉ (21 novembre 2026, voir DESIGN.md)
+       Demandé : « les alignements, on comprend rien, les tailles de typo,
+       qu'est-ce que c'est que ça […] tout est trop gros […] trop de texte ».
+       Une carte = une colonne de 240 px, tout aligné dessus. Quatre rôles de
+       texte, pas un de plus : étiquette (xs, capitales), note (s, grise),
+       corps (m), titre (serif). Un champ = un cadre de 44 px. Un écran dit
+       une chose ; ce qui s'explique se touche (l'éclair du bonus).
+       ==================================================================== */
+    .panel-body > *, #ligue-bloc, #end-actions { max-width: 100%; }
+    .btn { font: 700 var(--t-s) var(--police); letter-spacing: var(--ls-l); min-height: 44px; padding: 10px 16px; width: 240px; }
+    .step-eyebrow, #classement-eyebrow { font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); }
+    .link-minimal { font: 500 var(--t-s) var(--police); color: var(--gris); }
+    .skin-label { font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); color: var(--gris); }
+    .chip { font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-s); }
+
+    /* Champs : le même cadre partout (pseudo, Insta, village, email, ligues). */
+    #pseudo-row .icon, .champ-row .icon { display: none; }
+    #pseudo-row, .champ-row { width: 240px; margin-top: var(--e2); }
+    #pseudo-row { margin-top: 0; }
+    #pseudo-input, .champ-row input, #ligue-input {
+      box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px;
+      border: 1.5px solid rgba(13,13,16,0.3); border-radius: var(--rayon); background: var(--blanc);
+      font: 500 var(--t-saisie) var(--police); letter-spacing: 0; text-transform: none; color: var(--noir);
+    }
+    #pseudo-input:focus, .champ-row input:focus, #ligue-input:focus { border-color: var(--noir); }
+    #pseudo-input::placeholder, .champ-row input::placeholder, #ligue-input::placeholder { color: rgba(13,13,16,0.55); }
+    #plus-contact { margin-top: var(--e1); }
+    #plus-contact summary { font: 500 var(--t-s) var(--police); color: var(--gris); }
+    #step1-next { margin-top: var(--e3); }
+    #overlay.clavier #step1-next { margin-top: var(--e3); }
+
+    /* Ma ligue, sans ligue. */
+    #ligue-bloc { width: 240px; margin-bottom: var(--e3); }
+    #ligue-sans, #ligue-avec { gap: var(--e2); }
+    #ligue-intro { margin: 0 0 var(--e1); font: 500 var(--t-s)/1.35 var(--police); color: var(--gris); }
+    #ligue-nom-row { margin: 0; }
+    #ligue-nom-apercu { margin: 0; font: 500 var(--t-xs)/1.3 var(--police); color: var(--gris); }
+    #ligue-nom-apercu:empty { display: none; }
+    #ligue-nom-apercu b { font-weight: 700; color: var(--noir); }
+    #ligue-creer, #ligue-avec #ligue-partager { width: 100%; }
+    .lp-sep { margin: var(--e1) 0; font: 700 var(--t-xs) var(--police); letter-spacing: var(--ls-l); color: var(--gris); }
+    #ligue-row { gap: var(--e2); }
+    #ligue-row .btn { flex: none; width: auto; padding: 0 12px; font-size: var(--t-xs); }
+    #ligue-msg { font: 700 var(--t-s)/1.35 var(--police); }
+    [data-step="2"] #step2-next, [data-step="2"] #step2-next.btn-petit { width: 240px; margin-top: 0; font-size: var(--t-s); }
+    #step2-liens, #step3-links { margin-top: var(--e3); gap: var(--e5); }
+
+    /* Ma ligue, avec : le NOM en titre, le peloton, Inviter. Ni code à copier,
+       ni lien, ni compte à rebours, ni phrase sur les bots : « Inviter » envoie
+       le lien, le tiroir de partage sait le copier. */
+    #ligue-titre { margin: 2px 0 var(--e1); font: 900 var(--t-titre)/1.1 var(--titre); letter-spacing: 0; text-transform: none; color: var(--noir); text-align: center; text-wrap: balance; overflow-wrap: anywhere; }
+    #ligue-code-btn, #ligue-lien, #ligue-concours { display: none !important; }
+    #ligue-peloton { gap: var(--e1); margin: 0 0 var(--e1); }
+    #ligue-peloton li { padding: 4px 8px; font: 700 var(--t-xs) var(--police); }
+    #ligue-membres { font: 500 var(--t-s)/1.35 var(--police); color: var(--gris); }
+    #ligue-avec #ligue-partager { min-height: 60px; font-size: var(--t-s); }
+    #ligue-avec #ligue-partager .share-inner { gap: 6px; }
+    #ligue-avec #ligue-partager .share-apps { gap: 12px; }
+    #ligue-avec #ligue-partager .share-apps svg { width: 18px; height: 18px; }
+    #ligue-statut, #ligue-arrivees { font: 700 var(--t-s)/1.35 var(--police); }
+
+    /* Mon cycliste. */
+    #boost-ligue { font: 500 var(--t-xs)/1.35 var(--police); }
+
+    /* Fin de course : le score, le classement, deux boutons. */
+    #end-screen .panel { max-width: 300px; }
+    #end-screen .panel-body { padding: 28px 22px 16px; }
+    #end-hero { margin: 0 0 var(--e3); }
+    #score-num { font-size: 48px; }
+    #score-num small { font: 700 var(--t-m) var(--police); letter-spacing: 0; }
+    #end-sub { font: 500 var(--t-s)/1.35 var(--police); color: var(--gris); margin-top: var(--e1); }
+    #end-sub:empty { display: none; }
+    #end-concours { margin: 0 0 var(--e3); padding: 0; border: none; background: none; gap: var(--e1); }
+    #end-concours ~ #end-ligue .rangs, #end-rang, #end-ecart, #end-ligue-titre, #end-relais { display: none !important; }
+    #end-concours.hidden ~ #end-ligue .rangs { display: block !important; }
+    .rangs { width: 100%; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--filet); }
+    .rangs li { display: flex; align-items: center; gap: var(--e2); min-height: 44px; padding: 0 var(--e2); box-sizing: border-box; border-bottom: 1px solid var(--filet); font: 500 var(--t-m) var(--police); color: var(--noir); }
+    .rangs li.moi { background: var(--jaune); border: 1.5px solid var(--noir); border-radius: var(--rayon); font-weight: 700; }
+    .rangs li.ecart { min-height: 0; height: 10px; border-bottom: 1.5px dotted rgba(13,13,16,0.35); }
+    .rangs .rang { flex: none; width: 22px; font-weight: 700; color: var(--gris); font-variant-numeric: tabular-nums; }
+    .rangs li.moi .rang { color: var(--noir); }
+    .rangs .rang .couronne { width: 16px; height: 12px; vertical-align: -1px; }
+    .rangs .nom { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rangs .m { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+    /* L'éclair : « ce joueur a un bonus ». Le chiffre = ses potes. On le touche
+       pour savoir pourquoi — plus une ligne d'explication à l'écran. */
+    .eclair { position: relative; flex: none; display: inline-flex; align-items: center; gap: 2px; height: 22px; padding: 0 6px 0 4px; border: 1.5px solid var(--noir); border-radius: 11px; background: var(--blanc); color: var(--noir); font: 700 var(--t-xs) var(--police); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .eclair svg { display: block; width: 10px; height: 13px; }
+    .eclair::after { content: ""; position: absolute; inset: -11px -8px; }
+    #end-actions { gap: var(--e2); }
+    #end-screen .btn { min-height: 44px; }
+    #end-links { margin-top: var(--e3); }
+    #end-links .link-minimal { font: 500 var(--t-s) var(--police); color: var(--gris); }
+
+    #bonus-pop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(13,13,16,0.55); }
+    #bonus-pop.hidden { display: none; }
+    #bonus-carte { width: min(260px, 100%); box-sizing: border-box; padding: 20px 18px 16px; display: flex; flex-direction: column; align-items: center; gap: var(--e2); background: var(--blanc); border: 1.5px solid var(--noir); border-radius: var(--rayon); text-align: center; }
+    #bonus-titre { margin: 0; font: 900 var(--t-titre)/1.1 var(--titre); color: var(--noir); }
+    #bonus-texte { margin: 0 0 var(--e1); font: 500 var(--t-m)/1.4 var(--police); color: var(--noir); }
+    #bonus-carte .btn { width: 100%; }
+
+    /* Tiroir des classements : mêmes lignes. */
+    #classement-title { display: none; }
+    #classement-regle { font: 500 var(--t-s)/1.35 var(--police); color: var(--gris); }
+    #classement-regle:empty { display: none; }
+    #classement-liste li { align-items: center; min-height: 40px; font: 500 var(--t-m) var(--police); }
+    #classement-liste li.coupure { min-height: 0; font: 700 var(--t-xs) var(--police); }
+    #classement-liste .nom small { font: 500 var(--t-xs) var(--police); letter-spacing: 0; }
+  
+    /* Tiroir d'invitation : un menu, un bouton, une ligne d'icônes. */
+    #partage-card { gap: var(--e3); }
+    #partage-select { width: 100%; box-sizing: border-box; min-height: 44px; padding: 0 34px 0 12px; border: 1.5px solid var(--noir); border-radius: var(--rayon); background: var(--blanc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%230d0d10' stroke-width='1.8'/%3E%3C/svg%3E") no-repeat right 12px center / 12px 8px; -webkit-appearance: none; appearance: none; font: 500 var(--t-saisie) var(--police); color: var(--noir); text-overflow: ellipsis; }
+    #partage-apps { flex-direction: row; justify-content: space-between; gap: var(--e2); }
+    .app-ico { flex: 1 1 0; display: flex; align-items: center; justify-content: center; height: 52px; padding: 0; border: 1.5px solid var(--noir); border-radius: var(--rayon); background: var(--blanc); color: var(--noir); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .app-ico svg { width: 26px; height: 26px; display: block; }
+    .app-ico:active { background: rgba(13,13,16,0.06); }
+    .app-ico.fait { background: var(--jaune); }
+    #partage-hint { font: 700 var(--t-s)/1.35 var(--police); }
+    /* « Joue avec tes potes » : UNE invitation à la fois, lentement — l'enveloppe
+       part, le pote arrive à vélo, le score monte. */
+    #expl-fil { height: 58px; justify-content: center; }
+    #expl-fil li { min-height: 52px; box-sizing: border-box; padding: 8px 12px; gap: 12px; font: 700 var(--t-m) var(--police); animation: expl-fil-in 0.5s ease-out both; }
+    #expl-fil li .ico { width: 30px; height: 30px; }
+    #expl-fil li.envoi .ico { animation: expl-envol 1.2s ease-in-out infinite alternate; }
+    #expl-fil li.rejoint .ico { animation: expl-roule 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+    @keyframes expl-envol { from { transform: translateX(-3px) rotate(-6deg); } to { transform: translateX(5px) rotate(6deg); } }
+    @keyframes expl-roule { from { transform: translateX(150px); } to { transform: none; } }
+    .expl-texte b { font-weight: 700; }
   </style>
-  <script type="module" crossorigin src="./assets/index-D8XZ8uwS.js"></script>
+  <script type="module" crossorigin src="./assets/index-BJ7R-IW_.js"></script>
 </head>
 <body>
-  <div id="app"><canvas id="game-canvas"></canvas></div>
+  <!-- Écran de chargement (3 octobre 2026 : « le logo de la ville est belle
+       qui tourne en 360° sur un axe horizontal ») : opaque tant que le
+       morceau et le moteur ne sont pas prêts, puis fondu vers le menu. -->
+  <div id="splash">
+    <div id="splash-logo"><img src="assets/logo-lveb.webp" alt="la ville est belle" width="150" height="218" /></div>
+    <canvas id="splash-velo" width="200" height="110" aria-hidden="true"></canvas>
+    <div id="loading">
+      <div id="loading-track"><div id="loading-fill"></div></div>
+      <span id="loading-label">0 %</span>
+    </div>
+  </div>
+  <div id="app" role="region" aria-label="La course"><canvas id="game-canvas" role="img" aria-label="Le cycliste et ses potes sur la route"></canvas></div>
   <div id="safe-probe" aria-hidden="true" style="position:fixed;left:0;top:var(--safe-top);width:0;height:0;pointer-events:none"></div>
   <div id="vignette" aria-hidden="true"></div>
+  <div id="annonces" role="status" aria-live="polite"></div>
 
-  <div id="overlay">
+  <div id="overlay" inert role="main">
     <h1 id="menu-title" class="fade"><span class="titre-mot">j'ai un pote</span></h1>
 
     <p id="beta-tag" class="fade hidden">Bêta-test</p>
@@ -355,11 +786,16 @@
         <div class="panel-body">
           <div id="pseudo-row">
             <span class="icon">@</span>
-            <input type="text" id="pseudo-input" placeholder="ton pseudo" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
+            <input type="text" id="pseudo-input" aria-label="Ton pseudo" placeholder="ton pseudo" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" />
           </div>
-          <div class="champ-row beta-off"><span class="icon">IG</span><input type="text" id="insta-input" placeholder="ton Instagram (facultatif)" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" /></div>
-          <div class="champ-row beta-off"><span class="icon">⌂</span><input type="text" id="ville-input" placeholder="ton village, ta ville (facultatif)" autocomplete="off" spellcheck="false" maxlength="24" /></div>
-          <p class="field-note beta-off">Pour aller plus loin, tu as besoin de tes amis. Fais les choses correctement.</p>
+          <div class="champ-row beta-off"><span class="icon">IG</span><input type="text" id="insta-input" aria-label="Ton compte Instagram" placeholder="ton Instagram" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" /></div>
+          <div class="champ-row beta-off"><span class="icon">⌂</span><input type="text" id="ville-input" aria-label="Ton village ou ta ville, facultatif" placeholder="ton village (facultatif)" autocomplete="off" spellcheck="false" maxlength="24" /></div>
+          <details id="plus-contact" class="beta-off">
+            <summary>＋ Email, règlement</summary>
+            <div class="champ-row"><span class="icon">@</span><input type="email" id="email-input" aria-label="Ton email, facultatif" placeholder="ton email (facultatif)" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="80" /></div>
+            <label id="newsletter-row"><input type="checkbox" id="newsletter-input" /><span>Préviens-moi des sorties de PMC par email</span></label>
+            <p id="pourquoi-contact">Ton Insta : pour te prévenir si tu gagnes. <a id="lien-reglement" href="reglement.html" target="_blank" rel="noopener">Règlement</a></p>
+          </details>
           <p id="beta-note" class="field-note hidden">Bêta-test : tout le monde court la <b>même course</b>. Écris ton pseudo, joue, et laisse-moi ton retour à la fin.</p>
           <button id="step1-next" class="btn btn-primary" type="button" disabled>Continuer</button>
         </div>
@@ -368,57 +804,56 @@
       <div class="panel step" data-step="2">
         <div class="panel-header"><p class="step-eyebrow">Ma ligue</p></div>
         <div class="panel-body">
-          <p class="field-note">Tes potes de ligue pédalent derrière toi. Le but : un max de potes, jusqu'au bout du morceau.</p>
-          <!-- Ligue entre potes (7 septembre 2026) -->
+          <!-- Ligue entre potes (7 septembre 2026), réécrite le 3 octobre 2026 :
+               une phrase de pourquoi, deux chemins (créer / rejoindre), puis
+               le code en gros, Inviter en gros, le peloton avec ses bots. -->
           <div id="ligue-bloc">
             <div id="ligue-sans">
+              <p id="ligue-intro">Le premier gagne un morceau avec PMC.</p>
+              <div class="champ-row" id="ligue-nom-row"><span class="icon">№</span><input type="text" id="ligue-nom" aria-label="Nom de ta ligue" placeholder="nom de ta ligue" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="28" /></div>
+              <p id="ligue-nom-apercu"></p>
+              <button id="ligue-creer" type="button" class="btn btn-primary">Créer ma ligue</button>
+              <p class="lp-sep"><span>ou</span></p>
               <div id="ligue-row">
-                <input type="text" id="ligue-input" placeholder="CODE DE LIGUE" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="6" />
+                <input type="text" id="ligue-input" aria-label="Code de la ligue à rejoindre" placeholder="sa ligue" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="28" />
                 <button id="ligue-rejoindre" class="btn btn-secondary" type="button">Rejoindre</button>
               </div>
-              <button id="ligue-creer" type="button" class="link-minimal">Créer ma ligue avec mes potes</button>
+              <p id="ligue-msg" class="hidden"></p>
             </div>
             <div id="ligue-avec" class="hidden">
-              <p id="ligue-titre">Ligue <b id="ligue-code">—</b></p>
-              <p id="ligue-membres">…</p>
-              <p id="ligue-places"></p>
-              <div id="ligue-actions">
-                <!-- Icônes WhatsApp/Instagram/Messages/Snap : indice visuel, le
-                     bouton ouvre le partage natif du téléphone (navigator.share),
-                     qui liste ces apps si elles sont installées. -->
-                <button id="ligue-partager" class="btn btn-secondary share-btn" type="button"><span class="share-inner"><span>Inviter des potes</span><span class="share-apps" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/></svg>
-                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
-                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
+              <h2 id="ligue-titre">Ma ligue</h2>
+              <button id="ligue-code-btn" type="button" aria-label="Copier le code de la ligue"><b id="ligue-code">—</b><small id="ligue-code-aide">Touche pour copier</small></button>
+              <p id="ligue-lien" class="hidden"></p>
+              <p id="ligue-statut" class="hidden"></p>
+              <button id="ligue-partager" class="btn btn-primary share-btn" type="button"><span class="share-inner"><span>Inviter tes potes</span><span class="share-apps" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.3 8.4c-.3.6-.5 1.3-.2 2.3.5 1.9 2.9 4.3 4.8 4.8 1 .3 1.7.1 2.3-.2.4-.2.9-.7 1-1.1.1-.3 0-.5-.2-.6l-1.7-.8c-.2-.1-.4 0-.5.1l-.5.6c-.1.1-.3.2-.5.1-.7-.3-2-1.6-2.3-2.3-.1-.2 0-.4.1-.5l.6-.5c.1-.1.2-.3.1-.5l-.8-1.7c-.1-.2-.3-.3-.6-.2-.4.1-.9.6-1.1 1z" fill="currentColor" stroke="none"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
               </span></span></button>
-                <button id="ligue-quitter" type="button" class="link-minimal">Quitter la ligue</button>
-              </div>
+              <ul id="ligue-peloton"></ul>
+              <p id="ligue-membres"></p>
+              <p id="ligue-arrivees" class="hidden"></p>
+              <p id="ligue-concours" class="hidden"></p>
             </div>
-            <p id="ligue-msg" class="hidden"></p>
           </div>
-          <button id="step2-next" class="btn btn-primary" type="button">Continuer</button>
-          <button id="step2-back" type="button" class="link-minimal">Changer mon pseudo</button>
+          <button id="step2-next" class="btn btn-primary" type="button">Jouer</button>
+          <div id="step2-liens"><button id="step2-back" type="button" class="link-minimal">Mon cycliste</button><button id="ligue-quitter" type="button" class="link-minimal hidden">Quitter la ligue</button></div>
         </div>
       </div>
 
       <div class="panel step" data-step="3">
         <div class="panel-header"><p class="step-eyebrow">Mon cycliste</p></div>
         <div class="panel-body">
-          <canvas id="skin-canvas" width="220" height="200" aria-label="Aperçu de ton cycliste"></canvas>
+          <canvas id="skin-canvas" width="240" height="140" aria-label="Aperçu de ton cycliste"></canvas>
           <div id="skin-options">
-            <div class="skin-row"><span class="skin-label">T-shirt</span><div class="chips" data-cle="c1"></div></div>
-            <div class="skin-row"><span class="skin-label">Motif</span><div class="chips" data-cle="motif"></div></div>
-            <div class="skin-row"><span class="skin-label">Short</span><div class="chips" data-cle="short"></div></div>
+            <div class="skin-row"><span class="skin-label">Je suis</span><div class="chips" data-cle="genre"></div></div>
+            <div class="skin-row"><span class="skin-label">Maillot</span><div class="chips" data-cle="c1"></div></div>
             <div class="skin-row"><span class="skin-label">Chapeau</span><div class="chips" data-cle="chapeau"></div></div>
-            <div class="skin-row"><span class="skin-label">Chaussures</span><div class="chips" data-cle="chaussures"></div></div>
-            <div class="skin-row"><span class="skin-label">Vélo</span><div class="chips" data-cle="velo"></div></div>
-          </div>
-          <div id="loading">
-            <div id="loading-track"><div id="loading-fill"></div></div>
-            <span id="loading-label">0 %</span>
+            <div class="skin-row"><span class="skin-label">Engin</span><div class="chips" data-cle="velo"></div></div>
           </div>
           <button id="play-button" class="btn btn-primary" type="button" disabled>Jouer</button>
+          <button id="boost-ligue" type="button"></button>
           <button id="sprint-button" class="btn btn-secondary hidden beta-off" type="button">Sprint du dimanche · 60 s</button>
           <p id="sprint-note" class="hidden"></p>
           <div id="step3-links"><button id="step3-ligue" type="button" class="link-minimal beta-off">Ma ligue</button><button id="step3-profil" type="button" class="link-minimal">Mon profil</button></div>
@@ -436,9 +871,17 @@
             <p id="end-sub"></p>
             <p id="end-max" class="hidden"></p>
           </div>
+          <div id="end-concours" class="hidden">
+            <ol id="end-top" class="rangs"></ol>
+            <button id="end-concours-voir" type="button" class="link-minimal">Classement →</button>
+          </div>
           <div id="end-ligue" class="hidden">
-            <p id="end-ligue-titre">Ligue <b id="end-ligue-code">—</b></p>
-            <ol id="end-ligue-liste"></ol>
+            <p id="end-rang" class="hidden"></p>
+            <p id="end-ecart" class="hidden"></p>
+            <ol id="end-ligue-liste" class="rangs"></ol>
+            <!-- Sous la liste depuis le 15 novembre 2026 (« c'est trop bizarre
+                 que ça soit là », entre l'écart et le classement). -->
+            <button id="end-ligue-titre" type="button"><b id="end-ligue-code">—</b><small id="end-ligue-copier">copier le lien</small></button>
             <p id="end-relais" class="hidden"></p>
           </div>
           <div id="end-actions">
@@ -450,16 +893,19 @@
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
                 <svg viewBox="0 0 24 24" width="13" height="13" focusable="false"><path d="M12 4c2.4 0 3.9 1.9 3.8 4.4l-.1 1.7c.4.2.9.3 1.4.2.4-.1.8.2.7.6-.1.5-.7.9-1.3 1.2.1.5.6.9 1.4 1.1.4.1.5.6.2.9-.3.3-.9.5-1.4.7-.1.3-.1.6-.3.9-.2.4-.7.4-1.2.3-.5-.1-1-.1-1.5.2-.5.4-1.1 1-1.7 1-.6 0-1.2-.6-1.7-1-.5-.3-1-.3-1.5-.2-.5.1-1 .1-1.2-.3-.2-.3-.2-.6-.3-.9-.5-.2-1.1-.4-1.4-.7-.3-.3-.2-.8.2-.9.8-.2 1.3-.6 1.4-1.1-.6-.3-1.2-.7-1.3-1.2-.1-.4.3-.7.7-.6.5.1 1-.1 1.4-.2l-.1-1.7C8.1 5.9 9.6 4 12 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
               </span></span></button>
-            <a id="end-cta" class="link-minimal" href="#" role="button">Écouter l'album</a>
+            <div id="end-links">
+              <a id="end-cta" class="link-minimal" href="#" role="button">Écouter le morceau</a>
+              <button id="end-menu" class="link-minimal" type="button">Menu</button>
+              <a id="credit-insta" class="link-minimal" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
+            </div>
           </div>
-          <p id="end-credit"><a id="credit-insta" href="#" target="_blank" rel="noopener noreferrer">@pmc.mp3</a></p>
           <a id="insta-link" href="#" class="hidden" target="_blank" rel="noopener noreferrer">@pmc.mp3</a>
         </div>
       </div>
     </div>
 
     <a id="cta-link" href="#">
-      <span>L'album est sorti</span>
+      <span>Écouter le morceau</span>
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4l-8.5 8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </a>
   </div>
@@ -467,6 +913,38 @@
   <!-- Tiroir de RETOUR (bêta fermée, 16 septembre 2026) : le testeur écrit,
        envoie, et une confirmation s'affiche dans la même carte. Le retour
        part avec son pseudo, son score et le numéro de sa partie. -->
+  <!-- Explication du boost au lancement (30 septembre 2026 : « il faut une
+       animation explicative au lancement du jeu pour expliquer vite fait le
+       concept, et après bam, lancement de partie »). -->
+  <div id="explication" class="hidden" aria-live="polite">
+    <div id="expl-carte">
+      <div class="panel-header"><p class="step-eyebrow" id="expl-eyebrow">Comment jouer · 1/2</p></div>
+      <!-- Ordre du 5 octobre 2026 : « Monte le son » EN PREMIER (« je le mettrais
+           en tout premier, et après 2, 3, 4 »). -->
+      <div class="expl-etape" data-e="son">
+        <p class="expl-titre">Monte le son&nbsp;!</p>
+        <div id="expl-son"><svg class="hp" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true"><path d="M6 18h10l13-10v32L16 30H6z" fill="#0d0d10" stroke="#0d0d10" stroke-width="2" stroke-linejoin="round"/></svg><span class="onde o1"></span><span class="onde o2"></span><span class="onde o3"></span></div>
+        <p class="expl-texte"><b>Les klaxons t'annoncent les voitures.</b> Écoute-les, ils arrivent avant elles.</p>
+      </div>
+      <!-- « 1 tap = 1 saut » et « Arrivée » retirées le 15 novembre 2026 (« c'est
+           logique, tu peux l'enlever ») : il reste le son, et les potes. -->
+      <div class="expl-etape" data-e="potes">
+        <p class="expl-titre">Joue avec tes potes</p>
+        <!-- Refaite le 15 novembre 2026 : des joueurs pensaient que plus il y a
+             de cyclistes DANS la course, plus on marque. Le vrai principe, c'est
+             l'INVITATION : un vrai pote rejoint ta ligue → +10 % sur ton score.
+             Donc on le montre tel quel : un score, une invitation, un pote qui
+             arrive, le score qui monte — puis la même chose en accéléré. -->
+        <div id="expl-invit" aria-hidden="true">
+          <div id="expl-score"><b id="expl-score-val">1 000</b><small>pts</small><span id="expl-gain"></span></div>
+          <ul id="expl-fil"></ul>
+        </div>
+        <p class="expl-texte"><b>Plus tu invites de potes, plus tu as de chances de faire un meilleur score.</b></p>
+      </div>
+      <div id="expl-barre"><i></i></div>
+    </div>
+    <p id="expl-passer">Touche pour continuer</p>
+  </div>
   <div id="retour-sheet" aria-hidden="true">
     <div id="retour-veil"></div>
     <div id="retour-card" role="dialog" aria-modal="true" aria-labelledby="retour-title">
@@ -488,20 +966,30 @@
     </div>
   </div>
 
-  <button id="mute-button" type="button" aria-label="Son">♪</button>
-  <button id="pause-button" type="button" aria-label="Pause" hidden>❚❚</button>
+  <!-- Le bonus d'un joueur, expliqué en une ligne quand on touche son éclair. -->
+  <div id="bonus-pop" class="hidden" role="dialog" aria-modal="true" aria-labelledby="bonus-titre">
+    <div id="bonus-carte">
+      <p id="bonus-titre"></p>
+      <p id="bonus-texte"></p>
+      <button id="bonus-fermer" type="button" class="btn btn-secondary">OK</button>
+    </div>
+  </div>
+  <nav aria-label="Réglages de la partie" id="commandes"><button id="mute-button" type="button" aria-label="Réglages du son et des vibrations">♪</button>
+  <button id="pause-button" type="button" aria-label="Pause" hidden>❚❚</button></nav>
 
   <div id="pause-screen">
-    <div class="panel">
+    <div class="panel" role="dialog" aria-modal="true" aria-label="Pause et réglages du son">
       <div class="panel-header"><p class="step-eyebrow">Pause</p></div>
       <div class="panel-body">
-        <div id="pause-volume-row">
-          <span class="icon">🔊</span>
-          <input type="range" id="pause-volume-slider" class="volume-range" min="0" max="100" value="100" aria-label="Volume" />
+        <div id="pause-volume">
+          <div class="volume-row"><span class="skin-label">Musique</span><input type="range" id="volume-musique" class="volume-range" min="0" max="100" value="100" aria-label="Volume de la musique" /></div>
+          <div class="volume-row"><span class="skin-label">Effets</span><input type="range" id="volume-effets" class="volume-range" min="0" max="100" value="100" aria-label="Volume des effets sonores" /></div>
+          <label class="volume-row" id="vibrations-row"><span class="skin-label">Vibrations</span><input type="checkbox" id="vibrations-input" /></label>
         </div>
         <div id="pause-actions">
           <button id="resume-button" class="btn btn-primary" type="button">Reprendre</button>
           <button id="pause-replay-button" type="button" class="link-minimal">Recommencer la course</button>
+          <button id="son-fermer" class="btn btn-primary" type="button">OK</button>
         </div>
       </div>
     </div>
@@ -509,7 +997,8 @@
 
   <div id="revive-sheet" aria-hidden="true">
     <div id="revive-veil"></div>
-    <div id="revive-card">
+    <div id="revive-card" role="dialog" aria-modal="true" aria-labelledby="revive-title">
+      <div class="panel-header"><p class="step-eyebrow">Tombé !</p></div>
       <div id="revive-timer">
         <svg viewBox="0 0 76 76" aria-hidden="true"><circle class="piste" cx="38" cy="38" r="33"></circle><circle id="revive-arc" cx="38" cy="38" r="33"></circle></svg>
         <span id="revive-timer-num">10</span>
@@ -517,26 +1006,73 @@
       <p id="revive-title">Tes potes t'attendent</p>
       <p id="revive-text"></p>
       <button id="revive-cta" class="btn btn-primary" type="button">Continuer la course</button>
-      <button id="revive-replay" type="button" class="btn btn-secondary">Rejouer</button>
+      <button id="revive-replay" type="button" class="link-minimal">Rejouer depuis le début</button>
       <button id="revive-decline" type="button" class="link-minimal">Voir ma course</button>
     </div>
   </div>
 
   <div id="gate-sheet" aria-hidden="true">
     <div id="gate-veil"></div>
-    <div id="gate-card">
+    <div id="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title">
       <p id="gate-eyebrow">POUR CONTINUER TA COURSE</p>
       <div id="gate-timer" class="hidden">
         <svg viewBox="0 0 76 76" aria-hidden="true"><circle class="piste" cx="38" cy="38" r="33"></circle><circle id="gate-arc" cx="38" cy="38" r="33"></circle></svg>
         <span id="gate-timer-num">5</span>
       </div>
-      <p id="gate-title">Ouvre l'album de PMC</p>
+      <p id="gate-title">Ouvre « J'ai un pote »</p>
       <p id="gate-text"></p>
       <div id="gate-platforms" class="hidden"></div>
       <p id="gate-hint" class="hidden"></p>
       <a id="gate-cta" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer"><span id="gate-cta-label">S'abonner à PMC</span></a>
       <button id="gate-go" type="button" class="btn btn-primary hidden">Continuer ma course</button>
       <button id="gate-later" type="button" class="btn btn-secondary">Fermer</button>
+    </div>
+  </div>
+
+  <!-- Tiroir de partage (5 octobre 2026 : « Inviter tes potes, ça ne marche
+       pas dans le navigateur Instagram ») : les navigateurs intégrés n'ont pas
+       de partage natif — copier le lien affiché marche partout, les boutons
+       ouvrent directement l'appli. -->
+  <div id="classement-sheet" aria-hidden="true">
+    <div id="classement-veil"></div>
+    <div id="classement-card" role="dialog" aria-modal="true" aria-labelledby="classement-title">
+      <p id="classement-eyebrow">Le concours</p>
+      <p id="classement-title">Les classements</p>
+      <div id="classement-onglets">
+        <button type="button" class="chip actif" data-vue="general">Général</button>
+        <button type="button" class="chip" data-vue="ligue">Ma ligue</button>
+        <button type="button" class="chip" data-vue="ligues">Les ligues</button>
+      </div>
+      <p id="classement-regle"></p>
+      <ol id="classement-liste"></ol>
+      <p id="classement-vide" class="hidden">Personne n'a encore joué. La première place est libre.</p>
+      <button id="classement-fermer" type="button" class="link-minimal">Fermer</button>
+    </div>
+  </div>
+
+  <div id="partage-sheet" aria-hidden="true">
+    <div id="partage-veil"></div>
+    <div id="partage-card" role="dialog" aria-modal="true" aria-labelledby="partage-title">
+      <p id="partage-eyebrow">Invite tes potes</p>
+      <p id="partage-title" class="hidden">Invite tes potes</p>
+      <!-- 21 novembre 2026 : « c'est quoi, ce panneau ? […] tu mets juste Copier le
+           lien », la phrase d'accroche dans un menu déroulant, et les applis en
+           ICÔNES sur une ligne, sans texte. -->
+      <select id="partage-select" aria-label="Ta phrase d'accroche"></select>
+      <div id="partage-messages" class="hidden"></div>
+      <p id="partage-text" class="hidden"></p>
+      <p id="partage-lien" class="hidden"></p>
+      <button id="partage-copier" type="button" class="btn btn-primary">Copier le lien</button>
+      <p id="partage-hint" class="hidden"></p>
+      <div id="partage-apps">
+        <a id="partage-whatsapp" class="app-ico" href="#" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.75 13.55L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.6 8.3c-.4.7-.5 1.4-.2 2.4.5 1.8 2.8 4.1 4.6 4.6 1 .3 1.7.2 2.4-.2.4-.2.8-.7.9-1.1l-2-1-.8.9c-.9-.3-2.300-1.700-2.600-2.600l.9-.8-1-2c-.4.100-.9.500-1.200.800z" fill="currentColor"/></svg></a>
+        <a id="partage-sms" class="app-ico" href="#" aria-label="Envoyer par message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V16H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></a>
+        <a id="partage-snap" class="app-ico" href="#" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par Snapchat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c2.6 0 4.2 2 4.100 4.700l-.1 1.900c.5.200 1 .300 1.500.200.100.700-.700 1.100-1.500 1.500.2.800.900 1.500 2.200 1.800-.2.800-1.200 1-1.900 1.200l-.3 1c-.9-.1-1.700-.2-2.400.3-.5.400-1 .900-1.600.900s-1.100-.5-1.600-.9c-.7-.5-1.500-.4-2.400-.3l-.3-1c-.7-.2-1.700-.4-1.900-1.200 1.300-.3 2-1 2.200-1.800-.8-.4-1.600-.8-1.500-1.500.5.100 1 0 1.500-.200l-.1-1.900C7.800 5.500 9.400 3.500 12 3.500z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></a>
+        <button id="partage-insta" class="app-ico" type="button" aria-label="Copier pour Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.500" y="3.500" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="17" cy="7" r="1.1" fill="currentColor"/></svg></button>
+        <button id="partage-tiktok" class="app-ico" type="button" aria-label="Copier pour TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v11.200a3.300 3.300 0 1 1-3.300-3.300" fill="none" stroke="currentColor" stroke-width="1.900" stroke-linecap="round"/><path d="M14 3c.3 2.600 1.900 4.300 4.500 4.600" fill="none" stroke="currentColor" stroke-width="1.900" stroke-linecap="round"/></svg></button>
+      </div>
+      <button id="partage-plus" type="button" class="btn btn-secondary hidden">Autres applis…</button>
+      <button id="partage-fermer" type="button" class="link-minimal">Fermer</button>
     </div>
   </div>
 

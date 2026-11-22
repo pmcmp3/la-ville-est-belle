@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Story J'ai un pote</title>
+<meta name="robots" content="noindex">
+<!-- Banc d'essai du partage en STORY (12 octobre 2026 : « si je partage sur
+     Instagram je peux ajouter en story directement avec possibilité de mettre
+     un lien direct ? ou même envoyer à une amie »). Pas encore dans le jeu :
+     cette page sert à voir, sur un vrai téléphone, ce qui marche (Safari,
+     navigateur d'Instagram, Android) avant de l'y brancher.
+     ⚠️ Une page web ne peut PAS poser le sticker lien elle-même : le schéma
+     instagram-stories:// est réservé aux applis natives (il passe l'image par
+     le presse-papiers système). Ce qu'on peut faire : l'image prête au
+     format story, et le lien copié DANS le même geste — dans Instagram, il ne
+     reste qu'à coller (sticker → Lien → coller).
+     Paramètres : ?pseudo=pmc&score=12480&potes=5&ligue=PMCMP -->
+<script src="config.js"></script>
+<style>
+  @font-face { font-family: "Source Serif 2"; src: url("fonts/SourceSerif2-Black.woff2") format("woff2"); font-weight: 900; font-display: block; }
+  :root { --rouge: #e13e26; --blanc: #fff; --noir: #0d0d10; --vert: #1f8a4c; --police: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; --titre: "Source Serif 2", Georgia, serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--noir); color: var(--blanc); font: 15px/1.45 var(--police); -webkit-text-size-adjust: 100%; }
+  main { max-width: 460px; margin: 0 auto; padding: 22px 16px 60px; }
+  h1 { margin: 0 0 4px; font: 900 30px/1.05 var(--titre); text-align: center; }
+  .sous { margin: 0 0 18px; color: rgba(255,255,255,0.65); text-align: center; font-size: 13.5px; }
+  .apercu { position: relative; width: min(100%, 300px); margin: 0 auto 16px; aspect-ratio: 9 / 16; border-radius: 14px; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.25); background: #222; }
+  .apercu img { display: block; width: 100%; height: 100%; -webkit-touch-callout: default; }
+  /* Fantôme du sticker lien, à l'endroit où Instagram le pose (au centre) :
+     seulement dans l'aperçu, jamais dans l'image. */
+  .fantome { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 12px; border-radius: 8px; background: rgba(255,255,255,0.92); color: #3478f6; font: 700 12px var(--police); white-space: nowrap; outline: 2px dashed rgba(13,13,16,0.5); outline-offset: 3px; pointer-events: none; }
+  .apercu.sans-fantome .fantome { display: none; }
+  .bascule { display: flex; justify-content: center; gap: 8px; align-items: center; margin: -6px 0 16px; font-size: 12.5px; color: rgba(255,255,255,0.7); }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; margin: 0 0 10px; padding: 12px 16px; border-radius: 4px; border: 1.5px solid var(--blanc); font: 700 13.5px var(--police); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .btn:active { transform: scale(0.98); }
+  .rouge { background: var(--rouge); border-color: var(--rouge); color: var(--blanc); }
+  .blanc { background: var(--blanc); color: var(--noir); }
+  .vide { background: none; color: var(--blanc); border-color: rgba(255,255,255,0.4); min-height: 44px; font-size: 12px; }
+  .btn.fait { background: var(--vert); border-color: var(--vert); color: var(--blanc); }
+  .message { min-height: 1.4em; margin: 0 0 14px; text-align: center; font-weight: 700; font-size: 13.5px; color: #7fe0a6; }
+  .message.echec { color: #ff8a78; }
+  .carte { background: var(--blanc); color: var(--noir); border: 1.5px solid var(--noir); border-radius: 4px; padding: 16px; margin: 18px 0 12px; }
+  .carte h2 { margin: 0 0 8px; font: 900 19px/1.15 var(--titre); }
+  .carte ol { margin: 0; padding-left: 20px; }
+  .carte li { margin: 4px 0; }
+  .carte .note { margin: 10px 0 0; font-size: 12.5px; color: rgba(0,0,0,0.6); }
+  details { margin: 12px 0; background: #1b1b20; border-radius: 4px; padding: 10px 12px; }
+  summary { cursor: pointer; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .champs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .champs label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+  .champs input { font: 600 16px var(--police); padding: 8px 10px; border-radius: 4px; border: 0; background: #fff; color: var(--noir); width: 100%; }
+  #diag { margin: 8px 0 0; padding: 0; list-style: none; font: 12.5px/1.5 ui-monospace, Menlo, monospace; color: rgba(255,255,255,0.85); }
+  #diag .ok { color: #7fe0a6; } #diag .non { color: #ff8a78; }
+  #journal { margin: 8px 0 0; font: 12px/1.5 ui-monospace, Menlo, monospace; color: rgba(255,255,255,0.7); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test : partager sa partie</h1>
+  <p class="sous">Image au format story (1080 × 1920). Rien n'est publié tant que tu ne valides pas dans l'appli.</p>
+
+  <div class="apercu" id="apercu"><img id="image" alt="Image de la story"><span class="fantome">🔗 TON LIEN</span></div>
+  <label class="bascule"><input type="checkbox" id="voir-fantome" checked> montrer où Instagram pose le sticker lien</label>
+
+  <button class="btn rouge" id="btn-story" type="button">Partager en story</button>
+  <button class="btn blanc" id="btn-amie" type="button">Envoyer à une amie</button>
+  <p class="message" id="message" role="status"></p>
+  <button class="btn vide" id="btn-copier" type="button">Copier le lien seul</button>
+  <button class="btn vide" id="btn-lien" type="button">Envoyer le lien seul (sans image)</button>
+
+  <div class="carte">
+    <h2>Story avec le lien, en 4 gestes</h2>
+    <ol>
+      <li><b>Partager en story</b> : l'image part, et le lien de la ligue est copié en même temps.</li>
+      <li>Choisis <b>Instagram</b>, puis <b>Story</b>.</li>
+      <li>Touche l'icône <b>sticker</b> (le carré qui sourit), puis <b>Lien</b>, et <b>colle</b>.</li>
+      <li>Le sticker arrive au milieu, sur les arbres : la place est prévue. <b>Publie.</b></li>
+    </ol>
+    <p class="note">Si Instagram n'apparaît pas dans la liste : appuie longuement sur l'image, puis « Enregistrer ». Ouvre ensuite Instagram, va dans Story et prends l'image dans ta galerie. Le lien est déjà copié.</p>
+  </div>
+
+  <details>
+    <summary>Changer les chiffres</summary>
+    <div class="champs">
+      <label>Pseudo <input id="f-pseudo" maxlength="16" autocomplete="off"></label>
+      <label>Score <input id="f-score" inputmode="numeric" maxlength="7"></label>
+      <label>Potes <input id="f-potes" inputmode="numeric" maxlength="1"></label>
+      <label>Ligue <input id="f-ligue" maxlength="6" autocapitalize="characters" autocomplete="off"></label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Ce que ce téléphone sait faire</summary>
+    <ul id="diag"></ul>
+    <div id="journal"></div>
+  </details>
+</main>
+
+<script>
+(() => {
+  const C = window.CONFIG || {};
+  const $ = (id) => document.getElementById(id);
+  const UA = navigator.userAgent || "";
+  const DANS_INSTA = /Instagram/i.test(UA);
+  const INTEGRE = /Instagram|FBAN|FBAV|FB_IAB|FBIOS|Messenger|Snapchat|TikTok|musical_ly|Bytedance|\bLine\/|LinkedInApp|Pinterest|Twitter/i.test(UA);
+  const IOS = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+
+  const q = new URLSearchParams(location.search);
+  const etat = {
+    pseudo: (q.get("pseudo") || "pmc").slice(0, 16),
+    score: Math.max(0, parseInt(q.get("score") || "12480", 10) || 0),
+    potes: Math.max(0, Math.min(9, parseInt(q.get("potes") || "5", 10) || 0)),
+    ligue: (q.has("ligue") ? q.get("ligue") : "PMCMP").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6),
+  };
+  const lien = () => `${C.lienJeu || "https://pmcmp3.github.io/jai-un-pote-v2/"}${etat.ligue ? `?ligue=${encodeURIComponent(etat.ligue)}` : ""}`;
+  const texteAmie = () => `J'ai fait ${nombre(etat.score)} pts à « J'ai un pote », le jeu de PMC. Viens dans ma ligue et essaie de me battre :`;
+  const nombre = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  // --- Journal visible : sur téléphone, pas de console. --------------------
+  const journal = $("journal");
+  function noter(t) { const h = new Date().toLocaleTimeString("fr-FR"); journal.textContent = `${h}  ${t}\n` + journal.textContent; }
+  function dire(t, echec = false) { const m = $("message"); m.textContent = t; m.classList.toggle("echec", echec); }
+
+  // --- Dessin de la story ----------------------------------------------------
+  const W = 1080, H = 1920;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const fond = new Image();
+  const SERIF = '"Source Serif 2", Georgia, serif', SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+
+  // Lettres espacées à la main (ctx.letterSpacing manque sur les Safari anciens).
+  function espace(t, x, y, ecart, align = "center") {
+    const larg = [...t].reduce((a, c) => a + ctx.measureText(c).width, 0) + ecart * (t.length - 1);
+    let cx = align === "center" ? x - larg / 2 : align === "right" ? x - larg : x;
+    const avant = ctx.textAlign; ctx.textAlign = "left";
+    for (const c of t) { ctx.fillText(c, cx, y); cx += ctx.measureText(c).width + ecart; }
+    ctx.textAlign = avant;
+    return larg;
+  }
+  function rect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function sticker(t, cx, cy, taille, fondC, encre, angle = -2) {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate((angle * Math.PI) / 180);
+    ctx.font = `700 ${taille}px ${SANS}`;
+    const e = taille * 0.14, l = [...t].reduce((a, c) => a + ctx.measureText(c).width, 0) + e * (t.length - 1);
+    const px = taille * 0.75, h = taille * 1.9;
+    ctx.fillStyle = fondC; ctx.fillRect(-l / 2 - px, -h / 2, l + 2 * px, h);
+    ctx.fillStyle = encre; ctx.textBaseline = "middle"; espace(t, 0, 2, e);
+    ctx.restore();
+  }
+
+  function dessiner() {
+    ctx.clearRect(0, 0, W, H);
+    // Fond : vraie image du jeu (coucher de soleil, peloton de 5 potes),
+    // calée en haut ; le bas du champ est rogné.
+    const k = W / fond.naturalWidth;
+    ctx.drawImage(fond, 0, 0, W, fond.naturalHeight * k);
+    // Voile en haut : la barre d'Instagram (photo de profil, croix) reste lisible.
+    let g = ctx.createLinearGradient(0, 0, 0, 260); g.addColorStop(0, "rgba(13,13,16,0.35)"); g.addColorStop(1, "rgba(13,13,16,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 260);
+
+    // Carte du score, dans le ciel (y 300 → 780), sous la zone d'Instagram.
+    const cx = 90, cy = 300, cw = W - 180, ch = 470;
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.18)"; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+    rect(cx, cy, cw, ch, 10); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
+    rect(cx, cy, cw, ch, 10); ctx.lineWidth = 4.5; ctx.strokeStyle = "#0d0d10"; ctx.stroke();
+    sticker("J'AI UN POTE", W / 2, cy, 34, "#e13e26", "#fff");
+
+    ctx.textBaseline = "alphabetic"; ctx.fillStyle = "rgba(13,13,16,0.6)";
+    ctx.font = `700 34px ${SANS}`;
+    espace(`${etat.pseudo.toUpperCase()} A FAIT`, W / 2, cy + 115, 5);
+
+    // Score : la serif du jeu, aussi grande que la carte le permet.
+    const s = nombre(etat.score);
+    let taille = 230;
+    ctx.font = `900 ${taille}px ${SERIF}`;
+    const pts = 64;
+    const largeur = () => ctx.measureText(s).width + 18 + pts * 1.6;
+    while (largeur() > cw - 90 && taille > 80) { taille -= 6; ctx.font = `900 ${taille}px ${SERIF}`; }
+    const total = largeur(), x0 = W / 2 - total / 2, base = cy + 115 + 40 + taille * 0.78;
+    ctx.fillStyle = "#0d0d10"; ctx.textAlign = "left"; ctx.fillText(s, x0, base);
+    ctx.font = `900 ${pts}px ${SERIF}`; ctx.fillText("pts", x0 + total - pts * 1.6, base);
+
+    ctx.textAlign = "center"; ctx.font = `500 38px ${SANS}`; ctx.fillStyle = "#0d0d10";
+    const avec = etat.potes === 0 ? "tout seul, sans aucun pote" : etat.potes === 1 ? "avec 1 pote" : `avec ${etat.potes} potes`;
+    ctx.fillText(avec, W / 2, cy + ch - 52);
+
+    // Le milieu (y ~830 → 1300) reste libre : arbres et peloton. C'est là
+    // qu'Instagram pose le sticker lien (au centre de l'écran, y 960).
+
+    // Bas : l'appel et le code de ligue (repli si personne ne met le sticker :
+    // le code se tape dans « Rejoindre » du menu).
+    if (etat.ligue) {
+      sticker("REJOINS MA LIGUE", W / 2, 1478, 40, "#0d0d10", "#fff", -2);
+      const bw = 560, bh = 150, bx = (W - bw) / 2, by = 1535;
+      rect(bx, by, bw, bh, 10); ctx.fillStyle = "#fff"; ctx.fill();
+      ctx.save(); ctx.setLineDash([16, 12]); ctx.lineWidth = 4; ctx.strokeStyle = "rgba(13,13,16,0.45)"; rect(bx, by, bw, bh, 10); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = "#e13e26"; ctx.font = `900 92px ${SANS}`; ctx.textBaseline = "middle";
+      espace(etat.ligue, W / 2, by + bh / 2 - 8, 16);
+      ctx.fillStyle = "rgba(13,13,16,0.5)"; ctx.font = `700 22px ${SANS}`; ctx.textBaseline = "alphabetic";
+      espace("CODE DE LIGUE", W / 2, by + bh - 14, 4);
+    } else {
+      sticker("VIENS ME BATTRE", W / 2, 1530, 44, "#0d0d10", "#fff", -2);
+    }
+    ctx.fillStyle = "rgba(13,13,16,0.6)"; ctx.font = `700 26px ${SANS}`; ctx.textBaseline = "alphabetic";
+    espace("UN JEU DE PMC · @PMC.MP3", W / 2, 1752, 4);
+  }
+
+  // Le fichier est fabriqué AVANT le geste : navigator.share() doit partir
+  // dans la pile d'appel du tap, et toBlob() est asynchrone.
+  let fichier = null, urlImage = null, generation = 0;
+  async function fabriquer() {
+    const n = ++generation;
+    dessiner();
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.92));
+    if (n !== generation || !blob) return;
+    fichier = new File([blob], "jai-un-pote-story.jpg", { type: "image/jpeg", lastModified: Date.now() });
+    if (urlImage) URL.revokeObjectURL(urlImage);
+    urlImage = URL.createObjectURL(blob);
+    $("image").src = urlImage;
+    diagnostic();
+  }
+
+  // --- Copie fiable (même méthode que le jeu : execCommand DANS le geste) ---
+  function copier(t) {
+    let ok = false;
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = t; ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;width:2px;height:2px;opacity:0;border:0;padding:0;font-size:16px";
+      document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, t.length);
+      ok = document.execCommand("copy"); ta.remove();
+      const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges();
+    } catch (e) { ok = false; }
+    if (!ok && navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(() => noter("copie : ok (API presse-papiers)"), () => noter("copie : refusée")); return null; }
+    return ok;
+  }
+  const peutFichier = () => !!(fichier && navigator.canShare && (() => { try { return navigator.canShare({ files: [fichier] }); } catch (e) { return false; } })());
+
+  function partager(donnees, quoi) {
+    return navigator.share(donnees).then(
+      () => { noter(`${quoi} : partagé ✓`); return "ok"; },
+      (e) => { noter(`${quoi} : ${e && e.name} ${e && e.message ? "— " + e.message : ""}`); return e && e.name === "AbortError" ? "annule" : "echec"; });
+  }
+
+  $("btn-story").addEventListener("click", async () => {
+    const copie = copier(lien());
+    noter(`copie du lien : ${copie === true ? "ok" : copie === null ? "en cours" : "refusée"}`);
+    if (!peutFichier()) {
+      dire("Ce navigateur ne sait pas envoyer une image. Appuie longuement sur l'image, puis Enregistrer.", true);
+      noter("story : partage de fichier indisponible");
+      return;
+    }
+    const r = await partager({ files: [fichier] }, "story");
+    if (r === "ok") dire(copie !== false ? "Lien copié ✓ Dans Instagram : sticker → Lien → coller." : "Image partagée. Le lien n'a pas pu être copié : touche « Copier le lien seul ».", copie === false);
+    else if (r === "echec") dire("Le partage a échoué. Appuie longuement sur l'image, puis Enregistrer.", true);
+  });
+
+  $("btn-amie").addEventListener("click", async () => {
+    const texte = `${texteAmie()} ${lien()}`;
+    if (peutFichier() && navigator.canShare({ files: [fichier], text: texte })) {
+      const r = await partager({ files: [fichier], text: texte }, "amie (image + lien)");
+      if (r === "ok") dire("Envoyé ✓");
+      if (r !== "echec") return;
+    }
+    if (navigator.share) {
+      const r = await partager({ title: "J'ai un pote", text: texteAmie(), url: lien() }, "amie (lien seul)");
+      if (r === "ok") dire("Envoyé ✓");
+      if (r !== "echec") return;
+    }
+    location.href = `https://wa.me/?text=${encodeURIComponent(texte)}`;
+    noter("amie : repli WhatsApp");
+  });
+
+  $("btn-copier").addEventListener("click", (e) => {
+    const ok = copier(lien());
+    noter(`copie seule : ${ok === true ? "ok" : ok === null ? "en cours" : "refusée"}`);
+    if (ok !== false) { e.currentTarget.textContent = "Lien copié ✓"; e.currentTarget.classList.add("fait"); dire(lien()); }
+    else dire("Copie bloquée par ce navigateur. Le lien : " + lien(), true);
+  });
+
+  $("btn-lien").addEventListener("click", () => {
+    if (!navigator.share) { location.href = `https://wa.me/?text=${encodeURIComponent(texteAmie() + " " + lien())}`; return; }
+    partager({ title: "J'ai un pote", text: texteAmie(), url: lien() }, "lien seul");
+  });
+
+  $("voir-fantome").addEventListener("change", (e) => $("apercu").classList.toggle("sans-fantome", !e.target.checked));
+
+  // Champs : changer les chiffres régénère l'image.
+  const champs = { pseudo: $("f-pseudo"), score: $("f-score"), potes: $("f-potes"), ligue: $("f-ligue") };
+  for (const [cle, el] of Object.entries(champs)) {
+    el.value = etat[cle];
+    el.addEventListener("input", () => {
+      if (cle === "pseudo") etat.pseudo = el.value.trim().slice(0, 16) || "pmc";
+      if (cle === "score") etat.score = Math.max(0, parseInt(el.value.replace(/\D/g, ""), 10) || 0);
+      if (cle === "potes") etat.potes = Math.max(0, Math.min(9, parseInt(el.value, 10) || 0));
+      if (cle === "ligue") etat.ligue = el.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+      clearTimeout(fabriquer.t); fabriquer.t = setTimeout(fabriquer, 250);
+    });
+  }
+
+  function diagnostic() {
+    const lignes = [
+      ["Navigateur", DANS_INSTA ? "celui d'Instagram" : INTEGRE ? "intégré à une appli" : IOS ? "Safari / iPhone" : "navigateur normal", null],
+      ["Système", IOS ? "iPhone" : /Android/i.test(UA) ? "Android" : "ordinateur", null],
+      ["Partage natif", navigator.share ? "oui" : "non", !!navigator.share],
+      ["Partager une image", peutFichier() ? "oui" : "non", peutFichier()],
+      ["Presse-papiers", document.queryCommandSupported && document.queryCommandSupported("copy") ? "oui" : "?", true],
+    ];
+    $("diag").innerHTML = lignes.map(([a, b, ok]) => `<li>${a} : <span class="${ok === null ? "" : ok ? "ok" : "non"}">${b}</span></li>`).join("");
+  }
+
+  fond.onload = () => document.fonts.load(`900 100px "Source Serif 2"`).catch(() => {}).then(fabriquer);
+  fond.onerror = () => noter("fond introuvable");
+  fond.src = "assets/story-fond.webp";
+  diagnostic();
+})();
+</script>
+</body>
+</html>
