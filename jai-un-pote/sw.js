@@ -2,7 +2,7 @@
 // la page sont mis en cache au premier passage.
 // Page et config : réseau d'abord (une mise à jour est vue tout de suite),
 // repli cache hors ligne. Tout le reste : cache d'abord, puis réseau.
-const CACHE = "jp2-v48"; // à incrémenter à chaque mise en ligne : les anciens caches sont effacés à l'activation
+const CACHE = "jp2-v49"; // à incrémenter à chaque mise en ligne : les anciens caches sont effacés à l'activation
 const PRECACHE = ["./", "./config.js", "./reglement.html", "./assets/jai-un-pote.mp3", "./assets/pff-aie.mp3", "./fonts/SourceSerif2-Black.woff2", "./fonts/StageGrotesk-Medium.otf", "./fonts/StageGrotesk-Black.otf"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

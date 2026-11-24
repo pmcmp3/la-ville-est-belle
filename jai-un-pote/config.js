@@ -160,6 +160,10 @@ window.CONFIG = {
   jetpackUneSur: 5,
   jetpackPartie: 3,
   jetpackTempsS: 70,
+  // Première partie d'un joueur : un jetpack TOUJOURS, plus tôt (on le
+  // découvre dès l'initiation) ; ensuite, la règle d'une partie sur cinq.
+  jetpackPremierePartie: true,
+  jetpackPremiereTempsS: 60,
   jetpackDureeS: 10,
   jetpackPoussee: 30,       // u/s² vers le haut, doigt appuyé
   jetpackGravite: 15,       // u/s² vers le bas, doigt levé (moins qu'un saut : on plane)
